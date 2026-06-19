@@ -122,7 +122,11 @@ def scan() -> list[DeviceCaps]:
         raise RuntimeError("python-evdev is required (Linux only).")
     result: list[DeviceCaps] = []
     for path in sorted(evdev.list_devices()):
-        caps = describe(path)
+        try:
+            caps = describe(path)
+        except OSError:
+            # Unreadable node (permissions, just-unplugged) — skip it.
+            continue
         if caps.looks_like_controller:
             result.append(caps)
     return result
