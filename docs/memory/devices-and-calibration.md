@@ -10,21 +10,35 @@ Parent: [../../MEMORY.md](../../MEMORY.md)
 | `trim` | Saitek Cessna Trim Wheel | `06a3:0bd4` | 1 (trim) | – |
 | `pedals` | Saitek Rudder Pedals | `06a3:0763` | 3 (rudder + 2 toe brakes) | – |
 
-## ⚠️ OPEN TASK — discovery & calibration (blocked on hardware)
-As of **2026-06-19** none of the four devices were connected (the machine only
-had a Logitech headset + 2 Razer mice/keyboards + a webcam). Before mapping can
-be finalised we must, **with the hardware plugged in**:
+## ✅ CONFIRMED LAYOUT (scanned 2026-06-19, all 4 connected)
+| id | evdev name | USB | axes (code · range · rest) | hats | buttons |
+|----|-----------|-----|----------------------------|------|---------|
+| `yoke` | Vitaly … Fulcrum One Yoke | **0000:0000** | ABS_X(0) 0–4095 rest 2741 = roll; ABS_Y(1) 0–4095 rest 1870 = pitch | HAT0X, HAT0Y | 8 |
+| `tq6` | VirtualFly - TQ6+ | 16d0:0da2 | 6 levers ABS_X..ABS_RZ (codes 0–5), each 0–4096 | – | 0 |
+| `trim` | Saitek Pro Flight Cessna Trim Wheel | 06a3:0bd4 | ABS_X(0) 0–1023 | – | 0 |
+| `pedals` | Saitek Pro Flight Rudder Pedals | 06a3:0763 | ABS_RZ(5) 0–511 rest 249 = **rudder**; ABS_X(0) & ABS_Y(1) 0–127 = **toe brakes** | – | 0 |
 
-1. `uv run msfs-bridge scan`
-   - confirm each device's real **axis codes**, **ranges**, **button codes** and
-     **hat** (`ABS_HAT0X/Y`);
-   - capture the **Fulcrum yoke's real USB id** (it is a placeholder now) and
-     update both `config/devices.yaml` and `999-flightsim-override.rules`.
-2. `uv run msfs-bridge monitor <id>` — identify which code is which physical
-   pot/button/hat direction (esp. TQ6+ lever order, pedal toe-brake polarity).
-3. `uv run msfs-bridge calibrate <id>` — record raw min/max/center per axis into
-   `config/calibration.yaml`; then transcribe ranges into the profile bindings
-   (or wire calibration auto-merge — see [roadmap.md](roadmap.md)).
+Key facts learned:
+- **Fulcrum yoke truly reports 0000:0000** (not a placeholder typo) — shared
+  with audio nodes, so the catalog matches it by `name_match: "Fulcrum"`
+  (new `DeviceDef.name_match` field + `DeviceDef.matches()`).
+- Yoke **rest is off-centre** (roll 2741, pitch 1870 of 0–4095) → needs
+  centre-aware calibration, not just min/max.
+- Pedals/trim/throttle have **no buttons** → the `scan` heuristic was fixed to
+  detect pure-axis controllers (standard joystick axis code < 0x10, or hats).
+- TQ6+ sometimes fails to enumerate on first plug; a re-plug fixed it.
+
+## ⚠️ STILL OPEN — semantics + precise calibration
+Codes/ranges are known; still to confirm **with the user moving controls**:
+1. **TQ6+ lever→function**: which of codes 0–5 is throttle1/2, prop1/2,
+   mixture1/2 → `monitor tq6`, move one lever at a time.
+2. **Pedals L/R**: which of ABS_X(0)/ABS_Y(1) is left vs right toe brake;
+   rudder polarity → `monitor pedals`.
+3. **Yoke directions**: pitch/roll invert + hat directions.
+4. Then `calibrate <id>` per device for exact min/max/centre.
+
+`profiles/cessna_172.yaml` now uses the confirmed codes/ranges but marks the
+lever→function and L/R brake assignments TENTATIVE.
 
 Notes:
 - Saitek devices are **potentiometer-based** → add small deadzones, expect drift.

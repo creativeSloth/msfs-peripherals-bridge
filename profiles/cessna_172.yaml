@@ -1,5 +1,5 @@
 name: "Cessna 172 Skyhawk (G1000)"
-description: "Default GA single-engine mapping. Axis codes are placeholders - verify with `evtest`."
+description: "GA single-engine mapping. Axis codes/ranges confirmed by `scan` 2026-06-19; lever->function and L/R brake still need `monitor`."
 
 aircraft_match:
   - "C172"
@@ -7,42 +7,52 @@ aircraft_match:
   - "Skyhawk"
 
 bindings:
+  # Fulcrum One Yoke: ABS_X=roll, ABS_Y=pitch, 0..4095 (12-bit).
+  # NOTE: resting position is off-centre (roll~2741, pitch~1870), so absolute
+  # min/max normalisation puts centre slightly off 0 until centre-aware
+  # calibration lands (see roadmap). Run `calibrate yoke` to refine.
   yoke:
-    - name: "Aileron"
-      source: { kind: axis, code: 0, raw_min: -32768, raw_max: 32767 }
+    - name: "Aileron (roll)"
+      source: { kind: axis, code: 0, raw_min: 0, raw_max: 4095 }
       action: { type: event, event: AILERON_SET }
       transform: { deadzone: 0.03, curve: expo, expo: 0.25, out_min: -16383, out_max: 16383 }
-    - name: "Elevator"
-      source: { kind: axis, code: 1, raw_min: -32768, raw_max: 32767 }
+    - name: "Elevator (pitch)"
+      source: { kind: axis, code: 1, raw_min: 0, raw_max: 4095 }
       action: { type: event, event: ELEVATOR_SET }
       transform: { deadzone: 0.03, curve: expo, expo: 0.25, invert: true, out_min: -16383, out_max: 16383 }
 
+  # VirtualFly TQ6+: 6 levers on codes 0..5 (ABS_X,Y,Z,RX,RY,RZ), each 0..4096.
+  # TENTATIVE lever->code: confirm which physical lever is which with
+  # `msfs-bridge monitor tq6` before trusting these.
   tq6:
-    - name: "Throttle 1"
-      source: { kind: axis, code: 0, raw_min: 0, raw_max: 1023 }
+    - name: "Throttle 1 (TENTATIVE code)"
+      source: { kind: axis, code: 0, raw_min: 0, raw_max: 4096 }
       action: { type: event, event: THROTTLE1_SET }
-      transform: { deadzone: 0.0, curve: linear, out_min: -16383, out_max: 16383 }
-    - name: "Mixture 1"
-      source: { kind: axis, code: 1, raw_min: 0, raw_max: 1023 }
+      transform: { out_min: -16383, out_max: 16383 }
+    - name: "Mixture 1 (TENTATIVE code)"
+      source: { kind: axis, code: 4, raw_min: 0, raw_max: 4096 }
       action: { type: event, event: MIXTURE1_SET }
       transform: { out_min: -16383, out_max: 16383 }
 
+  # Saitek Cessna Trim Wheel: single axis ABS_X, 0..1023.
   trim:
     - name: "Elevator trim"
-      source: { kind: axis, code: 7, raw_min: -32768, raw_max: 32767 }
+      source: { kind: axis, code: 0, raw_min: 0, raw_max: 1023 }
       action: { type: event, event: ELEVATOR_TRIM_SET }
       transform: { out_min: -16383, out_max: 16383 }
 
+  # Saitek Rudder Pedals: ABS_RZ(5)=rudder (centred ~249/511);
+  # ABS_X(0) & ABS_Y(1)=toe brakes (0..127). Confirm L/R with `monitor pedals`.
   pedals:
     - name: "Rudder"
-      source: { kind: axis, code: 5, raw_min: -32768, raw_max: 32767 }
+      source: { kind: axis, code: 5, raw_min: 0, raw_max: 511 }
       action: { type: event, event: RUDDER_SET }
       transform: { deadzone: 0.05, out_min: -16383, out_max: 16383 }
-    - name: "Brake left"
-      source: { kind: axis, code: 2, raw_min: 0, raw_max: 32767 }
+    - name: "Brake left (confirm L/R)"
+      source: { kind: axis, code: 0, raw_min: 0, raw_max: 127 }
       action: { type: event, event: AXIS_LEFT_BRAKE_SET }
       transform: { out_min: -16383, out_max: 16383 }
-    - name: "Brake right"
-      source: { kind: axis, code: 3, raw_min: 0, raw_max: 32767 }
+    - name: "Brake right (confirm L/R)"
+      source: { kind: axis, code: 1, raw_min: 0, raw_max: 127 }
       action: { type: event, event: AXIS_RIGHT_BRAKE_SET }
       transform: { out_min: -16383, out_max: 16383 }

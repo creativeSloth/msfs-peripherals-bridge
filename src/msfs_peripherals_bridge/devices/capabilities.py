@@ -57,13 +57,22 @@ class DeviceCaps:
 
     @property
     def looks_like_controller(self) -> bool:
-        """Heuristic: has absolute axes and joystick/gamepad-style buttons."""
-        if not self.axes:
-            return False
-        return any(
-            name.startswith(("BTN_JOYSTICK", "BTN_GAMEPAD", "BTN_TRIGGER", "BTN_"))
+        """Heuristic for a flight/game controller.
+
+        True if it has a standard joystick/gamepad axis (ABS_X..ABS_BRAKE,
+        codes < 0x10), a hat, or joystick-style buttons. This includes
+        pure-axis devices (rudder pedals, trim wheel, throttle quadrant) and
+        excludes mice/keyboards whose only "axes" are ABS_VOLUME / ABS_MISC
+        (codes >= 0x20).
+        """
+        has_joystick_axis = any(a.code < 0x10 for a in self.analog_axes)
+        has_joystick_button = any(
+            name.startswith(
+                ("BTN_JOYSTICK", "BTN_GAMEPAD", "BTN_TRIGGER", "BTN_THUMB", "BTN_BASE", "BTN_TOP")
+            )
             for _, name in self.buttons
         )
+        return has_joystick_axis or bool(self.hats) or has_joystick_button
 
 
 def _first_name(value: object, fallback: str) -> str:

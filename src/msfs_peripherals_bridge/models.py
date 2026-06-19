@@ -102,10 +102,21 @@ class DeviceDef(BaseModel):
     name: str
     vendor: str = Field(..., description="USB idVendor, hex string e.g. '16d0'.")
     product: str = Field(..., description="USB idProduct, hex string e.g. '0da2'.")
+    # Some devices report a useless USB id (the Fulcrum yoke is genuinely
+    # 0000:0000, shared with audio nodes). An optional case-insensitive
+    # substring of the evdev device name disambiguates those.
+    name_match: str | None = None
 
     @property
     def usb_key(self) -> tuple[int, int]:
         return (int(self.vendor, 16), int(self.product, 16))
+
+    def matches(self, vendor: int, product: int, name: str) -> bool:
+        if (vendor, product) != self.usb_key:
+            return False
+        if self.name_match is not None:
+            return self.name_match.lower() in name.lower()
+        return True
 
 
 class DeviceCatalog(BaseModel):

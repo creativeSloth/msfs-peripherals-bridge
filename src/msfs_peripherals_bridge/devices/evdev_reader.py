@@ -37,13 +37,15 @@ def discover(catalog: DeviceCatalog) -> dict[str, str]:
     if not _HAS_EVDEV:
         raise RuntimeError("python-evdev is required to read devices (Linux only).")
     found: dict[str, str] = {}
-    wanted = {d.usb_key: d.id for d in catalog.devices}
     for path in evdev.list_devices():
         dev = evdev.InputDevice(path)
-        key = (dev.info.vendor, dev.info.product)
-        if key in wanted:
-            found[wanted[key]] = path
-            log.info("Found %s at %s", wanted[key], path)
+        for definition in catalog.devices:
+            if definition.id in found:
+                continue
+            if definition.matches(dev.info.vendor, dev.info.product, dev.name):
+                found[definition.id] = path
+                log.info("Found %s at %s", definition.id, path)
+                break
     return found
 
 

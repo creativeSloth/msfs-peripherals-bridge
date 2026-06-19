@@ -3,8 +3,12 @@
 devices:
   - id: yoke
     name: Fulcrum One Yoke
-    vendor: "0000"        # TODO: confirm real idVendor (run `lsusb`), placeholder!
-    product: "0000"       # TODO: confirm real idProduct
+    # The Fulcrum One genuinely reports 0000:0000 (shared with audio nodes),
+    # so it is disambiguated by name. Confirmed via `scan` on 2026-06-19:
+    # ABS_X/ABS_Y 0..4095 (12-bit), 2 hats (ABS_HAT0X/Y), 8 buttons.
+    vendor: "0000"
+    product: "0000"
+    name_match: "Fulcrum"
 
   - id: tq6
     name: VirtualFly TQ6+
