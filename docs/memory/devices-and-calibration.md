@@ -60,15 +60,24 @@ Implication for mapping (single-engine like C172 / Turbo Arrow III):
 - True reverse/feather/cut-off **events** only matter for twins/turboprops →
   the general "detent-zone action" engine is a future feature (see roadmap).
 
-## ⚠️ STILL OPEN — remaining devices
-TQ6 done. Still to capture **with the user moving controls**:
-2. **Pedals L/R**: which of ABS_X(0)/ABS_Y(1) is left vs right toe brake;
-   rudder polarity → `monitor pedals`.
-3. **Yoke directions**: pitch/roll invert + hat directions.
-4. Then `calibrate <id>` per device for exact min/max/centre.
+## ▶️ RESUME HERE (paused 2026-06-19, user tired) — calibrate the PEDALS next
+TQ6+ is fully done (codes, ranges, detents, direction, profile). **Next session
+starts with the rudder pedals**, then the yoke. Exact steps for pedals:
 
-`profiles/cessna_172.yaml` now uses the confirmed codes/ranges but marks the
-lever→function and L/R brake assignments TENTATIVE.
+1. Sweep min/max:
+   `uv run msfs-bridge calibrate pedals --seconds 15`
+   (press both toe brakes fully several times + move rudder full left/right).
+2. Identify L/R brake: press ONLY the LEFT toe brake, then
+   `uv run msfs-bridge snapshot pedals` → whichever of ABS_X(0)/ABS_Y(1) rises
+   is the LEFT brake. Confirm rudder polarity (ABS_RZ code 5) too.
+3. Update `profiles/cessna_172.yaml` pedals block (currently L/R is a guess).
+
+Then the **yoke**: pitch/roll direction (invert?), the 8 buttons, the hat
+(ABS_HAT0X/Y), and its off-centre rest (roll 2741 / pitch 1870 of 0..4095) →
+needs centre-aware calibration. Reminder: run commands via `cd ~/Dokumente/
+Projekte/msfs-peripherals-bridge && uv run msfs-bridge …` over Claude Code's `!`.
+
+`profiles/cessna_172.yaml` pedals L/R assignment is still TENTATIVE.
 
 Notes:
 - Saitek devices are **potentiometer-based** → add small deadzones, expect drift.
