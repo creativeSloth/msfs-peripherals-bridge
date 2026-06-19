@@ -121,29 +121,42 @@ def monitor(
 @app.command()
 def calibrate(
     device: str = typer.Argument(..., help="Catalog device id to calibrate."),
-    seconds: float = typer.Option(8.0, help="Recording window length."),
+    seconds: float = typer.Option(
+        0.0, help="Auto-stop after N seconds. 0 = run until you press Ctrl-C."
+    ),
 ) -> None:
-    """Record axis ranges/centres and seen buttons/hats into calibration.yaml."""
+    """Record axis ranges/centres and seen buttons/hats into calibration.yaml.
+
+    Recording starts immediately (no prompt — works over Claude Code's `!`).
+    Move every axis through its FULL travel, then press Ctrl-C to stop and save.
+    """
     from .devices import calibration
 
     path = _device_path(device)
+    limit = f"for {seconds:.0f}s" if seconds > 0 else "until you press Ctrl-C"
     console.print(
-        f"[bold]Calibrating {device}[/bold] for {seconds:.0f}s.\n"
-        "Move EVERY axis through its full travel, work the hat in all directions\n"
-        "and press every button. Then let everything rest for the centre point."
+        f"[bold]Recording {device} {limit}.[/bold] Move EVERY axis through its full\n"
+        "travel (and work hats/buttons). [bold]Press Ctrl-C when done.[/bold]"
     )
-    typer.confirm("Ready?", default=True, abort=True)
     result = calibration.record(device, path, seconds)
 
     cal_path = config.calibration_file()
     store = calibration.load_calibration(cal_path)
+    # Preserve any detents already captured (snapshot --save-detent).
+    previous = store.devices.get(device)
+    if previous is not None:
+        for code, ax in result.axes.items():
+            if code in previous.axes and previous.axes[code].detent is not None:
+                ax.detent = previous.axes[code].detent
     store.devices[device] = result
     calibration.save_calibration(cal_path, store)
 
     console.print(f"\n[green]Saved[/green] to {cal_path}")
     for ax in result.axes.values():
+        detent = f", detent {ax.detent}" if ax.detent is not None else ""
         console.print(
-            f"  axis {ax.name or ax.code}: {ax.raw_min}..{ax.raw_max} (center {ax.center})"
+            f"  axis {ax.name or ax.code}: {ax.raw_min}..{ax.raw_max} "
+            f"(center {ax.center}{detent})"
         )
     console.print(f"  buttons seen: {result.buttons or '-'}")
     console.print(f"  hats seen: {result.hats or '-'}")

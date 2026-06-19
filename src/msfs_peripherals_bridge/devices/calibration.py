@@ -93,12 +93,16 @@ def set_detents_from_current(
     return captured
 
 
-def record(device_id: str, path: str, seconds: float = 8.0) -> DeviceCalibration:
-    """Read a device for ``seconds`` and build a calibration from what moved.
+def record(device_id: str, path: str, seconds: float = 0.0) -> DeviceCalibration:
+    """Record axis ranges + seen buttons/hats by watching the device move.
 
-    The caller should move every axis through its full travel and press
-    every button/hat during the window.
+    Runs until Ctrl-C (KeyboardInterrupt). If ``seconds > 0`` it also stops
+    after that many seconds. The caller should move every axis through its full
+    travel and press every button/hat while it runs. Stopping early (Ctrl-C)
+    still returns whatever was captured so far.
     """
+    import select
+
     from . import capabilities  # local import keeps evdev optional
     from .capabilities import _HAS_EVDEV
 
@@ -121,36 +125,38 @@ def record(device_id: str, path: str, seconds: float = 8.0) -> DeviceCalibration
     dev = evdev.InputDevice(path)
     buttons: set[int] = set()
     hats: set[int] = set()
-    deadline = time.monotonic() + seconds
-    while time.monotonic() < deadline:
-        for ev in dev.read():
-            if ev.type == ecodes.EV_ABS:
-                if is_hat.get(ev.code):
-                    if ev.value != 0:
-                        hats.add(ev.code)
-                    continue
-                ax = cal.axes.get(ev.code)
-                if ax is None:
-                    ax = AxisCalibration(
-                        code=ev.code,
-                        name=axis_names.get(ev.code, ""),
-                        raw_min=ev.value,
-                        raw_max=ev.value,
-                        center=ev.value,
-                    )
-                    cal.axes[ev.code] = ax
-                ax.raw_min = min(ax.raw_min, ev.value)
-                ax.raw_max = max(ax.raw_max, ev.value)
-            elif ev.type == ecodes.EV_KEY and ev.value == 1:
-                buttons.add(ev.code)
-        time.sleep(0.01)
+    deadline = time.monotonic() + seconds if seconds > 0 else None
+    try:
+        while deadline is None or time.monotonic() < deadline:
+            ready, _, _ = select.select([dev.fd], [], [], 0.2)
+            if not ready:
+                continue
+            for ev in dev.read():
+                if ev.type == ecodes.EV_ABS:
+                    if is_hat.get(ev.code):
+                        if ev.value != 0:
+                            hats.add(ev.code)
+                        continue
+                    ax = cal.axes.get(ev.code)
+                    if ax is None:
+                        ax = AxisCalibration(
+                            code=ev.code,
+                            name=axis_names.get(ev.code, ""),
+                            raw_min=ev.value,
+                            raw_max=ev.value,
+                            center=ev.value,
+                        )
+                        cal.axes[ev.code] = ax
+                    ax.raw_min = min(ax.raw_min, ev.value)
+                    ax.raw_max = max(ax.raw_max, ev.value)
+                elif ev.type == ecodes.EV_KEY and ev.value == 1:
+                    buttons.add(ev.code)
+    except KeyboardInterrupt:
+        pass
 
     # Resting position = current value after the user lets go.
     for ax in cal.axes.values():
-        for a in caps.axes:
-            if a.code == ax.code:
-                ax.center = evdev.InputDevice(path).absinfo(ax.code).value
-                break
+        ax.center = dev.absinfo(ax.code).value
     cal.buttons = sorted(buttons)
     cal.hats = sorted(hats)
     return cal
