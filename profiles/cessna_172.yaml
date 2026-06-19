@@ -1,0 +1,48 @@
+name: "Cessna 172 Skyhawk (G1000)"
+description: "Default GA single-engine mapping. Axis codes are placeholders - verify with `evtest`."
+
+aircraft_match:
+  - "C172"
+  - "Cessna 172"
+  - "Skyhawk"
+
+bindings:
+  yoke:
+    - name: "Aileron"
+      source: { kind: axis, code: 0, raw_min: -32768, raw_max: 32767 }
+      action: { type: event, event: AILERON_SET }
+      transform: { deadzone: 0.03, curve: expo, expo: 0.25, out_min: -16383, out_max: 16383 }
+    - name: "Elevator"
+      source: { kind: axis, code: 1, raw_min: -32768, raw_max: 32767 }
+      action: { type: event, event: ELEVATOR_SET }
+      transform: { deadzone: 0.03, curve: expo, expo: 0.25, invert: true, out_min: -16383, out_max: 16383 }
+
+  tq6:
+    - name: "Throttle 1"
+      source: { kind: axis, code: 0, raw_min: 0, raw_max: 1023 }
+      action: { type: event, event: THROTTLE1_SET }
+      transform: { deadzone: 0.0, curve: linear, out_min: -16383, out_max: 16383 }
+    - name: "Mixture 1"
+      source: { kind: axis, code: 1, raw_min: 0, raw_max: 1023 }
+      action: { type: event, event: MIXTURE1_SET }
+      transform: { out_min: -16383, out_max: 16383 }
+
+  trim:
+    - name: "Elevator trim"
+      source: { kind: axis, code: 7, raw_min: -32768, raw_max: 32767 }
+      action: { type: event, event: ELEVATOR_TRIM_SET }
+      transform: { out_min: -16383, out_max: 16383 }
+
+  pedals:
+    - name: "Rudder"
+      source: { kind: axis, code: 5, raw_min: -32768, raw_max: 32767 }
+      action: { type: event, event: RUDDER_SET }
+      transform: { deadzone: 0.05, out_min: -16383, out_max: 16383 }
+    - name: "Brake left"
+      source: { kind: axis, code: 2, raw_min: 0, raw_max: 32767 }
+      action: { type: event, event: AXIS_LEFT_BRAKE_SET }
+      transform: { out_min: -16383, out_max: 16383 }
+    - name: "Brake right"
+      source: { kind: axis, code: 3, raw_min: 0, raw_max: 32767 }
+      action: { type: event, event: AXIS_RIGHT_BRAKE_SET }
+      transform: { out_min: -16383, out_max: 16383 }

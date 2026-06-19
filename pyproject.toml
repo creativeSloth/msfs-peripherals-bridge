@@ -1,0 +1,61 @@
+[project]
+name = "msfs-peripherals-bridge"
+version = "0.1.0"
+description = "Map Linux USB flight-sim peripherals to MSFS SimVars/events with per-aircraft profiles, via a SimConnect bridge running in the Proton/Wine prefix."
+readme = "README.md"
+requires-python = ">=3.11"
+license = { text = "MIT" }
+authors = [{ name = "Edgar Schwanebeck" }]
+keywords = ["msfs", "flightsim", "simconnect", "linux", "evdev", "hid", "proton"]
+
+dependencies = [
+    "pydantic>=2.6",
+    "pyyaml>=6.0",
+    "typer>=0.12",
+    "rich>=13.7",
+    "evdev>=1.7; sys_platform == 'linux'",
+]
+
+[project.optional-dependencies]
+dev = [
+    "pytest>=8.0",
+    "pytest-cov>=5.0",
+    "ruff>=0.5",
+    "mypy>=1.10",
+    "types-PyYAML>=6.0",
+]
+
+[project.scripts]
+msfs-bridge = "msfs_peripherals_bridge.cli:app"
+
+[project.urls]
+Repository = "https://github.com/creativeSloth/msfs_peripherals-bridge"
+
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[tool.hatch.build.targets.wheel]
+packages = ["src/msfs_peripherals_bridge"]
+
+[tool.uv]
+package = true
+
+[tool.ruff]
+line-length = 100
+src = ["src", "tests"]
+target-version = "py311"
+
+[tool.ruff.lint]
+select = ["E", "F", "I", "UP", "B", "SIM", "RUF"]
+
+[tool.mypy]
+python_version = "3.11"
+packages = ["msfs_peripherals_bridge"]
+strict = true
+ignore_missing_imports = true
+plugins = ["pydantic.mypy"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+addopts = "-q"

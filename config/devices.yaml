@@ -1,0 +1,22 @@
+# Device catalog. USB ids taken from 999-flightsim-override.rules.
+# `id` is the stable key that profiles reference.
+devices:
+  - id: yoke
+    name: Fulcrum One Yoke
+    vendor: "0000"        # TODO: confirm real idVendor (run `lsusb`), placeholder!
+    product: "0000"       # TODO: confirm real idProduct
+
+  - id: tq6
+    name: VirtualFly TQ6+
+    vendor: "16d0"
+    product: "0da2"
+
+  - id: trim
+    name: Saitek Cessna Trim Wheel
+    vendor: "06a3"
+    product: "0bd4"
+
+  - id: pedals
+    name: Saitek Pro Flight Rudder Pedals
+    vendor: "06a3"
+    product: "0763"

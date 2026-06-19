@@ -1,0 +1,57 @@
+# ==============================================================
+# Flight Sim Controller udev rules
+# Datei: /etc/udev/rules.d/99-flightsim.rules
+#
+# Nach Änderungen:
+#   sudo udevadm control --reload-rules && sudo udevadm trigger
+# ==============================================================
+
+
+# ==============================================================
+# hidraw-Nodes öffnen (Pflicht für Wine/Proton HID-Zugriff)
+# ==============================================================
+SUBSYSTEM=="hidraw", KERNEL=="hidraw*", ATTRS{idVendor}=="06a3", MODE="0666", TAG+="uaccess"
+SUBSYSTEM=="hidraw", KERNEL=="hidraw*", ATTRS{idVendor}=="16d0", MODE="0666", TAG+="uaccess"
+SUBSYSTEM=="hidraw", KERNEL=="hidraw*", ATTRS{idVendor}=="0000", MODE="0666", TAG+="uaccess"
+
+
+# ==============================================================
+# Saitek / Logitech (Vendor 06a3)
+# ==============================================================
+
+SUBSYSTEM=="usb", ATTRS{idVendor}=="06a3", MODE="0666", TAG+="uaccess"
+
+# Panels: vom X-Server isolieren (sonst als Maus erkannt)
+SUBSYSTEM=="input", ATTRS{idVendor}=="06a3", ATTRS{idProduct}=="0d06", ENV{LIBINPUT_IGNORE_DEVICE}="1"
+SUBSYSTEM=="input", ATTRS{idVendor}=="06a3", ATTRS{idProduct}=="0d05", ENV{LIBINPUT_IGNORE_DEVICE}="1"
+SUBSYSTEM=="input", ATTRS{idVendor}=="06a3", ATTRS{idProduct}=="0d67", ENV{LIBINPUT_IGNORE_DEVICE}="1"
+
+# Rudder Pedals (0763)
+SUBSYSTEM=="input", ATTRS{idVendor}=="06a3", ATTRS{idProduct}=="0763", ENV{ID_INPUT_JOYSTICK}="1", MODE="0666", TAG+="uaccess"
+SUBSYSTEM=="input", ATTRS{idVendor}=="06a3", ATTRS{idProduct}=="0763", KERNEL=="js*",    MODE="0666", TAG+="uaccess"
+SUBSYSTEM=="input", ATTRS{idVendor}=="06a3", ATTRS{idProduct}=="0763", KERNEL=="event*", MODE="0666", TAG+="uaccess"
+
+# Trim Wheel (0bd4)
+SUBSYSTEM=="input", ATTRS{idVendor}=="06a3", ATTRS{idProduct}=="0bd4", ENV{ID_INPUT_JOYSTICK}="1", MODE="0666", TAG+="uaccess"
+SUBSYSTEM=="input", ATTRS{idVendor}=="06a3", ATTRS{idProduct}=="0bd4", KERNEL=="js*",    MODE="0666", TAG+="uaccess"
+SUBSYSTEM=="input", ATTRS{idVendor}=="06a3", ATTRS{idProduct}=="0bd4", KERNEL=="event*", MODE="0666", TAG+="uaccess"
+
+
+# ==============================================================
+# VirtualFly TQ6+ (Vendor 16d0, Product 0da2)
+# ==============================================================
+
+SUBSYSTEM=="usb",   ATTRS{idVendor}=="16d0", ATTRS{idProduct}=="0da2", MODE="0666", TAG+="uaccess"
+SUBSYSTEM=="input", ATTRS{idVendor}=="16d0", ATTRS{idProduct}=="0da2", ENV{ID_INPUT_JOYSTICK}="1", MODE="0666", TAG+="uaccess"
+SUBSYSTEM=="input", ATTRS{idVendor}=="16d0", ATTRS{idProduct}=="0da2", KERNEL=="js*",    MODE="0666", TAG+="uaccess"
+SUBSYSTEM=="input", ATTRS{idVendor}=="16d0", ATTRS{idProduct}=="0da2", KERNEL=="event*", MODE="0666", TAG+="uaccess"
+
+
+# ==============================================================
+# Fulcrum One Yoke (ACHTUNG: Vendor/Product-ID noch zu prüfen!)
+# ==============================================================
+
+SUBSYSTEM=="usb",   ATTRS{idVendor}=="0000", ATTRS{idProduct}=="0000", MODE="0666", TAG+="uaccess"
+SUBSYSTEM=="input", ATTRS{idVendor}=="0000", ATTRS{idProduct}=="0000", ENV{ID_INPUT_JOYSTICK}="1", MODE="0666", TAG+="uaccess"
+SUBSYSTEM=="input", ATTRS{idVendor}=="0000", ATTRS{idProduct}=="0000", KERNEL=="js*",    MODE="0666", TAG+="uaccess"
+SUBSYSTEM=="input", ATTRS{idVendor}=="0000", ATTRS{idProduct}=="0000", KERNEL=="event*", MODE="0666", TAG+="uaccess"
