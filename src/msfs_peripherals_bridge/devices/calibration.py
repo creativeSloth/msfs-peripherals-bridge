@@ -23,6 +23,11 @@ class AxisCalibration(BaseModel):
     raw_min: int
     raw_max: int
     center: int
+    # Raw value of a mechanical detent ("0" notch), if the axis has one.
+    # On the TQ6+: throttle reverse, prop feather, mixture cut-off. Raw values
+    # below the detent are the special zone; at/above it is the normal 0..100%
+    # range. None for axes without a detent.
+    detent: int | None = None
 
 
 class DeviceCalibration(BaseModel):
@@ -49,6 +54,43 @@ def save_calibration(path: Path, calibration: CalibrationFile) -> None:
         yaml.safe_dump(calibration.model_dump(), sort_keys=True, allow_unicode=True),
         encoding="utf-8",
     )
+
+
+def current_axis_values(path: str) -> list[tuple[int, str, int]]:
+    """Snapshot the current raw value of every analog axis: (code, name, value)."""
+    from . import capabilities  # local import keeps evdev optional
+
+    caps = capabilities.describe(path)
+    return [(a.code, a.name, a.value) for a in caps.analog_axes]
+
+
+def set_detents_from_current(
+    store: CalibrationFile, device_id: str, path: str
+) -> dict[int, int]:
+    """Record the current axis positions as detents on the device calibration.
+
+    Creates the device/axis calibration entries if missing (seeding raw_min/max
+    from the driver-reported range). Returns {code: detent_value}.
+    """
+    from . import capabilities  # local import keeps evdev optional
+
+    caps = capabilities.describe(path)
+    device = store.devices.setdefault(device_id, DeviceCalibration(device_id=device_id))
+    captured: dict[int, int] = {}
+    for axis in caps.analog_axes:
+        cal = device.axes.get(axis.code)
+        if cal is None:
+            cal = AxisCalibration(
+                code=axis.code,
+                name=axis.name,
+                raw_min=axis.min,
+                raw_max=axis.max,
+                center=axis.value,
+            )
+            device.axes[axis.code] = cal
+        cal.detent = axis.value
+        captured[axis.code] = axis.value
+    return captured
 
 
 def record(device_id: str, path: str, seconds: float = 8.0) -> DeviceCalibration:

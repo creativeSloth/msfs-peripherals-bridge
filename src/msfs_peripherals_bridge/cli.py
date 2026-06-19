@@ -149,6 +149,41 @@ def calibrate(
     console.print(f"  hats seen: {result.hats or '-'}")
 
 
+@app.command()
+def snapshot(
+    device: str = typer.Argument(..., help="Catalog device id or /dev/input/eventX path."),
+    save_detent: bool = typer.Option(
+        False, "--save-detent", help="Store the current axis positions as detents."
+    ),
+) -> None:
+    """Print the current raw value of every axis (one-shot, no movement needed).
+
+    Position the levers where you want, then run this. With --save-detent it
+    records the current positions as the detent ('0' notch) of each axis into
+    config/calibration.yaml — e.g. put all TQ6+ levers on their detent first.
+    """
+    from .devices import calibration
+
+    path = _device_path(device)
+    table = Table(title=f"Axis snapshot — {device}")
+    table.add_column("code", style="cyan")
+    table.add_column("axis")
+    table.add_column("value")
+    for code, name, value in calibration.current_axis_values(path):
+        table.add_row(str(code), name, str(value))
+    console.print(table)
+
+    if save_detent:
+        cal_path = config.calibration_file()
+        store = calibration.load_calibration(cal_path)
+        captured = calibration.set_detents_from_current(store, device, path)
+        calibration.save_calibration(cal_path, store)
+        console.print(
+            f"[green]Saved detents[/green] to {cal_path}: "
+            + ", ".join(f"code {c}={v}" for c, v in captured.items())
+        )
+
+
 def _device_path(device: str) -> str:
     """Resolve a catalog id or a raw event path to a /dev/input node."""
     if device.startswith("/dev/"):
