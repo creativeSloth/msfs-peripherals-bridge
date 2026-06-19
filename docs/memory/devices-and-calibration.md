@@ -28,10 +28,21 @@ Key facts learned:
   detect pure-axis controllers (standard joystick axis code < 0x10, or hats).
 - TQ6+ sometimes fails to enumerate on first plug; a re-plug fixed it.
 
-## ⚠️ STILL OPEN — semantics + precise calibration
-Codes/ranges are known; still to confirm **with the user moving controls**:
-1. **TQ6+ lever→function**: which of codes 0–5 is throttle1/2, prop1/2,
-   mixture1/2 → `monitor tq6`, move one lever at a time.
+## TQ6+ lever→code (CONFIRMED 2026-06-19)
+Left→right = codes 0–5: **0=Throttle1, 1=Throttle2, 2=Prop1, 3=Prop2,
+4=Mixture1, 5=Mixture2** (ABS_X,Y,Z,RX,RY,RZ; user confirmed T1=code0=4096).
+Each TQ6 lever has a mechanical **detent** ("0" notch); below it = special
+zone (throttle→reverse, prop→feather, mixture→cut-off). These zones do NOT
+work via in-game MSFS config (only VirtualFly's VFHub) — so our bridge must
+implement them itself from the captured detent raw value. Raw 0/4096 are only
+reached at the physical end stops, not at rest.
+
+Turbo Arrow III (PA-28R-201T) context: single piston, constant-speed Hartzell
+prop, turbo. No reverse, no feather (single-engine); only **mixture idle
+cut-off** detent is functional. Reverse/feather detents matter for twins/turboprops.
+
+## ⚠️ STILL OPEN — precise calibration
+Codes/ranges/mapping known; still to capture **with the user moving controls**:
 2. **Pedals L/R**: which of ABS_X(0)/ABS_Y(1) is left vs right toe brake;
    rudder polarity → `monitor pedals`.
 3. **Yoke directions**: pitch/roll invert + hat directions.

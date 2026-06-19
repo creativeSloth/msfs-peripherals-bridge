@@ -21,15 +21,16 @@ bindings:
       action: { type: event, event: ELEVATOR_SET }
       transform: { deadzone: 0.03, curve: expo, expo: 0.25, invert: true, out_min: -16383, out_max: 16383 }
 
-  # VirtualFly TQ6+: 6 levers on codes 0..5 (ABS_X,Y,Z,RX,RY,RZ), each 0..4096.
-  # TENTATIVE lever->code: confirm which physical lever is which with
-  # `msfs-bridge monitor tq6` before trusting these.
+  # VirtualFly TQ6+: confirmed 2026-06-19, codes 0..5 left->right =
+  # T1, T2, P1, P2, M1, M2 (each 0..4096). C172 is single-engine, fixed-pitch
+  # prop, so only Throttle 1 (code 0) and Mixture 1 (code 4) are used here.
+  # Detent/zone raw values come from `snapshot tq6 --save-detent`.
   tq6:
-    - name: "Throttle 1 (TENTATIVE code)"
+    - name: "Throttle 1"
       source: { kind: axis, code: 0, raw_min: 0, raw_max: 4096 }
       action: { type: event, event: THROTTLE1_SET }
       transform: { out_min: -16383, out_max: 16383 }
-    - name: "Mixture 1 (TENTATIVE code)"
+    - name: "Mixture 1"
       source: { kind: axis, code: 4, raw_min: 0, raw_max: 4096 }
       action: { type: event, event: MIXTURE1_SET }
       transform: { out_min: -16383, out_max: 16383 }
