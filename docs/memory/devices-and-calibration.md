@@ -41,8 +41,27 @@ Turbo Arrow III (PA-28R-201T) context: single piston, constant-speed Hartzell
 prop, turbo. No reverse, no feather (single-engine); only **mixture idle
 cut-off** detent is functional. Reverse/feather detents matter for twins/turboprops.
 
-## ⚠️ STILL OPEN — precise calibration
-Codes/ranges/mapping known; still to capture **with the user moving controls**:
+## TQ6+ axis geometry (CONFIRMED 2026-06-19, calibrated)
+Direction confirmed by the user ("die Null ist vorne"):
+- **Forward (push lever forward) = raw ~0 = full power / rich / fine pitch.**
+- Pulling back **increases** raw. So the axis is **inverted** vs raw (raw 0 = 100%).
+- **Detent ≈ 3260** (~80% of 0..4096) = 0%/idle/lean boundary.
+- **Beyond the detent (raw ~3260 → 4096) = special zone:** throttle→reverse,
+  prop→feather, mixture→cut-off.
+
+Per-lever calibrated min..max (sweep): all ≈ 3..9 (forward) .. 4086..4096 (back).
+Detents (snapshot): all ≈ 3227..3278. Stored in `config/calibration.yaml`.
+
+Implication for mapping (single-engine like C172 / Turbo Arrow III):
+- **Throttle**: map raw [0..detent] → 100%..0% (invert), so the reverse zone
+  past the detent harmlessly clamps to idle (no reverse on a piston single).
+- **Mixture**: map raw [0..max] → 100%..0% (invert); the bottom naturally
+  reaches idle cut-off (mixture 0%). Detent is mainly tactile here.
+- True reverse/feather/cut-off **events** only matter for twins/turboprops →
+  the general "detent-zone action" engine is a future feature (see roadmap).
+
+## ⚠️ STILL OPEN — remaining devices
+TQ6 done. Still to capture **with the user moving controls**:
 2. **Pedals L/R**: which of ABS_X(0)/ABS_Y(1) is left vs right toe brake;
    rudder polarity → `monitor pedals`.
 3. **Yoke directions**: pitch/roll invert + hat directions.

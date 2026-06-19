@@ -21,19 +21,23 @@ bindings:
       action: { type: event, event: ELEVATOR_SET }
       transform: { deadzone: 0.03, curve: expo, expo: 0.25, invert: true, out_min: -16383, out_max: 16383 }
 
-  # VirtualFly TQ6+: confirmed 2026-06-19, codes 0..5 left->right =
-  # T1, T2, P1, P2, M1, M2 (each 0..4096). C172 is single-engine, fixed-pitch
-  # prop, so only Throttle 1 (code 0) and Mixture 1 (code 4) are used here.
-  # Detent/zone raw values come from `snapshot tq6 --save-detent`.
+  # VirtualFly TQ6+: confirmed 2026-06-19. codes 0..5 left->right =
+  # T1,T2,P1,P2,M1,M2 (each 0..4096). Direction: raw 0 = lever fully FORWARD =
+  # full power / full rich; raw rises pulling back; detent ~3260 = idle/0%;
+  # beyond detent = reverse/cut-off zone. So axis is inverted (raw 0 -> 100%).
+  # C172 = single-engine, fixed-pitch prop -> only Throttle 1 + Mixture 1.
   tq6:
     - name: "Throttle 1"
-      source: { kind: axis, code: 0, raw_min: 0, raw_max: 4096 }
+      # raw_max=detent(3260): pulling past idle into the reverse zone clamps to
+      # idle (a piston single has no reverse). invert so raw 0 = full power.
+      source: { kind: axis, code: 0, raw_min: 0, raw_max: 3260 }
       action: { type: event, event: THROTTLE1_SET }
-      transform: { out_min: -16383, out_max: 16383 }
+      transform: { invert: true, out_min: -16383, out_max: 16383 }
     - name: "Mixture 1"
+      # full range to 4096 so the bottom reaches idle cut-off (mixture 0%).
       source: { kind: axis, code: 4, raw_min: 0, raw_max: 4096 }
       action: { type: event, event: MIXTURE1_SET }
-      transform: { out_min: -16383, out_max: 16383 }
+      transform: { invert: true, out_min: -16383, out_max: 16383 }
 
   # Saitek Cessna Trim Wheel: single axis ABS_X, 0..1023.
   trim:

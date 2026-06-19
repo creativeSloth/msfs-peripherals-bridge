@@ -1,0 +1,48 @@
+devices:
+  tq6:
+    axes:
+      0:
+        center: 3275
+        code: 0
+        detent: 3275
+        name: ABS_X
+        raw_max: 4087
+        raw_min: 3
+      1:
+        center: 3274
+        code: 1
+        detent: 3278
+        name: ABS_Y
+        raw_max: 4089
+        raw_min: 9
+      2:
+        center: 3261
+        code: 2
+        detent: 3261
+        name: ABS_Z
+        raw_max: 4086
+        raw_min: 7
+      3:
+        center: 3267
+        code: 3
+        detent: 3276
+        name: ABS_RX
+        raw_max: 4088
+        raw_min: 8
+      4:
+        center: 3227
+        code: 4
+        detent: 3227
+        name: ABS_RY
+        raw_max: 4096
+        raw_min: 8
+      5:
+        center: 3245
+        code: 5
+        detent: 3245
+        name: ABS_RZ
+        raw_max: 4096
+        raw_min: 9
+    buttons: []
+    device_id: tq6
+    hats: []
