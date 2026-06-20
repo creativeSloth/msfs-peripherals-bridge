@@ -119,6 +119,10 @@ uv run msfs-bridge run --profile cessna_172 --dry-run -v
 uv run msfs-bridge run --aircraft "Cessna 172 Skyhawk"
 ```
 
+See [`docs/running.md`](docs/running.md) for a full run/iterate guide: what runs
+natively vs. in Wine/Proton, finding your MSFS Proton prefix + version, and
+tuning a mapping live with `--dry-run -v`.
+
 ---
 
 ## Configuration
