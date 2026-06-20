@@ -1,0 +1,78 @@
+name: "Piper PA-28R Arrow III / Turbo Arrow III & IV (Just Flight)"
+description: "Complex single-engine mapping for the Just Flight PA-28R Arrow III, Turbo Arrow III (PA-28R-201T) and Turbo Arrow IV (PA-28RT-201T). Same yoke/pedals/trim hardware as the C172 profile; the TQ6+ gains the constant-speed PROPELLER lever (the Arrow is a complex aircraft). Uses standard SimConnect events — no Just Flight LVars needed. Scope is the flight-control + engine axes only; gear, flaps and panel switches live on the user's Saitek panels via SPAD.neXt."
+
+# JF in-sim titles vary; these case-insensitive substrings cover all 3 variants.
+# Verify with the actual aircraft TITLE if a variant fails to auto-select.
+aircraft_match:
+  - "Arrow III"
+  - "Arrow IV"
+  - "Turbo Arrow"
+  - "PA-28R"
+  - "PA28R"
+  - "PA-28RT"
+
+bindings:
+  # --- Fulcrum One Yoke (same calibration as the C172 profile, 2026-06-20) ---
+  # ABS_X(0)=roll 7..4089 (raw 0 = full LEFT), ABS_Y(1)=pitch 6..4080 (raw rises
+  # pulling back = nose up -> elevator invert:true). Flip an invert if reversed
+  # in the sim.
+  yoke:
+    - name: "Aileron (roll)"
+      source: { kind: axis, code: 0, raw_min: 7, raw_max: 4089 }
+      action: { type: event, event: AILERON_SET }
+      transform: { deadzone: 0.03, curve: expo, expo: 0.25, out_min: -16383, out_max: 16383 }
+    - name: "Elevator (pitch)"
+      source: { kind: axis, code: 1, raw_min: 6, raw_max: 4080 }
+      action: { type: event, event: ELEVATOR_SET }
+      transform: { deadzone: 0.03, curve: expo, expo: 0.25, invert: true, out_min: -16383, out_max: 16383 }
+    # The 8 yoke buttons + hat are calibrated and labelled in
+    # config/calibration.yaml but intentionally NOT mapped yet (per request).
+    # NOTE: gear and flaps are deliberately NOT in this profile — they live on
+    # the user's Saitek panels, mapped via SPAD.neXt (out of scope for this
+    # bridge). This profile only covers the yoke/pedals/trim/TQ6+ axes.
+
+  # --- VirtualFly TQ6+ : single-engine COMPLEX -> Throttle + Prop + Mixture ---
+  # codes 0..5 left->right = T1,T2,P1,P2,M1,M2. raw 0 = lever fully FORWARD
+  # (max power / max RPM / full rich); raw rises pulling back; the detent is the
+  # idle / min-RPM / cut-off gate, beyond it = reverse/feather (unused on a
+  # piston single) so we clamp raw_max at the detent. Inverted so raw 0 -> +16383.
+  tq6:
+    - name: "Throttle 1"
+      source: { kind: axis, code: 0, raw_min: 0, raw_max: 3275 }
+      action: { type: event, event: THROTTLE1_SET }
+      transform: { invert: true, out_min: -16383, out_max: 16383 }
+    - name: "Propeller 1 (RPM)"
+      # Constant-speed prop: full forward = max RPM (fine). Clamp at the feather
+      # detent — the Arrow's prop governs RPM but does not feather.
+      source: { kind: axis, code: 2, raw_min: 0, raw_max: 3261 }
+      action: { type: event, event: PROP_PITCH1_SET }
+      transform: { invert: true, out_min: -16383, out_max: 16383 }
+    - name: "Mixture 1"
+      # Full range to 4096 so fully pulled back reaches idle cut-off (mixture 0%).
+      source: { kind: axis, code: 4, raw_min: 0, raw_max: 4096 }
+      action: { type: event, event: MIXTURE1_SET }
+      transform: { invert: true, out_min: -16383, out_max: 16383 }
+
+  # --- Saitek Cessna Trim Wheel (same as C172) ---
+  # ABS_X 0..1023 bounded; wheel forward ("nose down")=0, back ("nose up")=1023.
+  trim:
+    - name: "Elevator trim"
+      source: { kind: axis, code: 0, raw_min: 0, raw_max: 1023 }
+      action: { type: event, event: ELEVATOR_TRIM_SET }
+      transform: { out_min: -16383, out_max: 16383 }
+
+  # --- Saitek Rudder Pedals (same as C172) ---
+  # rudder ABS_RZ(5)=0..508 centre 252; toe brakes ABS_X(0)=LEFT, ABS_Y(1)=RIGHT.
+  pedals:
+    - name: "Rudder"
+      source: { kind: axis, code: 5, raw_min: 0, raw_max: 508 }
+      action: { type: event, event: RUDDER_SET }
+      transform: { deadzone: 0.05, out_min: -16383, out_max: 16383 }
+    - name: "Brake left"
+      source: { kind: axis, code: 0, raw_min: 0, raw_max: 127 }
+      action: { type: event, event: AXIS_LEFT_BRAKE_SET }
+      transform: { out_min: -16383, out_max: 16383 }
+    - name: "Brake right"
+      source: { kind: axis, code: 1, raw_min: 0, raw_max: 127 }
+      action: { type: event, event: AXIS_RIGHT_BRAKE_SET }
+      transform: { out_min: -16383, out_max: 16383 }
