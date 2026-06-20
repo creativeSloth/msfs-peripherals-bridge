@@ -17,11 +17,11 @@ bindings:
   # are calibrated but not mapped yet (pending desired functions).
   yoke:
     - name: "Aileron (roll)"
-      source: { kind: axis, code: 0, raw_min: 7, raw_max: 4089 }
+      source: { kind: axis, code: 0 }
       action: { type: event, event: AILERON_SET }
       transform: { deadzone: 0.03, curve: expo, expo: 0.25, out_min: -16383, out_max: 16383 }
     - name: "Elevator (pitch)"
-      source: { kind: axis, code: 1, raw_min: 6, raw_max: 4080 }
+      source: { kind: axis, code: 1 }
       action: { type: event, event: ELEVATOR_SET }
       transform: { deadzone: 0.03, curve: expo, expo: 0.25, invert: true, out_min: -16383, out_max: 16383 }
 
@@ -51,7 +51,7 @@ bindings:
   # reversed in the sim. Pot-based: small drift expected, no centre self-return.
   trim:
     - name: "Elevator trim"
-      source: { kind: axis, code: 0, raw_min: 0, raw_max: 1023 }
+      source: { kind: axis, code: 0 }
       action: { type: event, event: ELEVATOR_TRIM_SET }
       transform: { out_min: -16383, out_max: 16383 }
 
@@ -60,14 +60,14 @@ bindings:
   # full right 508); toe brakes ABS_X(0)=LEFT, ABS_Y(1)=RIGHT, both 0..127.
   pedals:
     - name: "Rudder"
-      source: { kind: axis, code: 5, raw_min: 0, raw_max: 508 }
+      source: { kind: axis, code: 5 }
       action: { type: event, event: RUDDER_SET }
       transform: { deadzone: 0.05, out_min: -16383, out_max: 16383 }
     - name: "Brake left"
-      source: { kind: axis, code: 0, raw_min: 0, raw_max: 127 }
+      source: { kind: axis, code: 0 }
       action: { type: event, event: AXIS_LEFT_BRAKE_SET }
       transform: { out_min: -16383, out_max: 16383 }
     - name: "Brake right"
-      source: { kind: axis, code: 1, raw_min: 0, raw_max: 127 }
+      source: { kind: axis, code: 1 }
       action: { type: event, event: AXIS_RIGHT_BRAKE_SET }
       transform: { out_min: -16383, out_max: 16383 }

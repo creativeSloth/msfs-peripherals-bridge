@@ -66,13 +66,20 @@ Action = EventAction | SimVarAction
 
 
 class Source(BaseModel):
-    """Identifies one physical control on a device."""
+    """Identifies one physical control on a device.
+
+    For axes, ``raw_min``/``raw_max`` are *optional overrides*: when omitted
+    they are filled from ``config/calibration.yaml`` by ``apply_calibration``
+    (matched on device id + code) before the mapping engine runs. Set them
+    explicitly only to pin a deliberate semantic sub-range — e.g. clamping a
+    TQ6+ lever at its detent rather than using the full hardware travel.
+    """
 
     kind: SourceKind
     code: int = Field(..., description="evdev code (ABS_*/BTN_*) or logical index.")
-    # Raw range for axes; used to normalise. Defaults cover signed 16-bit axes.
-    raw_min: int = -32768
-    raw_max: int = 32767
+    # Raw range for axes; None means "take it from calibration at load time".
+    raw_min: int | None = None
+    raw_max: int | None = None
 
 
 class Binding(BaseModel):

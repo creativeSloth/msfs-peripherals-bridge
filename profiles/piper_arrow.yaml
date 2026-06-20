@@ -13,16 +13,16 @@ aircraft_match:
 
 bindings:
   # --- Fulcrum One Yoke (same calibration as the C172 profile, 2026-06-20) ---
-  # ABS_X(0)=roll 7..4089 (raw 0 = full LEFT), ABS_Y(1)=pitch 6..4080 (raw rises
-  # pulling back = nose up -> elevator invert:true). Flip an invert if reversed
-  # in the sim.
+  # ABS_X(0)=roll (raw 0 = full LEFT), ABS_Y(1)=pitch (raw rises pulling back =
+  # nose up -> elevator invert:true). Hardware ranges come from
+  # config/calibration.yaml. Flip an invert if reversed in the sim.
   yoke:
     - name: "Aileron (roll)"
-      source: { kind: axis, code: 0, raw_min: 7, raw_max: 4089 }
+      source: { kind: axis, code: 0 }
       action: { type: event, event: AILERON_SET }
       transform: { deadzone: 0.03, curve: expo, expo: 0.25, out_min: -16383, out_max: 16383 }
     - name: "Elevator (pitch)"
-      source: { kind: axis, code: 1, raw_min: 6, raw_max: 4080 }
+      source: { kind: axis, code: 1 }
       action: { type: event, event: ELEVATOR_SET }
       transform: { deadzone: 0.03, curve: expo, expo: 0.25, invert: true, out_min: -16383, out_max: 16383 }
     # The 8 yoke buttons + hat are calibrated and labelled in
@@ -36,6 +36,8 @@ bindings:
   # (max power / max RPM / full rich); raw rises pulling back; the detent is the
   # idle / min-RPM / cut-off gate, beyond it = reverse/feather (unused on a
   # piston single) so we clamp raw_max at the detent. Inverted so raw 0 -> +16383.
+  # These raw_max values are deliberate semantic sub-ranges (clamp at detent /
+  # full travel to cut-off), so they stay explicit and override calibration.
   tq6:
     - name: "Throttle 1"
       source: { kind: axis, code: 0, raw_min: 0, raw_max: 3275 }
@@ -54,25 +56,27 @@ bindings:
       transform: { invert: true, out_min: -16383, out_max: 16383 }
 
   # --- Saitek Cessna Trim Wheel (same as C172) ---
-  # ABS_X 0..1023 bounded; wheel forward ("nose down")=0, back ("nose up")=1023.
+  # ABS_X bounded; wheel forward ("nose down")=raw min, back ("nose up")=raw max.
+  # Range from calibration.yaml.
   trim:
     - name: "Elevator trim"
-      source: { kind: axis, code: 0, raw_min: 0, raw_max: 1023 }
+      source: { kind: axis, code: 0 }
       action: { type: event, event: ELEVATOR_TRIM_SET }
       transform: { out_min: -16383, out_max: 16383 }
 
   # --- Saitek Rudder Pedals (same as C172) ---
-  # rudder ABS_RZ(5)=0..508 centre 252; toe brakes ABS_X(0)=LEFT, ABS_Y(1)=RIGHT.
+  # rudder ABS_RZ(5) centre 252; toe brakes ABS_X(0)=LEFT, ABS_Y(1)=RIGHT.
+  # Ranges from calibration.yaml.
   pedals:
     - name: "Rudder"
-      source: { kind: axis, code: 5, raw_min: 0, raw_max: 508 }
+      source: { kind: axis, code: 5 }
       action: { type: event, event: RUDDER_SET }
       transform: { deadzone: 0.05, out_min: -16383, out_max: 16383 }
     - name: "Brake left"
-      source: { kind: axis, code: 0, raw_min: 0, raw_max: 127 }
+      source: { kind: axis, code: 0 }
       action: { type: event, event: AXIS_LEFT_BRAKE_SET }
       transform: { out_min: -16383, out_max: 16383 }
     - name: "Brake right"
-      source: { kind: axis, code: 1, raw_min: 0, raw_max: 127 }
+      source: { kind: axis, code: 1 }
       action: { type: event, event: AXIS_RIGHT_BRAKE_SET }
       transform: { out_min: -16383, out_max: 16383 }

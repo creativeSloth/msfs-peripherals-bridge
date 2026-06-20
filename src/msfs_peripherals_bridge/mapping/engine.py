@@ -39,9 +39,13 @@ class MappingEngine:
 
     def _resolve_binding(self, binding: Binding, event: DeviceEvent) -> Command | None:
         if event.kind is SourceKind.AXIS:
-            value = shape_axis(
-                event.value, binding.source.raw_min, binding.source.raw_max, binding.transform
-            )
+            raw_min, raw_max = binding.source.raw_min, binding.source.raw_max
+            if raw_min is None or raw_max is None:
+                raise ValueError(
+                    f"Axis binding '{binding.name}' has no raw range; the profile "
+                    f"was not resolved against calibration (call apply_calibration)."
+                )
+            value = shape_axis(event.value, raw_min, raw_max, binding.transform)
             return self._command_for(binding, value)
 
         # Buttons / hats: act on press (non-zero), ignore release.

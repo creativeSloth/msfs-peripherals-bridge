@@ -29,7 +29,10 @@ bindings:
 ```
 
 ## Source `kind`
-- `axis`   - continuous; needs `raw_min`/`raw_max` for normalisation.
+- `axis`   - continuous. `raw_min`/`raw_max` are optional: when omitted they
+  are filled from `config/calibration.yaml` (matched on device id + code) at
+  load time. Set them explicitly only to pin a deliberate sub-range (e.g.
+  clamping a TQ6+ lever at its detent).
 - `button` - press/release; fires on press (value != 0).
 - `hat`    - directional; treated like a button per direction code.
 

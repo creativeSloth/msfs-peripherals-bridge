@@ -10,7 +10,14 @@ from rich.console import Console
 from rich.table import Table
 
 from . import __version__, config
-from .mapping.loader import load_device_catalog, load_profile, load_profiles, select_profile
+from .devices.calibration import load_calibration
+from .mapping.loader import (
+    apply_calibration,
+    load_device_catalog,
+    load_profile,
+    load_profiles,
+    select_profile,
+)
 from .models import Profile
 from .simconnect.client import DEFAULT_HOST, DEFAULT_PORT, BridgeClient, DryRunDispatcher
 
@@ -251,12 +258,20 @@ def validate() -> None:
     catalog = load_device_catalog(config.devices_file())
     known = {d.id for d in catalog.devices}
     profiles = load_profiles(config.profiles_dir())
+    calibration = load_calibration(config.calibration_file())
     problems = 0
     for p in profiles:
         for device_id in p.bindings:
             if device_id not in known:
                 console.print(f"[red]Profile '{p.name}': unknown device id '{device_id}'[/red]")
                 problems += 1
+        # Every axis binding must resolve to a concrete raw range, either from
+        # the profile itself or from calibration.yaml.
+        try:
+            apply_calibration(p, calibration)
+        except ValueError as exc:
+            console.print(f"[red]{exc}[/red]")
+            problems += 1
     if problems:
         console.print(f"[red]{problems} problem(s) found.[/red]")
         raise typer.Exit(code=1)
@@ -309,10 +324,15 @@ def _resolve_profile(profile: str | None, aircraft: str | None) -> Profile | Non
         path = Path(profile)
         if not path.exists():
             path = config.profiles_dir() / f"{profile}.yaml"
-        return load_profile(path)
-    if aircraft:
-        return select_profile(load_profiles(config.profiles_dir()), aircraft)
-    return None
+        chosen = load_profile(path)
+    elif aircraft:
+        chosen = select_profile(load_profiles(config.profiles_dir()), aircraft)
+    else:
+        return None
+    if chosen is None:
+        return None
+    calibration = load_calibration(config.calibration_file())
+    return apply_calibration(chosen, calibration)
 
 
 if __name__ == "__main__":  # pragma: no cover
