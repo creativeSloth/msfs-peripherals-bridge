@@ -13,8 +13,7 @@ bindings:
   # mapping needed). Direction confirmed: roll raw 0 = full LEFT; pitch raw
   # RISES pulling back (nose up), hence elevator invert:true. Sign assumes
   # AILERON_SET<0 = roll left and ELEVATOR_SET<0 = nose up — flip the invert if
-  # an axis is reversed in the sim. Buttons 288-295, hat ABS_HAT0X(16)/Y(17)
-  # are calibrated but not mapped yet (pending desired functions).
+  # an axis is reversed in the sim.
   yoke:
     - name: "Aileron (roll)"
       source: { kind: axis, code: 0 }
@@ -24,6 +23,28 @@ bindings:
       source: { kind: axis, code: 1 }
       action: { type: event, event: ELEVATOR_SET }
       transform: { deadzone: 0.03, curve: expo, expo: 0.25, invert: true, out_min: -16383, out_max: 16383 }
+    # --- Yoke grip buttons (codes & labels in config/calibration.yaml) ---
+    # Flight-deck functions, fire once on press. Gear & flaps stay on the
+    # Saitek panels via SPAD.neXt (out of scope here).
+    - name: "ATC window"           # 288 left grip, red button
+      source: { kind: button, code: 288 }
+      action: { type: event, event: ATC }
+    - name: "Parking brake"        # 289 left grip, black button
+      source: { kind: button, code: 289 }
+      action: { type: event, event: PARKING_BRAKES }
+    - name: "Fuel selector LEFT"   # 294 right rocker, left
+      source: { kind: button, code: 294 }
+      action: { type: event, event: FUEL_SELECTOR_LEFT }
+    - name: "Fuel selector RIGHT"  # 295 right rocker, right
+      source: { kind: button, code: 295 }
+      action: { type: event, event: FUEL_SELECTOR_RIGHT }
+    # NOT mapped yet:
+    #   290 left rocker up -> "heading bug = current heading" needs a DYNAMIC
+    #       value (read HEADING simvar, then HEADING_BUG_SET); a button can only
+    #       send a fixed value, so this waits until the bridge can read simvars.
+    #   291 left rocker down, 292/293 right grip black (lower/upper): unassigned.
+    #   hat 16/17: unassigned (also needs direction-aware hat mapping).
+    # Verify in-sim: ATC window event name may differ in MSFS 2024.
 
   # VirtualFly TQ6+: confirmed 2026-06-19. codes 0..5 left->right =
   # T1,T2,P1,P2,M1,M2 (each 0..4096). Direction: raw 0 = lever fully FORWARD =

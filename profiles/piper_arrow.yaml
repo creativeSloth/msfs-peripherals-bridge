@@ -25,11 +25,28 @@ bindings:
       source: { kind: axis, code: 1 }
       action: { type: event, event: ELEVATOR_SET }
       transform: { deadzone: 0.03, curve: expo, expo: 0.25, invert: true, out_min: -16383, out_max: 16383 }
-    # The 8 yoke buttons + hat are calibrated and labelled in
-    # config/calibration.yaml but intentionally NOT mapped yet (per request).
-    # NOTE: gear and flaps are deliberately NOT in this profile — they live on
-    # the user's Saitek panels, mapped via SPAD.neXt (out of scope for this
-    # bridge). This profile only covers the yoke/pedals/trim/TQ6+ axes.
+    # --- Yoke grip buttons (codes & labels in config/calibration.yaml) ---
+    # Flight-deck functions, fire once on press. Gear & flaps stay on the
+    # Saitek panels via SPAD.neXt (out of scope here).
+    - name: "ATC window"           # 288 left grip, red button
+      source: { kind: button, code: 288 }
+      action: { type: event, event: ATC }
+    - name: "Parking brake"        # 289 left grip, black button
+      source: { kind: button, code: 289 }
+      action: { type: event, event: PARKING_BRAKES }
+    - name: "Fuel selector LEFT"   # 294 right rocker, left
+      source: { kind: button, code: 294 }
+      action: { type: event, event: FUEL_SELECTOR_LEFT }
+    - name: "Fuel selector RIGHT"  # 295 right rocker, right
+      source: { kind: button, code: 295 }
+      action: { type: event, event: FUEL_SELECTOR_RIGHT }
+    # NOT mapped yet:
+    #   290 left rocker up -> "heading bug = current heading" needs a DYNAMIC
+    #       value (read HEADING simvar, then HEADING_BUG_SET); a button can only
+    #       send a fixed value, so this waits until the bridge can read simvars.
+    #   291 left rocker down, 292/293 right grip black (lower/upper): unassigned.
+    #   hat 16/17: unassigned (also needs direction-aware hat mapping).
+    # Verify in-sim: ATC window event name may differ in MSFS 2024.
 
   # --- VirtualFly TQ6+ : single-engine COMPLEX -> Throttle + Prop + Mixture ---
   # codes 0..5 left->right = T1,T2,P1,P2,M1,M2. raw 0 = lever fully FORWARD

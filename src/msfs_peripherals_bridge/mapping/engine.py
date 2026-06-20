@@ -48,8 +48,10 @@ class MappingEngine:
             value = shape_axis(event.value, raw_min, raw_max, binding.transform)
             return self._command_for(binding, value)
 
-        # Buttons / hats: act on press (non-zero), ignore release.
-        if event.value == 0:
+        # Buttons / hats: fire on the press edge only (value == 1), ignoring
+        # release (0) and kernel key autorepeat (2) so holding a button toggles
+        # a state (e.g. parking brake) exactly once.
+        if event.value != 1:
             return None
         return self._command_for(binding, float(event.value))
 

@@ -62,6 +62,8 @@ def test_button_press_sends_fixed_value_and_release_is_ignored():
         SendEvent(name="AUTOPILOT_ON", data=1)
     ]
     assert engine.resolve(DeviceEvent("trim", SourceKind.BUTTON, 288, 0)) == []
+    # Kernel key autorepeat (value 2) must not re-fire while the button is held.
+    assert engine.resolve(DeviceEvent("trim", SourceKind.BUTTON, 288, 2)) == []
 
 
 def test_simvar_action_emits_setsimvar():
