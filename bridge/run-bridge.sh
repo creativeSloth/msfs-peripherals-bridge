@@ -41,6 +41,9 @@ BRIDGE_PY="$SCRIPT_DIR/bridge.py"
 
 export STEAM_COMPAT_DATA_PATH="$COMPAT_DATA"
 export STEAM_COMPAT_CLIENT_INSTALL_PATH="$STEAM_ROOT"
+# Windows Python pipes its output through Wine, which block-buffers it so logs
+# never appear; force unbuffered so bridge.py's logging shows up live.
+export PYTHONUNBUFFERED=1
 
 echo "→ Proton:  $PROTON"
 echo "→ Prefix:  $PREFIX"
