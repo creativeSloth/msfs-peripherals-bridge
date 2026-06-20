@@ -35,6 +35,11 @@ class DeviceCalibration(BaseModel):
     axes: dict[int, AxisCalibration] = Field(default_factory=dict)
     buttons: list[int] = Field(default_factory=list)
     hats: list[int] = Field(default_factory=list)
+    # Human labels for the physical controls behind each code, captured during
+    # identification (press-to-find). Aircraft-independent hardware identity;
+    # the actual sim-event mapping lives in the profiles. Keyed by evdev code.
+    button_labels: dict[int, str] = Field(default_factory=dict)
+    hat_labels: dict[int, str] = Field(default_factory=dict)
 
 
 class CalibrationFile(BaseModel):
@@ -56,17 +61,58 @@ def save_calibration(path: Path, calibration: CalibrationFile) -> None:
     )
 
 
+def live_axis_values(path: str, settle: float = 0.4) -> dict[int, int]:
+    """Read the freshest value of every analog axis: {code: value}.
+
+    A bare ``absinfo`` read can return a stale, frozen value: idle USB HID
+    controllers (e.g. the Saitek pedals) only start streaming reports once the
+    device is opened for *reading* — which is why ``monitor`` sees movement that
+    a one-shot ``absinfo`` read misses. So we open for reading, drain events for
+    ``settle`` seconds (capturing the latest value per axis), then re-read
+    absinfo now the device is awake. Observed events win over the re-read.
+    """
+    import select
+
+    from . import capabilities  # local import keeps evdev optional
+    from .capabilities import _HAS_EVDEV
+
+    if not _HAS_EVDEV:
+        raise RuntimeError("python-evdev is required (Linux only).")
+    import evdev
+    from evdev import ecodes
+
+    analog = {a.code for a in capabilities.describe(path).analog_axes}
+    observed: dict[int, int] = {}
+    dev = evdev.InputDevice(path)
+    try:
+        deadline = time.monotonic() + settle
+        while True:
+            remaining = deadline - time.monotonic()
+            if remaining <= 0:
+                break
+            ready, _, _ = select.select([dev.fd], [], [], remaining)
+            if not ready:
+                continue
+            for ev in dev.read():
+                if ev.type == ecodes.EV_ABS and ev.code in analog:
+                    observed[ev.code] = ev.value
+    finally:
+        dev.close()
+
+    refreshed = {a.code: a.value for a in capabilities.describe(path).analog_axes}
+    return {code: observed.get(code, refreshed.get(code, 0)) for code in analog}
+
+
 def current_axis_values(path: str) -> list[tuple[int, str, int]]:
     """Snapshot the current raw value of every analog axis: (code, name, value)."""
     from . import capabilities  # local import keeps evdev optional
 
     caps = capabilities.describe(path)
-    return [(a.code, a.name, a.value) for a in caps.analog_axes]
+    live = live_axis_values(path)
+    return [(a.code, a.name, live.get(a.code, a.value)) for a in caps.analog_axes]
 
 
-def set_detents_from_current(
-    store: CalibrationFile, device_id: str, path: str
-) -> dict[int, int]:
+def set_detents_from_current(store: CalibrationFile, device_id: str, path: str) -> dict[int, int]:
     """Record the current axis positions as detents on the device calibration.
 
     Creates the device/axis calibration entries if missing (seeding raw_min/max
@@ -75,9 +121,11 @@ def set_detents_from_current(
     from . import capabilities  # local import keeps evdev optional
 
     caps = capabilities.describe(path)
+    live = live_axis_values(path)
     device = store.devices.setdefault(device_id, DeviceCalibration(device_id=device_id))
     captured: dict[int, int] = {}
     for axis in caps.analog_axes:
+        value = live.get(axis.code, axis.value)
         cal = device.axes.get(axis.code)
         if cal is None:
             cal = AxisCalibration(
@@ -85,11 +133,42 @@ def set_detents_from_current(
                 name=axis.name,
                 raw_min=axis.min,
                 raw_max=axis.max,
-                center=axis.value,
+                center=value,
             )
             device.axes[axis.code] = cal
-        cal.detent = axis.value
-        captured[axis.code] = axis.value
+        cal.detent = value
+        captured[axis.code] = value
+    return captured
+
+
+def set_centers_from_current(store: CalibrationFile, device_id: str, path: str) -> dict[int, int]:
+    """Record the current axis positions as the centres (rest positions).
+
+    Use when a sweep captured a bad centre — e.g. a self-centring rudder that
+    wasn't neutral when recording stopped. Centre the axis, then call this.
+    Creates the device/axis calibration entries if missing (seeding raw_min/max
+    from the driver-reported range). Returns {code: center_value}.
+    """
+    from . import capabilities  # local import keeps evdev optional
+
+    caps = capabilities.describe(path)
+    live = live_axis_values(path)
+    device = store.devices.setdefault(device_id, DeviceCalibration(device_id=device_id))
+    captured: dict[int, int] = {}
+    for axis in caps.analog_axes:
+        value = live.get(axis.code, axis.value)
+        cal = device.axes.get(axis.code)
+        if cal is None:
+            cal = AxisCalibration(
+                code=axis.code,
+                name=axis.name,
+                raw_min=axis.min,
+                raw_max=axis.max,
+                center=value,
+            )
+            device.axes[axis.code] = cal
+        cal.center = value
+        captured[axis.code] = value
     return captured
 
 

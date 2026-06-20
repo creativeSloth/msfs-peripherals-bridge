@@ -60,24 +60,56 @@ Implication for mapping (single-engine like C172 / Turbo Arrow III):
 - True reverse/feather/cut-off **events** only matter for twins/turboprops →
   the general "detent-zone action" engine is a future feature (see roadmap).
 
-## ▶️ RESUME HERE (paused 2026-06-19, user tired) — calibrate the PEDALS next
-TQ6+ is fully done (codes, ranges, detents, direction, profile). **Next session
-starts with the rudder pedals**, then the yoke. Exact steps for pedals:
+## ▶️ RESUME HERE (paused 2026-06-20) — ALL 4 DEVICES CALIBRATED; 2 follow-ups
+**All four devices' hardware calibration is DONE** (TQ6+, pedals, yoke, trim) and
+recorded in `config/calibration.yaml`; both profiles `validate` green.
+- Trim wheel (Saitek, confirmed 2026-06-20): single axis ABS_X 0..1023, BOUNDED
+  (saturates both ends, NO wrap) → absolute mapping. Wheel forward ("nose down")=0,
+  back ("nose up")=1023. Pot-based, no self-centre (calibration centre 512 is just
+  nominal/unused for absolute mapping). Profile maps raw 0→-16383, 1023→+16383.
+- Pedals: rudder ABS_RZ(5)=0..508 centre 252 (full LEFT 0, RIGHT 508); toe brakes
+  ABS_X(0)=LEFT, ABS_Y(1)=RIGHT, both 0..127.
+- Yoke (Fulcrum, confirmed 2026-06-20): ABS_X(0)=roll 7..4089 rest 2114 (raw 0 =
+  full LEFT), ABS_Y(1)=pitch 6..4080 rest 2059 (raw RISES pulling back = nose up,
+  so elevator invert:true). Self-centres near the 2047 mid → 0.03 deadzone covers
+  it, no centre-aware mapping needed. **8 buttons + hat identified & LABELLED** in
+  `config/calibration.yaml` (new `button_labels`/`hat_labels` fields, preserved
+  across re-`calibrate`): 288 left-red, 289 left-black, 290/291 left rocker up/down,
+  292/293 right grip black lower/upper, 294/295 right rocker left/right. Hat = axes
+  16(X: -1 left/+1 right) & 17(Y: -1 up/+1 down), diagonals = X+Y together,
+  CENTRE PUSH gives no event. Per user: labels only for now, **sim-event mapping
+  comes later**.
 
-1. Sweep min/max:
-   `uv run msfs-bridge calibrate pedals --seconds 15`
-   (press both toe brakes fully several times + move rudder full left/right).
-2. Identify L/R brake: press ONLY the LEFT toe brake, then
-   `uv run msfs-bridge snapshot pedals` → whichever of ABS_X(0)/ABS_Y(1) rises
-   is the LEFT brake. Confirm rudder polarity (ABS_RZ code 5) too.
-3. Update `profiles/cessna_172.yaml` pedals block (currently L/R is a guess).
+▶️ **NEXT: the two follow-ups below** (yoke button sim-mapping + the separation
+refactor). Hardware calibration is complete. Heads-up: the trim wheel's event node
+re-enumerates (`OSError: [Errno 19] No such device` on a stale path) — re-run, the
+catalog re-discovers it by USB id.
 
-Then the **yoke**: pitch/roll direction (invert?), the 8 buttons, the hat
-(ABS_HAT0X/Y), and its off-centre rest (roll 2741 / pitch 1870 of 0..4095) →
-needs centre-aware calibration. Reminder: run commands via `cd ~/Dokumente/
-Projekte/msfs-peripherals-bridge && uv run msfs-bridge …` over Claude Code's `!`.
+`snapshot` bug fixed: it read a stale, frozen `absinfo` value (idle USB HID only
+streams once opened for reading), e.g. 506 for a centred rudder. `live_axis_values()`
+now wakes the device + drains events like `monitor`. New flag `snapshot --save-center`
+saves current positions as axis centres (mirrors `--save-detent`). NOTE: a
+*held-steady* axis emits no change events → for "which axis moved" use `monitor`
+and PUMP. Also: `calibrate` overwrites the whole button list each run, so a sweep
+that misses a button drops it (button 288 was re-added to yoke by hand).
 
-`profiles/cessna_172.yaml` pedals L/R assignment is still TENTATIVE.
+**Follow-ups after the trim wheel (not hardware):**
+1. **Map the yoke buttons (288-295) + hat (16/17) to sim events** in
+   `profiles/cessna_172.yaml` — codes+labels are captured, functions deferred by
+   the user ("nichts jetzt mappen"). NOTE: the hat needs direction-aware mapping
+   (one binding currently fires the same event for every hat direction — engine
+   work needed if the hat drives trim/views through this bridge).
+2. **Refactor the user explicitly asked for:** profiles should hold ONLY the
+   semantic mapping (source device+code → SimVar/event + transform); the
+   hardware ranges/centre/detent should come from `config/calibration.yaml`,
+   merged at load time. Today `runtime.py` never loads calibration.yaml and the
+   profile carries its own `raw_min/raw_max` (duplicated). Plan: make
+   `Source.raw_min/raw_max` optional overrides, add a merge step in the profile
+   loader / `runtime.run` keyed by (device_id, code), engine keeps using the
+   resolved range. Calibration data is already captured, so nothing is wasted.
+
+Reminder: run commands via `cd ~/Dokumente/Projekte/msfs-peripherals-bridge &&
+uv run msfs-bridge …` over Claude Code's `!`.
 
 Notes:
 - Saitek devices are **potentiometer-based** → add small deadzones, expect drift.

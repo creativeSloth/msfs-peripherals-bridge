@@ -142,12 +142,15 @@ def calibrate(
 
     cal_path = config.calibration_file()
     store = calibration.load_calibration(cal_path)
-    # Preserve any detents already captured (snapshot --save-detent).
+    # Preserve detents (snapshot --save-detent) and the human control labels
+    # captured during identification — a fresh sweep would otherwise wipe them.
     previous = store.devices.get(device)
     if previous is not None:
         for code, ax in result.axes.items():
             if code in previous.axes and previous.axes[code].detent is not None:
                 ax.detent = previous.axes[code].detent
+        result.button_labels = {**previous.button_labels, **result.button_labels}
+        result.hat_labels = {**previous.hat_labels, **result.hat_labels}
     store.devices[device] = result
     calibration.save_calibration(cal_path, store)
 
@@ -155,8 +158,7 @@ def calibrate(
     for ax in result.axes.values():
         detent = f", detent {ax.detent}" if ax.detent is not None else ""
         console.print(
-            f"  axis {ax.name or ax.code}: {ax.raw_min}..{ax.raw_max} "
-            f"(center {ax.center}{detent})"
+            f"  axis {ax.name or ax.code}: {ax.raw_min}..{ax.raw_max} (center {ax.center}{detent})"
         )
     console.print(f"  buttons seen: {result.buttons or '-'}")
     console.print(f"  hats seen: {result.hats or '-'}")
@@ -167,6 +169,9 @@ def snapshot(
     device: str = typer.Argument(..., help="Catalog device id or /dev/input/eventX path."),
     save_detent: bool = typer.Option(
         False, "--save-detent", help="Store the current axis positions as detents."
+    ),
+    save_center: bool = typer.Option(
+        False, "--save-center", help="Store the current axis positions as centres."
     ),
 ) -> None:
     """Print the current raw value of every axis (one-shot, no movement needed).
@@ -193,6 +198,16 @@ def snapshot(
         calibration.save_calibration(cal_path, store)
         console.print(
             f"[green]Saved detents[/green] to {cal_path}: "
+            + ", ".join(f"code {c}={v}" for c, v in captured.items())
+        )
+
+    if save_center:
+        cal_path = config.calibration_file()
+        store = calibration.load_calibration(cal_path)
+        captured = calibration.set_centers_from_current(store, device, path)
+        calibration.save_calibration(cal_path, store)
+        console.print(
+            f"[green]Saved centres[/green] to {cal_path}: "
             + ", ".join(f"code {c}={v}" for c, v in captured.items())
         )
 

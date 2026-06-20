@@ -7,17 +7,21 @@ aircraft_match:
   - "Skyhawk"
 
 bindings:
-  # Fulcrum One Yoke: ABS_X=roll, ABS_Y=pitch, 0..4095 (12-bit).
-  # NOTE: resting position is off-centre (roll~2741, pitch~1870), so absolute
-  # min/max normalisation puts centre slightly off 0 until centre-aware
-  # calibration lands (see roadmap). Run `calibrate yoke` to refine.
+  # Fulcrum One Yoke (calibrated 2026-06-20): ABS_X(0)=roll, ABS_Y(1)=pitch.
+  # Roll 7..4089 (rest 2114), pitch 6..4080 (rest 2059) — self-centres near the
+  # 2047 mid, so the 0.03 deadzone covers the small offset (no centre-aware
+  # mapping needed). Direction confirmed: roll raw 0 = full LEFT; pitch raw
+  # RISES pulling back (nose up), hence elevator invert:true. Sign assumes
+  # AILERON_SET<0 = roll left and ELEVATOR_SET<0 = nose up — flip the invert if
+  # an axis is reversed in the sim. Buttons 288-295, hat ABS_HAT0X(16)/Y(17)
+  # are calibrated but not mapped yet (pending desired functions).
   yoke:
     - name: "Aileron (roll)"
-      source: { kind: axis, code: 0, raw_min: 0, raw_max: 4095 }
+      source: { kind: axis, code: 0, raw_min: 7, raw_max: 4089 }
       action: { type: event, event: AILERON_SET }
       transform: { deadzone: 0.03, curve: expo, expo: 0.25, out_min: -16383, out_max: 16383 }
     - name: "Elevator (pitch)"
-      source: { kind: axis, code: 1, raw_min: 0, raw_max: 4095 }
+      source: { kind: axis, code: 1, raw_min: 6, raw_max: 4080 }
       action: { type: event, event: ELEVATOR_SET }
       transform: { deadzone: 0.03, curve: expo, expo: 0.25, invert: true, out_min: -16383, out_max: 16383 }
 
@@ -39,7 +43,12 @@ bindings:
       action: { type: event, event: MIXTURE1_SET }
       transform: { invert: true, out_min: -16383, out_max: 16383 }
 
-  # Saitek Cessna Trim Wheel: single axis ABS_X, 0..1023.
+  # Saitek Cessna Trim Wheel (confirmed 2026-06-20): single axis ABS_X, 0..1023,
+  # BOUNDED (saturates at both ends, no wrap) so absolute mapping is correct.
+  # Direction: wheel forward ("nose down") = raw 0, wheel back ("nose up") =
+  # raw 1023. Maps raw 0 -> -16383 (nose-down trim), raw 1023 -> +16383
+  # (nose-up trim); assumes ELEVATOR_TRIM_SET>0 = nose up — add invert:true if
+  # reversed in the sim. Pot-based: small drift expected, no centre self-return.
   trim:
     - name: "Elevator trim"
       source: { kind: axis, code: 0, raw_min: 0, raw_max: 1023 }
@@ -47,17 +56,18 @@ bindings:
       transform: { out_min: -16383, out_max: 16383 }
 
   # Saitek Rudder Pedals: ABS_RZ(5)=rudder (centred ~249/511);
-  # ABS_X(0) & ABS_Y(1)=toe brakes (0..127). Confirm L/R with `monitor pedals`.
+  # Confirmed 2026-06-20: rudder ABS_RZ(5)=0..508 centre 252 (full left 0,
+  # full right 508); toe brakes ABS_X(0)=LEFT, ABS_Y(1)=RIGHT, both 0..127.
   pedals:
     - name: "Rudder"
-      source: { kind: axis, code: 5, raw_min: 0, raw_max: 511 }
+      source: { kind: axis, code: 5, raw_min: 0, raw_max: 508 }
       action: { type: event, event: RUDDER_SET }
       transform: { deadzone: 0.05, out_min: -16383, out_max: 16383 }
-    - name: "Brake left (confirm L/R)"
+    - name: "Brake left"
       source: { kind: axis, code: 0, raw_min: 0, raw_max: 127 }
       action: { type: event, event: AXIS_LEFT_BRAKE_SET }
       transform: { out_min: -16383, out_max: 16383 }
-    - name: "Brake right (confirm L/R)"
+    - name: "Brake right"
       source: { kind: axis, code: 1, raw_min: 0, raw_max: 127 }
       action: { type: event, event: AXIS_RIGHT_BRAKE_SET }
       transform: { out_min: -16383, out_max: 16383 }

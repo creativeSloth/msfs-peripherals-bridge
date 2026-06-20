@@ -1,4 +1,30 @@
 devices:
+  pedals:
+    axes:
+      0:
+        center: 0
+        code: 0
+        detent: null
+        name: ABS_X
+        raw_max: 127
+        raw_min: 0
+      1:
+        center: 0
+        code: 1
+        detent: null
+        name: ABS_Y
+        raw_max: 127
+        raw_min: 0
+      5:
+        center: 252
+        code: 5
+        detent: null
+        name: ABS_RZ
+        raw_max: 508
+        raw_min: 0
+    buttons: []
+    device_id: pedals
+    hats: []
   tq6:
     axes:
       0:
@@ -45,4 +71,59 @@ devices:
         raw_min: 9
     buttons: []
     device_id: tq6
+    hats: []
+  yoke:
+    axes:
+      0:
+        center: 2114
+        code: 0
+        detent: null
+        name: ABS_X
+        raw_max: 4089
+        raw_min: 7
+      1:
+        center: 2059
+        code: 1
+        detent: null
+        name: ABS_Y
+        raw_max: 4080
+        raw_min: 6
+    buttons:
+    - 288
+    - 289
+    - 290
+    - 291
+    - 292
+    - 293
+    - 294
+    - 295
+    device_id: yoke
+    hats:
+    - 16
+    - 17
+    button_labels:
+      288: Left grip - red button
+      289: Left grip - black button
+      290: Left rocker - up
+      291: Left rocker - down
+      292: Right grip - black button (lower)
+      293: Right grip - black button (upper)
+      294: Right rocker - left
+      295: Right rocker - right
+    hat_labels:
+      16: Hat X axis (-1 = left, +1 = right); center push gives no signal
+      17: Hat Y axis (-1 = up, +1 = down); diagonals = X and Y together
+  trim:
+    axes:
+      0:
+        center: 512
+        code: 0
+        detent: null
+        name: ABS_X
+        raw_max: 1023
+        raw_min: 0
+    buttons: []
+    button_labels: {}
+    device_id: trim
+    hat_labels: {}
     hats: []
