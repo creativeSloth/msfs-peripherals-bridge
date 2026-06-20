@@ -18,7 +18,7 @@ bindings:
     - name: "Aileron (roll)"
       source: { kind: axis, code: 0 }
       action: { type: event, event: AILERON_SET }
-      transform: { deadzone: 0.03, curve: expo, expo: 0.25, out_min: -16383, out_max: 16383 }
+      transform: { deadzone: 0.03, curve: expo, expo: 0.25, invert: true, out_min: -16383, out_max: 16383 }
     - name: "Elevator (pitch)"
       source: { kind: axis, code: 1 }
       action: { type: event, event: ELEVATOR_SET }

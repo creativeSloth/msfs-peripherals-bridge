@@ -24,6 +24,7 @@ from __future__ import annotations
 import argparse
 import json
 import logging
+import os
 import socket
 import threading
 import time
@@ -113,7 +114,13 @@ class ClientSession:
     def _read_loop(self) -> None:
         buffer = b""
         while not self._stop.is_set():
-            chunk = self.conn.recv(4096)
+            try:
+                chunk = self.conn.recv(4096)
+            except OSError as exc:
+                # The Linux app dropping (e.g. Ctrl-C) must NOT kill the bridge;
+                # just end this session and go back to waiting for a client.
+                log.info("Client connection ended (%s)", exc)
+                return
             if not chunk:
                 log.info("Client disconnected")
                 return
@@ -188,11 +195,17 @@ def main() -> None:
     parser.add_argument("-v", "--verbose", action="store_true")
     args = parser.parse_args()
 
+    # Log to a file next to this script as well as stderr: Wine block-buffers
+    # the piped stderr so console logs can vanish, but the FileHandler flushes
+    # each record straight to the real (Linux-visible) file.
+    log_path = os.path.join(os.path.dirname(os.path.abspath(__file__)), "bridge.log")
     logging.basicConfig(
         level=logging.DEBUG if args.verbose else logging.INFO,
         format="%(asctime)s %(levelname)-7s %(name)s: %(message)s",
         datefmt="%H:%M:%S",
+        handlers=[logging.StreamHandler(), logging.FileHandler(log_path, mode="w", encoding="utf-8")],
     )
+    log.info("Logging to %s", log_path)
 
     sim = connect_sim()
     server = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
@@ -206,8 +219,11 @@ def main() -> None:
             log.info("Linux app connected from %s", addr)
             try:
                 ClientSession(conn, sim).serve()
+            except Exception:  # noqa: BLE001 - one bad session must not kill the bridge
+                log.exception("Session ended with an error; waiting for next client")
             finally:
                 conn.close()
+            log.info("Ready for next client on %s:%s", args.host, args.port)
     except KeyboardInterrupt:
         log.info("Shutting down")
     finally:
