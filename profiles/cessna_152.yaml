@@ -1,0 +1,78 @@
+name: "Cessna 152 (default / Asobo)"
+description: "Stock MSFS Cessna 152 — single-engine, fixed-pitch, carburetted piston. Steam-gauge GA trainer. Same yoke/pedals/trim/TQ6+ hardware and the same standard SimConnect events as the C172 profile (Throttle + Mixture, no prop lever). Hardware ranges come from config/calibration.yaml. Gear/flaps stay on the Saitek panels via SPAD.neXt."
+
+# Auto-select tokens matched (case-insensitive) against the aircraft TITLE.
+aircraft_match:
+  - "C152"
+  - "Cessna 152"
+  - "152"
+
+bindings:
+  # --- Fulcrum One Yoke --- ABS_X(0)=roll (raw 0 = full LEFT), ABS_Y(1)=pitch
+  # (raw rises pulling back = nose up -> elevator invert:true). Flip an invert
+  # if an axis is reversed in the sim.
+  yoke:
+    - name: "Aileron (roll)"
+      source: { kind: axis, code: 0 }
+      action: { type: event, event: AILERON_SET }
+      transform: { deadzone: 0.03, curve: expo, expo: 0.25, out_min: -16383, out_max: 16383 }
+    - name: "Elevator (pitch)"
+      source: { kind: axis, code: 1 }
+      action: { type: event, event: ELEVATOR_SET }
+      transform: { deadzone: 0.03, curve: expo, expo: 0.25, invert: true, out_min: -16383, out_max: 16383 }
+    # --- Yoke grip buttons (codes & labels in config/calibration.yaml) ---
+    - name: "ATC window"           # 288 left grip, red button
+      source: { kind: button, code: 288 }
+      action: { type: event, event: ATC }
+    - name: "Parking brake"        # 289 left grip, black button
+      source: { kind: button, code: 289 }
+      action: { type: event, event: PARKING_BRAKES }
+    # NOTE: the real/stock C152 has no left/right tank selection (a single
+    # Both/Off fuel valve), so these fire valid events that do nothing on the
+    # 152. Kept for muscle-memory consistency with the other profiles.
+    - name: "Fuel selector LEFT"   # 294 right rocker, left
+      source: { kind: button, code: 294 }
+      action: { type: event, event: FUEL_SELECTOR_LEFT }
+    - name: "Fuel selector RIGHT"  # 295 right rocker, right
+      source: { kind: button, code: 295 }
+      action: { type: event, event: FUEL_SELECTOR_RIGHT }
+    # NOT mapped yet: 290/291 left rocker, 292/293 right grip, hat 16/17.
+
+  # --- VirtualFly TQ6+ : single-engine, FIXED-PITCH -> Throttle + Mixture ---
+  # raw 0 = lever fully FORWARD; raw rises pulling back; detent ~3260 = idle/0%;
+  # inverted so raw 0 -> full power / full rich. No prop lever on the 152.
+  tq6:
+    - name: "Throttle 1"
+      # raw_max=detent(3260): pulling past idle clamps to idle (no reverse).
+      source: { kind: axis, code: 0, raw_min: 0, raw_max: 3260 }
+      action: { type: event, event: THROTTLE1_SET }
+      transform: { invert: true, out_min: -16383, out_max: 16383 }
+    - name: "Mixture 1"
+      # full range to 4096 so fully pulled back reaches idle cut-off (0%).
+      source: { kind: axis, code: 4, raw_min: 0, raw_max: 4096 }
+      action: { type: event, event: MIXTURE1_SET }
+      transform: { invert: true, out_min: -16383, out_max: 16383 }
+
+  # --- Saitek Cessna Trim Wheel --- wheel forward ("nose down")=raw min, back
+  # ("nose up")=raw max. Add invert:true if reversed in the sim.
+  trim:
+    - name: "Elevator trim"
+      source: { kind: axis, code: 0 }
+      action: { type: event, event: ELEVATOR_TRIM_SET }
+      transform: { out_min: -16383, out_max: 16383 }
+
+  # --- Saitek Rudder Pedals --- rudder ABS_RZ(5) centre 252; toe brakes
+  # ABS_X(0)=LEFT, ABS_Y(1)=RIGHT. Ranges from calibration.yaml.
+  pedals:
+    - name: "Rudder"
+      source: { kind: axis, code: 5 }
+      action: { type: event, event: RUDDER_SET }
+      transform: { deadzone: 0.05, out_min: -16383, out_max: 16383 }
+    - name: "Brake left"
+      source: { kind: axis, code: 0 }
+      action: { type: event, event: AXIS_LEFT_BRAKE_SET }
+      transform: { out_min: -16383, out_max: 16383 }
+    - name: "Brake right"
+      source: { kind: axis, code: 1 }
+      action: { type: event, event: AXIS_RIGHT_BRAKE_SET }
+      transform: { out_min: -16383, out_max: 16383 }
