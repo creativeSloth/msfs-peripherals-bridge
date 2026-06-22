@@ -67,7 +67,7 @@ bindings:
     - name: "Rudder"
       source: { kind: axis, code: 5 }
       action: { type: event, event: RUDDER_SET }
-      transform: { deadzone: 0.05, out_min: -16383, out_max: 16383 }
+      transform: { deadzone: 0.05, invert: true, out_min: -16383, out_max: 16383 }
     - name: "Brake left"
       source: { kind: axis, code: 0 }
       action: { type: event, event: AXIS_LEFT_BRAKE_SET }
