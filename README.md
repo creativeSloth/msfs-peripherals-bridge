@@ -10,9 +10,12 @@ Wine prefix, a tiny **bridge process runs in Wine** and exposes SimConnect over
 a local TCP socket. The Linux app reads the hardware, applies the active
 aircraft profile, and streams the resulting events/SimVars to that bridge.
 
-> Status: early scaffold. The mapping engine, profile system, transforms and
-> CLI are implemented and tested. The Wine-side bridge is specified in
-> [`bridge/README.md`](bridge/README.md) and is the main remaining piece.
+> Status: working scaffold. The mapping engine, profile system, transforms and
+> CLI are implemented and tested. The Wine-side bridge now has a **first
+> implementation** (`bridge.py`, Python-SimConnect under Wine —
+> [`bridge/README.md`](bridge/README.md)); it is **not yet validated in-sim**,
+> and the one-time prefix setup (`bridge/setup-prefix.sh`) still has to be run on
+> this machine. `L:/H:/B:` add-on LVars still need the MobiFlight WASM channel.
 
 ---
 

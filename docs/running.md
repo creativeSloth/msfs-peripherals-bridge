@@ -15,20 +15,21 @@ There are **two** processes, and only one of them touches Wine:
 | Process | Where it runs | Status |
 |---|---|---|
 | **This app** (`msfs-bridge`) | **Natively on Linux** (Python via `uv`) | ✅ implemented |
-| **`bridge.exe`** (SimConnect bridge) | **Inside the MSFS Proton/Wine prefix** | ⛔ **spec only, not built yet** |
+| **`bridge.py`** (SimConnect bridge) | **Inside the MSFS Proton/Wine prefix** | ⚠️ **first implementation — not yet validated in-sim; prefix setup pending** |
 
 > You do **not** start `msfs-bridge` through Wine or Proton. It reads the USB
 > peripherals with native Linux `evdev` and sends commands over a local TCP
-> socket (`127.0.0.1:7842`) to the Wine-side `bridge.exe`.
-> — see [`README.md`](../README.md) and
+> socket (`127.0.0.1:7842`) to the Wine-side bridge (`bridge.py`, launched via
+> `bridge/run-bridge.sh`). — see [`README.md`](../README.md) and
 > [`bridge/README.md`](../bridge/README.md).
 
-**Consequence today:** because `bridge.exe` is not implemented yet
-([`bridge/README.md`](../bridge/README.md) header: *"specification only — not yet
-implemented. This is the main missing runtime piece"*), the app cannot actually
-move anything in the sim. What you **can** do right now is run it in
-**`--dry-run`** mode and watch the mapping resolve live (section 2). That is the
-current feedback loop.
+**Status today:** the Wine bridge now exists (`bridge/bridge.py`,
+Python-SimConnect; `event` + TITLE polling work, `simvar` covers writable `A:`
+vars). What is **not** done yet on this machine: the one-time prefix setup
+(`bridge/setup-prefix.sh`, which installs Windows Python + SimConnect into the
+prefix — `drive_c/pybridge/python.exe` is still missing), and an in-sim
+validation run. So the **dry-run loop** (section 2) is still the everyday
+feedback loop; section 1 below covers the real run once setup has been done.
 
 ---
 
@@ -60,48 +61,46 @@ uv run msfs-bridge run --aircraft "Turbo Arrow III" --dry-run -v
 the string **you pass** against each profile's `aircraft_match` substrings
 (`_resolve_profile` in [`cli.py`](../src/msfs_peripherals_bridge/cli.py)).
 
-### Run it for real (once `bridge.exe` exists — not yet)
-The app side is already wired for this; only the Wine bridge is missing.
-`bridge.exe` must run **in the same Proton prefix _and_ with the same Proton
+### Run it for real (Wine bridge — needs one-time setup first)
+The app side is wired for this and the Wine bridge (`bridge/bridge.py`) now
+exists. It must run **in the same Proton prefix _and_ with the same Proton
 version as MSFS**, so it links the matching `SimConnect.dll` and Wine runtime.
+The two helper scripts handle the env vars and Proton lookup for you — you do
+**not** call `proton run` by hand.
 
-**Find your MSFS prefix and Proton version** (MSFS 2020 = Steam AppID `1250410`;
-MSFS 2024 = `2537590`):
+**One-time:** install Windows Python + SimConnect into the MSFS prefix:
+```bash
+./bridge/setup-prefix.sh        # creates drive_c/pybridge/python.exe in the prefix
+```
+
+**Each session:** start MSFS, load a flight, then in two terminals:
+```bash
+./bridge/run-bridge.sh                          # Wine bridge, listens on 127.0.0.1:7842
+uv run msfs-bridge run --profile piper_arrow     # Linux app, in another terminal
+```
+`run-bridge.sh` defaults to MSFS 2020 Steam (AppID `1250410`) under **Proton
+Experimental** and finds the prefix at `~/.steam/steam/steamapps/compatdata/$APPID/pfx`.
+Override via `MSFS_APPID`, `STEAM_ROOT`, `PROTON_NAME`/`PROTON_PATH`, `WIN_PYTHON`
+if your layout differs.
+
+**Which Proton is MSFS actually using?** (the script assumes Experimental):
 ```bash
 APPID=1250410
-PFX=~/.steam/steam/steamapps/compatdata/$APPID
-# (a) which Proton last BUILT/RAN the prefix:
-cat "$PFX/version"                       # e.g. GE-Proton10-28
-# (b) which Proton Steam is SET to force right now (authoritative going forward):
-grep -A3 "\"$APPID\"" ~/.steam/steam/config/config.vdf | grep -m1 name
-#   -> "name" "proton_experimental"      # = Proton Experimental
+cat ~/.steam/steam/steamapps/compatdata/$APPID/version            # what last RAN the prefix
+grep -A3 "\"$APPID\"" ~/.steam/steam/config/config.vdf | grep -m1 name  # what Steam is SET to
 ```
 > These two can disagree: the `version` file only changes when the game is next
-> launched. On **this machine** Steam is set to **Proton Experimental** for MSFS,
-> while the prefix still shows `GE-Proton10-28` from an earlier run — so the
-> *effective* version after the next MSFS launch will be Experimental. Use
-> whatever (b) reports.
+> launched. If Steam is set to something other than Proton Experimental, pass it
+> via `PROTON_NAME=...` (Valve builds) or `PROTON_PATH=...` (GE builds under
+> `~/.steam/steam/compatibilitytools.d/`).
 
-**Launch the bridge in that environment.** Valve Proton's `proton run` needs the
-compat env vars set (not just `WINEPREFIX`); the Proton script lives in the
-tool's folder:
-```bash
-APPID=1250410
-export STEAM_COMPAT_DATA_PATH=~/.steam/steam/steamapps/compatdata/$APPID
-export STEAM_COMPAT_CLIENT_INSTALL_PATH=~/.steam/steam
-# Proton Experimental (Valve): under steamapps/common
-PROTON=~/.steam/steam/steamapps/common/"Proton - Experimental"/proton
-# …or a GE build: PROTON=~/.steam/steam/compatibilitytools.d/GE-Proton10-28/proton
-"$PROTON" run path/to/bridge.exe
-```
-(For a non-Steam/Lutris install, point the same env at that prefix instead.)
-
-Then start the Linux app pointing at the bridge (defaults shown):
+Host/port for the Linux app default to `127.0.0.1:7842`; override with `--host`/`--port`.
+Equivalently:
 ```bash
 uv run msfs-bridge run --profile piper_arrow --host 127.0.0.1 --port 7842
 ```
-Host/port default to `127.0.0.1:7842`
-([`simconnect/client.py`](../src/msfs_peripherals_bridge/simconnect/client.py)).
+(Defaults from
+[`simconnect/client.py`](../src/msfs_peripherals_bridge/simconnect/client.py).)
 
 ---
 
@@ -151,9 +150,9 @@ This is the loop for tuning a profile **while the sim runs**:
 
 - [`README.md`](../README.md) — architecture overview, native-Linux app + Wine
   bridge, data flow.
-- [`bridge/README.md`](../bridge/README.md) — Wine bridge spec, **"not yet
-  implemented"** status, intended `WINEPREFIX … proton run bridge.exe` launch,
-  TCP/JSON protocol on `127.0.0.1:7842`.
+- [`bridge/README.md`](../bridge/README.md) — Wine bridge **first
+  implementation** (`bridge.py`, Python-SimConnect), `setup-prefix.sh` /
+  `run-bridge.sh` launch flow, TCP/JSON protocol on `127.0.0.1:7842`.
 - [`src/msfs_peripherals_bridge/cli.py`](../src/msfs_peripherals_bridge/cli.py)
   — `run` (`--profile`/`--aircraft`/`--dry-run`/`-v`/`--host`/`--port`),
   `monitor`, `snapshot`, profile resolution.
