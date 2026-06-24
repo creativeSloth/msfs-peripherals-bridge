@@ -94,6 +94,7 @@ Detent helpers (mapped from threshold zones, not separate switches):
 | AP master | `AP_MASTER` / `TOGGLE_FLIGHT_DIRECTOR` | `AUTOPILOT MASTER` | bool |
 | Heading hold | `AP_HDG_HOLD` / `AP_PANEL_HEADING_HOLD` | `AUTOPILOT HEADING LOCK` | bool |
 | Heading bug set | `HEADING_BUG_SET` (degrees) | `AUTOPILOT HEADING LOCK DIR` | degrees |
+| Heading bug ± step | `HEADING_BUG_INC` / `HEADING_BUG_DEC` | `AUTOPILOT HEADING LOCK DIR` | degrees |
 | Altitude hold | `AP_ALT_HOLD` | `AUTOPILOT ALTITUDE LOCK` | bool |
 | Altitude set | `AP_ALT_VAR_SET_ENGLISH` (feet) | `AUTOPILOT ALTITUDE LOCK VAR` | feet |
 | VS mode / set | `AP_VS_HOLD` / `AP_VS_VAR_SET_ENGLISH` (fpm) | `AUTOPILOT VERTICAL HOLD VAR` | feet/min |
@@ -103,6 +104,16 @@ Detent helpers (mapped from threshold zones, not separate switches):
 | Speed (FLC) | `AP_SPD_VAR_SET` (knots) | `AUTOPILOT AIRSPEED HOLD VAR` | knots |
 | Yaw damper | `YAW_DAMPER_TOGGLE` | `AUTOPILOT YAW DAMPER` | bool |
 | Flight director | `TOGGLE_FLIGHT_DIRECTOR` | `AUTOPILOT FLIGHT DIRECTOR ACTIVE` | bool |
+
+**"Heading bug = current heading" (sync).** A common cockpit button (the Arrow's
+left rocker-up; in SPAD.neXt the single mapping `AUTOPILOT HEADING LOCK DIR :=
+PLANE HEADING DEGREES MAGNETIC`) copies the live magnetic heading into the AP
+heading bug. It's a **read-then-set**: read `PLANE HEADING DEGREES MAGNETIC`
+(degrees), then `HEADING_BUG_SET` with that value. This is wired in
+`piper_arrow.yaml` as the `event_from_var` button action (see
+[`profiles/_schema.md`](../profiles/_schema.md)) — just press the button, no
+terminal command needed. The bridge reads the heading at press time so it's
+always current.
 
 ---
 

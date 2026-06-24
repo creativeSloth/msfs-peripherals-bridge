@@ -29,8 +29,12 @@ bindings:
     # Flight-deck functions, fire once on press. Gear & flaps stay on the
     # Saitek panels via SPAD.neXt (out of scope here).
     - name: "ATC window"           # 288 left grip, red button
+      # Open/close the ATC window. `ATC` (the FSX-era event) does NOT reliably
+      # toggle the window in MSFS 2020; SIMUI_WINDOW_HIDESHOW is the documented
+      # UI-window toggle. NOTE: the window must be enabled in the MSFS toolbar at
+      # least once before an external switch can toggle it.
       source: { kind: button, code: 288 }
-      action: { type: event, event: ATC }
+      action: { type: event, event: ATC_0 }
     - name: "Parking brake"        # 289 left grip, black button
       source: { kind: button, code: 289 }
       action: { type: event, event: PARKING_BRAKES }
@@ -40,10 +44,18 @@ bindings:
     - name: "Fuel selector RIGHT"  # 295 right rocker, right
       source: { kind: button, code: 295 }
       action: { type: event, event: FUEL_SELECTOR_RIGHT }
+    - name: "Heading bug = current heading"   # 290 left rocker up
+      # Dynamic action: on press the bridge reads the live magnetic heading and
+      # fires HEADING_BUG_SET with it, snapping the AP heading bug to where the
+      # nose points. Same effect as the SPAD.neXt mapping
+      # "AUTOPILOT HEADING LOCK DIR := PLANE HEADING DEGREES MAGNETIC".
+      source: { kind: button, code: 290 }
+      action:
+        type: event_from_var
+        read: "PLANE HEADING DEGREES MAGNETIC"
+        unit: degrees
+        event: HEADING_BUG_SET
     # NOT mapped yet:
-    #   290 left rocker up -> "heading bug = current heading" needs a DYNAMIC
-    #       value (read HEADING simvar, then HEADING_BUG_SET); a button can only
-    #       send a fixed value, so this waits until the bridge can read simvars.
     #   291 left rocker down, 292/293 right grip black (lower/upper): unassigned.
     #   hat 16/17: unassigned (also needs direction-aware hat mapping).
     # Verify in-sim: ATC window event name may differ in MSFS 2024.
@@ -59,18 +71,19 @@ bindings:
     - name: "Throttle 1"
       source: { kind: axis, code: 0, raw_min: 0, raw_max: 3275 }
       action: { type: event, event: THROTTLE1_SET }
-      transform: { invert: true, out_min: -16383, out_max: 16383 }
+      transform: { invert: true, out_min: 0, out_max: 16383 }
     - name: "Propeller 1 (RPM)"
       # Constant-speed prop: full forward = max RPM (fine). Clamp at the feather
       # detent — the Arrow's prop governs RPM but does not feather.
       source: { kind: axis, code: 2, raw_min: 0, raw_max: 3261 }
       action: { type: event, event: PROP_PITCH1_SET }
-      transform: { invert: true, out_min: -16383, out_max: 16383 }
+      transform: { invert: true, out_min: 0, out_max: 16383 }
     - name: "Mixture 1"
-      # Full range to 4096 so fully pulled back reaches idle cut-off (mixture 0%).
-      source: { kind: axis, code: 4, raw_min: 0, raw_max: 4096 }
+      # raw_max clamped at the lever's full-back hardware stop (~3227, measured
+      # in-sim) so fully pulled back reaches idle cut-off (mixture 0%).
+      source: { kind: axis, code: 4, raw_min: 0, raw_max: 3227 }
       action: { type: event, event: MIXTURE1_SET }
-      transform: { invert: true, out_min: -16383, out_max: 16383 }
+      transform: { invert: true, out_min: 0, out_max: 16384 }
 
   # --- Saitek Cessna Trim Wheel (same as C172) ---
   # ABS_X bounded; wheel forward ("nose down")=raw min, back ("nose up")=raw max.
@@ -97,3 +110,99 @@ bindings:
       source: { kind: axis, code: 1 }
       action: { type: event, event: AXIS_RIGHT_BRAKE_SET }
       transform: { out_min: -16383, out_max: 16383 }
+
+  # --- Saitek Pro Flight Switch Panel (raw HID, 3-byte report) ---
+  # `code` is the global bit index = byte*8 + bit, mapped empirically 2026-06-24:
+  #   byte0: 0 BAT  1 ALT  2 AVIONICS  3 FUEL PUMP  4 DE-ICE  5 PITOT  6 COWL  7 PANEL
+  #   byte1: 8 BEACON 9 NAV 10 STROBE 11 TAXI 12 LANDING | 13 MAG-OFF 14 MAG-R 15 MAG-L
+  #   byte2: 16 MAG-BOTH 17 MAG-START | 18 GEAR-UP 19 GEAR-DOWN
+  #
+  # kind: switch -> WITHOUT `value` = stateful: forwards on/off as 1/0 to a
+  # `*_SET` event (toggle switches). WITH `value` = momentary: fires only on the
+  # enter edge (rotary detents, gear lever).
+  #
+  # VERIFY in-sim: the electrical/fuel/anti-ice SET event names below are
+  # best-effort — adjust any that don't move the right switch in the Arrow.
+  switch_panel:
+    # Toggle switches -> stateful *_SET (on=1 / off=0)
+    - name: "Battery master"
+      source: { kind: switch, code: 0 }
+      action: { type: event, event: MASTER_BATTERY_SET }      # confirmed in-sim 2026-06-24
+    - name: "Alternator"
+      source: { kind: switch, code: 1 }
+      action: { type: event, event: ALTERNATOR_SET }          # confirmed in-sim 2026-06-24
+    # Avionics master + Electric fuel pump do NOT work via SimConnect *_SET on the
+    # JF Arrow (verified in-sim 2026-06-24). SPAD.neXt's "Arrow (Turbo)" profile
+    # drives them through JF custom LVars + an event sequence, which needs the
+    # MobiFlight WASM channel (not yet wired into bridge.py). Recipe to implement:
+    #   Avionics master (on):  AVIONICS_MASTER_SET 1; AVIONICS_MASTER_1_ON;
+    #     AVIONICS_MASTER_2_ON; L:KN62_POWER=1; COM1_VOLUME_SET 100;
+    #     COM2_VOLUME_SET 100; TRANSPONDERON   (off = reverse)
+    #   Electric fuel pump:    L:CENTRE_LOWER_FUELPUMP  (SPAD: on->0, off->1;
+    #     confirm direction in-sim — JF pump is 3-way OFF/LO/HI, switch = LO/off)
+    # - name: "Avionics master"
+    #   source: { kind: switch, code: 2 }
+    #   action: { type: event, event: AVIONICS_MASTER_SET }   # no-op on JF Arrow
+    # - name: "Electric fuel pump"
+    #   source: { kind: switch, code: 3 }
+    #   action: { type: event, event: ELECT_FUEL_PUMP_SET }   # no-op on JF Arrow
+    - name: "De-ice / anti-ice"
+      source: { kind: switch, code: 4 }
+      action: { type: event, event: ANTI_ICE_SET }
+    - name: "Pitot heat"
+      source: { kind: switch, code: 5 }
+      action: { type: event, event: PITOT_HEAT_SET }
+    # Cowl flaps NOT mapped: COWLFLAP1_SET expects a 0..16383 position, but a
+    # switch only sends 0/1 (no transform yet on switches). Add later via a
+    # SimVar or a scaled switch action.
+    - name: "Panel lights"
+      source: { kind: switch, code: 7 }
+      action: { type: event, event: PANEL_LIGHTS_SET }
+    - name: "Beacon lights"
+      source: { kind: switch, code: 8 }
+      action: { type: event, event: BEACON_LIGHTS_SET }
+    # Nav lights: currently UNUSED (user 2026-06-24); left mapped but harmless.
+    - name: "Nav lights"
+      source: { kind: switch, code: 9 }
+      action: { type: event, event: NAV_LIGHTS_SET }      # unused
+    # Strobe switch = the cockpit "Anti Collision" control; confirmed in-sim 2026-06-24.
+    - name: "Strobe lights"
+      source: { kind: switch, code: 10 }
+      action: { type: event, event: STROBES_SET }         # confirmed (= anti-collision)
+    - name: "Taxi lights"
+      source: { kind: switch, code: 11 }
+      action: { type: event, event: TAXI_LIGHTS_SET }
+    - name: "Landing lights"
+      source: { kind: switch, code: 12 }
+      action: { type: event, event: LANDING_LIGHTS_SET }
+    # Magneto / starter rotary -> momentary, fires on entering each detent.
+    # Single-engine: engine 1. START is spring-loaded back to BOTH.
+    # BUG (in-sim 2026-06-24, JF Arrow): engine starts & it's usable, but the
+    # LEFT (L) detent mis-registers as its neighbour in the travel direction.
+    #   Up   OFF-R-L-BOTH-START arrives as OFF-R-BOTH-BOTH-START (L -> BOTH)
+    #   Down START-BOTH-L-R-OFF arrives as BOTH-BOTH-R-R-OFF       (L -> R)
+    # (START springing back to BOTH after ~1s is correct/expected.) Likely the
+    # hidraw bit map for code 15 (L) vs 16 (BOTH) or a fast-rotate diff/edge issue
+    # in hidraw_reader — needs re-measuring the L detent. TODO fix; tolerable for now.
+    - name: "Magneto OFF"
+      source: { kind: switch, code: 13 }
+      action: { type: event, event: MAGNETO1_OFF, value: 1 }
+    - name: "Magneto RIGHT"
+      source: { kind: switch, code: 14 }
+      action: { type: event, event: MAGNETO1_RIGHT, value: 1 }
+    - name: "Magneto LEFT"
+      source: { kind: switch, code: 15 }
+      action: { type: event, event: MAGNETO1_LEFT, value: 1 }
+    - name: "Magneto BOTH"
+      source: { kind: switch, code: 16 }
+      action: { type: event, event: MAGNETO1_BOTH, value: 1 }
+    - name: "Magneto START"
+      source: { kind: switch, code: 17 }
+      action: { type: event, event: MAGNETO1_START, value: 1 }
+    # Gear lever -> momentary on the enter edge.
+    - name: "Gear up"
+      source: { kind: switch, code: 18 }
+      action: { type: event, event: GEAR_UP, value: 1 }
+    - name: "Gear down"
+      source: { kind: switch, code: 19 }
+      action: { type: event, event: GEAR_DOWN, value: 1 }

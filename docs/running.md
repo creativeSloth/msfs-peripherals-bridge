@@ -15,7 +15,7 @@ There are **two** processes, and only one of them touches Wine:
 | Process | Where it runs | Status |
 |---|---|---|
 | **This app** (`msfs-bridge`) | **Natively on Linux** (Python via `uv`) | ✅ implemented |
-| **`bridge.py`** (SimConnect bridge) | **Inside the MSFS Proton/Wine prefix** | ⚠️ **first implementation — not yet validated in-sim; prefix setup pending** |
+| **`bridge.py`** (SimConnect bridge) | **Inside the MSFS Proton/Wine prefix** | ✅ **working in-sim** (axes + K: events; SimVar read via subscribe) |
 
 > You do **not** start `msfs-bridge` through Wine or Proton. It reads the USB
 > peripherals with native Linux `evdev` and sends commands over a local TCP
@@ -23,13 +23,17 @@ There are **two** processes, and only one of them touches Wine:
 > `bridge/run-bridge.sh`). — see [`README.md`](../README.md) and
 > [`bridge/README.md`](../bridge/README.md).
 
-**Status today:** the Wine bridge now exists (`bridge/bridge.py`,
-Python-SimConnect; `event` + TITLE polling work, `simvar` covers writable `A:`
-vars). What is **not** done yet on this machine: the one-time prefix setup
-(`bridge/setup-prefix.sh`, which installs Windows Python + SimConnect into the
-prefix — `drive_c/pybridge/python.exe` is still missing), and an in-sim
-validation run. So the **dry-run loop** (section 2) is still the everyday
-feedback loop; section 1 below covers the real run once setup has been done.
+**Status today:** the full chain works in-sim. The Wine bridge
+(`bridge/bridge.py`, Python-SimConnect) is set up in the MSFS prefix and
+validated against MSFS — axes and K: events reach the sim and the per-aircraft
+profiles fly real flights (Piper Arrow, Cessna 152/172). Reading SimVars back
+(`msfs-bridge read`) goes through the subscribe/state channel. Still open:
+`L:/H:/B:` add-on LVars need the MobiFlight WASM channel, and TITLE auto-profile
+is not yet wired into `run`. The **dry-run loop** (section 2) stays the offline
+way to tune a profile without the sim; section 1 is the real run.
+
+> Looking for just the commands? [`cheatsheet.md`](cheatsheet.md) lists every one
+> as a copy-paste line.
 
 ---
 
@@ -82,6 +86,18 @@ uv run msfs-bridge run --profile piper_arrow     # Linux app, in another termina
 Experimental** and finds the prefix at `~/.steam/steam/steamapps/compatdata/$APPID/pfx`.
 Override via `MSFS_APPID`, `STEAM_ROOT`, `PROTON_NAME`/`PROTON_PATH`, `WIN_PYTHON`
 if your layout differs.
+
+**One-command launcher (this setup).** `~/.local/bin/msfs-bridge` wraps both halves
+into a single command, consistent with the other cockpit launchers (`spadnext`,
+`lnm`, `airm`): it starts the Wine bridge in the background **only if** `7842` isn't
+already up, waits for the port, then runs the Linux mapper in the foreground.
+```bash
+msfs-bridge                 # default profile (piper_arrow)
+msfs-bridge cessna_152      # override profile by name
+```
+Ctrl-C stops only the mapper; the SimConnect server stays up, so a repeat
+`msfs-bridge` reattaches instantly. If `pybridge` is missing it runs
+`setup-prefix.sh` once automatically.
 
 **Which Proton is MSFS actually using?** (the script assumes Experimental):
 ```bash
@@ -138,11 +154,17 @@ This is the loop for tuning a profile **while the sim runs**:
   uv run msfs-bridge snapshot <device>  # one-shot current axis values
   ```
   (`monitor` / `snapshot` in [`cli.py`](../src/msfs_peripherals_bridge/cli.py).)
-- **Closed-loop with the sim** (move control → see the aircraft react, and read
-  SimVars/`TITLE` back): this needs `bridge.exe`. The return channel already
-  exists in the client (`BridgeClient.states()` streams `state` frames —
-  [`simconnect/client.py`](../src/msfs_peripherals_bridge/simconnect/client.py),
-  [`bridge/README.md`](../bridge/README.md)); it just has nothing to talk to yet.
+- **Closed-loop with the sim** — move a control → see the aircraft react, and
+  read SimVars/`TITLE` back. With the Wine bridge up, read any SimVar:
+  ```bash
+  uv run msfs-bridge read "AUTOPILOT HEADING LOCK DIR" -u degrees   # one-shot
+  uv run msfs-bridge read "AUTOPILOT HEADING LOCK DIR" -u degrees -w  # live
+  ```
+  It subscribes over `BridgeClient.states()` and prints the `state` frames the
+  bridge streams back
+  ([`simconnect/client.py`](../src/msfs_peripherals_bridge/simconnect/client.py),
+  [`bridge/README.md`](../bridge/README.md)). Handy for putting the AP heading
+  bug on a rocker switch.
 
 ---
 
@@ -155,7 +177,8 @@ This is the loop for tuning a profile **while the sim runs**:
   `run-bridge.sh` launch flow, TCP/JSON protocol on `127.0.0.1:7842`.
 - [`src/msfs_peripherals_bridge/cli.py`](../src/msfs_peripherals_bridge/cli.py)
   — `run` (`--profile`/`--aircraft`/`--dry-run`/`-v`/`--host`/`--port`),
-  `monitor`, `snapshot`, profile resolution.
+  `monitor`, `snapshot`, `calibrate`, `scan`, `read` (SimVar from the sim),
+  profile resolution.
 - [`src/msfs_peripherals_bridge/simconnect/client.py`](../src/msfs_peripherals_bridge/simconnect/client.py)
   — `DEFAULT_HOST`/`DEFAULT_PORT`, `DryRunDispatcher`, `BridgeClient.states()`.
 - [`docs/memory/architecture.md`](memory/architecture.md),

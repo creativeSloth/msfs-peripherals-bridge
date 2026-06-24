@@ -41,6 +41,18 @@ bindings:
   becomes the event `data`; for buttons a fixed `value` (default 1) is sent.
 - `simvar` - set a SimVar through the MobiFlight WASM channel
   (`{ type: simvar, simvar: "L:Name", unit: number }`).
+- `event_from_var` - **dynamic button action**: on press the bridge reads a
+  SimVar (in `unit`) and fires `event` with that value. Use it to copy a live
+  value, e.g. snap the AP heading bug to the current heading:
+  ```yaml
+  source: { kind: button, code: 290 }
+  action:
+    type: event_from_var
+    read: "PLANE HEADING DEGREES MAGNETIC"
+    unit: degrees
+    event: HEADING_BUG_SET
+  ```
+  The read happens on the bridge at press time, so the value is fresh.
 
 ## Transform pipeline (axes only)
 `raw -> normalise [-1,1] -> deadzone -> curve (linear|expo|squared) ->

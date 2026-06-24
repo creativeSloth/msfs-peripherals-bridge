@@ -1,10 +1,10 @@
 # Wine-side SimConnect bridge
 
-> Status: **first implementation** (`bridge.py`, Python-SimConnect under Wine).
-> `event` (all K: events) works; `subscribe`/`state` polls TITLE for
-> auto-profile; `simvar` covers writable `A:` vars (`L:/H:/B:` still need the
-> MobiFlight WASM channel). **Not yet validated in-sim.** The Linux client and
-> protocol live in `src/msfs_peripherals_bridge/simconnect/`.
+> Status: **validated in-sim** (`bridge.py`, Python-SimConnect under Wine).
+> `event` (all K: events) drives MSFS; `subscribe`/`state` polls SimVars on
+> change (used by `msfs-bridge read`, e.g. the AP heading bug); `simvar` covers
+> writable `A:` vars (`L:/H:/B:` still need the MobiFlight WASM channel). The
+> Linux client and protocol live in `src/msfs_peripherals_bridge/simconnect/`.
 
 ## Purpose
 MSFS runs under Proton/Wine, so `SimConnect.dll` lives inside the Wine prefix
@@ -25,6 +25,7 @@ Exactly what `simconnect/protocol.py` emits/accepts:
 | Linux → bridge | `{"op":"event","name":"<K_EVENT>","data":<int>}` |
 | Linux → bridge | `{"op":"simvar","name":"<A:/L: var>","unit":"<unit>","value":<num>}` |
 | Linux → bridge | `{"op":"subscribe","name":"<simvar>","unit":"<unit>"}` |
+| Linux → bridge | `{"op":"event_from_var","event":"<K_EVENT>","read":"<simvar>","unit":"<unit>"}` |
 | bridge → Linux | `{"op":"state","name":"<simvar>","value":<any>}` |
 | bridge → Linux | `{"op":"hello","sim":"MSFS","version":"..."}` |
 
@@ -32,6 +33,9 @@ Exactly what `simconnect/protocol.py` emits/accepts:
 - `event`  → `SimConnect_MapClientEventToSimEvent` + `SimConnect_TransmitClientEvent`.
 - `subscribe` → `SimConnect_AddToDataDefinition` + `SimConnect_RequestDataOnSimObject`
   (period = on change). Stream changes back as `state` frames (esp. `TITLE`).
+- `event_from_var` → read `read` (in `unit`) **now**, then transmit `event` with
+  the rounded value. The dynamic button action (e.g. heading-bug sync); reading
+  at press time avoids polling lag.
 - `simvar` (set) for **`L:`/`H:`/`B:` vars** → route through the **MobiFlight
   WASM module** (standard SimConnect can't set local vars). Plain writable `A:`
   SimVars can use `SimConnect_SetDataOnSimObject`.

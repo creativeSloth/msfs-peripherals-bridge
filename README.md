@@ -10,12 +10,17 @@ Wine prefix, a tiny **bridge process runs in Wine** and exposes SimConnect over
 a local TCP socket. The Linux app reads the hardware, applies the active
 aircraft profile, and streams the resulting events/SimVars to that bridge.
 
-> Status: working scaffold. The mapping engine, profile system, transforms and
-> CLI are implemented and tested. The Wine-side bridge now has a **first
-> implementation** (`bridge.py`, Python-SimConnect under Wine —
-> [`bridge/README.md`](bridge/README.md)); it is **not yet validated in-sim**,
-> and the one-time prefix setup (`bridge/setup-prefix.sh`) still has to be run on
-> this machine. `L:/H:/B:` add-on LVars still need the MobiFlight WASM channel.
+> Status: **working in-sim.** The mapping engine, profile system, transforms and
+> CLI are implemented and tested; the Wine-side bridge (`bridge.py`,
+> Python-SimConnect — [`bridge/README.md`](bridge/README.md)) is **validated
+> against MSFS**: axes and K: events reach the sim and per-aircraft profiles
+> drive real flights (Piper Arrow, Cessna 152/172). Reading SimVars back
+> (`msfs-bridge read`, e.g. the AP heading bug) goes through the subscribe/state
+> channel, and dynamic **`event_from_var`** buttons read-then-fire on press (the
+> Arrow's heading-bug-sync rocker). Still open: `L:/H:/B:` add-on LVars need the
+> MobiFlight WASM channel, and TITLE auto-profile is not yet wired into `run`.
+>
+> New here? The copy-paste command list is [`docs/cheatsheet.md`](docs/cheatsheet.md).
 
 ---
 
@@ -120,7 +125,13 @@ uv run msfs-bridge run --profile cessna_172 --dry-run -v
 
 # 6. Real run (needs the Wine bridge running, see bridge/README.md)
 uv run msfs-bridge run --aircraft "Cessna 172 Skyhawk"
+
+# 7. Read a SimVar back from the sim (bridge up), e.g. the AP heading bug
+uv run msfs-bridge read "AUTOPILOT HEADING LOCK DIR" --unit degrees
 ```
+
+The full command list as copy-paste lines is in
+[`docs/cheatsheet.md`](docs/cheatsheet.md).
 
 See [`docs/running.md`](docs/running.md) for a full run/iterate guide: what runs
 natively vs. in Wine/Proton, finding your MSFS Proton prefix + version, and
