@@ -131,21 +131,21 @@ bindings:
     - name: "Alternator"
       source: { kind: switch, code: 1 }
       action: { type: event, event: ALTERNATOR_SET }          # confirmed in-sim 2026-06-24
-    # Avionics master + Electric fuel pump do NOT work via SimConnect *_SET on the
-    # JF Arrow (verified in-sim 2026-06-24). SPAD.neXt's "Arrow (Turbo)" profile
-    # drives them through JF custom LVars + an event sequence, which needs the
-    # MobiFlight WASM channel (not yet wired into bridge.py). Recipe to implement:
-    #   Avionics master (on):  AVIONICS_MASTER_SET 1; AVIONICS_MASTER_1_ON;
-    #     AVIONICS_MASTER_2_ON; L:KN62_POWER=1; COM1_VOLUME_SET 100;
-    #     COM2_VOLUME_SET 100; TRANSPONDERON   (off = reverse)
-    #   Electric fuel pump:    L:CENTRE_LOWER_FUELPUMP  (SPAD: on->0, off->1;
-    #     confirm direction in-sim — JF pump is 3-way OFF/LO/HI, switch = LO/off)
+    # Electric fuel pump: JF custom LVar, written via the MobiFlight WASM channel
+    # (plain *_SET is a no-op here). Stateful switch -> on writes 1 (LO), off 0.
+    # JF pump is 3-way OFF/LO/HI; the 2-pos Saitek switch covers off/LO. SPAD used
+    # the inverse polarity (on->0); if it ends up inverted in-sim, swap on the var.
+    - name: "Electric fuel pump"
+      source: { kind: switch, code: 3 }
+      action: { type: simvar, simvar: "L:CENTRE_LOWER_FUELPUMP", unit: "number" }
+    # Avionics master still needs a multi-step sequence (events + L:KN62_POWER),
+    # not a single var — pending an RPN/sequence action. SPAD recipe:
+    #   on:  AVIONICS_MASTER_SET 1; AVIONICS_MASTER_1_ON; AVIONICS_MASTER_2_ON;
+    #        L:KN62_POWER=1; COM1_VOLUME_SET 100; COM2_VOLUME_SET 100; TRANSPONDERON
+    #   off: reverse
     # - name: "Avionics master"
     #   source: { kind: switch, code: 2 }
     #   action: { type: event, event: AVIONICS_MASTER_SET }   # no-op on JF Arrow
-    # - name: "Electric fuel pump"
-    #   source: { kind: switch, code: 3 }
-    #   action: { type: event, event: ELECT_FUEL_PUMP_SET }   # no-op on JF Arrow
     - name: "De-ice / anti-ice"
       source: { kind: switch, code: 4 }
       action: { type: event, event: ANTI_ICE_SET }

@@ -22,6 +22,7 @@ and run there. Keep it self-contained.
 from __future__ import annotations
 
 import argparse
+import ctypes
 import json
 import logging
 import os
@@ -48,9 +49,20 @@ DEFAULT_HOST = "127.0.0.1"
 DEFAULT_PORT = 7842
 POLL_INTERVAL = 1.0  # seconds between subscribed-variable polls (e.g. TITLE)
 
-# SimVar prefixes that standard SimConnect cannot set; they need the MobiFlight
-# WASM channel (not yet wired). Plain writable A: vars go through SetData.
+# SimVar prefixes that standard SimConnect cannot set; they are routed through
+# the MobiFlight WASM channel below. Plain writable A: vars go through SetData.
 _LOCAL_PREFIXES = {"L", "H", "B"}
+
+# MobiFlight WASM module command channel. Writing `MF.SimVars.Set.<rpn>` to the
+# "MobiFlight.Command" ClientData area makes the module run <rpn> as calculator
+# code, which is how we set L:/H:/B: vars (`<value> (>L:NAME)`). Write-only for
+# now; reading LVars (for LED output) can be added later via RequestClientData.
+# Requires the mobiflight-event-module in the Community folder + an MSFS restart.
+_MF_COMMAND_AREA = b"MobiFlight.Command"
+_MF_MESSAGE_SIZE = 1024  # MOBIFLIGHT_MESSAGE_SIZE
+_MF_AREA_ID = 0x4D46  # 'MF' — any id unique within our SimConnect client
+_MF_DEF_ID = 0x4D46
+_SIMCONNECT_UNUSED = 0xFFFFFFFF
 
 
 class SimConnectBridge:
@@ -65,6 +77,8 @@ class SimConnectBridge:
         # registers a SimConnect data definition, so we must not leak one per
         # button press.
         self._var_requests: dict[tuple[str, str], object] = {}
+        # Lazily-mapped MobiFlight command channel (see _ensure_mobiflight).
+        self._mf_ready = False
 
     def send_event(self, name: str, data: int) -> None:
         """Map (once) and transmit a SimConnect client event by name."""
@@ -79,12 +93,53 @@ class SimConnectBridge:
     def set_simvar(self, name: str, value: float) -> None:
         prefix = name.split(":", 1)[0].upper() if ":" in name else ""
         if prefix in _LOCAL_PREFIXES:
-            log.warning(
-                "simvar %s needs the MobiFlight WASM channel (L:/H:/B:); not yet supported",
-                name,
-            )
+            # L:/H:/B: vars can't be set by plain SimConnect — run calculator
+            # code through MobiFlight: `<value> (>L:NAME)`. Integers stay clean
+            # (RPN reads "1" fine, "1.0" too, but "1" avoids surprises on H:).
+            num = int(value) if float(value).is_integer() else value
+            self._mf_exec(f"{num} (>{name})")
             return
         self.requests.set(name, value)
+
+    def _ensure_mobiflight(self) -> bool:
+        """Map the MobiFlight command ClientData area once. Returns False
+        (logged) if the WASM module isn't loaded — e.g. not installed in the
+        Community folder, or MSFS not restarted since it was."""
+        if self._mf_ready:
+            return True
+        dll, h = self.sc.dll, self.sc.hSimConnect
+        hr = dll.MapClientDataNameToID(h, _MF_COMMAND_AREA, _MF_AREA_ID)
+        if hr != 0:
+            log.error(
+                "MobiFlight: MapClientDataNameToID failed (0x%08X); is the "
+                "mobiflight-event-module in Community and MSFS restarted?",
+                hr & 0xFFFFFFFF,
+            )
+            return False
+        hr = dll.AddToClientDataDefinition(
+            h, _MF_DEF_ID, 0, _MF_MESSAGE_SIZE, 0.0, _SIMCONNECT_UNUSED
+        )
+        if hr != 0:
+            log.error("MobiFlight: AddToClientDataDefinition failed (0x%08X)", hr & 0xFFFFFFFF)
+            return False
+        self._mf_ready = True
+        log.info("MobiFlight WASM channel ready")
+        return True
+
+    def _mf_exec(self, code: str) -> None:
+        """Run RPN/calculator code in the sim via MobiFlight (fire-and-forget)."""
+        if not self._ensure_mobiflight():
+            return
+        cmd = ("MF.SimVars.Set." + code).encode("ascii")
+        buf = ctypes.create_string_buffer(cmd, _MF_MESSAGE_SIZE)
+        hr = self.sc.dll.SetClientData(
+            self.sc.hSimConnect, _MF_AREA_ID, _MF_DEF_ID, 0, 0,
+            _MF_MESSAGE_SIZE, ctypes.cast(buf, ctypes.c_void_p),
+        )
+        if hr != 0:
+            log.error("MobiFlight: SetClientData failed (0x%08X) for %r", hr & 0xFFFFFFFF, code)
+        else:
+            log.info("MobiFlight exec: %s", code)
 
     def read_var(self, name: str, unit: str) -> object | None:
         """Read a SimVar with an explicit unit (e.g. heading in 'degrees').
@@ -214,6 +269,10 @@ class ClientSession:
                 )
             elif op == "simvar":
                 self.sim.set_simvar(msg["name"], float(msg["value"]))
+            elif op == "rpn":
+                # Raw calculator/RPN code run via MobiFlight — fires K: events
+                # and sets L: vars in one string (SPAD VALUEON/VALUEOFF style).
+                self.sim._mf_exec(msg["code"])
             elif op == "subscribe":
                 with self._lock:
                     self._subscriptions.setdefault(msg["name"], None)
