@@ -24,3 +24,11 @@ devices:
     name: Saitek Pro Flight Rudder Pedals
     vendor: "06a3"
     product: "0763"
+
+  # Raw-HID panels (read via /dev/hidraw, not evdev). Input report is 3 bytes;
+  # bits map to switches/rotary/gear, see profiles for the bit->function table.
+  - id: switch_panel
+    name: Saitek Pro Flight Switch Panel
+    vendor: "06a3"
+    product: "0d67"
+    transport: hidraw

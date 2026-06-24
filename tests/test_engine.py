@@ -3,13 +3,18 @@ from msfs_peripherals_bridge.mapping.engine import MappingEngine
 from msfs_peripherals_bridge.models import (
     Binding,
     EventAction,
+    EventFromVarAction,
     Profile,
     SimVarAction,
     Source,
     SourceKind,
     Transform,
 )
-from msfs_peripherals_bridge.simconnect.protocol import SendEvent, SetSimVar
+from msfs_peripherals_bridge.simconnect.protocol import (
+    SendEvent,
+    SendEventFromVar,
+    SetSimVar,
+)
 
 
 def _axis_profile() -> Profile:
@@ -83,3 +88,72 @@ def test_simvar_action_emits_setsimvar():
     engine = MappingEngine(profile)
     cmds = engine.resolve(DeviceEvent("trim", SourceKind.AXIS, 7, 100))
     assert cmds == [SetSimVar(name="L:Trim", unit="number", value=1.0)]
+
+
+def _switch_binding(action) -> Profile:
+    return Profile(
+        name="t",
+        bindings={
+            "switch_panel": [
+                Binding(name="s", source=Source(kind=SourceKind.SWITCH, code=9), action=action)
+            ]
+        },
+    )
+
+
+def test_stateful_switch_forwards_on_and_off_state():
+    # A switch with no fixed value drives a *_SET event with its live 0/1 state.
+    engine = MappingEngine(_switch_binding(EventAction(event="NAV_LIGHTS_SET")))
+    assert engine.resolve(DeviceEvent("switch_panel", SourceKind.SWITCH, 9, 1)) == [
+        SendEvent(name="NAV_LIGHTS_SET", data=1)
+    ]
+    assert engine.resolve(DeviceEvent("switch_panel", SourceKind.SWITCH, 9, 0)) == [
+        SendEvent(name="NAV_LIGHTS_SET", data=0)
+    ]
+
+
+def test_momentary_switch_fires_only_on_enter_edge():
+    # A fixed value makes the switch momentary (rotary detent / gear lever).
+    engine = MappingEngine(_switch_binding(EventAction(event="GEAR_UP", value=1)))
+    assert engine.resolve(DeviceEvent("switch_panel", SourceKind.SWITCH, 9, 1)) == [
+        SendEvent(name="GEAR_UP", data=1)
+    ]
+    assert engine.resolve(DeviceEvent("switch_panel", SourceKind.SWITCH, 9, 0)) == []
+
+
+def test_stateful_switch_simvar_sets_both_edges():
+    engine = MappingEngine(_switch_binding(SimVarAction(simvar="L:Foo", unit="number")))
+    assert engine.resolve(DeviceEvent("switch_panel", SourceKind.SWITCH, 9, 1)) == [
+        SetSimVar(name="L:Foo", unit="number", value=1.0)
+    ]
+    assert engine.resolve(DeviceEvent("switch_panel", SourceKind.SWITCH, 9, 0)) == [
+        SetSimVar(name="L:Foo", unit="number", value=0.0)
+    ]
+
+
+def test_event_from_var_button_emits_sendeventfromvar_on_press_only():
+    profile = Profile(
+        name="t",
+        bindings={
+            "yoke": [
+                Binding(
+                    name="Heading bug = current heading",
+                    source=Source(kind=SourceKind.BUTTON, code=290),
+                    action=EventFromVarAction(
+                        read="PLANE HEADING DEGREES MAGNETIC",
+                        unit="degrees",
+                        event="HEADING_BUG_SET",
+                    ),
+                )
+            ]
+        },
+    )
+    engine = MappingEngine(profile)
+    assert engine.resolve(DeviceEvent("yoke", SourceKind.BUTTON, 290, 1)) == [
+        SendEventFromVar(
+            event="HEADING_BUG_SET", read="PLANE HEADING DEGREES MAGNETIC", unit="degrees"
+        )
+    ]
+    # Release / autorepeat must not re-fire the sync.
+    assert engine.resolve(DeviceEvent("yoke", SourceKind.BUTTON, 290, 0)) == []
+    assert engine.resolve(DeviceEvent("yoke", SourceKind.BUTTON, 290, 2)) == []

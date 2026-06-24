@@ -12,7 +12,7 @@ import queue
 import threading
 from typing import Protocol
 
-from .devices import evdev_reader
+from .devices import evdev_reader, hidraw_reader
 from .devices.base import DeviceEvent
 from .mapping.engine import MappingEngine
 from .models import DeviceCatalog, Profile
@@ -38,7 +38,7 @@ def run(
     engine = MappingEngine(profile)
     events: queue.Queue[DeviceEvent] = queue.Queue(maxsize=1024)
 
-    present = evdev_reader.discover(catalog)
+    present = {**evdev_reader.discover(catalog), **hidraw_reader.discover(catalog)}
     if not present:
         raise RuntimeError("None of the catalog devices were found on this system.")
 
@@ -47,7 +47,11 @@ def run(
             log.warning(
                 "Device %s present but has no bindings in profile '%s'", device_id, profile.name
             )
-        threading.Thread(target=_pump, args=(device_id, path, events, stop), daemon=True).start()
+        definition = catalog.by_id(device_id)
+        transport = definition.transport if definition is not None else "evdev"
+        threading.Thread(
+            target=_pump, args=(device_id, path, transport, events, stop), daemon=True
+        ).start()
 
     log.info("Mapping loop started for profile '%s' (%d devices)", profile.name, len(present))
     while not stop.is_set():
@@ -60,10 +64,15 @@ def run(
 
 
 def _pump(
-    device_id: str, path: str, events: queue.Queue[DeviceEvent], stop: threading.Event
+    device_id: str,
+    path: str,
+    transport: str,
+    events: queue.Queue[DeviceEvent],
+    stop: threading.Event,
 ) -> None:
+    reader = hidraw_reader if transport == "hidraw" else evdev_reader
     try:
-        for event in evdev_reader.read_device(device_id, path):
+        for event in reader.read_device(device_id, path):
             events.put(event)
             if stop.is_set():
                 return

@@ -28,7 +28,15 @@ class BridgeClient:
 
     def connect(self) -> None:
         self._sock = socket.create_connection((self.host, self.port), timeout=5.0)
+        # The 5 s timeout was only for dialling; streaming reads should block.
+        self._sock.settimeout(None)
         log.info("Connected to SimConnect bridge at %s:%s", self.host, self.port)
+
+    def settimeout(self, timeout: float | None) -> None:
+        """Bound subsequent ``states()`` reads (None = block forever)."""
+        if self._sock is None:
+            raise RuntimeError("BridgeClient is not connected")
+        self._sock.settimeout(timeout)
 
     def send(self, command: Command) -> None:
         if self._sock is None:

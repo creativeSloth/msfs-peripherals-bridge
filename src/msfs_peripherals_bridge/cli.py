@@ -319,6 +319,62 @@ def run(
         dispatcher.close()
 
 
+@app.command()
+def read(
+    name: str = typer.Argument(
+        ..., help='SimVar to read, e.g. "AUTOPILOT HEADING LOCK DIR" or TITLE.'
+    ),
+    unit: str = typer.Option(
+        "number", "--unit", "-u", help="SimVar unit (degrees, percent, bool…)."
+    ),
+    watch: bool = typer.Option(
+        False, "--watch", "-w", help="Keep printing as the value changes (Ctrl-C to stop)."
+    ),
+    host: str = typer.Option(DEFAULT_HOST, help="SimConnect bridge host."),
+    port: int = typer.Option(DEFAULT_PORT, help="SimConnect bridge port."),
+    timeout: float = typer.Option(10.0, help="Seconds to wait for the first value."),
+) -> None:
+    """Read a SimVar from the running sim (needs the Wine bridge up).
+
+    Subscribes to the variable and prints its value. Use it to read e.g. the
+    autopilot heading bug ("AUTOPILOT HEADING LOCK DIR", unit degrees) so it can
+    be assigned to a rocker switch. One-shot by default; --watch keeps streaming.
+    """
+    from .simconnect.protocol import Subscribe
+
+    client = BridgeClient(host, port)
+    try:
+        client.connect()
+    except OSError as exc:
+        console.print(
+            f"[red]Cannot reach the bridge at {host}:{port} — is it running? ({exc})[/red]"
+        )
+        raise typer.Exit(code=1) from exc
+
+    client.send(Subscribe(name, unit))
+    client.settimeout(None if watch else timeout)
+    try:
+        if watch:
+            console.print(f"Watching [bold]{name}[/bold] ({unit}). Ctrl-C to stop.\n")
+        for got_name, value in client.states():
+            if got_name != name:
+                continue
+            console.print(f"{name} = [cyan]{value}[/cyan] {unit}")
+            if not watch:
+                return
+        console.print("[yellow]Bridge closed the connection before sending a value.[/yellow]")
+    except KeyboardInterrupt:
+        console.print("\nStopped.")
+    except TimeoutError:
+        console.print(
+            f"[red]No value within {timeout:.0f}s.[/red] Is MSFS running with a flight loaded, "
+            f"and is '{name}' a readable SimVar?"
+        )
+        raise typer.Exit(code=1) from None
+    finally:
+        client.close()
+
+
 def _resolve_profile(profile: str | None, aircraft: str | None) -> Profile | None:
     if profile:
         path = Path(profile)

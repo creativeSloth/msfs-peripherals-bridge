@@ -33,6 +33,15 @@ import time
 # import only works under Windows/Wine where that DLL can load.
 from SimConnect import AircraftRequests, Event, SimConnect
 
+try:
+    # Request lets us read a SimVar with an EXPLICIT unit (so heading-bug sync
+    # gets degrees, not whatever default the predefined list uses). Import
+    # defensively: if a given build doesn't export it, the rest of the bridge
+    # (events, TITLE poll) must still work.
+    from SimConnect import Request
+except ImportError:  # pragma: no cover - depends on the installed lib version
+    Request = None
+
 log = logging.getLogger("bridge")
 
 DEFAULT_HOST = "127.0.0.1"
@@ -52,6 +61,10 @@ class SimConnectBridge:
         # _time=0 disables the request cache so polled values are always fresh.
         self.requests = AircraftRequests(self.sc, _time=0)
         self._events: dict[str, Event] = {}
+        # Cache explicit-unit Request objects by (name, unit): building one
+        # registers a SimConnect data definition, so we must not leak one per
+        # button press.
+        self._var_requests: dict[tuple[str, str], object] = {}
 
     def send_event(self, name: str, data: int) -> None:
         """Map (once) and transmit a SimConnect client event by name."""
@@ -73,12 +86,67 @@ class SimConnectBridge:
             return
         self.requests.set(name, value)
 
-    def read_simvar(self, name: str) -> object | None:
-        """Read a known SimVar (e.g. TITLE). Returns None if unavailable."""
+    def read_var(self, name: str, unit: str) -> object | None:
+        """Read a SimVar with an explicit unit (e.g. heading in 'degrees').
+
+        Uses a cached ``Request`` so any SimVar name works (not just the
+        predefined list) and the unit is honoured. Falls back to the predefined
+        ``read_simvar`` path if this build of the library lacks ``Request``.
+        """
+        if Request is None:
+            return self.read_simvar(name)
+        key = (name, unit or "number")
+        req = self._var_requests.get(key)
         try:
-            value = self.requests.get(name)
+            if req is None:
+                deff = (name.encode("ascii"), (unit or "number").encode("ascii"))
+                req = Request(deff, self.sc, _time=0)
+                self._var_requests[key] = req
+            value = req.value
         except Exception as exc:  # noqa: BLE001 - library raises broadly
-            log.debug("read %s failed: %s", name, exc)
+            log.debug("read %s [%s] failed: %s", name, unit, exc)
+            return None
+        if isinstance(value, bytes):
+            return value.decode("utf-8", "replace").rstrip("\x00")
+        return value
+
+    def event_from_var(self, event: str, read: str, unit: str) -> None:
+        """Read ``read`` (in ``unit``) right now, then fire ``event`` with it.
+
+        The dynamic button action: e.g. read PLANE HEADING DEGREES MAGNETIC and
+        send HEADING_BUG_SET so one button snaps the AP heading bug to the
+        current heading. Skips silently (logged) if the value can't be read.
+        """
+        value = self.read_var(read, unit)
+        if value is None:
+            log.warning("event_from_var: could not read %s; %s not sent", read, event)
+            return
+        try:
+            data = int(round(float(value)))
+        except (TypeError, ValueError):
+            log.warning("event_from_var: %s value %r is not numeric; %s not sent", read, value, event)
+            return
+        log.info("event_from_var: %s=%s -> %s(%d)", read, value, event, data)
+        self.send_event(event, data)
+
+    def read_simvar(self, name: str) -> object | None:
+        """Read a known SimVar (e.g. TITLE). Returns None if unavailable.
+
+        Python-SimConnect keys requests by their underscored name
+        (``AUTOPILOT_HEADING_LOCK_DIR``), but the docs/profiles spell SimVars
+        with spaces (``AUTOPILOT HEADING LOCK DIR``). Try the name as given,
+        then the normalised form, so either spelling works.
+        """
+        value = None
+        for candidate in (name, name.strip().upper().replace(" ", "_")):
+            try:
+                value = self.requests.get(candidate)
+            except Exception as exc:  # noqa: BLE001 - library raises broadly
+                log.debug("read %s failed: %s", candidate, exc)
+                value = None
+            if value is not None:
+                break
+        if value is None:
             return None
         if isinstance(value, bytes):
             return value.decode("utf-8", "replace").rstrip("\x00")
@@ -140,6 +208,10 @@ class ClientSession:
         try:
             if op == "event":
                 self.sim.send_event(msg["name"], int(msg.get("data", 0)))
+            elif op == "event_from_var":
+                self.sim.event_from_var(
+                    msg["event"], msg["read"], msg.get("unit", "number")
+                )
             elif op == "simvar":
                 self.sim.set_simvar(msg["name"], float(msg["value"]))
             elif op == "subscribe":

@@ -8,6 +8,8 @@ Linux -> bridge:
     {"op": "event",  "name": "THROTTLE1_SET", "data": 8192}
     {"op": "simvar", "name": "L:Trim", "unit": "number", "value": 0.5}
     {"op": "subscribe", "name": "TITLE", "unit": "string"}
+    {"op": "event_from_var", "event": "HEADING_BUG_SET",
+     "read": "PLANE HEADING DEGREES MAGNETIC", "unit": "degrees"}
 
 bridge -> Linux:
     {"op": "state", "name": "TITLE", "value": "Cessna 172"}
@@ -44,6 +46,22 @@ class SetSimVar:
 
 
 @dataclass(frozen=True, slots=True)
+class SendEventFromVar:
+    """Read ``read`` (in ``unit``) on the bridge, then fire ``event`` with it.
+
+    Resolved entirely on the bridge so the value is fresh at press time (no
+    polling lag). Used for dynamic button actions like heading-bug sync.
+    """
+
+    event: str
+    read: str
+    unit: str = "number"
+
+    def to_wire(self) -> dict[str, object]:
+        return {"op": "event_from_var", "event": self.event, "read": self.read, "unit": self.unit}
+
+
+@dataclass(frozen=True, slots=True)
 class Subscribe:
     """Request continuous updates for a SimVar (e.g. TITLE for auto-profile)."""
 
@@ -54,7 +72,7 @@ class Subscribe:
         return {"op": "subscribe", "name": self.name, "unit": self.unit}
 
 
-Command = SendEvent | SetSimVar | Subscribe
+Command = SendEvent | SetSimVar | SendEventFromVar | Subscribe
 
 
 def encode(command: Command) -> bytes:

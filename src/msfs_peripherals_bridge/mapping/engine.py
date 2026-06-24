@@ -7,8 +7,16 @@ unit-tested without hardware or a running simulator.
 from __future__ import annotations
 
 from ..devices.base import DeviceEvent
-from ..models import Binding, EventAction, Profile, SimVarAction, Source, SourceKind
-from ..simconnect.protocol import Command, SendEvent, SetSimVar
+from ..models import (
+    Binding,
+    EventAction,
+    EventFromVarAction,
+    Profile,
+    SimVarAction,
+    Source,
+    SourceKind,
+)
+from ..simconnect.protocol import Command, SendEvent, SendEventFromVar, SetSimVar
 from .transforms import shape_axis
 
 
@@ -48,6 +56,21 @@ class MappingEngine:
             value = shape_axis(event.value, raw_min, raw_max, binding.transform)
             return self._command_for(binding, value)
 
+        if binding.source.kind is SourceKind.SWITCH:
+            # Maintained 2-state panel switch (hidraw bit). It reports both edges
+            # (1 = on/entered, 0 = off/left). A fixed action value — or a dynamic
+            # event_from_var — makes it *momentary*: act only on the press/enter
+            # edge (rotary detents, the gear lever). Otherwise it is *stateful*:
+            # forward the live 0/1 state on both edges so a toggle switch drives
+            # a `*_SET` event or a SimVar to match the physical position.
+            action = binding.action
+            momentary = isinstance(action, EventFromVarAction) or (
+                isinstance(action, EventAction) and action.value is not None
+            )
+            if momentary and event.value != 1:
+                return None
+            return self._command_for(binding, float(event.value))
+
         # Buttons / hats: fire on the press edge only (value == 1), ignoring
         # release (0) and kernel key autorepeat (2) so holding a button toggles
         # a state (e.g. parking brake) exactly once.
@@ -60,6 +83,10 @@ class MappingEngine:
         action = binding.action
         if isinstance(action, SimVarAction):
             return SetSimVar(name=action.simvar, unit=action.unit, value=value)
+        if isinstance(action, EventFromVarAction):
+            # The value is computed on the bridge (fresh read at press time), so
+            # the device value here is irrelevant — just carry the names/unit.
+            return SendEventFromVar(event=action.event, read=action.read, unit=action.unit)
         if isinstance(action, EventAction):
             data = action.value if action.value is not None else round(value)
             return SendEvent(name=action.event, data=int(data))

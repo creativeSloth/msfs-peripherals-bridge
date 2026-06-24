@@ -19,6 +19,7 @@ class SourceKind(StrEnum):
     AXIS = "axis"
     BUTTON = "button"
     HAT = "hat"
+    SWITCH = "switch"
 
 
 class CurveKind(StrEnum):
@@ -62,7 +63,23 @@ class SimVarAction(BaseModel):
     unit: str = "number"
 
 
-Action = EventAction | SimVarAction
+class EventFromVarAction(BaseModel):
+    """On a button press, read a SimVar and fire an event with that value.
+
+    Models the SPAD.neXt-style "dynamic" mapping where one control copies a live
+    value somewhere — e.g. the heading-bug-sync button:
+    ``read: "PLANE HEADING DEGREES MAGNETIC"`` (unit ``degrees``) →
+    ``event: HEADING_BUG_SET``. The bridge reads ``read`` in the chosen ``unit``
+    at the moment of the press and transmits ``event`` with the rounded value.
+    """
+
+    type: Literal["event_from_var"] = "event_from_var"
+    read: str = Field(..., description="SimVar to read, e.g. 'PLANE HEADING DEGREES MAGNETIC'.")
+    event: str = Field(..., description="Event to fire with the read value, e.g. HEADING_BUG_SET.")
+    unit: str = "number"
+
+
+Action = EventAction | SimVarAction | EventFromVarAction
 
 
 class Source(BaseModel):
@@ -109,6 +126,10 @@ class DeviceDef(BaseModel):
     name: str
     vendor: str = Field(..., description="USB idVendor, hex string e.g. '16d0'.")
     product: str = Field(..., description="USB idProduct, hex string e.g. '0da2'.")
+    # How the device is read. Axis hardware (yokes, pedals, quadrants) presents
+    # as evdev joysticks; the Saitek panels are raw-HID (button/LED report
+    # frames) and are read through /dev/hidraw instead.
+    transport: Literal["evdev", "hidraw"] = "evdev"
     # Some devices report a useless USB id (the Fulcrum yoke is genuinely
     # 0000:0000, shared with audio nodes). An optional case-insensitive
     # substring of the evdev device name disambiguates those.

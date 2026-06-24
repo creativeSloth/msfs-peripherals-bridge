@@ -40,7 +40,9 @@ def discover(catalog: DeviceCatalog) -> dict[str, str]:
     for path in evdev.list_devices():
         dev = evdev.InputDevice(path)
         for definition in catalog.devices:
-            if definition.id in found:
+            if definition.transport != "evdev" or definition.id in found:
+                # hidraw panels also expose a (useless) evdev node; skip them so
+                # only the hidraw reader claims them.
                 continue
             if definition.matches(dev.info.vendor, dev.info.product, dev.name):
                 found[definition.id] = path
