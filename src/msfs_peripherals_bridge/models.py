@@ -8,7 +8,7 @@ validated and unit-tested in isolation.
 from __future__ import annotations
 
 from enum import StrEnum
-from typing import Literal
+from typing import Annotated, Literal
 
 from pydantic import BaseModel, Field, model_validator
 
@@ -119,7 +119,49 @@ class GearLedOutput(BaseModel):
         return names
 
 
-Output = GearLedOutput
+class SelectorEntry(BaseModel):
+    """One position of the Multi Panel mode selector (ALT/VS/IAS/HDG/CRS).
+
+    The selector picks which value the encoder edits and the display shows.
+    ``code`` is the hardware bit (0=ALT, 1=VS, 2=IAS, 3=HDG, 4=CRS — see the
+    measured map in docs/memory/multi-panel-hid.md). The encoder reads the live
+    ``simvar`` value and writes ``simvar ± step`` back: as a ``set_event`` (e.g.
+    ``HEADING_BUG_SET``) when given, otherwise straight to the SimVar.
+    """
+
+    code: int = Field(..., ge=0, le=4, description="Selector bit code 0..4.")
+    label: str = Field(..., description="Human label, e.g. 'ALT' (logging only).")
+    simvar: str = Field(..., description="Value SimVar read for display + encoder base.")
+    set_event: str | None = Field(None, description="Event to set the value; None = write SimVar.")
+    unit: str = "number"
+    step: float = Field(1.0, gt=0, description="Encoder step per detent (slow turn).")
+    fast_step: float = Field(10.0, gt=0, description="Encoder step when spun quickly.")
+    min: float
+    max: float
+    rollover: bool = Field(False, description="Wrap min<->max instead of clamping (HDG/CRS).")
+
+
+class MultiPanelOutput(BaseModel):
+    """Multi Panel controller: encoder/selector input + display/LED output.
+
+    Bidirectional, unlike the one-way gear LEDs: the selector + encoder edit
+    autopilot reference values, while the display shows the selected value and
+    the button LEDs reflect the autopilot master + active mode.
+    """
+
+    type: Literal["multi_panel"] = "multi_panel"
+    selector: list[SelectorEntry] = Field(..., min_length=1)
+    ap_master: str = Field("AUTOPILOT MASTER", description="Bool SimVar for the AP-master LED.")
+    mode_var: str = Field("L:AUTOPILOT_MODE", description="Active-mode var for the mode LEDs.")
+
+    def simvars(self) -> list[str]:
+        """Every SimVar this controller needs subscribed."""
+        names = [e.simvar for e in self.selector]
+        names += [self.ap_master, self.mode_var]
+        return names
+
+
+Output = Annotated[GearLedOutput | MultiPanelOutput, Field(discriminator="type")]
 
 
 class Source(BaseModel):
