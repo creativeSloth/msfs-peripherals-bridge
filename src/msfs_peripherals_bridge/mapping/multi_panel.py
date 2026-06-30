@@ -7,10 +7,10 @@ This controller owns that state:
 * the **selector** position picks which autopilot value the encoder edits and
   the display shows;
 * the **encoder** reads the live value (kept fresh from the bridge's state
-  stream, same as any output) and writes ``value ± step`` back, with a larger
-  step when the knob is spun quickly;
-* the **display** shows the selected value (top row); the **button LEDs** show
-  the autopilot master + active mode.
+  stream, same as any output) and writes ``value ± step`` back;
+* the **display** shows one value per row — each selector value owns a fixed row
+  (ALT top, VS bottom) so both stay visible while the encoder switches between
+  them; the **button LEDs** show the autopilot master + active mode.
 
 It is pure: input methods return SimConnect ``Command``s and ``render`` returns
 the feature-report bytes, so the whole behaviour is unit-testable. The runtime
@@ -21,9 +21,12 @@ See docs/memory/multi-panel-hid.md for the measured HID map.
 
 from __future__ import annotations
 
+import time
+from collections.abc import Callable
+
 from ..models import MultiPanelOutput, SelectorEntry
 from ..simconnect.protocol import Command, SendEvent, SetSimVar
-from .display import display_cells
+from .display import BLANK, ROW_WIDTH, display_cells, format_row
 from .leds import multi_button_led_byte
 
 # Input bit codes (byte*8+bit) on the Multi Panel, from the measured map.
@@ -34,8 +37,12 @@ ENCODER_CCW = 6
 # Report id 0, then 12 data bytes (10 display cells + LED byte + 1 spare).
 _REPORT_ID = 0x00
 
-# Two detents closer together than this (seconds) count as a fast spin.
-_FAST_WINDOW = 0.12
+# Gentle encoder acceleration: a detent counts as "fast" when it follows the
+# previous one within _FAST_WINDOW seconds, and the bigger fast_step only kicks
+# in once _FAST_AFTER fast detents have stacked up in a row. So a couple of quick
+# clicks stay at the base step — only sustained fast spinning ramps up.
+_FAST_WINDOW = 0.06
+_FAST_AFTER = 3
 
 
 def _as_float(value: object) -> float | None:
@@ -48,48 +55,109 @@ def _as_float(value: object) -> float | None:
 class MultiPanelController:
     """Owns selector + value state; turns encoder/selector events into actions."""
 
-    def __init__(self, config: MultiPanelOutput, *, fast_window: float = _FAST_WINDOW) -> None:
+    def __init__(
+        self, config: MultiPanelOutput, *, clock: Callable[[], float] = time.monotonic
+    ) -> None:
         self.config = config
+        self._clock = clock
+        # Encoder spin tracking for gentle acceleration (timestamp of the last
+        # detent + how many fast detents have stacked up in a row).
+        self._last_tick: float | None = None
+        self._fast_streak: int = 0
         self._by_code: dict[int, SelectorEntry] = {e.code: e for e in config.selector}
         self.selector: int = config.selector[0].code
         self.values: dict[str, float | None] = {}
-        self._last_tick: float | None = None
-        self._fast_window = fast_window
+        # Which entry each display row currently shows. Seeded with the first
+        # entry assigned to each row so ALT (top) and VS (bottom) are visible
+        # from the start; a selector move re-points only that entry's row.
+        self._row_entry: dict[str, SelectorEntry | None] = {"top": None, "bottom": None}
+        for entry in config.selector:
+            if self._row_entry[entry.display_row] is None:
+                self._row_entry[entry.display_row] = entry
+        # Active source index per selector code (0 = the entry's own simvar; >0
+        # picks alt_sources[i-1]). Only positions with alt_sources ever change.
+        self._source_index: dict[int, int] = {}
+        # The dimmer self-tracks its percent: the lights are L: vars the bridge
+        # can write but not yet read back, so we can't seed from sim state.
+        self._dimmer_value: float = config.dimmer.min if config.dimmer is not None else 0.0
 
     def subscriptions(self) -> list[str]:
         """SimVars this controller needs streamed from the bridge."""
         return self.config.simvars()
 
+    def consumes(self, code: int) -> bool:
+        """True if ``code`` is one of this panel's own inputs (selector/encoder/dimmer)."""
+        if code in self._by_code or code in (ENCODER_CW, ENCODER_CCW):
+            return True
+        d = self.config.dimmer
+        return d is not None and code in (d.cw, d.ccw)
+
+    def _source(self, entry: SelectorEntry) -> tuple[str, str | None]:
+        """The active ``(simvar, set_event)`` for ``entry`` given its source index."""
+        idx = self._source_index.get(entry.code, 0)
+        if idx == 0 or not entry.alt_sources:
+            return entry.simvar, entry.set_event
+        src = entry.alt_sources[idx - 1]
+        return src.simvar, src.set_event
+
     # -- input -------------------------------------------------------------
     def on_selector(self, code: int) -> None:
         """Move the active selector to ``code`` (ignored if not a known position)."""
-        if code in self._by_code:
+        entry = self._by_code.get(code)
+        if entry is not None:
             self.selector = code
+            self._row_entry[entry.display_row] = entry
 
-    def on_encoder(self, clockwise: bool, now: float) -> list[Command]:
+    def toggle_source(self) -> None:
+        """Step the active source of every position with alt_sources (e.g. CRS1<->2)."""
+        for entry in self.config.selector:
+            if entry.alt_sources:
+                count = len(entry.alt_sources) + 1
+                self._source_index[entry.code] = (self._source_index.get(entry.code, 0) + 1) % count
+
+    def _encoder_step(self, entry: SelectorEntry) -> float:
+        """Pick this detent's step, ramping to ``fast_step`` on a sustained fast spin.
+
+        A detent is "fast" when it lands within ``_FAST_WINDOW`` of the previous
+        one; ``fast_step`` only applies after ``_FAST_AFTER`` fast detents in a row,
+        so brief quick turns stay at the base step.
+        """
+        now = self._clock()
+        gap = None if self._last_tick is None else now - self._last_tick
+        self._last_tick = now
+        self._fast_streak = self._fast_streak + 1 if (gap is not None and gap < _FAST_WINDOW) else 0
+        if entry.fast_step is not None and self._fast_streak >= _FAST_AFTER:
+            return entry.fast_step
+        return entry.step
+
+    def on_encoder(self, clockwise: bool) -> list[Command]:
         """Edit the selected value by one detent; return the command(s) to send.
 
         Empty when the base value isn't known yet (no state received) — better
         to do nothing than to seed a guess. Updates the local value optimistically
         so a quick spin accumulates before the sim echoes the new value back.
+        Uses ``step`` normally, ``fast_step`` once a fast spin is sustained.
         """
         entry = self._by_code.get(self.selector)
         if entry is None:
             return []
-        current = self.values.get(entry.simvar)
+        simvar, set_event = self._source(entry)
+        current = self.values.get(simvar)
         if current is None:
             return []
-        fast = self._last_tick is not None and (now - self._last_tick) < self._fast_window
-        self._last_tick = now
-        step = entry.fast_step if fast else entry.step
+        step = self._encoder_step(entry)
         new = _adjust(current, step if clockwise else -step, entry)
-        self.values[entry.simvar] = new
+        self.values[simvar] = new
         data = round(new)
-        if entry.set_event is not None:
-            return [SendEvent(name=entry.set_event, data=data)]
-        return [SetSimVar(name=entry.simvar, unit=entry.unit, value=new)]
+        if set_event is not None:
+            return [SendEvent(name=set_event, data=data)]
+        # At a (non-wrapping) rail the value stops changing — don't re-send the
+        # same SimVar write each detent (same flood guard as the dimmer above).
+        if new == current:
+            return []
+        return [SetSimVar(name=simvar, unit=entry.unit, value=new)]
 
-    def on_event(self, code: int, value: int, now: float) -> list[Command]:
+    def on_event(self, code: int, value: int) -> list[Command]:
         """Route a raw multi_panel DeviceEvent (selector / encoder) by bit code.
 
         Only the press/enter edge (value 1) matters: selector positions and
@@ -101,25 +169,83 @@ class MultiPanelController:
             self.on_selector(code)
             return []
         if code == ENCODER_CW:
-            return self.on_encoder(clockwise=True, now=now)
+            return self.on_encoder(clockwise=True)
         if code == ENCODER_CCW:
-            return self.on_encoder(clockwise=False, now=now)
+            return self.on_encoder(clockwise=False)
+        d = self.config.dimmer
+        if d is not None and code in (d.cw, d.ccw):
+            return self._on_dimmer(1 if code == d.cw else -1)
         return []
+
+    def _on_dimmer(self, direction: int) -> list[Command]:
+        """Step the light dimmer by one detent; scale each target + nav follow.
+
+        Self-tracks the percent (the light LVars can't be read back yet); each
+        target is set to ``percent/100 * full`` so lights on different scales (the
+        radio potentiometer 0..100, the panel LVar 0..10) move together, plus the
+        nav-follow event when configured.
+        """
+        d = self.config.dimmer
+        if d is None:
+            return []
+        prev = self._dimmer_value
+        self._dimmer_value = max(d.min, min(d.max, prev + direction * d.step))
+        # Already at the rail: emit nothing. A held (or overshooting) dimmer would
+        # otherwise re-send the *same* value every detent, flooding the MobiFlight
+        # channel — which access-violates the SimConnect link and drops the
+        # connection (observed crash 2026-06-30, value pinned at 10).
+        if self._dimmer_value == prev:
+            return []
+        pct = self._dimmer_value
+        frac = pct / 100.0
+        commands: list[Command] = []
+        for t in d.targets:
+            scaled = round(frac * t.full)
+            if t.var is not None:
+                commands.append(SetSimVar(name=t.var, unit=t.unit, value=scaled))
+            elif t.event is not None:
+                commands.append(SendEvent(name=t.event, data=scaled))
+        if d.follow_event is not None:
+            commands.append(SendEvent(name=d.follow_event, data=1 if pct > d.min else 0))
+        return commands
 
     # -- output ------------------------------------------------------------
     def on_state(self, name: str, value: object) -> None:
         """Record a SimVar update streamed from the bridge."""
         self.values[name] = _as_float(value)
 
+    def _row_value(self, row: str) -> float | None:
+        """The live value currently shown on ``row`` (None if nothing assigned)."""
+        entry = self._row_entry.get(row)
+        if entry is None:
+            return None
+        simvar, _ = self._source(entry)
+        return self.values.get(simvar)
+
     def render(self) -> bytes:
         """Build the full feature-report buffer (display cells + LED byte)."""
-        entry = self._by_code.get(self.selector)
-        top = self.values.get(entry.simvar) if entry is not None else None
-        cells = display_cells(top=top, bottom=None)
+        selected = self._by_code.get(self.selector)
+        if selected is not None and selected.alt_sources:
+            # The panel blanks the bottom row in CRS mode, so the 1-based source
+            # index goes in the *leftmost* cell of the selected row, a blank
+            # spacer, then the value right-justified in the remaining cells:
+            #   [index][blank][hundreds][tens][ones]
+            index = self._source_index.get(selected.code, 0) + 1
+            value_cells = format_row(self._row_value(selected.display_row), width=ROW_WIDTH - 2)
+            row = [index, BLANK, *value_cells]
+            other = format_row(self._row_value(_other_row(selected.display_row)))
+            cells = row + other if selected.display_row == "top" else other + row
+        else:
+            cells = display_cells(top=self._row_value("top"), bottom=self._row_value("bottom"))
         ap_master = (self.values.get(self.config.ap_master) or 0) >= 0.5
         mode = self.values.get(self.config.mode_var)
         led = multi_button_led_byte(ap_master, int(mode) if mode is not None else None)
         return bytes([_REPORT_ID, *cells, led, 0x00])
+
+
+def _other_row(row: str) -> str:
+    """The display row that isn't ``row``."""
+    return "bottom" if row == "top" else "top"
 
 
 def _adjust(current: float, delta: float, entry: SelectorEntry) -> float:

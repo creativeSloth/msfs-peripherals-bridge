@@ -61,6 +61,9 @@ class SimVarAction(BaseModel):
     type: Literal["simvar"] = "simvar"
     simvar: str = Field(..., description="SimVar name, e.g. 'L:MyAircraft_Trim'.")
     unit: str = "number"
+    # Swap 0<->1 before writing. For a stateful switch whose LVar uses the
+    # opposite polarity (e.g. the JF Arrow fuel pump, where switch-on writes 0).
+    invert: bool = Field(False, description="Write 1-value (swap a 0/1 switch state).")
 
 
 class EventFromVarAction(BaseModel):
@@ -79,7 +82,51 @@ class EventFromVarAction(BaseModel):
     unit: str = "number"
 
 
-Action = EventAction | SimVarAction | EventFromVarAction
+class WriteStep(BaseModel):
+    """One write inside a :class:`SequenceAction` — fire an event *or* set a var.
+
+    Exactly one of ``event`` / ``simvar`` is given. ``value`` is the event data
+    parameter (e.g. ``COM1_VOLUME_SET`` 100) or the SimVar/LVar value to write
+    (e.g. ``L:AUTOPILOT_MODE`` 2). LVar writes go through the MobiFlight WASM
+    channel, same as :class:`SimVarAction`.
+    """
+
+    event: str | None = Field(None, description="SimConnect event to fire, e.g. COM1_VOLUME_SET.")
+    simvar: str | None = Field(None, description="SimVar/LVar to set, e.g. 'L:AUTOPILOT_MODE'.")
+    value: float = Field(0.0, description="Event data parameter or SimVar value.")
+    unit: str = "number"
+
+    @model_validator(mode="after")
+    def _exactly_one_target(self) -> WriteStep:
+        if (self.event is None) == (self.simvar is None):
+            raise ValueError("WriteStep needs exactly one of 'event' or 'simvar'.")
+        return self
+
+
+class SequenceAction(BaseModel):
+    """Run a list of writes on a switch's edges — for multi-step panel controls.
+
+    A single ``*_SET`` event or one SimVar is not enough for some cockpit
+    controls: the JF Arrow's avionics master flips several events + an LVar at
+    once, and its heading-hold engages via ``L:AUTOPILOT_MODE=2`` *and*
+    ``L:AUTOPILOT_HDG=1`` together. This action fires ``on_edge`` on the press /
+    switch-on edge and ``off_edge`` on the release / switch-off edge (``off_edge``
+    empty = nothing on release, i.e. a momentary multi-write). Mirrors a SPAD.neXt
+    VALUEON/VALUEOFF macro. For momentary buttons only ``on_edge`` runs (on the
+    press edge). (Named ``*_edge`` rather than ``on``/``off`` because YAML parses
+    those bare keys as booleans.)
+    """
+
+    type: Literal["sequence"] = "sequence"
+    on_edge: list[WriteStep] = Field(
+        ..., min_length=1, description="Writes on the on/press edge."
+    )
+    off_edge: list[WriteStep] = Field(
+        default_factory=list, description="Writes on the off edge."
+    )
+
+
+Action = EventAction | SimVarAction | EventFromVarAction | SequenceAction
 
 
 class GearLedOutput(BaseModel):
@@ -119,6 +166,18 @@ class GearLedOutput(BaseModel):
         return names
 
 
+class SelectorSource(BaseModel):
+    """An alternate value source a selector position can cycle to (e.g. CRS2).
+
+    The selector position's own ``simvar``/``set_event`` are source #1; each
+    :class:`SelectorSource` adds another the encoder/display switch between when
+    an off-panel toggle steps the active source.
+    """
+
+    simvar: str = Field(..., description="Value SimVar, e.g. 'NAV OBS:2'.")
+    set_event: str | None = Field(None, description="Event to set it; None = write SimVar.")
+
+
 class SelectorEntry(BaseModel):
     """One position of the Multi Panel mode selector (ALT/VS/IAS/HDG/CRS).
 
@@ -134,11 +193,80 @@ class SelectorEntry(BaseModel):
     simvar: str = Field(..., description="Value SimVar read for display + encoder base.")
     set_event: str | None = Field(None, description="Event to set the value; None = write SimVar.")
     unit: str = "number"
-    step: float = Field(1.0, gt=0, description="Encoder step per detent (slow turn).")
-    fast_step: float = Field(10.0, gt=0, description="Encoder step when spun quickly.")
+    step: float = Field(1.0, gt=0, description="Encoder step per detent.")
+    # Bigger step once the knob is spun fast for a few detents in a row. None =
+    # no acceleration. Kept gentle: it only kicks in after a short fast streak
+    # (see MultiPanelController), so a couple of quick clicks stay at `step`.
+    fast_step: float | None = Field(None, gt=0, description="Step when spun fast (None = off).")
     min: float
     max: float
     rollover: bool = Field(False, description="Wrap min<->max instead of clamping (HDG/CRS).")
+    # Which display row this value lives on. Rows are persistent: ALT on top and
+    # VS on the bottom stay visible together, the selector only re-points the
+    # encoder. The selected value owns its row; the other row keeps its last value.
+    display_row: Literal["top", "bottom"] = Field(
+        "top", description="Display row this value is shown on."
+    )
+    # Extra value sources this position cycles through, beyond simvar/set_event
+    # above (which is source #1). An off-panel toggle (MultiPanelOutput.
+    # source_toggle) steps the active source — e.g. CRS switching NAV1<->NAV2 OBS.
+    # While the position is selected the 1-based source index shows on the *other*
+    # display row. Empty = a plain single-source position.
+    alt_sources: list[SelectorSource] = Field(default_factory=list)
+
+
+class AuxInput(BaseModel):
+    """An off-panel button (e.g. a yoke rocker) wired to a controller action."""
+
+    device: str = Field(..., description="Device id the button is on, e.g. 'yoke'.")
+    code: int = Field(..., description="Button/switch code that triggers the action.")
+
+
+class DimmerTarget(BaseModel):
+    """One light the dimmer drives, with its own full-scale value.
+
+    The dimmer tracks a shared **percent** (0..100); each target is set to
+    ``percent/100 * full`` so lights on different scales move together in even
+    steps. Set exactly one of ``var`` (write a SimVar/LVar) or ``event`` (fire a
+    K: event with the scaled value) — e.g. the Piper's panel light is the LVar
+    ``L:CENTRE_LOWER_PANEL_LIGHT`` (full 10) while the radio/instrument lighting
+    is the ``LIGHT_POTENTIOMETER_2_SET`` event (full 100).
+    """
+
+    var: str | None = Field(None, description="SimVar/LVar set to the scaled value.")
+    event: str | None = Field(None, description="K: event fired with the scaled value.")
+    full: float = Field(100.0, gt=0, description="Value at 100% brightness.")
+    unit: str = "number"
+
+    @model_validator(mode="after")
+    def _exactly_one_target(self) -> DimmerTarget:
+        if (self.var is None) == (self.event is None):
+            raise ValueError("DimmerTarget needs exactly one of 'var' or 'event'.")
+        return self
+
+
+class MultiPanelDimmer(BaseModel):
+    """A rotary dimmer (the Multi Panel trim wheel) driving light brightness.
+
+    Each detent steps a shared **percent** (``step`` per detent, default 10 =
+    even 10% stops) and applies it to every :class:`DimmerTarget`, each scaled to
+    its own ``full`` value — so lights on different scales (the radio
+    potentiometer 0..100 and the panel-light LVar 0..10) brighten together off
+    one knob. ``follow_event``, when set, switches an on/off light (the Piper nav
+    light) on whenever the percent is above ``min`` and off at ``min``.
+    """
+
+    cw: int = Field(..., description="Detent code that brightens (e.g. trim-wheel up).")
+    ccw: int = Field(..., description="Detent code that dims.")
+    step: float = Field(10.0, gt=0, description="Percent change per detent.")
+    min: float = 0.0
+    max: float = 100.0
+    targets: list[DimmerTarget] = Field(
+        ..., min_length=1, description="Lights driven by the dimmer (each with its own scale)."
+    )
+    follow_event: str | None = Field(
+        None, description="On/off light event that follows percent>min (the nav light)."
+    )
 
 
 class MultiPanelOutput(BaseModel):
@@ -153,11 +281,23 @@ class MultiPanelOutput(BaseModel):
     selector: list[SelectorEntry] = Field(..., min_length=1)
     ap_master: str = Field("AUTOPILOT MASTER", description="Bool SimVar for the AP-master LED.")
     mode_var: str = Field("L:AUTOPILOT_MODE", description="Active-mode var for the mode LEDs.")
+    # Off-panel button that steps the active source of a selector position with
+    # alt_sources (e.g. a yoke rocker flipping the CRS knob between NAV1/NAV2 OBS).
+    source_toggle: AuxInput | None = Field(
+        None, description="Button that cycles a position's alt_sources."
+    )
+    # The trim wheel repurposed as a light dimmer (radio + panel lights).
+    dimmer: MultiPanelDimmer | None = Field(None, description="Trim-wheel light dimmer.")
 
     def simvars(self) -> list[str]:
         """Every SimVar this controller needs subscribed."""
-        names = [e.simvar for e in self.selector]
+        names: list[str] = []
+        for entry in self.selector:
+            names.append(entry.simvar)
+            names += [s.simvar for s in entry.alt_sources]
         names += [self.ap_master, self.mode_var]
+        if self.dimmer is not None:
+            names += [t.var for t in self.dimmer.targets if t.var is not None]
         return names
 
 

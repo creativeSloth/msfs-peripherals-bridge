@@ -1,5 +1,11 @@
 from msfs_peripherals_bridge.mapping.multi_panel import ENCODER_CW
-from msfs_peripherals_bridge.models import GearLedOutput, MultiPanelOutput, SelectorEntry
+from msfs_peripherals_bridge.models import (
+    AuxInput,
+    GearLedOutput,
+    MultiPanelOutput,
+    SelectorEntry,
+    SelectorSource,
+)
 from msfs_peripherals_bridge.outputs import OutputManager
 from msfs_peripherals_bridge.simconnect.protocol import SendEvent, Subscribe
 
@@ -102,7 +108,7 @@ def _multi_manager(writer):
         selector=[
             SelectorEntry(
                 code=3, label="HDG", simvar="AUTOPILOT HEADING LOCK DIR",
-                set_event="HEADING_BUG_SET", step=1, fast_step=10,
+                set_event="HEADING_BUG_SET", step=1,
                 min=0, max=359, rollover=True,
             )
         ],
@@ -145,7 +151,7 @@ def test_handle_input_encoder_emits_event_and_writes_display():
     manager = _multi_manager(lambda path, report: writes.append(report))
     manager.on_state("AUTOPILOT HEADING LOCK DIR", 90)
 
-    commands = manager.handle_input("multi_panel", ENCODER_CW, value=1, now=0.0)
+    commands = manager.handle_input("multi_panel", ENCODER_CW, value=1)
     assert commands == [SendEvent(name="HEADING_BUG_SET", data=91)]
     # Display top row now shows "   91" (blank,blank,blank,9,1) after the bump.
     assert list(writes[-1][1:6]) == [0x0F, 0x0F, 0x0F, 9, 1]
@@ -154,4 +160,39 @@ def test_handle_input_encoder_emits_event_and_writes_display():
 def test_handle_input_release_edge_does_nothing():
     manager = _multi_manager(lambda p, r: None)
     manager.on_state("AUTOPILOT HEADING LOCK DIR", 90)
-    assert manager.handle_input("multi_panel", ENCODER_CW, value=0, now=0.0) == []
+    assert manager.handle_input("multi_panel", ENCODER_CW, value=0) == []
+
+
+def _crs_manager(writer):
+    output = MultiPanelOutput(
+        selector=[
+            SelectorEntry(
+                code=4, label="CRS", simvar="NAV OBS:1", set_event="VOR1_SET",
+                step=1, min=0, max=359, rollover=True,
+                alt_sources=[SelectorSource(simvar="NAV OBS:2", set_event="VOR2_SET")],
+            )
+        ],
+        source_toggle=AuxInput(device="yoke", code=291),
+    )
+    return OutputManager(
+        {"multi_panel": [output]},
+        {"multi_panel": "/dev/hidrawM"},
+        FakeDispatcher(),
+        writer=writer,
+    )
+
+
+def test_aux_toggle_routes_to_controller_and_rewrites_panel():
+    writes: list[bytes] = []
+    manager = _crs_manager(lambda path, report: writes.append(report))
+    manager.on_state("NAV OBS:1", 90)
+    manager.on_state("NAV OBS:2", 270)
+    # The yoke button is claimed even though it lives on another device.
+    assert manager.handles("yoke", 291) is True
+    # Press flips CRS to source 2 -> top row shows [index 2][blank][270].
+    assert manager.handle_input("yoke", 291, value=1) == []
+    assert list(writes[-1][1:6]) == [2, 0x0F, 2, 7, 0]
+    # Release edge does nothing.
+    before = len(writes)
+    assert manager.handle_input("yoke", 291, value=0) == []
+    assert len(writes) == before

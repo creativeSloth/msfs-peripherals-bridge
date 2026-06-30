@@ -16,13 +16,20 @@ from typing import TYPE_CHECKING, Protocol
 from .devices import evdev_reader, hidraw_reader
 from .devices.base import DeviceEvent
 from .mapping.engine import MappingEngine
-from .models import DeviceCatalog, Profile
+from .models import DeviceCatalog, Profile, SourceKind
 from .simconnect.protocol import Command
 
 if TYPE_CHECKING:
     from .outputs import OutputManager
 
 log = logging.getLogger(__name__)
+
+# A hidraw switch can report several enter edges within a few ms when its
+# contacts bounce; on a momentary button that double-fires the action (e.g. the
+# AP master toggles on then straight back off). Ignore repeat enter edges on the
+# same bit within this window. Detents arrive far enough apart to be unaffected,
+# and the encoder/selector bypass this path entirely.
+_SWITCH_DEBOUNCE_S = 0.05
 
 
 class Dispatcher(Protocol):
@@ -60,6 +67,7 @@ def run(
         ).start()
 
     log.info("Mapping loop started for profile '%s' (%d devices)", profile.name, len(present))
+    last_press: dict[tuple[str, int], float] = {}
     while not stop.is_set():
         try:
             event = events.get(timeout=0.5)
@@ -68,13 +76,30 @@ def run(
         # The Multi Panel's selector/encoder are owned by its controller (display
         # + value state); everything else goes through the stateless engine.
         if outputs is not None and outputs.handles(event.device_id, event.code):
-            commands = outputs.handle_input(
-                event.device_id, event.code, event.value, time.monotonic()
-            )
+            commands = outputs.handle_input(event.device_id, event.code, event.value)
         else:
+            if _bounced(event, last_press):
+                continue
             commands = engine.resolve(event)
         for command in commands:
             dispatcher.send(command)
+
+
+def _bounced(event: DeviceEvent, last_press: dict[tuple[str, int], float]) -> bool:
+    """True if this is a hidraw switch enter edge too soon after the last one.
+
+    Suppresses contact-bounce double-fires on momentary panel buttons (see
+    ``_SWITCH_DEBOUNCE_S``). Only enter edges (value 1) of SWITCH events are
+    rate-limited; everything else passes straight through.
+    """
+    if event.kind is not SourceKind.SWITCH or event.value != 1:
+        return False
+    key = (event.device_id, event.code)
+    now = time.monotonic()
+    if now - last_press.get(key, 0.0) < _SWITCH_DEBOUNCE_S:
+        return True
+    last_press[key] = now
+    return False
 
 
 def _start_outputs(

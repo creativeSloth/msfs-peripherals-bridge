@@ -26,7 +26,7 @@ from typing import Protocol
 
 from .devices.hidraw_reader import write_feature_report
 from .mapping.leds import gear_led_byte
-from .mapping.multi_panel import ENCODER_CCW, ENCODER_CW, SELECTOR_CODES, MultiPanelController
+from .mapping.multi_panel import MultiPanelController
 from .models import GearLedOutput, MultiPanelOutput, Output
 from .simconnect.protocol import Command, Subscribe
 
@@ -69,12 +69,19 @@ class OutputManager:
         # Split outputs by kind, keeping only devices that are actually present.
         self._gear: dict[str, list[GearLedOutput]] = {}
         self._controllers: dict[str, MultiPanelController] = {}
+        # Off-panel buttons routed to a controller action: (device, code) ->
+        # (controller's device_id, controller). E.g. a yoke rocker toggling CRS.
+        self._aux: dict[tuple[str, int], tuple[str, MultiPanelController]] = {}
         for device_id, outs in outputs.items():
             if device_id not in device_paths:
                 continue
             for output in outs:
                 if isinstance(output, MultiPanelOutput):
-                    self._controllers[device_id] = MultiPanelController(output)
+                    controller = MultiPanelController(output)
+                    self._controllers[device_id] = controller
+                    if output.source_toggle is not None:
+                        tog = output.source_toggle
+                        self._aux[(tog.device, tog.code)] = (device_id, controller)
                 elif isinstance(output, GearLedOutput):
                     self._gear.setdefault(device_id, []).append(output)
 
@@ -98,18 +105,27 @@ class OutputManager:
 
     # -- input (mapping loop thread) ---------------------------------------
     def handles(self, device_id: str, code: int) -> bool:
-        """True if this device's controller consumes that input code itself."""
-        return device_id in self._controllers and (
-            code in SELECTOR_CODES or code in (ENCODER_CW, ENCODER_CCW)
-        )
+        """True if this input is consumed by a controller (its panel or an aux toggle)."""
+        if (device_id, code) in self._aux:
+            return True
+        controller = self._controllers.get(device_id)
+        return controller is not None and controller.consumes(code)
 
-    def handle_input(self, device_id: str, code: int, value: int, now: float) -> list[Command]:
-        """Feed a selector/encoder event to the controller; rewrite its report."""
+    def handle_input(self, device_id: str, code: int, value: int) -> list[Command]:
+        """Feed a selector/encoder/aux event to the controller; rewrite its report."""
+        aux = self._aux.get((device_id, code))
+        if aux is not None:
+            panel_id, controller = aux
+            if value == 1:  # off-panel toggle: act on the press edge only
+                with self._lock:
+                    controller.toggle_source()
+                    self._write_if_changed(panel_id)
+            return []
         controller = self._controllers.get(device_id)
         if controller is None:
             return []
         with self._lock:
-            commands = controller.on_event(code, value, now)
+            commands = controller.on_event(code, value)
             self._write_if_changed(device_id)
         return commands
 

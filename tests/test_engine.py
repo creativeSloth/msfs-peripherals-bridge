@@ -1,3 +1,6 @@
+import pytest
+from pydantic import ValidationError
+
 from msfs_peripherals_bridge.devices.base import DeviceEvent
 from msfs_peripherals_bridge.mapping.engine import MappingEngine
 from msfs_peripherals_bridge.models import (
@@ -5,10 +8,12 @@ from msfs_peripherals_bridge.models import (
     EventAction,
     EventFromVarAction,
     Profile,
+    SequenceAction,
     SimVarAction,
     Source,
     SourceKind,
     Transform,
+    WriteStep,
 )
 from msfs_peripherals_bridge.simconnect.protocol import (
     SendEvent,
@@ -129,6 +134,77 @@ def test_stateful_switch_simvar_sets_both_edges():
     assert engine.resolve(DeviceEvent("switch_panel", SourceKind.SWITCH, 9, 0)) == [
         SetSimVar(name="L:Foo", unit="number", value=0.0)
     ]
+
+
+def test_stateful_switch_simvar_invert_swaps_polarity():
+    engine = MappingEngine(_switch_binding(SimVarAction(simvar="L:Pump", invert=True)))
+    assert engine.resolve(DeviceEvent("switch_panel", SourceKind.SWITCH, 9, 1)) == [
+        SetSimVar(name="L:Pump", unit="number", value=0.0)
+    ]
+    assert engine.resolve(DeviceEvent("switch_panel", SourceKind.SWITCH, 9, 0)) == [
+        SetSimVar(name="L:Pump", unit="number", value=1.0)
+    ]
+
+
+def test_sequence_switch_runs_on_and_off_lists():
+    # Heading-hold engage: two LVar writes on the arm edge, one on the off edge.
+    action = SequenceAction(
+        on_edge=[
+            WriteStep(simvar="L:AUTOPILOT_MODE", value=2),
+            WriteStep(simvar="L:AUTOPILOT_HDG", value=1),
+        ],
+        off_edge=[WriteStep(simvar="L:AUTOPILOT_HDG", value=0)],
+    )
+    engine = MappingEngine(_switch_binding(action))
+    assert engine.resolve(DeviceEvent("switch_panel", SourceKind.SWITCH, 9, 1)) == [
+        SetSimVar(name="L:AUTOPILOT_MODE", unit="number", value=2),
+        SetSimVar(name="L:AUTOPILOT_HDG", unit="number", value=1),
+    ]
+    assert engine.resolve(DeviceEvent("switch_panel", SourceKind.SWITCH, 9, 0)) == [
+        SetSimVar(name="L:AUTOPILOT_HDG", unit="number", value=0),
+    ]
+
+
+def test_sequence_mixes_events_and_simvars():
+    action = SequenceAction(
+        on_edge=[
+            WriteStep(event="AVIONICS_MASTER_SET", value=1),
+            WriteStep(simvar="L:KN62_POWER", value=1),
+            WriteStep(event="COM1_VOLUME_SET", value=100),
+        ],
+    )
+    engine = MappingEngine(_switch_binding(action))
+    assert engine.resolve(DeviceEvent("switch_panel", SourceKind.SWITCH, 9, 1)) == [
+        SendEvent(name="AVIONICS_MASTER_SET", data=1),
+        SetSimVar(name="L:KN62_POWER", unit="number", value=1),
+        SendEvent(name="COM1_VOLUME_SET", data=100),
+    ]
+    # Default (empty) off list -> nothing on the off edge.
+    assert engine.resolve(DeviceEvent("switch_panel", SourceKind.SWITCH, 9, 0)) == []
+
+
+def test_sequence_on_momentary_button_press_only():
+    action = SequenceAction(on_edge=[WriteStep(event="ATC", value=1)])
+    profile = Profile(
+        name="t",
+        bindings={
+            "yoke": [
+                Binding(name="b", source=Source(kind=SourceKind.BUTTON, code=5), action=action)
+            ]
+        },
+    )
+    engine = MappingEngine(profile)
+    assert engine.resolve(DeviceEvent("yoke", SourceKind.BUTTON, 5, 1)) == [
+        SendEvent(name="ATC", data=1)
+    ]
+    assert engine.resolve(DeviceEvent("yoke", SourceKind.BUTTON, 5, 0)) == []
+
+
+def test_write_step_requires_exactly_one_target():
+    with pytest.raises(ValidationError):
+        WriteStep(value=1)  # neither event nor simvar
+    with pytest.raises(ValidationError):
+        WriteStep(event="X", simvar="Y", value=1)  # both
 
 
 def test_event_from_var_button_emits_sendeventfromvar_on_press_only():

@@ -55,8 +55,10 @@ bindings:
         read: "PLANE HEADING DEGREES MAGNETIC"
         unit: degrees
         event: HEADING_BUG_SET
+    # 291 (left rocker down) flips the Multi Panel CRS source NAV1<->NAV2 — wired
+    # via the multi_panel output's `source_toggle` below, not as a yoke binding.
     # NOT mapped yet:
-    #   291 left rocker down, 292/293 right grip black (lower/upper): unassigned.
+    #   292/293 right grip black (lower/upper): unassigned.
     #   hat 16/17: unassigned (also needs direction-aware hat mapping).
     # Verify in-sim: ATC window event name may differ in MSFS 2024.
 
@@ -132,20 +134,36 @@ bindings:
       source: { kind: switch, code: 1 }
       action: { type: event, event: ALTERNATOR_SET }          # confirmed in-sim 2026-06-24
     # Electric fuel pump: JF custom LVar, written via the MobiFlight WASM channel
-    # (plain *_SET is a no-op here). Stateful switch -> on writes 1 (LO), off 0.
-    # JF pump is 3-way OFF/LO/HI; the 2-pos Saitek switch covers off/LO. SPAD used
-    # the inverse polarity (on->0); if it ends up inverted in-sim, swap on the var.
+    # (plain *_SET is a no-op here). JF pump is 3-way OFF/LO/HI; the 2-pos Saitek
+    # switch covers off/LO. The LVar uses inverse polarity (switch-on writes 0),
+    # confirmed in-sim 2026-06-30 -> invert: true.
     - name: "Electric fuel pump"
       source: { kind: switch, code: 3 }
-      action: { type: simvar, simvar: "L:CENTRE_LOWER_FUELPUMP", unit: "number" }
-    # Avionics master still needs a multi-step sequence (events + L:KN62_POWER),
-    # not a single var — pending an RPN/sequence action. SPAD recipe:
-    #   on:  AVIONICS_MASTER_SET 1; AVIONICS_MASTER_1_ON; AVIONICS_MASTER_2_ON;
-    #        L:KN62_POWER=1; COM1_VOLUME_SET 100; COM2_VOLUME_SET 100; TRANSPONDERON
-    #   off: reverse
-    # - name: "Avionics master"
-    #   source: { kind: switch, code: 2 }
-    #   action: { type: event, event: AVIONICS_MASTER_SET }   # no-op on JF Arrow
+      action: { type: simvar, simvar: "L:CENTRE_LOWER_FUELPUMP", unit: "number", invert: true }
+    # Avionics master: a single *_SET is a no-op on the JF Arrow — it needs the
+    # full multi-step macro (events + L:KN62_POWER + COM volumes), 1:1 from the
+    # SPAD SWITCH_AVIONICS_MASTER VALUEON/VALUEOFF. Maintained switch -> on edge
+    # powers the stack up, off edge tears it down.
+    - name: "Avionics master"
+      source: { kind: switch, code: 2 }
+      action:
+        type: sequence
+        on_edge:
+          - { event: AVIONICS_MASTER_SET, value: 1 }
+          - { event: AVIONICS_MASTER_1_ON }
+          - { event: AVIONICS_MASTER_2_ON }
+          - { simvar: "L:KN62_POWER", value: 1 }
+          - { event: COM1_VOLUME_SET, value: 100 }
+          - { event: COM2_VOLUME_SET, value: 100 }
+          - { event: TRANSPONDERON }
+        off_edge:
+          - { event: AVIONICS_MASTER_SET, value: 0 }
+          - { event: AVIONICS_MASTER_2_OFF }
+          - { event: AVIONICS_MASTER_1_OFF }
+          - { simvar: "L:KN62_POWER", value: 0 }
+          - { event: COM1_VOLUME_SET, value: 0 }
+          - { event: COM2_VOLUME_SET, value: 0 }
+          - { event: TRANSPONDEROFF }
     - name: "De-ice / anti-ice"
       source: { kind: switch, code: 4 }
       action: { type: event, event: ANTI_ICE_SET }
@@ -155,16 +173,25 @@ bindings:
     # Cowl flaps NOT mapped: COWLFLAP1_SET expects a 0..16383 position, but a
     # switch only sends 0/1 (no transform yet on switches). Add later via a
     # SimVar or a scaled switch action.
-    - name: "Panel lights"
+    # "Panel lights" switch repurposed -> cabin CENTER light (red cabin dome light
+    # on the Arrow). The panel/radio instrument lighting has no toggle on the real
+    # Piper — it lives on the Multi Panel dimmer (trim wheel) below.
+    # The center light is itself a 0..100% dimmer, not on/off; a 2-pos switch can
+    # only pick the ends -> full on / dark off.
+    # VERIFY the var: 'LIGHT CABIN' is the SPAD/MSFS cabin light; if the JF dome
+    # dimmer is a different LVar, swap it (and lower 100 if the scale is 0..10).
+    - name: "Cabin center light"
       source: { kind: switch, code: 7 }
-      action: { type: event, event: PANEL_LIGHTS_SET }
+      action:
+        type: sequence
+        on_edge:  [ { simvar: "LIGHT CABIN", value: 100 } ]
+        off_edge: [ { simvar: "LIGHT CABIN", value: 0 } ]
     - name: "Beacon lights"
       source: { kind: switch, code: 8 }
       action: { type: event, event: BEACON_LIGHTS_SET }
-    # Nav lights: currently UNUSED (user 2026-06-24); left mapped but harmless.
-    - name: "Nav lights"
-      source: { kind: switch, code: 9 }
-      action: { type: event, event: NAV_LIGHTS_SET }      # unused
+    # Nav lights: NOT a switch on the Arrow — the nav light follows the radio-light
+    # dimmer (on whenever radio brightness > 0), handled by the Multi Panel dimmer's
+    # follow_event. So code 9 is intentionally unmapped here.
     # Strobe switch = the cockpit "Anti Collision" control; confirmed in-sim 2026-06-24.
     - name: "Strobe lights"
       source: { kind: switch, code: 10 }
@@ -214,11 +241,16 @@ bindings:
     - name: "AP master"
       source: { kind: switch, code: 7 }
       action: { type: event, event: AP_MASTER, value: 1 }   # toggles AP on/off
-    # AUTO THROTTLE arm switch -> autopilot airspeed hold (user's choice; the
-    # Arrow has no real autothrottle). Maintained switch -> toggles on the arm edge.
-    - name: "Auto throttle (AP airspeed hold)"
+    # AUTO THROTTLE arm switch (code 15) = the HDG-MASTER arm. On the real Arrow,
+    # heading-hold arm (L:AUTOPILOT_HDG) is its OWN switch, separate from picking
+    # a mode — so it lives here and ONLY here. The mode buttons below set just
+    # L:AUTOPILOT_MODE; they no longer touch HDG. Maintained switch: on=1, off=0.
+    - name: "HDG master arm (auto-throttle switch)"
       source: { kind: switch, code: 15 }
-      action: { type: event, event: AP_AIRSPEED_HOLD, value: 1 }
+      action:
+        type: sequence
+        on_edge:  [ { simvar: "L:AUTOPILOT_HDG", value: 1 } ]
+        off_edge: [ { simvar: "L:AUTOPILOT_HDG", value: 0 } ]
     # Flaps rocker: momentary up/down, one notch per press (as SPAD: DECR/INCR).
     - name: "Flaps up"
       source: { kind: switch, code: 16 }
@@ -226,9 +258,46 @@ bindings:
     - name: "Flaps down"
       source: { kind: switch, code: 17 }
       action: { type: event, event: FLAPS_INCR, value: 1 }
-    # Mode buttons HDG/NAV/APR/REV (codes 8/9/13/14): JF Arrow drives these via
-    # L:AUTOPILOT_MODE/_HDG, and their LEDs need an L: read. Deferred to the LVar
-    # pass — see docs/memory/multi-panel-hid.md.
+    # AP mode buttons (codes 8/9/13/14). The Arrow's AP has no toggle buttons —
+    # its modes are a rotary that sets L:AUTOPILOT_MODE (NAV=0, HDG=2, APR=3,
+    # REV=4). Each button sets ONLY its mode; HDG-master arm is a separate switch
+    # (the auto-throttle switch above), so the mode buttons no longer write
+    # L:AUTOPILOT_HDG (SPAD did, but that fought the cockpit's own HDG switch).
+    # NOTE: the button LEDs still need an L:AUTOPILOT_MODE *read* (LVar-read path,
+    # not built yet) — so these engage the modes but don't light up yet.
+    - name: "AP mode HDG"
+      source: { kind: switch, code: 8 }
+      action:
+        type: sequence
+        on_edge:
+          - { simvar: "L:AUTOPILOT_MODE", value: 2 }
+    - name: "AP mode NAV"
+      source: { kind: switch, code: 9 }
+      action:
+        type: sequence
+        on_edge:
+          - { simvar: "L:AUTOPILOT_MODE", value: 0 }
+    - name: "AP mode APR"
+      source: { kind: switch, code: 13 }
+      action:
+        type: sequence
+        on_edge:
+          - { simvar: "L:AUTOPILOT_MODE", value: 3 }
+    - name: "AP mode REV"
+      source: { kind: switch, code: 14 }
+      action:
+        type: sequence
+        on_edge:
+          - { simvar: "L:AUTOPILOT_MODE", value: 4 }
+    # OMNI mode (L:AUTOPILOT_MODE=1) on the otherwise-free IAS button (code 10).
+    # OMNI = auto-intercept & track a VOR radial (the Arrow's "hidden" coupler
+    # mode, SPAD reached it via NAV long-press / slow blink).
+    - name: "AP mode OMNI (IAS button)"
+      source: { kind: switch, code: 10 }
+      action:
+        type: sequence
+        on_edge:
+          - { simvar: "L:AUTOPILOT_MODE", value: 1 }
 
 # Panel outputs (LEDs), streamed back from the bridge. The Switch Panel has 3
 # gear-indicator lights (nose/left/right), each green=down&locked / red=in
@@ -253,15 +322,46 @@ outputs:
   multi_panel:
     - type: multi_panel
       selector:
+        # fast_step = gentle acceleration: only after a sustained fast spin, and
+        # ~half the old jump (was ALT 1000 / HDG 10). Drop fast_step to disable.
         - { code: 0, label: ALT, simvar: "AUTOPILOT ALTITUDE LOCK VAR",
-            set_event: AP_ALT_VAR_SET_ENGLISH, step: 100, fast_step: 1000, min: 0, max: 99999 }
+            set_event: AP_ALT_VAR_SET_ENGLISH, step: 100, fast_step: 300, min: 0, max: 99999 }
+        # VS lives on the *bottom* display row so ALT (top) and VS stay visible
+        # together; switching ALT<->VS only re-points the encoder.
         - { code: 1, label: VS, simvar: "AUTOPILOT VERTICAL HOLD VAR",
-            set_event: AP_VS_VAR_SET_ENGLISH, step: 100, fast_step: 1000, min: -9999, max: 9999 }
+            set_event: AP_VS_VAR_SET_ENGLISH, step: 100, fast_step: 300, min: -9999, max: 9999,
+            display_row: bottom }
         - { code: 2, label: IAS, simvar: "AUTOPILOT AIRSPEED HOLD VAR",
-            set_event: AP_SPD_VAR_SET, step: 1, fast_step: 10, min: 0, max: 360 }
+            set_event: AP_SPD_VAR_SET, step: 1, fast_step: 3, min: 0, max: 360 }
         - { code: 3, label: HDG, simvar: "AUTOPILOT HEADING LOCK DIR",
-            set_event: HEADING_BUG_SET, step: 1, fast_step: 10, min: 0, max: 359, rollover: true }
+            set_event: HEADING_BUG_SET, step: 1, fast_step: 3, min: 0, max: 359, rollover: true }
+        # CRS edits the OBS course. The yoke's left rocker-down (code 291) flips
+        # the source between NAV1 (source #1) and NAV2 (alt); while CRS is selected
+        # the active index (1 or 2) shows on the free bottom row.
         - { code: 4, label: CRS, simvar: "NAV OBS:1",
-            set_event: VOR1_SET, step: 1, fast_step: 10, min: 0, max: 359, rollover: true }
+            set_event: VOR1_SET, step: 1, fast_step: 3, min: 0, max: 359, rollover: true,
+            alt_sources: [ { simvar: "NAV OBS:2", set_event: VOR2_SET } ] }
       ap_master: "AUTOPILOT MASTER"
       mode_var: "L:AUTOPILOT_MODE"
+      source_toggle: { device: yoke, code: 291 }
+      # Trim wheel = instrument-light dimmer for the radio + panel lights (no
+      # switch on the real Piper). The dimmer tracks a shared PERCENT (0..100,
+      # step 10 = even 10% stops) and scales each target to its own `full`, so the
+      # two lights move together off one knob. Self-tracks (these can't be read
+      # back yet); the nav light follows (on when percent > 0) via NAV_LIGHTS_SET.
+      # Targets are the real JF Arrow lighting from SPAD Arrow III.xml:
+      #   - radio/instrument light = LIGHT_POTENTIOMETER_2_SET event (0..100 var)
+      #   - panel light = L:CENTRE_LOWER_PANEL_LIGHT (0..10 scale)
+      # VERIFY in-sim: SPAD set the potentiometer A-var to 100 but fired the event
+      # with param 10 — if the radio lights go full at the first detent, the event
+      # scale is 0..10: change that target to `full: 10`.
+      dimmer:
+        cw: 18
+        ccw: 19
+        step: 10
+        min: 0
+        max: 100
+        targets:
+          - { event: LIGHT_POTENTIOMETER_2_SET, full: 100 }   # radio/instrument light
+          - { var: "L:CENTRE_LOWER_PANEL_LIGHT", full: 10 }   # panel light (0..10)
+        follow_event: NAV_LIGHTS_SET
