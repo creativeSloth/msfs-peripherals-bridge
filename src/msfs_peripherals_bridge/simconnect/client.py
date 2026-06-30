@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import logging
 import socket
+import threading
 from collections.abc import Iterator
 
 from .protocol import Command, decode_state, encode
@@ -25,6 +26,9 @@ class BridgeClient:
         self.host = host
         self.port = port
         self._sock: socket.socket | None = None
+        # Mapping commands and output subscriptions are sent from different
+        # threads on this one socket; serialise sends so frames don't interleave.
+        self._send_lock = threading.Lock()
 
     def connect(self) -> None:
         self._sock = socket.create_connection((self.host, self.port), timeout=5.0)
@@ -41,7 +45,8 @@ class BridgeClient:
     def send(self, command: Command) -> None:
         if self._sock is None:
             raise RuntimeError("BridgeClient is not connected")
-        self._sock.sendall(encode(command))
+        with self._send_lock:
+            self._sock.sendall(encode(command))
 
     def states(self) -> Iterator[tuple[str, object]]:
         """Yield (name, value) updates streamed back from the bridge."""

@@ -42,6 +42,8 @@ def run(
     if not present:
         raise RuntimeError("None of the catalog devices were found on this system.")
 
+    _start_outputs(profile, present, dispatcher, stop)
+
     for device_id, path in present.items():
         if device_id not in profile.bindings:
             log.warning(
@@ -61,6 +63,31 @@ def run(
             continue
         for command in engine.resolve(event):
             dispatcher.send(command)
+
+
+def _start_outputs(
+    profile: Profile,
+    present: dict[str, str],
+    dispatcher: Dispatcher,
+    stop: threading.Event,
+) -> None:
+    """Start the output (LED) manager if the profile declares any outputs.
+
+    Needs a dispatcher that can stream SimVar state back (the real bridge); the
+    dry-run dispatcher has no ``states()``, so outputs are simply skipped there.
+    """
+    output_devices = {d: p for d, p in present.items() if d in profile.outputs}
+    if not output_devices:
+        return
+    if not callable(getattr(dispatcher, "states", None)):
+        log.info("Profile has outputs but the dispatcher can't stream state; LEDs disabled.")
+        return
+
+    from .outputs import OutputManager
+
+    manager = OutputManager(profile.outputs, output_devices, dispatcher)
+    threading.Thread(target=manager.run, args=(stop,), daemon=True).start()
+    log.info("Output manager started for %d device(s)", len(output_devices))
 
 
 def _pump(

@@ -206,3 +206,17 @@ bindings:
     - name: "Gear down"
       source: { kind: switch, code: 19 }
       action: { type: event, event: GEAR_DOWN, value: 1 }
+
+# Panel outputs (LEDs), streamed back from the bridge. The Switch Panel has 3
+# gear-indicator lights (nose/left/right), each green=down&locked / red=in
+# transit / off=up — and dark when the battery is off. Mirrors the SPAD.neXt
+# Arrow logic: GEAR x POSITION (Percent Over 100), green at >=0.95, gated by
+# ELECTRICAL MASTER BATTERY. The nose wheel is the *centre* gear in MSFS.
+outputs:
+  switch_panel:
+    - type: gear_leds
+      nose: "GEAR CENTER POSITION"
+      left: "GEAR LEFT POSITION"
+      right: "GEAR RIGHT POSITION"
+      down_at: 0.95
+      power: "ELECTRICAL MASTER BATTERY"

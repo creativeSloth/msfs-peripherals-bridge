@@ -27,6 +27,28 @@ log = logging.getLogger(__name__)
 
 _SYS_HIDRAW = "/sys/class/hidraw"
 
+# HIDIOCSFEATURE(len): _IOC(_IOC_WRITE|_IOC_READ, 'H', 0x06, len) on Linux. The
+# length is the full buffer (report-id byte + data) and is OR'd in at call time.
+_HIDIOCSFEATURE_BASE = (3 << 30) | (ord("H") << 8) | 0x06  # dir=WRITE|READ, type 'H', nr 6
+
+
+def write_feature_report(path: str, report: bytes) -> None:
+    """Send a HID *feature* report to a hidraw node (e.g. panel LEDs).
+
+    ``report`` is the full buffer including the leading report-id byte, e.g.
+    ``bytes([0x00, led_byte])`` for the switch panel (report id 0, one data
+    byte). Linux-only — uses the HIDIOCSFEATURE ioctl. Raises ``OSError`` if the
+    node can't be opened or written (caller decides whether that's fatal).
+    """
+    import fcntl  # Linux-only; imported lazily so the package stays portable.
+
+    request = _HIDIOCSFEATURE_BASE | (len(report) << 16)
+    fd = os.open(path, os.O_RDWR)
+    try:
+        fcntl.ioctl(fd, request, bytearray(report))
+    finally:
+        os.close(fd)
+
 
 def _usb_ids(node: str) -> tuple[int, int] | None:
     """Return (vendor, product) for a hidraw node from its sysfs uevent."""

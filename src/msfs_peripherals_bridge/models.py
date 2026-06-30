@@ -82,6 +82,46 @@ class EventFromVarAction(BaseModel):
 Action = EventAction | SimVarAction | EventFromVarAction
 
 
+class GearLedOutput(BaseModel):
+    """Drive the three gear-indicator LEDs on a Saitek switch panel.
+
+    Each wheel light is bi-colour: green when its gear is *down & locked*, red
+    while it is *in transit*, and off when *up*. Mirrors the SPAD.neXt Arrow
+    logic — the driving SimVars are the per-wheel gear positions
+    (``Percent Over 100``, 0 = up … 1 = down); a wheel is green at/above
+    ``down_at`` (0.95 leaves locking tolerance), off at exactly 0, red between.
+    On MSFS the nose wheel is the *centre* gear, hence the default for ``nose``.
+
+    When ``power`` is set, all three LEDs go dark while that SimVar reads 0 — so
+    the gear lights only glow with the battery on, like the real panel.
+    """
+
+    type: Literal["gear_leds"] = "gear_leds"
+    nose: str = Field("GEAR CENTER POSITION", description="Nose-wheel position SimVar.")
+    left: str = Field("GEAR LEFT POSITION", description="Left-main position SimVar.")
+    right: str = Field("GEAR RIGHT POSITION", description="Right-main position SimVar.")
+    # A wheel counts as down (green) at/above this position, up (off) at 0.
+    down_at: float = Field(0.95, gt=0.0, le=1.0, description="Position treated as down & locked.")
+    # Bool SimVar gating the LEDs (0 = no power = all off). None disables gating.
+    power: str | None = Field(
+        "ELECTRICAL MASTER BATTERY", description="Bool SimVar; LEDs dark when 0."
+    )
+
+    def positions(self) -> tuple[str, str, str]:
+        """The three position SimVars in (nose, left, right) order."""
+        return (self.nose, self.left, self.right)
+
+    def simvars(self) -> list[str]:
+        """Every SimVar this output needs subscribed (positions + power)."""
+        names = list(self.positions())
+        if self.power is not None:
+            names.append(self.power)
+        return names
+
+
+Output = GearLedOutput
+
+
 class Source(BaseModel):
     """Identifies one physical control on a device.
 
@@ -166,3 +206,7 @@ class Profile(BaseModel):
     aircraft_match: list[str] = Field(default_factory=list)
     # device id -> its bindings for this aircraft.
     bindings: dict[str, list[Binding]] = Field(default_factory=dict)
+    # device id -> output declarations (e.g. switch-panel gear LEDs). The device
+    # must support output (a hidraw panel); SimVar-driven, streamed back from the
+    # bridge. Empty for most profiles.
+    outputs: dict[str, list[Output]] = Field(default_factory=dict)

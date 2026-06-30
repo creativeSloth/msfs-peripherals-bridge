@@ -2,6 +2,11 @@
 
 Parent: [../../MEMORY.md](../../MEMORY.md)
 
+> ⚠️ **Aktueller Stand & geordnete Roadmap stehen in [STATUS.md](STATUS.md).**
+> Die Liste unten ist der ursprüngliche Scaffold-Plan (2026-06-19); 1–6 sind
+> erledigt (Hardware kalibriert, Wine-Bridge live, Auto-Merge, Hats, Auto-Switch),
+> 8 (LED-Feedback) gerade in Arbeit. Hier nur als Historie belassen.
+
 ## Done (2026-06-19)
 - Project scaffold: uv + hatchling, ruff + mypy (strict) + pytest, GitHub
   Actions CI, MIT license, README with architecture diagram.
