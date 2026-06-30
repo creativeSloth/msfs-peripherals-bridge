@@ -37,11 +37,29 @@ Ziffer 0-9, blank=0x0F, minus=0xEE; LED-Bits AP/HDG/NAV/IAS/ALT/VS/APR/REV).
 - ✅ **Chunk B** (`4fa3829`): `mapping/multi_panel.py` `MultiPanelController` +
   `models.SelectorEntry/MultiPanelOutput` (pure, getestet). Encoder: Wert±Schritt
   mit Schnelldreh, Clamp/Rollover, feuert `*_SET` oder schreibt SimVar.
-- ⏳ **Chunk C**: LVar-READ im Bridge (`L:AUTOPILOT_MODE` lesen → Modus-LEDs).
-- ⏳ **Chunk D**: Integration runtime/outputs + Profil + Tasten/Flaps/AutoThrottle.
-- ⏳ **Chunk E**: In-Sim-Test.
+- ✅ **Chunk D** (`6e904d3`): verdrahtet. `outputs.OutputManager` besitzt den
+  Controller (subscribe/on_state→render + `handle_input` für Selector/Encoder,
+  1 Lock für beide Threads); `runtime` routet Selector/Encoder-Codes 0–6 zum
+  Controller, Rest zur Engine. `piper_arrow.yaml`: multi_panel-Bindings (AP-Taste,
+  AutoThrottle→AP_AIRSPEED_HOLD, Flaps) + multi_panel-Output (Selector 5×, Display,
+  AP-LED). 76 Tests grün, ruff clean.
+- ⏳ **Chunk C** (offen, riskant/sim-abhängig): **LVar-READ im Bridge**
+  (`L:AUTOPILOT_MODE` lesen → Modus-Tasten-LEDs) **+ Modus-Tasten HDG/NAV/APR/REV**
+  (codes 8/9/13/14) als L:AUTOPILOT_MODE/_HDG-Writes. Braucht: (a) fixe-Wert-
+  SimVar-Action (neues `value`-Feld an `SimVarAction`, Engine = momentary), (b)
+  LVar-Read-Pfad (RequestClientData/RECV_CLIENT_DATA über MobiFlight). SPAD-Werte:
+  NAV=0, HDG=2, APR=3, REV=4 (+ AUTOPILOT_HDG pulse 1/0). Siehe multi-panel-hid.md.
+- ⏳ **Chunk E** (NÄCHSTER SCHRITT empfohlen): **In-Sim-Test des fertigen Teils**
+  VOR C, um zu de-risken. `msfs-bridge piper_arrow` → Selector→HDG, Encoder drehen
+  (Display + Sim-Wert + Schnelldreh), ALT/VS/IAS/CRS durch (Minus bei VS prüfen),
+  AP-Taste+LED, Flaps, AutoThrottle. Achten: welche `*_SET` greifen auf dem JF
+  Arrow (v. a. AP_ALT_VAR_SET_ENGLISH, AP_VS_VAR_SET_ENGLISH, AP_SPD_VAR_SET,
+  `NAV OBS:1`/VOR1_SET — Index-Syntax riskant). Greift ein Event nicht → set_event
+  der Zeile entfernen (= direkter SimVar-Write).
 SPAD-Recipe + Entscheidungen (AutoThrottle→AP_AIRSPEED_HOLD, Schnelldreh an,
 Trim+Long-Press zurückgestellt) stehen in `docs/memory/multi-panel-hid.md`.
+Mess-/Output-Tools liegen im **Scratchpad** (`scan_multi.py`, `out_multi.py`) →
+TODO sie ins Repo (`tools/`) holen, siehe Memory `project-panel-tools-folder`.
 
 ## Roadmap danach
 1. **Magneto-L-Detent-Bug** am Switch Panel fixen (hidraw-Bit-Map/Edge bei Code 15/16).
