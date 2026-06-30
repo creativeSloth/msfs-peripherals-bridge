@@ -22,6 +22,7 @@ and run there. Keep it self-contained.
 from __future__ import annotations
 
 import argparse
+import contextlib
 import ctypes
 import json
 import logging
@@ -158,7 +159,7 @@ class SimConnectBridge:
                 req = Request(deff, self.sc, _time=0)
                 self._var_requests[key] = req
             value = req.value
-        except Exception as exc:  # noqa: BLE001 - library raises broadly
+        except Exception as exc:
             log.debug("read %s [%s] failed: %s", name, unit, exc)
             return None
         if isinstance(value, bytes):
@@ -177,9 +178,11 @@ class SimConnectBridge:
             log.warning("event_from_var: could not read %s; %s not sent", read, event)
             return
         try:
-            data = int(round(float(value)))
+            data = round(float(value))
         except (TypeError, ValueError):
-            log.warning("event_from_var: %s value %r is not numeric; %s not sent", read, value, event)
+            log.warning(
+                "event_from_var: %s value %r is not numeric; %s not sent", read, value, event
+            )
             return
         log.info("event_from_var: %s=%s -> %s(%d)", read, value, event, data)
         self.send_event(event, data)
@@ -196,7 +199,7 @@ class SimConnectBridge:
         for candidate in (name, name.strip().upper().replace(" ", "_")):
             try:
                 value = self.requests.get(candidate)
-            except Exception as exc:  # noqa: BLE001 - library raises broadly
+            except Exception as exc:
                 log.debug("read %s failed: %s", candidate, exc)
                 value = None
             if value is not None:
@@ -208,10 +211,8 @@ class SimConnectBridge:
         return value
 
     def close(self) -> None:
-        try:
+        with contextlib.suppress(Exception):
             self.sc.exit()
-        except Exception:  # noqa: BLE001
-            pass
 
 
 class ClientSession:
@@ -279,7 +280,7 @@ class ClientSession:
                 log.info("Subscribed to %s", msg["name"])
             else:
                 log.warning("Unknown op: %r", op)
-        except Exception as exc:  # noqa: BLE001 - never let one bad frame kill us
+        except Exception as exc:
             log.error("Failed to handle %s: %s", op, exc)
 
     # -- outbound --------------------------------------------------------
@@ -313,7 +314,7 @@ def connect_sim(retries: int = 30, delay: float = 2.0) -> SimConnectBridge:
             sim = SimConnectBridge()
             log.info("Connected to SimConnect")
             return sim
-        except Exception as exc:  # noqa: BLE001 - ConnectionError variants
+        except Exception as exc:
             log.info("SimConnect not ready (%d/%d): %s", attempt, retries, exc)
             time.sleep(delay)
     raise SystemExit("Could not connect to SimConnect — is MSFS running?")
@@ -334,7 +335,10 @@ def main() -> None:
         level=logging.DEBUG if args.verbose else logging.INFO,
         format="%(asctime)s %(levelname)-7s %(name)s: %(message)s",
         datefmt="%H:%M:%S",
-        handlers=[logging.StreamHandler(), logging.FileHandler(log_path, mode="w", encoding="utf-8")],
+        handlers=[
+            logging.StreamHandler(),
+            logging.FileHandler(log_path, mode="w", encoding="utf-8"),
+        ],
     )
     log.info("Logging to %s", log_path)
 
@@ -350,7 +354,7 @@ def main() -> None:
             log.info("Linux app connected from %s", addr)
             try:
                 ClientSession(conn, sim).serve()
-            except Exception:  # noqa: BLE001 - one bad session must not kill the bridge
+            except Exception:
                 log.exception("Session ended with an error; waiting for next client")
             finally:
                 conn.close()
