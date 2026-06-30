@@ -1,6 +1,7 @@
-from msfs_peripherals_bridge.models import GearLedOutput
+from msfs_peripherals_bridge.mapping.multi_panel import ENCODER_CW
+from msfs_peripherals_bridge.models import GearLedOutput, MultiPanelOutput, SelectorEntry
 from msfs_peripherals_bridge.outputs import OutputManager
-from msfs_peripherals_bridge.simconnect.protocol import Subscribe
+from msfs_peripherals_bridge.simconnect.protocol import SendEvent, Subscribe
 
 NOSE_GREEN = 1 << 0
 LEFT_GREEN = 1 << 1
@@ -91,3 +92,66 @@ def test_write_failure_is_swallowed_and_retried():
     manager.on_state("GEAR LEFT POSITION", 1.0)
     # Both updates attempted a write (failure did not cache the report).
     assert len(attempts) == 2
+
+
+# --- Multi Panel controller routed through the OutputManager ---------------
+
+
+def _multi_manager(writer):
+    output = MultiPanelOutput(
+        selector=[
+            SelectorEntry(
+                code=3, label="HDG", simvar="AUTOPILOT HEADING LOCK DIR",
+                set_event="HEADING_BUG_SET", step=1, fast_step=10,
+                min=0, max=359, rollover=True,
+            )
+        ],
+    )
+    return OutputManager(
+        {"multi_panel": [output]},
+        {"multi_panel": "/dev/hidrawM"},
+        FakeDispatcher(),
+        writer=writer,
+    )
+
+
+def test_multi_subscribes_to_value_and_led_vars():
+    dispatcher = FakeDispatcher()
+    manager = OutputManager(
+        {"multi_panel": [MultiPanelOutput(
+            selector=[SelectorEntry(
+                code=3, label="HDG", simvar="AUTOPILOT HEADING LOCK DIR",
+                set_event="HEADING_BUG_SET", min=0, max=359,
+            )],
+        )]},
+        {"multi_panel": "/dev/hidrawM"},
+        dispatcher,
+    )
+    manager.subscribe_all()
+    subscribed = {c.name for c in dispatcher.sent if isinstance(c, Subscribe)}
+    assert subscribed == {"AUTOPILOT HEADING LOCK DIR", "AUTOPILOT MASTER", "L:AUTOPILOT_MODE"}
+
+
+def test_handles_only_selector_encoder_codes():
+    manager = _multi_manager(lambda p, r: None)
+    assert manager.handles("multi_panel", ENCODER_CW) is True
+    assert manager.handles("multi_panel", 3) is True  # selector position
+    assert manager.handles("multi_panel", 7) is False  # AP button -> engine
+    assert manager.handles("switch_panel", ENCODER_CW) is False  # no controller
+
+
+def test_handle_input_encoder_emits_event_and_writes_display():
+    writes: list[bytes] = []
+    manager = _multi_manager(lambda path, report: writes.append(report))
+    manager.on_state("AUTOPILOT HEADING LOCK DIR", 90)
+
+    commands = manager.handle_input("multi_panel", ENCODER_CW, value=1, now=0.0)
+    assert commands == [SendEvent(name="HEADING_BUG_SET", data=91)]
+    # Display top row now shows "   91" (blank,blank,blank,9,1) after the bump.
+    assert list(writes[-1][1:6]) == [0x0F, 0x0F, 0x0F, 9, 1]
+
+
+def test_handle_input_release_edge_does_nothing():
+    manager = _multi_manager(lambda p, r: None)
+    manager.on_state("AUTOPILOT HEADING LOCK DIR", 90)
+    assert manager.handle_input("multi_panel", ENCODER_CW, value=0, now=0.0) == []

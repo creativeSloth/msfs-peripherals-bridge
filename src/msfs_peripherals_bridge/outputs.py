@@ -1,9 +1,17 @@
-"""Drive panel outputs (LEDs, later 7-seg) from SimVars streamed by the bridge.
+"""Drive panel outputs from SimVars streamed by the bridge.
 
 The mapping engine is one-directional (device -> sim). Outputs are the reverse:
 subscribe to the SimVars an output needs, consume the ``state`` updates the
 bridge streams back on the *same* socket, render them to a HID feature report
-and write it to the panel. The only output today is the switch-panel gear LEDs.
+and write it to the panel.
+
+Two kinds of output live here:
+
+* **Gear LEDs** (switch panel) — pure one-way: SimVar state -> one feature byte.
+* **Multi Panel** — a stateful ``MultiPanelController`` whose display/LEDs depend
+  on both SimVar state *and* device input (the selector + encoder). Its state is
+  touched from two threads — the output thread (``on_state``) and the mapping
+  loop (``handle_input``) — so all controller access is guarded by one lock.
 
 Kept separate from ``runtime`` so the render/track logic can be unit-tested with
 a fake dispatcher and a fake writer (no socket, no hardware).
@@ -18,7 +26,8 @@ from typing import Protocol
 
 from .devices.hidraw_reader import write_feature_report
 from .mapping.leds import gear_led_byte
-from .models import GearLedOutput, Output
+from .mapping.multi_panel import ENCODER_CCW, ENCODER_CW, SELECTOR_CODES, MultiPanelController
+from .models import GearLedOutput, MultiPanelOutput, Output
 from .simconnect.protocol import Command, Subscribe
 
 log = logging.getLogger(__name__)
@@ -51,19 +60,35 @@ class OutputManager:
         dispatcher: StateDispatcher,
         writer: Callable[[str, bytes], None] = write_feature_report,
     ) -> None:
-        # Only keep outputs for devices that are actually present (have a path).
-        self._outputs = {d: outs for d, outs in outputs.items() if d in device_paths}
         self._paths = device_paths
         self._dispatcher = dispatcher
         self._writer = writer
+        self._lock = threading.Lock()
         self._values: dict[str, float | None] = {}
         self._last_report: dict[str, bytes] = {}  # device_id -> last bytes written
+        # Split outputs by kind, keeping only devices that are actually present.
+        self._gear: dict[str, list[GearLedOutput]] = {}
+        self._controllers: dict[str, MultiPanelController] = {}
+        for device_id, outs in outputs.items():
+            if device_id not in device_paths:
+                continue
+            for output in outs:
+                if isinstance(output, MultiPanelOutput):
+                    self._controllers[device_id] = MultiPanelController(output)
+                elif isinstance(output, GearLedOutput):
+                    self._gear.setdefault(device_id, []).append(output)
+
+    @property
+    def _devices(self) -> set[str]:
+        return set(self._gear) | set(self._controllers)
 
     def needed_simvars(self) -> set[str]:
         names: set[str] = set()
-        for outs in self._outputs.values():
+        for outs in self._gear.values():
             for output in outs:
                 names.update(output.simvars())
+        for controller in self._controllers.values():
+            names.update(controller.subscriptions())
         return names
 
     def subscribe_all(self) -> None:
@@ -71,44 +96,68 @@ class OutputManager:
             self._dispatcher.send(Subscribe(name))
             log.debug("Output subscribed to %s", name)
 
+    # -- input (mapping loop thread) ---------------------------------------
+    def handles(self, device_id: str, code: int) -> bool:
+        """True if this device's controller consumes that input code itself."""
+        return device_id in self._controllers and (
+            code in SELECTOR_CODES or code in (ENCODER_CW, ENCODER_CCW)
+        )
+
+    def handle_input(self, device_id: str, code: int, value: int, now: float) -> list[Command]:
+        """Feed a selector/encoder event to the controller; rewrite its report."""
+        controller = self._controllers.get(device_id)
+        if controller is None:
+            return []
+        with self._lock:
+            commands = controller.on_event(code, value, now)
+            self._write_if_changed(device_id)
+        return commands
+
+    # -- output (bridge state thread) --------------------------------------
     def on_state(self, name: str, value: object) -> None:
         """Record a SimVar update and rewrite any device whose report changed."""
-        self._values[name] = _as_float(value)
-        for device_id in self._outputs:
-            self._write_if_changed(device_id)
+        with self._lock:
+            self._values[name] = _as_float(value)
+            for controller in self._controllers.values():
+                controller.on_state(name, value)
+            for device_id in self._devices:
+                self._write_if_changed(device_id)
 
     def _write_if_changed(self, device_id: str) -> None:
-        report = self._render(self._outputs[device_id])
+        """Render and write a device's report if it changed. Caller holds the lock."""
+        report = self._render(device_id)
         if self._last_report.get(device_id) == report:
             return
         try:
             self._writer(self._paths[device_id], report)
         except OSError as exc:
-            log.error("Could not write LEDs to %s: %s", device_id, exc)
+            log.error("Could not write feature report to %s: %s", device_id, exc)
             return
         self._last_report[device_id] = report
-        log.debug("Wrote %s LED report %s", device_id, report.hex())
+        log.debug("Wrote %s report %s", device_id, report.hex())
 
-    def _render(self, outputs: list[Output]) -> bytes:
-        """Aggregate every output for one device into its feature-report bytes."""
+    def _render(self, device_id: str) -> bytes:
+        controller = self._controllers.get(device_id)
+        if controller is not None:
+            return controller.render()
         byte = 0
-        for output in outputs:
-            if isinstance(output, GearLedOutput):
-                positions = [self._values.get(n) for n in output.positions()]
-                powered = output.power is None or (self._values.get(output.power) or 0) >= 0.5
-                byte |= gear_led_byte(positions, output.down_at, powered)
+        for output in self._gear.get(device_id, []):
+            positions = [self._values.get(n) for n in output.positions()]
+            powered = output.power is None or (self._values.get(output.power) or 0) >= 0.5
+            byte |= gear_led_byte(positions, output.down_at, powered)
         return bytes([_REPORT_ID, byte])
 
     def run(self, stop: threading.Event) -> None:
         """Subscribe, then write reports as state updates arrive until ``stop``.
 
-        Writes an initial (all-off) report so the panel starts in a known state,
-        then blocks on the bridge's state stream. Daemon-friendly: the stream
-        ends when the socket closes on shutdown.
+        Writes an initial report so each panel starts in a known state, then
+        blocks on the bridge's state stream. Daemon-friendly: the stream ends
+        when the socket closes on shutdown.
         """
         self.subscribe_all()
-        for device_id in self._outputs:
-            self._write_if_changed(device_id)
+        with self._lock:
+            for device_id in self._devices:
+                self._write_if_changed(device_id)
         for name, value in self._dispatcher.states():
             if stop.is_set():
                 return

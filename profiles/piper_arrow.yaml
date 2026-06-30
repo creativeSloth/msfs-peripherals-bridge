@@ -207,6 +207,29 @@ bindings:
       source: { kind: switch, code: 19 }
       action: { type: event, event: GEAR_DOWN, value: 1 }
 
+  # Multi Panel buttons/flaps/auto-throttle (hidraw bit codes, measured map in
+  # docs/memory/multi-panel-hid.md). The selector + encoder are NOT here — they
+  # are owned by the multi_panel controller under `outputs:` below.
+  multi_panel:
+    - name: "AP master"
+      source: { kind: switch, code: 7 }
+      action: { type: event, event: AP_MASTER, value: 1 }   # toggles AP on/off
+    # AUTO THROTTLE arm switch -> autopilot airspeed hold (user's choice; the
+    # Arrow has no real autothrottle). Maintained switch -> toggles on the arm edge.
+    - name: "Auto throttle (AP airspeed hold)"
+      source: { kind: switch, code: 15 }
+      action: { type: event, event: AP_AIRSPEED_HOLD, value: 1 }
+    # Flaps rocker: momentary up/down, one notch per press (as SPAD: DECR/INCR).
+    - name: "Flaps up"
+      source: { kind: switch, code: 16 }
+      action: { type: event, event: FLAPS_DECR, value: 1 }
+    - name: "Flaps down"
+      source: { kind: switch, code: 17 }
+      action: { type: event, event: FLAPS_INCR, value: 1 }
+    # Mode buttons HDG/NAV/APR/REV (codes 8/9/13/14): JF Arrow drives these via
+    # L:AUTOPILOT_MODE/_HDG, and their LEDs need an L: read. Deferred to the LVar
+    # pass — see docs/memory/multi-panel-hid.md.
+
 # Panel outputs (LEDs), streamed back from the bridge. The Switch Panel has 3
 # gear-indicator lights (nose/left/right), each green=down&locked / red=in
 # transit / off=up — and dark when the battery is off. Mirrors the SPAD.neXt
@@ -220,3 +243,25 @@ outputs:
       right: "GEAR RIGHT POSITION"
       down_at: 0.95
       power: "ELECTRICAL MASTER BATTERY"
+
+  # Multi Panel controller: the 5-way selector picks which autopilot reference
+  # value the encoder edits and the top display row shows; the button LEDs show
+  # AP master (+ active mode once the L: read lands). Step/fast_step mirror the
+  # SPAD Arrow profile (normal turn vs. quick spin). Values are set via the
+  # standard *_SET events; if a JF-specific var ignores its event in-sim, drop
+  # set_event for that row to write the SimVar directly instead.
+  multi_panel:
+    - type: multi_panel
+      selector:
+        - { code: 0, label: ALT, simvar: "AUTOPILOT ALTITUDE LOCK VAR",
+            set_event: AP_ALT_VAR_SET_ENGLISH, step: 100, fast_step: 1000, min: 0, max: 99999 }
+        - { code: 1, label: VS, simvar: "AUTOPILOT VERTICAL HOLD VAR",
+            set_event: AP_VS_VAR_SET_ENGLISH, step: 100, fast_step: 1000, min: -9999, max: 9999 }
+        - { code: 2, label: IAS, simvar: "AUTOPILOT AIRSPEED HOLD VAR",
+            set_event: AP_SPD_VAR_SET, step: 1, fast_step: 10, min: 0, max: 360 }
+        - { code: 3, label: HDG, simvar: "AUTOPILOT HEADING LOCK DIR",
+            set_event: HEADING_BUG_SET, step: 1, fast_step: 10, min: 0, max: 359, rollover: true }
+        - { code: 4, label: CRS, simvar: "NAV OBS:1",
+            set_event: VOR1_SET, step: 1, fast_step: 10, min: 0, max: 359, rollover: true }
+      ap_master: "AUTOPILOT MASTER"
+      mode_var: "L:AUTOPILOT_MODE"

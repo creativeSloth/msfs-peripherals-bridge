@@ -10,13 +10,17 @@ from __future__ import annotations
 import logging
 import queue
 import threading
-from typing import Protocol
+import time
+from typing import TYPE_CHECKING, Protocol
 
 from .devices import evdev_reader, hidraw_reader
 from .devices.base import DeviceEvent
 from .mapping.engine import MappingEngine
 from .models import DeviceCatalog, Profile
 from .simconnect.protocol import Command
+
+if TYPE_CHECKING:
+    from .outputs import OutputManager
 
 log = logging.getLogger(__name__)
 
@@ -42,7 +46,7 @@ def run(
     if not present:
         raise RuntimeError("None of the catalog devices were found on this system.")
 
-    _start_outputs(profile, present, dispatcher, stop)
+    outputs = _start_outputs(profile, present, dispatcher, stop)
 
     for device_id, path in present.items():
         if device_id not in profile.bindings:
@@ -61,7 +65,15 @@ def run(
             event = events.get(timeout=0.5)
         except queue.Empty:
             continue
-        for command in engine.resolve(event):
+        # The Multi Panel's selector/encoder are owned by its controller (display
+        # + value state); everything else goes through the stateless engine.
+        if outputs is not None and outputs.handles(event.device_id, event.code):
+            commands = outputs.handle_input(
+                event.device_id, event.code, event.value, time.monotonic()
+            )
+        else:
+            commands = engine.resolve(event)
+        for command in commands:
             dispatcher.send(command)
 
 
@@ -70,24 +82,27 @@ def _start_outputs(
     present: dict[str, str],
     dispatcher: Dispatcher,
     stop: threading.Event,
-) -> None:
-    """Start the output (LED) manager if the profile declares any outputs.
+) -> OutputManager | None:
+    """Start the output manager if the profile declares any outputs.
 
-    Needs a dispatcher that can stream SimVar state back (the real bridge); the
-    dry-run dispatcher has no ``states()``, so outputs are simply skipped there.
+    Returns the manager (so the mapping loop can route Multi Panel selector/
+    encoder input to it) or None. Needs a dispatcher that can stream SimVar state
+    back (the real bridge); the dry-run dispatcher has no ``states()``, so outputs
+    are simply skipped there.
     """
     output_devices = {d: p for d, p in present.items() if d in profile.outputs}
     if not output_devices:
-        return
+        return None
     if not callable(getattr(dispatcher, "states", None)):
-        log.info("Profile has outputs but the dispatcher can't stream state; LEDs disabled.")
-        return
+        log.info("Profile has outputs but the dispatcher can't stream state; outputs disabled.")
+        return None
 
     from .outputs import OutputManager
 
     manager = OutputManager(profile.outputs, output_devices, dispatcher)
     threading.Thread(target=manager.run, args=(stop,), daemon=True).start()
     log.info("Output manager started for %d device(s)", len(output_devices))
+    return manager
 
 
 def _pump(
