@@ -45,3 +45,27 @@ def gear_led_byte(
         elif pos > _EPS:
             byte |= 1 << red_bit
     return byte
+
+
+# Multi Panel button LEDs (feature-report byte 10). Bit per button, measured
+# 2026-06-30: 0=AP 1=HDG 2=NAV 3=IAS 4=ALT 5=VS 6=APR 7=REV.
+_MULTI_AP_BIT = 0
+# JF Arrow autopilot mode (L:AUTOPILOT_MODE, from SPAD Arrow profile) -> lit LED
+# bit. The Arrow AP has no IAS/ALT/VS hold modes, so those LEDs stay dark.
+_MULTI_MODE_BIT = {0: 2, 1: 2, 2: 1, 3: 6, 4: 7}  # NAV, NAV-arm, HDG, APR, REV
+
+
+def multi_button_led_byte(ap_master: bool, mode: int | None) -> int:
+    """Map autopilot master + active mode to the Multi Panel LED byte.
+
+    The AP light tracks the master switch; the active-mode light (NAV/HDG/APR/REV)
+    only glows while the master is on — matching the SPAD Arrow logic where a mode
+    LED requires ``L:AUTOPILOT_MODE`` to equal that button *and* the master engaged.
+    """
+    byte = 0
+    if ap_master:
+        byte |= 1 << _MULTI_AP_BIT
+        bit = _MULTI_MODE_BIT.get(mode) if mode is not None else None
+        if bit is not None:
+            byte |= 1 << bit
+    return byte

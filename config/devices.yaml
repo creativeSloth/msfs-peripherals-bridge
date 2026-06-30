@@ -32,3 +32,12 @@ devices:
     vendor: "06a3"
     product: "0d67"
     transport: hidraw
+
+  # Multi Panel: 3-byte input (selector/encoder/buttons/flaps/trim), 12-byte
+  # feature output (2x5 digit display + 8 button LEDs). Full HID map measured in
+  # docs/memory/multi-panel-hid.md.
+  - id: multi_panel
+    name: Saitek Pro Flight Multi Panel
+    vendor: "06a3"
+    product: "0d06"
+    transport: hidraw
