@@ -48,5 +48,19 @@ export PYTHONUNBUFFERED=1
 echo "→ Proton:  $PROTON"
 echo "→ Prefix:  $PREFIX"
 echo "→ Python:  $WIN_PYTHON"
-echo "→ Bridge:  $BRIDGE_PY  (listening on 127.0.0.1:7842)"
-exec "$PROTON" run "$WIN_PYTHON" "$BRIDGE_PY" "$@"
+echo "→ Bridge:  $BRIDGE_PY  (listening on 127.0.0.1:7842, auto-restart on crash)"
+
+# Supervisor loop: a hard MSFS CTD can SIGSEGV/kill the Wine-Python outright —
+# the always-running SimConnect dispatch thread faults when the sim's shared
+# memory is torn down, and no in-process Python handler can catch that, so the
+# bridge just vanishes. Restart it; bridge.py's own connect_sim() then waits for
+# MSFS to come back and re-attaches. Stop everything with SIGTERM/SIGINT.
+child=0
+trap 'echo "→ bridge supervisor stopping"; kill "$child" 2>/dev/null; exit 0' TERM INT
+while true; do
+  "$PROTON" run "$WIN_PYTHON" "$BRIDGE_PY" "$@" &
+  child=$!
+  if wait "$child"; then code=0; else code=$?; fi
+  echo "→ bridge.py exited (code $code) — restarting in 2s …" >&2
+  sleep 2
+done

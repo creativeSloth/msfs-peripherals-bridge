@@ -308,7 +308,9 @@ def run(
     if dry_run:
         dispatcher = DryRunDispatcher()
     else:
-        dispatcher = BridgeClient(host, port)
+        # reconnect=True: ride out a bridge restart (supervisor relaunch after an
+        # MSFS CTD, or a faulted SimConnect link) without dropping device control.
+        dispatcher = BridgeClient(host, port, reconnect=True)
         dispatcher.connect()
 
     try:
