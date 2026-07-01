@@ -1,7 +1,7 @@
 # STATUS — Resume-Anker
 
 > Kurzer Einstiegspunkt: was läuft, was offen ist, wie es weitergeht.
-> Stand: **2026-06-30**. Branch: `refactor/calibration-profile-split` (noch nicht auf `main`).
+> Stand: **2026-07-01**. Branch: `refactor/calibration-profile-split` (noch nicht auf `main`).
 
 ## Was funktioniert (in-sim bestätigt)
 - **Wine-SimConnect-Bridge** (`bridge/bridge.py`): TCP-JSON, K:-Events, A:-SimVars,
@@ -43,12 +43,64 @@ Ziffer 0-9, blank=0x0F, minus=0xEE; LED-Bits AP/HDG/NAV/IAS/ALT/VS/APR/REV).
   Controller, Rest zur Engine. `piper_arrow.yaml`: multi_panel-Bindings (AP-Taste,
   AutoThrottle→AP_AIRSPEED_HOLD, Flaps) + multi_panel-Output (Selector 5×, Display,
   AP-LED). 76 Tests grün, ruff clean.
-- ⏳ **Chunk C** (offen, riskant/sim-abhängig): **LVar-READ im Bridge**
-  (`L:AUTOPILOT_MODE` lesen → Modus-Tasten-LEDs) **+ Modus-Tasten HDG/NAV/APR/REV**
-  (codes 8/9/13/14) als L:AUTOPILOT_MODE/_HDG-Writes. Braucht: (a) fixe-Wert-
-  SimVar-Action (neues `value`-Feld an `SimVarAction`, Engine = momentary), (b)
-  LVar-Read-Pfad (RequestClientData/RECV_CLIENT_DATA über MobiFlight). SPAD-Werte:
-  NAV=0, HDG=2, APR=3, REV=4 (+ AUTOPILOT_HDG pulse 1/0). Siehe multi-panel-hid.md.
+- 🔧 **Chunk C — LVar-READ IMPLEMENTIERT (UNCOMMITTED, 2026-07-01), IN-SIM ZU TESTEN.**
+  Ziel: `L:AUTOPILOT_MODE` lesen → Modus-Tasten-LEDs (NAV/HDG/APR/REV). Befund beim
+  Lesen des Codes: der ganze LED-Renderpfad war schon fertig (`multi_button_led_byte`,
+  `simvars()` abonniert `mode_var` + `ap_master`), **die AP-Master-LED leuchtet schon**
+  (Standard-A:-Var, lesbar). Einziger Bruch: **Bridge konnte L:-Vars nicht LESEN** →
+  `L:AUTOPILOT_MODE` kam nie an. **Fix komplett in `bridge/bridge.py`, Linux-Seite
+  unberührt** (py_compile+ruff grün, 93 Tests grün — bridge.py ist nicht in der Suite):
+  - `_ReadingSimConnect(SimConnect)` überschreibt `my_dispatch_proc` → liefert
+    `RECV_ID_CLIENT_DATA` (MobiFlight-LVar-Stream) an `on_client_data`, Rest an super().
+  - LVar-Read-Kanal: `MobiFlight.LVars`-Area gemappt; pro L:-Var `MF.SimVars.Add.(name)`
+    + `AddToClientDataDefinition`/`RequestClientData` (ON_SET+CHANGED, Slot=Add-Reihenfolge,
+    `MF.SimVars.Clear` beim Init → saubere Indizes nach Reconnect). Protokoll+ctypes-Sigs
+    aus dem echten Modul/der Lib auf Platte verifiziert (kein Raten). Float32-Werte.
+  - Dispatch-Thread schreibt Werte in `_lvar_values` (eigener `_lvar_lock`, **kein
+    DLL-Zugriff** → kein Deadlock mit dem `_lock`). Poll-Loop ruft `read_subscribed`:
+    `L:/H:/B:`→`read_lvar` (registriert+Cache), sonst `read_simvar` wie bisher.
+  - **Annahme:** Bridge ist einziger Nutzer der shared MobiFlight-Areas (stimmt hier;
+    SPAD.neXt nutzt eigenen Kanal). Falls je Index-Kollision → auf privaten
+    `MF.Clients.Add.<name>`-Kanal umstellen (kleiner Umbau).
+  - ⏳ **IN-SIM-TEST:** Bridge NEU starten (`pkill -f run-bridge.sh` → `run-bridge.sh`),
+    `msfs-bridge piper_arrow`, JF Arrow, AP-Master an + Modus wählen → NAV/HDG/APR/REV-LED
+    muss leuchten. Log: „MobiFlight LVar registered: L:AUTOPILOT_MODE (slot 0)". Bleibt's
+    dunkel: (a) leuchtet AP-Master-LED überhaupt? (b) ist `L:AUTOPILOT_MODE` der richtige
+    Var-Name für die JF-Arrow-Modi? via MobiFlight-Browser / SPAD gegenprüfen.
+  - **NOCH OFFEN (separat):** Modus-Tasten HDG/NAV/APR/REV als Writes (codes 8/9/13/14)
+    liegen schon als SequenceActions im Profil (SPAD-Werte NAV=0/HDG=2/APR=3/REV=4).
+    Der neue Read-Pfad ist NUR für die LED-Rückmeldung. Siehe multi-panel-hid.md.
+  - ✅ **In-sim bestätigt vom User (2026-07-01): Modus-LEDs leuchten** (Read-Pfad läuft).
+- 🔧 **LED-Verfeinerungen (UNCOMMITTED, 2026-07-01, Linux-Seite, 97 Tests grün) — NUR
+  MAPPER-RESTART nötig (Bridge läuft weiter):**
+  - **OMNI (mode 1) = NAV solid + IAS blinkt** (1 Hz), damit OMNI von echtem NAV
+    (mode 0) unterscheidbar ist. Neu: `_MULTI_MODE_BLINK_BIT={1:IAS}` in `leds.py`,
+    `blink_on`-Param an `multi_button_led_byte`/`render`; **Blink-Ticker** in
+    `outputs.OutputManager` (`_blink_on` + `_blink_loop`/`_blink_tick`, Toggle alle
+    `_BLINK_HALF_PERIOD`=0.5 s, re-rendert alle Devices, dedup-Guard = keine HID-Flut).
+  - **Modus-LEDs unabhängig vom AP-Master**: `ap_master==on`-Bedingung fürs Mode-
+    Leuchten RAUS (nur die AP-LED selbst bleibt master-gekoppelt) → Positions-Feedback
+    der Mode-Tasten auch im Off-Zustand. ⚠️ **In-sim prüfen:** wenn `L:AUTOPILOT_MODE`
+    im „nichts gewählt"-Zustand 0 (=NAV) meldet, leuchtet NAV dann dauerhaft — dann
+    bräuchte es einen Off-Sentinel. User beobachtet das beim Test.
+- 🔧 **AP-Master-Prellen gefixt (UNCOMMITTED, 2026-07-01, Mapper-Restart) + JF-Verhalten
+  geklärt.** In-Sim-Befund (2026-07-01):
+  - **AP-Master-Taste (multi code 7) „muss mehrfach drücken / springt auf aus".** NICHT
+    der Doppelflanken-Bug (Engine feuert `AP_MASTER` nur auf Enter, `engine.py:80`) →
+    **Kontaktprellen**. `_bounced` maß bisher „seit letztem *akzeptierten* Druck" +
+    stempelte nur akzeptierte Flanken → ein Prell-Edge >50 ms nach dem ersten rutschte
+    als 2. Toggle durch (netto AUS). **Fix (`runtime.py`):** Debounce **retriggerbar**
+    (jede Enter-Flanke, auch unterdrückte, schiebt das Fenster) + Fenster **50→120 ms**.
+    Test `tests/test_runtime.py`. Falls in-sim noch Prellen: Fenster höher.
+  - **Modusschalter springt auf HDG beim AP-Einkuppeln** = **JF-Arrow-Verhalten** (unsere
+    AP-Taste sendet NUR `AP_MASTER`, setzt kein `L:AUTOPILOT_MODE`). Nicht unser Code.
+  - **APR nicht direkt anwählbar** = **JF-Gauge-Logik BESTÄTIGT** (User in-sim
+    2026-07-01: mit AP-Master ON **und HDG-Modus aktiv** nimmt APR direkt an; aus
+    frisch-eingekuppeltem „leerem" `L:AUTOPILOT_MODE` nicht). **FIX (UNCOMMITTED):**
+    AP-Master-Taste (code 7) ist jetzt eine `sequence` → `on_edge` feuert `AP_MASTER`
+    **und** setzt `L:AUTOPILOT_MODE=2` (HDG), landet also immer in einem gültigen Modus,
+    aus dem APR direkt geht. Momentary (nur Enter-Flanke), mode=2 auf der Aus-Presse
+    harmlos. `piper_arrow.yaml`, valide. ⏳ in-sim bestätigen.
 - 🔧 **Chunk E läuft** — 1. In-Sim-Runde 2026-06-30 gemacht, daraus folgende
   Fixes umgesetzt (UNCOMMITTED, 86 Tests grün, ruff clean, alle Profile valide;
   **Bridge muss für Test neu gestartet werden**):

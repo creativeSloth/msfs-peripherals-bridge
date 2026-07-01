@@ -28,3 +28,10 @@ coverage.xml
 *.local.yaml
 logs/
 *.log
+
+# Claude Code personal settings
+.claude/settings.local.json
+
+# Rotated / archived bridge logs
+*.log.*
+*.old
