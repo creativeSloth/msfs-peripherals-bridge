@@ -24,12 +24,14 @@ if TYPE_CHECKING:
 
 log = logging.getLogger(__name__)
 
-# A hidraw switch can report several enter edges within a few ms when its
-# contacts bounce; on a momentary button that double-fires the action (e.g. the
-# AP master toggles on then straight back off). Ignore repeat enter edges on the
-# same bit within this window. Detents arrive far enough apart to be unaffected,
-# and the encoder/selector bypass this path entirely.
-_SWITCH_DEBOUNCE_S = 0.05
+# A hidraw switch can report several enter edges when its contacts bounce; on a
+# momentary *toggle* button (e.g. AP master) an even number of fires nets no
+# change, so a dirty press looks dead and you have to press again. The window is
+# retriggerable: every enter edge — even a suppressed one — pushes it forward, so
+# a whole bounce burst collapses to one action as long as the flicker stays
+# quicker than this. Deliberate re-presses of the same button come far slower.
+# Detents/other buttons are keyed separately; the encoder/selector bypass this.
+_SWITCH_DEBOUNCE_S = 0.12
 
 
 class Dispatcher(Protocol):
@@ -85,21 +87,27 @@ def run(
             dispatcher.send(command)
 
 
-def _bounced(event: DeviceEvent, last_press: dict[tuple[str, int], float]) -> bool:
+def _bounced(
+    event: DeviceEvent,
+    last_press: dict[tuple[str, int], float],
+    now: float | None = None,
+) -> bool:
     """True if this is a hidraw switch enter edge too soon after the last one.
 
     Suppresses contact-bounce double-fires on momentary panel buttons (see
     ``_SWITCH_DEBOUNCE_S``). Only enter edges (value 1) of SWITCH events are
-    rate-limited; everything else passes straight through.
+    rate-limited; everything else passes straight through. The window is
+    retriggerable: the timestamp advances on *every* enter edge, suppressed ones
+    included, so a sustained bounce burst is collapsed rather than letting a late
+    edge slip through as a second toggle. ``now`` is injectable for tests.
     """
     if event.kind is not SourceKind.SWITCH or event.value != 1:
         return False
     key = (event.device_id, event.code)
-    now = time.monotonic()
-    if now - last_press.get(key, 0.0) < _SWITCH_DEBOUNCE_S:
-        return True
+    now = time.monotonic() if now is None else now
+    prev = last_press.get(key)
     last_press[key] = now
-    return False
+    return prev is not None and (now - prev) < _SWITCH_DEBOUNCE_S
 
 
 def _start_outputs(
