@@ -240,7 +240,16 @@ bindings:
   multi_panel:
     - name: "AP master"
       source: { kind: switch, code: 7 }
-      action: { type: event, event: AP_MASTER, value: 1 }   # toggles AP on/off
+      # Toggle the AP AND land it in HDG mode. The JF AutoControl only accepts a
+      # jump to APR once a lateral mode is active (confirmed in-sim 2026-07-01:
+      # with the master on + HDG engaged, APR arms directly); a fresh engage
+      # otherwise leaves L:AUTOPILOT_MODE cleared, from which APR won't take. So
+      # arm HDG (=2) on every press — harmless on the disengage press (AP off).
+      action:
+        type: sequence
+        on_edge:
+          - { event: AP_MASTER, value: 1 }        # toggles AP on/off
+          - { simvar: "L:AUTOPILOT_MODE", value: 2 }   # = HDG (like the HDG button)
     # AUTO THROTTLE arm switch (code 15) = the HDG-MASTER arm. On the real Arrow,
     # heading-hold arm (L:AUTOPILOT_HDG) is its OWN switch, separate from picking
     # a mode — so it lives here and ONLY here. The mode buttons below set just
