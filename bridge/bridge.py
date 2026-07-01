@@ -30,6 +30,7 @@ import os
 import socket
 import threading
 import time
+from collections.abc import Callable
 
 # Python-SimConnect bundles SimConnect.dll, so no MSFS SDK is needed. The
 # import only works under Windows/Wine where that DLL can load.
@@ -43,6 +44,14 @@ try:
     from SimConnect import Request
 except ImportError:  # pragma: no cover - depends on the installed lib version
     Request = None
+
+try:
+    # The reply struct MobiFlight streams LVar values on (RECV_ID_CLIENT_DATA).
+    # Needed to decode the LVar read channel; absent on very old lib builds, in
+    # which case LVar reads are simply unavailable (the LEDs stay dark, no crash).
+    from SimConnect.Enum import SIMCONNECT_RECV_CLIENT_DATA
+except ImportError:  # pragma: no cover - depends on the installed lib version
+    SIMCONNECT_RECV_CLIENT_DATA = None
 
 log = logging.getLogger("bridge")
 
@@ -75,12 +84,63 @@ _MF_AREA_ID = 0x4D46  # 'MF' — any id unique within our SimConnect client
 _MF_DEF_ID = 0x4D46
 _SIMCONNECT_UNUSED = 0xFFFFFFFF
 
+# MobiFlight LVar READ channel. Writing `MF.SimVars.Add.(<expr>)` to the command
+# area makes the module evaluate <expr> (e.g. `(L:AUTOPILOT_MODE)`) every frame
+# and stream the float result into the "MobiFlight.LVars" ClientData area, at the
+# slot index assigned in add-order (slot i → byte offset i*4). We map that area,
+# RequestClientData one float per registered var (change-driven), and decode the
+# RECV_ID_CLIENT_DATA replies. `MF.SimVars.Clear` resets the list so our indices
+# line up after a reconnect. Assumes the bridge is the sole user of the shared
+# MobiFlight areas (true here — SPAD.neXt uses its own channel).
+_MF_LVAR_AREA = b"MobiFlight.LVars"
+_MF_LVAR_AREA_ID = 0x4D47
+_MF_LVAR_DEF_BASE = 0x4D470000  # + slot index; distinct from _MF_DEF_ID
+_MF_LVAR_REQ_BASE = 0x4D480000  # + slot index; far from the lib's own request ids
+_MF_FLOAT_SIZE = 4
+_RECV_ID_CLIENT_DATA = 16  # SIMCONNECT_RECV_ID_CLIENT_DATA
+_CLIENT_DATA_PERIOD_ON_SET = 3  # SIMCONNECT_CLIENT_DATA_PERIOD_ON_SET
+_CLIENT_DATA_REQUEST_FLAG_CHANGED = 1  # send only when the value changes
+
+
+class _ReadingSimConnect(SimConnect):
+    """SimConnect that also delivers ``RECV_ID_CLIENT_DATA`` to a callback.
+
+    The stock Python-SimConnect dispatch proc ignores CLIENT_DATA — the reply
+    channel MobiFlight streams LVar values on — so LVar reads never arrive.
+    ``my_dispatch_proc`` is a *bound method* the base wraps into the C callback
+    at init, so overriding it here (and deferring to ``super()`` for every other
+    message) is enough to fan CLIENT_DATA out. ``on_client_data`` runs on the
+    library's dispatch thread and must not call back into the DLL.
+    """
+
+    def __init__(self, *args: object, **kwargs: object) -> None:
+        # Set before super().__init__ starts the dispatch thread, so an early
+        # frame finds the attribute (a no-op until the bridge wires it up).
+        self.on_client_data: Callable[[int, float], None] | None = None
+        super().__init__(*args, **kwargs)
+
+    def my_dispatch_proc(self, pData, cbData, pContext):
+        if pData.contents.dwID == _RECV_ID_CLIENT_DATA and SIMCONNECT_RECV_CLIENT_DATA is not None:
+            cb = self.on_client_data
+            if cb is not None:
+                recv = ctypes.cast(
+                    pData, ctypes.POINTER(SIMCONNECT_RECV_CLIENT_DATA)
+                ).contents
+                value = ctypes.cast(
+                    recv.dwData, ctypes.POINTER(ctypes.c_float)
+                ).contents.value
+                cb(recv.dwRequestID, value)
+            return None
+        return super().my_dispatch_proc(pData, cbData, pContext)
+
 
 class SimConnectBridge:
     """Thin façade over Python-SimConnect for the three protocol verbs."""
 
     def __init__(self) -> None:
-        self.sc = SimConnect()
+        self.sc = _ReadingSimConnect()
+        # Receive MobiFlight's LVar value stream (see the LVar read methods).
+        self.sc.on_client_data = self._on_client_data
         # _time=0 disables the request cache so polled values are always fresh.
         self.requests = AircraftRequests(self.sc, _time=0)
         # SimConnect.dll is NOT safe to call from two threads at once. Two of our
@@ -97,6 +157,17 @@ class SimConnectBridge:
         self._var_requests: dict[tuple[str, str], object] = {}
         # Lazily-mapped MobiFlight command channel (see _ensure_mobiflight).
         self._mf_ready = False
+        # MobiFlight LVar READ channel state. Registration (DLL calls) happens on
+        # the poll thread under self._lock; the streamed values land from the
+        # dispatch thread, so the two cross-thread dicts get their own light lock
+        # (the dispatch callback must never take self._lock — it would stall the
+        # library's dispatch loop behind a long DLL write).
+        self._lvar_area_ready = False
+        self._lvar_next = 0  # next free slot index in the LVars area
+        self._lvar_index: dict[str, int] = {}  # name -> slot (poll thread only)
+        self._lvar_lock = threading.Lock()
+        self._lvar_by_req: dict[int, str] = {}  # request id -> name (cross-thread)
+        self._lvar_values: dict[str, float] = {}  # name -> latest value (cross-thread)
         # Set once SimConnect is detected gone, so we stop touching the DLL.
         self._dead = False
 
@@ -171,25 +242,123 @@ class SimConnectBridge:
         log.info("MobiFlight WASM channel ready")
         return True
 
+    def _mf_command(self, cmd: str) -> bool:
+        """Write one command string to the MobiFlight command area.
+
+        The caller must hold ``self._lock`` and have checked the sim is alive.
+        Returns False (logged) if the channel isn't ready or the write failed.
+        """
+        if not self._ensure_mobiflight():
+            return False
+        buf = ctypes.create_string_buffer(cmd.encode("ascii"), _MF_MESSAGE_SIZE)
+        try:
+            hr = self.sc.dll.SetClientData(
+                self.sc.hSimConnect, _MF_AREA_ID, _MF_DEF_ID, 0, 0,
+                _MF_MESSAGE_SIZE, ctypes.cast(buf, ctypes.c_void_p),
+            )
+        except OSError as exc:
+            self._mark_lost(exc)  # raises SimDisconnected
+        if hr != 0:
+            log.error("MobiFlight: SetClientData failed (0x%08X) for %r", hr & 0xFFFFFFFF, cmd)
+            return False
+        return True
+
     def _mf_exec(self, code: str) -> None:
         """Run RPN/calculator code in the sim via MobiFlight (fire-and-forget)."""
         with self._lock:
             self._check_alive()
-            if not self._ensure_mobiflight():
-                return
-            cmd = ("MF.SimVars.Set." + code).encode("ascii")
-            buf = ctypes.create_string_buffer(cmd, _MF_MESSAGE_SIZE)
-            try:
-                hr = self.sc.dll.SetClientData(
-                    self.sc.hSimConnect, _MF_AREA_ID, _MF_DEF_ID, 0, 0,
-                    _MF_MESSAGE_SIZE, ctypes.cast(buf, ctypes.c_void_p),
-                )
-            except OSError as exc:
-                self._mark_lost(exc)
-            if hr != 0:
-                log.error("MobiFlight: SetClientData failed (0x%08X) for %r", hr & 0xFFFFFFFF, code)
-            else:
+            if self._mf_command("MF.SimVars.Set." + code):
                 log.info("MobiFlight exec: %s", code)
+
+    # -- LVar read channel (see the _MF_LVAR_* constants) ------------------
+    def _ensure_lvar_area(self) -> bool:
+        """Map the MobiFlight LVars area once and start from an empty var list.
+
+        Caller holds ``self._lock``. Clearing means the module's registration
+        order (hence each var's slot index) matches our add order, even after a
+        reconnect that left stale registrations behind.
+        """
+        if self._lvar_area_ready:
+            return True
+        if not self._ensure_mobiflight():
+            return False
+        hr = self.sc.dll.MapClientDataNameToID(self.sc.hSimConnect, _MF_LVAR_AREA, _MF_LVAR_AREA_ID)
+        if hr != 0:
+            log.error("MobiFlight: map LVars area failed (0x%08X)", hr & 0xFFFFFFFF)
+            return False
+        self._mf_command("MF.SimVars.Clear")
+        self._lvar_next = 0
+        self._lvar_index.clear()
+        with self._lvar_lock:
+            self._lvar_by_req.clear()
+            self._lvar_values.clear()
+        self._lvar_area_ready = True
+        log.info("MobiFlight LVar read channel ready")
+        return True
+
+    def _register_lvar(self, name: str) -> None:
+        """Subscribe ``name`` (e.g. ``L:AUTOPILOT_MODE``) to the LVar stream.
+
+        Caller holds ``self._lock``. Sets up a change-driven RequestClientData on
+        this var's slot, then tells the module to evaluate + stream it there.
+        """
+        if not self._ensure_lvar_area():
+            return
+        idx = self._lvar_next
+        define_id = _MF_LVAR_DEF_BASE + idx
+        request_id = _MF_LVAR_REQ_BASE + idx
+        hr = self.sc.dll.AddToClientDataDefinition(
+            self.sc.hSimConnect, define_id, idx * _MF_FLOAT_SIZE, _MF_FLOAT_SIZE, 0.0,
+            _SIMCONNECT_UNUSED,
+        )
+        if hr != 0:
+            log.error("MobiFlight: AddToClientDataDefinition failed (0x%08X) for %s",
+                      hr & 0xFFFFFFFF, name)
+            return
+        hr = self.sc.dll.RequestClientData(
+            self.sc.hSimConnect, _MF_LVAR_AREA_ID, request_id, define_id,
+            _CLIENT_DATA_PERIOD_ON_SET, _CLIENT_DATA_REQUEST_FLAG_CHANGED, 0, 0, 0,
+        )
+        if hr != 0:
+            log.error("MobiFlight: RequestClientData failed (0x%08X) for %s", hr & 0xFFFFFFFF, name)
+            return
+        # Register the expression last: only now does the module start streaming
+        # into slot idx, which the request above is already watching.
+        if not self._mf_command(f"MF.SimVars.Add.({name})"):
+            return
+        self._lvar_next += 1
+        self._lvar_index[name] = idx
+        with self._lvar_lock:
+            self._lvar_by_req[request_id] = name
+        log.info("MobiFlight LVar registered: %s (slot %d)", name, idx)
+
+    def _on_client_data(self, request_id: int, value: float) -> None:
+        """Store a streamed LVar value (runs on the library's dispatch thread)."""
+        with self._lvar_lock:
+            name = self._lvar_by_req.get(request_id)
+            if name is not None:
+                self._lvar_values[name] = value
+
+    def read_lvar(self, name: str) -> float | None:
+        """Latest streamed value of an L:/H:/B: var, registering it on first use.
+
+        Returns None until the module has streamed at least one value (or if the
+        MobiFlight channel isn't available), so the LEDs stay dark rather than
+        guess — same contract as read_simvar.
+        """
+        with self._lock:
+            self._check_alive()
+            if name not in self._lvar_index:
+                self._register_lvar(name)
+        with self._lvar_lock:
+            return self._lvar_values.get(name)
+
+    def read_subscribed(self, name: str) -> object | None:
+        """Read a subscribed var: L:/H:/B: via the MobiFlight stream, else SimConnect."""
+        prefix = name.split(":", 1)[0].upper() if ":" in name else ""
+        if prefix in _LOCAL_PREFIXES:
+            return self.read_lvar(name)
+        return self.read_simvar(name)
 
     def read_var(self, name: str, unit: str) -> object | None:
         """Read a SimVar with an explicit unit (e.g. heading in 'degrees').
@@ -366,7 +535,7 @@ class ClientSession:
                 names = list(self._subscriptions)
             for name in names:
                 try:
-                    value = self.sim.read_simvar(name)
+                    value = self.sim.read_subscribed(name)
                 except SimDisconnected as exc:
                     self._on_sim_lost(exc)
                     return
