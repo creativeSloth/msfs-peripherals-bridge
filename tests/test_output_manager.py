@@ -163,6 +163,21 @@ def test_handle_input_release_edge_does_nothing():
     assert manager.handle_input("multi_panel", ENCODER_CW, value=0) == []
 
 
+def test_omni_mode_blinks_ias_led_on_tick():
+    writes: list[bytes] = []
+    manager = _multi_manager(lambda path, report: writes.append(report))
+    manager.on_state("AUTOPILOT MASTER", 1)
+    manager.on_state("L:AUTOPILOT_MODE", 1)  # OMNI
+    nav, ias = 1 << 2, 1 << 3
+    led = writes[-1][11]  # report = [id, 10 cells, led, spare]
+    assert led & nav and led & ias  # NAV solid + IAS on (blink phase up)
+    manager._blink_tick()  # flip phase -> IAS off, NAV stays
+    led = writes[-1][11]
+    assert led & nav and not led & ias
+    manager._blink_tick()  # flip back -> IAS on again
+    assert writes[-1][11] & ias
+
+
 def _crs_manager(writer):
     output = MultiPanelOutput(
         selector=[

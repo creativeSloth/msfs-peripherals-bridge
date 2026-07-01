@@ -50,22 +50,33 @@ def gear_led_byte(
 # Multi Panel button LEDs (feature-report byte 10). Bit per button, measured
 # 2026-06-30: 0=AP 1=HDG 2=NAV 3=IAS 4=ALT 5=VS 6=APR 7=REV.
 _MULTI_AP_BIT = 0
+_MULTI_IAS_BIT = 3  # IAS button LED — blinks to flag OMNI
 # JF Arrow autopilot mode (L:AUTOPILOT_MODE, from SPAD Arrow profile) -> lit LED
 # bit. The Arrow AP has no IAS/ALT/VS hold modes, so those LEDs stay dark.
-_MULTI_MODE_BIT = {0: 2, 1: 2, 2: 1, 3: 6, 4: 7}  # NAV, NAV-arm, HDG, APR, REV
+_MULTI_MODE_BIT = {0: 2, 1: 2, 2: 1, 3: 6, 4: 7}  # NAV, OMNI(=NAV), HDG, APR, REV
+# OMNI (mode 1) tracks like NAV but must be tellable apart from plain NAV
+# (mode 0): light NAV solid AND blink the IAS LED. Maps mode -> the extra bit
+# that blinks, on top of that mode's solid _MULTI_MODE_BIT entry.
+_MULTI_MODE_BLINK_BIT = {1: _MULTI_IAS_BIT}
 
 
-def multi_button_led_byte(ap_master: bool, mode: int | None) -> int:
+def multi_button_led_byte(ap_master: bool, mode: int | None, blink_on: bool = True) -> int:
     """Map autopilot master + active mode to the Multi Panel LED byte.
 
-    The AP light tracks the master switch; the active-mode light (NAV/HDG/APR/REV)
-    only glows while the master is on — matching the SPAD Arrow logic where a mode
-    LED requires ``L:AUTOPILOT_MODE`` to equal that button *and* the master engaged.
+    The AP light tracks the master switch. The active-mode light (NAV/HDG/APR/REV)
+    tracks ``L:AUTOPILOT_MODE`` *independently of the master*, so the selected mode
+    stays visible with the AP off — feedback on which mode the buttons have armed.
+    OMNI (mode 1) additionally blinks the IAS LED (``blink_on`` is the current
+    blink phase) so it reads differently from plain NAV.
     """
     byte = 0
     if ap_master:
         byte |= 1 << _MULTI_AP_BIT
-        bit = _MULTI_MODE_BIT.get(mode) if mode is not None else None
-        if bit is not None:
-            byte |= 1 << bit
+    if mode is not None:
+        solid = _MULTI_MODE_BIT.get(mode)
+        if solid is not None:
+            byte |= 1 << solid
+        blink = _MULTI_MODE_BLINK_BIT.get(mode)
+        if blink is not None and blink_on:
+            byte |= 1 << blink
     return byte

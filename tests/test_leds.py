@@ -36,12 +36,27 @@ def test_custom_down_at():
     assert gear_led_byte([0.6, 0.0, 0.0], down_at=0.5) == GREEN[0]
 
 
-# Multi Panel button LEDs: bit 0=AP 1=HDG 2=NAV 6=APR 7=REV.
+# Multi Panel button LEDs: bit 0=AP 1=HDG 2=NAV 3=IAS 6=APR 7=REV.
 AP = 1 << 0
+NAV = 1 << 2
+IAS = 1 << 3
 
 
-def test_multi_ap_off_is_all_dark():
-    assert multi_button_led_byte(ap_master=False, mode=2) == 0
+def test_multi_mode_led_shows_even_with_ap_off():
+    # Mode LEDs track the selected mode regardless of master, so the rotary
+    # position stays visible in the off state; only the AP LED needs the master.
+    assert multi_button_led_byte(ap_master=False, mode=2) == (1 << 1)  # HDG, no AP bit
+    assert multi_button_led_byte(ap_master=False, mode=None) == 0  # nothing selected -> dark
+
+
+def test_multi_omni_blinks_ias_over_solid_nav():
+    # OMNI (mode 1): NAV solid always; IAS follows the blink phase.
+    assert multi_button_led_byte(ap_master=True, mode=1, blink_on=True) == AP | NAV | IAS
+    assert multi_button_led_byte(ap_master=True, mode=1, blink_on=False) == AP | NAV
+    # Works with the AP off too (NAV solid + IAS blink, just no AP bit).
+    assert multi_button_led_byte(ap_master=False, mode=1, blink_on=True) == NAV | IAS
+    # Plain NAV (mode 0) never lights IAS, in either phase.
+    assert multi_button_led_byte(ap_master=True, mode=0, blink_on=True) == AP | NAV
 
 
 def test_multi_ap_on_lights_ap_and_active_mode():

@@ -277,6 +277,21 @@ def test_render_led_byte_reflects_ap_and_mode():
     assert led == (1 << 0) | (1 << 1)  # AP + HDG
 
 
+def test_render_mode_led_lit_with_ap_master_off():
+    c = MultiPanelController(make_config())
+    c.on_state("AUTOPILOT MASTER", 0)
+    c.on_state("L:AUTOPILOT_MODE", 2)  # HDG selected while AP off
+    assert c.render()[11] == (1 << 1)  # HDG lit, AP bit dark
+
+
+def test_render_blinks_ias_in_omni_mode():
+    c = MultiPanelController(make_config())
+    c.on_state("AUTOPILOT MASTER", 1)
+    c.on_state("L:AUTOPILOT_MODE", 1)  # OMNI
+    assert c.render(blink_on=True)[11] == (1 << 0) | (1 << 2) | (1 << 3)  # AP+NAV+IAS
+    assert c.render(blink_on=False)[11] == (1 << 0) | (1 << 2)  # AP+NAV
+
+
 def test_render_minus_for_negative_value():
     cfg = MultiPanelOutput(
         selector=[

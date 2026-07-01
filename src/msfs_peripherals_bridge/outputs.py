@@ -35,6 +35,10 @@ log = logging.getLogger(__name__)
 # Switch-panel LED feature report: report id 0, then one data byte.
 _REPORT_ID = 0x00
 
+# Blink phase half-period: a blinking LED (the OMNI-mode IAS light) toggles every
+# this-many seconds, so a full on/off cycle is ~1 s (1 Hz).
+_BLINK_HALF_PERIOD = 0.5
+
 
 class StateDispatcher(Protocol):
     """A dispatcher that can both send commands and stream SimVar state back."""
@@ -66,6 +70,7 @@ class OutputManager:
         self._lock = threading.Lock()
         self._values: dict[str, float | None] = {}
         self._last_report: dict[str, bytes] = {}  # device_id -> last bytes written
+        self._blink_on = True  # shared blink phase, flipped by the blink ticker
         # Split outputs by kind, keeping only devices that are actually present.
         self._gear: dict[str, list[GearLedOutput]] = {}
         self._controllers: dict[str, MultiPanelController] = {}
@@ -155,7 +160,7 @@ class OutputManager:
     def _render(self, device_id: str) -> bytes:
         controller = self._controllers.get(device_id)
         if controller is not None:
-            return controller.render()
+            return controller.render(self._blink_on)
         byte = 0
         for output in self._gear.get(device_id, []):
             positions = [self._values.get(n) for n in output.positions()]
@@ -163,17 +168,37 @@ class OutputManager:
             byte |= gear_led_byte(positions, output.down_at, powered)
         return bytes([_REPORT_ID, byte])
 
+    def _blink_tick(self) -> None:
+        """Flip the blink phase and rewrite any device whose report changed.
+
+        Cheap: with nothing blinking the rendered bytes are identical, so the
+        change-guard skips the HID write; only a mode with a blinking LED (OMNI)
+        actually toggles a bit here.
+        """
+        with self._lock:
+            self._blink_on = not self._blink_on
+            for device_id in self._devices:
+                self._write_if_changed(device_id)
+
+    def _blink_loop(self, stop: threading.Event) -> None:
+        """Drive the blink phase every half-period until ``stop`` is set."""
+        while not stop.wait(_BLINK_HALF_PERIOD):
+            self._blink_tick()
+
     def run(self, stop: threading.Event) -> None:
         """Subscribe, then write reports as state updates arrive until ``stop``.
 
-        Writes an initial report so each panel starts in a known state, then
-        blocks on the bridge's state stream. Daemon-friendly: the stream ends
-        when the socket closes on shutdown.
+        Writes an initial report so each panel starts in a known state, starts the
+        blink ticker (only when a stateful controller is present), then blocks on
+        the bridge's state stream. Daemon-friendly: the stream ends when the
+        socket closes on shutdown.
         """
         self.subscribe_all()
         with self._lock:
             for device_id in self._devices:
                 self._write_if_changed(device_id)
+        if self._controllers:
+            threading.Thread(target=self._blink_loop, args=(stop,), daemon=True).start()
         for name, value in self._dispatcher.states():
             if stop.is_set():
                 return

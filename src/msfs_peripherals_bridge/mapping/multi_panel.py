@@ -222,8 +222,12 @@ class MultiPanelController:
         simvar, _ = self._source(entry)
         return self.values.get(simvar)
 
-    def render(self) -> bytes:
-        """Build the full feature-report buffer (display cells + LED byte)."""
+    def render(self, blink_on: bool = True) -> bytes:
+        """Build the full feature-report buffer (display cells + LED byte).
+
+        ``blink_on`` is the shared blink phase (driven by the output manager's
+        ticker) that flashes the OMNI-mode IAS LED.
+        """
         selected = self._by_code.get(self.selector)
         if selected is not None and selected.alt_sources:
             # The panel blanks the bottom row in CRS mode, so the 1-based source
@@ -239,7 +243,9 @@ class MultiPanelController:
             cells = display_cells(top=self._row_value("top"), bottom=self._row_value("bottom"))
         ap_master = (self.values.get(self.config.ap_master) or 0) >= 0.5
         mode = self.values.get(self.config.mode_var)
-        led = multi_button_led_byte(ap_master, int(mode) if mode is not None else None)
+        led = multi_button_led_byte(
+            ap_master, int(mode) if mode is not None else None, blink_on
+        )
         return bytes([_REPORT_ID, *cells, led, 0x00])
 
 
