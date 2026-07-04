@@ -101,6 +101,20 @@ _RECV_ID_CLIENT_DATA = 16  # SIMCONNECT_RECV_ID_CLIENT_DATA
 _CLIENT_DATA_PERIOD_ON_SET = 3  # SIMCONNECT_CLIENT_DATA_PERIOD_ON_SET
 _CLIENT_DATA_REQUEST_FLAG_CHANGED = 1  # send only when the value changes
 
+# MobiFlight LVar ENUMERATION channel. Sending `MF.LVars.List` to the command
+# area makes the module write every registered LVar name (one message each) into
+# the "MobiFlight.Response" string area, bracketed by the marker lines
+# `MF.LVars.List.Start` / `MF.LVars.List.End` (both verified in the module DLL on
+# disk). We map that area, RequestClientData a 1024-byte string on every set, and
+# collect the names on the dispatch thread until the End marker (or a timeout).
+# One-shot discovery tool — the streamed values still come over the LVars area.
+_MF_RESPONSE_AREA = b"MobiFlight.Response"
+_MF_RESPONSE_AREA_ID = 0x4D49
+_MF_RESPONSE_DEF_ID = 0x4D49
+_MF_RESPONSE_REQ_ID = 0x4D4A0001  # far from _MF_LVAR_REQ_BASE (0x4D480000+idx)
+_MF_LVARS_LIST_START = "MF.LVars.List.Start"
+_MF_LVARS_LIST_END = "MF.LVars.List.End"
+
 
 class _ReadingSimConnect(SimConnect):
     """SimConnect that also delivers ``RECV_ID_CLIENT_DATA`` to a callback.
@@ -117,15 +131,25 @@ class _ReadingSimConnect(SimConnect):
         # Set before super().__init__ starts the dispatch thread, so an early
         # frame finds the attribute (a no-op until the bridge wires it up).
         self.on_client_data: Callable[[int, float], None] | None = None
+        # Request ids whose CLIENT_DATA payload is a NUL-terminated string (the
+        # MobiFlight Response area) rather than a float — decoded via on_client_string.
+        self.on_client_string: Callable[[int, str], None] | None = None
+        self._string_request_ids: set[int] = set()
         super().__init__(*args, **kwargs)
 
     def my_dispatch_proc(self, pData, cbData, pContext):
         if pData.contents.dwID == _RECV_ID_CLIENT_DATA and SIMCONNECT_RECV_CLIENT_DATA is not None:
+            recv = ctypes.cast(
+                pData, ctypes.POINTER(SIMCONNECT_RECV_CLIENT_DATA)
+            ).contents
+            if recv.dwRequestID in self._string_request_ids:
+                cb = self.on_client_string
+                if cb is not None:
+                    raw = ctypes.cast(recv.dwData, ctypes.c_char_p).value or b""
+                    cb(recv.dwRequestID, raw.decode("ascii", "replace"))
+                return None
             cb = self.on_client_data
             if cb is not None:
-                recv = ctypes.cast(
-                    pData, ctypes.POINTER(SIMCONNECT_RECV_CLIENT_DATA)
-                ).contents
                 value = ctypes.cast(
                     recv.dwData, ctypes.POINTER(ctypes.c_float)
                 ).contents.value
@@ -168,6 +192,14 @@ class SimConnectBridge:
         self._lvar_lock = threading.Lock()
         self._lvar_by_req: dict[int, str] = {}  # request id -> name (cross-thread)
         self._lvar_values: dict[str, float] = {}  # name -> latest value (cross-thread)
+        # MobiFlight LVar ENUMERATION channel (MF.LVars.List → Response area). The
+        # module streams names on the dispatch thread; list_lvars() collects them.
+        self.sc.on_client_string = self._on_client_string
+        self._resp_ready = False
+        self._resp_lock = threading.Lock()
+        self._resp_names: list[str] = []  # collected between the List markers
+        self._resp_collecting = False
+        self._resp_done = threading.Event()  # set when the End marker arrives
         # Set once SimConnect is detected gone, so we stop touching the DLL.
         self._dead = False
 
@@ -353,12 +385,97 @@ class SimConnectBridge:
         with self._lvar_lock:
             return self._lvar_values.get(name)
 
-    def read_subscribed(self, name: str) -> object | None:
-        """Read a subscribed var: L:/H:/B: via the MobiFlight stream, else SimConnect."""
+    # -- LVar enumeration channel (see the _MF_RESPONSE_* constants) --------
+    def _ensure_response_area(self) -> bool:
+        """Map the MobiFlight Response string area once and stream every set of
+        it to :meth:`_on_client_string`. Caller holds ``self._lock``."""
+        if self._resp_ready:
+            return True
+        if not self._ensure_mobiflight():
+            return False
+        hr = self.sc.dll.MapClientDataNameToID(
+            self.sc.hSimConnect, _MF_RESPONSE_AREA, _MF_RESPONSE_AREA_ID
+        )
+        if hr != 0:
+            log.error("MobiFlight: map Response area failed (0x%08X)", hr & 0xFFFFFFFF)
+            return False
+        hr = self.sc.dll.AddToClientDataDefinition(
+            self.sc.hSimConnect, _MF_RESPONSE_DEF_ID, 0, _MF_MESSAGE_SIZE, 0.0,
+            _SIMCONNECT_UNUSED,
+        )
+        if hr != 0:
+            log.error("MobiFlight: Response AddToClientDataDefinition failed (0x%08X)",
+                      hr & 0xFFFFFFFF)
+            return False
+        # Flag 0 (not CHANGED): deliver every write, so no name is dropped even
+        # if two consecutive Response messages happen to be equal.
+        hr = self.sc.dll.RequestClientData(
+            self.sc.hSimConnect, _MF_RESPONSE_AREA_ID, _MF_RESPONSE_REQ_ID,
+            _MF_RESPONSE_DEF_ID, _CLIENT_DATA_PERIOD_ON_SET, 0, 0, 0, 0,
+        )
+        if hr != 0:
+            log.error("MobiFlight: Response RequestClientData failed (0x%08X)", hr & 0xFFFFFFFF)
+            return False
+        self.sc._string_request_ids.add(_MF_RESPONSE_REQ_ID)
+        self._resp_ready = True
+        log.info("MobiFlight Response channel ready")
+        return True
+
+    def _on_client_string(self, request_id: int, text: str) -> None:
+        """Collect a Response line (runs on the library's dispatch thread).
+
+        ``list_lvars`` primes ``_resp_collecting`` before sending the command, so
+        this works whether or not the Start marker is seen; the End marker (or a
+        timeout in ``list_lvars``) closes the batch.
+        """
+        with self._resp_lock:
+            if text == _MF_LVARS_LIST_START:
+                self._resp_names = []
+                self._resp_collecting = True
+            elif text == _MF_LVARS_LIST_END:
+                self._resp_collecting = False
+                self._resp_done.set()
+            elif self._resp_collecting and text:
+                self._resp_names.append(text)
+
+    def list_lvars(self, timeout: float = 8.0) -> list[str]:
+        """Enumerate every LVar the sim currently knows (``MF.LVars.List``).
+
+        Returns the names MobiFlight reports (without the ``L:`` prefix), or ``[]``
+        if the channel isn't available or nothing arrived in time. One-shot
+        discovery helper — safe to call while the value stream is also running.
+        """
+        with self._lock:
+            self._check_alive()
+            if not self._ensure_response_area():
+                return []
+            with self._resp_lock:
+                self._resp_names = []
+                self._resp_collecting = True
+                self._resp_done.clear()
+            if not self._mf_command("MF.LVars.List"):
+                return []
+        self._resp_done.wait(timeout)
+        with self._resp_lock:
+            self._resp_collecting = False
+            return list(self._resp_names)
+
+    def read_subscribed(self, name: str, unit: str = "number") -> object | None:
+        """Read a subscribed var: L:/H:/B: via the MobiFlight stream, else SimConnect.
+
+        For plain SimVars the predefined ``read_simvar`` list is tried first (it
+        keeps each var's canonical unit, so the mapper's known vars are unchanged).
+        Anything it can't resolve — indexed simvars like ``LIGHT POTENTIOMETER:2``
+        or ``NAV OBS:2`` — falls back to the explicit-unit ``read_var`` path, which
+        builds a Request for any name/unit.
+        """
         prefix = name.split(":", 1)[0].upper() if ":" in name else ""
         if prefix in _LOCAL_PREFIXES:
             return self.read_lvar(name)
-        return self.read_simvar(name)
+        value = self.read_simvar(name)
+        if value is None:
+            value = self.read_var(name, unit)
+        return value
 
     def read_var(self, name: str, unit: str) -> object | None:
         """Read a SimVar with an explicit unit (e.g. heading in 'degrees').
@@ -446,6 +563,7 @@ class ClientSession:
         self.conn = conn
         self.sim = sim
         self._subscriptions: dict[str, object] = {}  # name -> last sent value
+        self._sub_units: dict[str, str] = {}  # name -> unit (for the read_var fallback)
         self._lock = threading.Lock()
         self._stop = threading.Event()
         self._sim_lost = threading.Event()
@@ -510,7 +628,12 @@ class ClientSession:
             elif op == "subscribe":
                 with self._lock:
                     self._subscriptions.setdefault(msg["name"], None)
-                log.info("Subscribed to %s", msg["name"])
+                    self._sub_units[msg["name"]] = msg.get("unit") or "number"
+                log.info("Subscribed to %s [%s]", msg["name"], self._sub_units[msg["name"]])
+            elif op == "list_lvars":
+                names = self.sim.list_lvars(float(msg.get("timeout", 8.0)))
+                self._send({"op": "lvars", "names": names})
+                log.info("Enumerated %d LVars", len(names))
             else:
                 log.warning("Unknown op: %r", op)
         except SimDisconnected as exc:
@@ -535,7 +658,7 @@ class ClientSession:
                 names = list(self._subscriptions)
             for name in names:
                 try:
-                    value = self.sim.read_subscribed(name)
+                    value = self.sim.read_subscribed(name, self._sub_units.get(name, "number"))
                 except SimDisconnected as exc:
                     self._on_sim_lost(exc)
                     return
