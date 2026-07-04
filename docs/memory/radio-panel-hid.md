@@ -82,12 +82,16 @@ Encoder: großer Knopf = ganze MHz/kHz grob, kleiner = fein; CW/CCW → die
 `*_RADIO_WHOLE_INC/DEC` bzw. `*_RADIO_FRACT_INC/DEC`-Events.
 
 ## Nächste Schritte
-1. scan-Tool gegen hidraw11 → exakte INPUT-Bits der Selektoren/Encoder/Tasten
-   (Codes in `RadioUnit`/`RadioBank` eintragen; aktuell Platzhalter).
-2. out-Tool gegen FEATURE → Ziffern-Reihenfolge + Dezimalpunkt-Kodierung
-   bestätigen, Helligkeits-Flags (Feature #2) testen (`_FLAG_BYTES` noch 0x00).
-3. ✅ **`mapping/display.py` um Dezimalpunkt erweitert (Chunk A) + Radio-Controller
-   gebaut (Chunk B):** `mapping/radio_panel.py` `RadioPanelController` +
-   `models.RadioBank/RadioUnit/RadioPanelOutput`, pure/getestet (`test_radio_panel.py`).
-   Selektor wählt Bank, Encoder feuert WHOLE/FRACT-Events (View + Velocity→Step),
-   Druck = SWAP. **Offen (Chunk C):** Device-Katalog + Runtime/Outputs-Wiring + Profil.
+✅ **Chunk A/B/C-Code fertig** (2026-07-04, committet): `mapping/display.py` Dezimalpunkt
+(A); `mapping/radio_panel.py` `RadioPanelController` + `models.RadioBank/RadioUnit/
+RadioPanelOutput` (B); OutputManager-Wiring + `config/devices.yaml` `radio_panel` +
+Profil-`radio_panel`-Block + Scan-Tools (C). Getestet (`test_radio_panel.py`,
+`test_output_manager.py`). **Nur noch Hardware/In-Sim offen:**
+1. **`tools/panel-scan/scan_radio.py`** gegen das Gerät → exakte INPUT-Bits der
+   Selektoren/Encoder/Swap. **Die Codes im Profil (`piper_arrow.yaml radio_panel`) sind
+   PLATZHALTER** (Rate: upper-Sel 0-6, lower 7-13, Encoder 14-21, Swap 22-23) → mit den
+   gemessenen Werten ersetzen.
+2. **`tools/panel-scan/out_radio.py`**: `dot` → Dezimalpunkt (`digit+0xD0`) bestätigen,
+   `positions` → Zell-Layout, `flags` → Helligkeits-Bytes (Controller schreibt noch 0x00).
+3. **Exakte Event-Namen** in-sim: `fract_fast_*` (echter 8.33- vs 25-kHz-Step, aktuell
+   ungesetzt) + COM1-Swap (`COM1_RADIO_SWAP` vs `COM_STBY_RADIO_SWAP`). WHOLE/FRACT = Standard.

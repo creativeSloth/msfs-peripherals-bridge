@@ -8,7 +8,9 @@
 > unten sind historisch — der Code steht. Offen bleibt nur das **In-Sim-Verifizieren**
 > (Center-Light-Combo, Radio-Backlight, ALT/VS-Events) + Radio **Chunk C** (Hardware).
 
-## 📻 RADIO PANEL — CHUNK B FERTIG (2026-07-04, UNCOMMITTED, 121 Tests grün)
+## 📻 RADIO PANEL — CHUNK C CODE-VERDRAHTET (2026-07-04, COMMITTET+GEPUSHT, 125 Tests grün)
+**Nur noch Hardware/In-Sim offen** — der ganze Code-Pfad steht: Device-Katalog,
+OutputManager-Routing, Profil-Wiring, Scan-Tools. Runterladen + Bits messen + fliegen.
 Scope-Entscheid User: **COM/NAV zuerst**, Rest (ADF/DME/XPDR) später (falls Credits übrig).
 - **Chunk A fertig:** `mapping/display.py` → `format_frequency()` + `DOT`-Konstante
   (0xD0, Dezimalpunkt reitet auf der Ziffer). COM/NAV zeigen `118.00`. `NN.NNN`-Shift
@@ -28,12 +30,26 @@ Scope-Entscheid User: **COM/NAV zuerst**, Rest (ADF/DME/XPDR) später (falls Cre
     Druck → `*_RADIO_SWAP`. Zwei unabhängige Einheiten (upper/lower); `render()` = 20
     Display-Zellen (upper 0-9 / lower 10-19) + 2 Flag-Bytes. `RadioPanelOutput` ist in
     der `Output`-Union (validate OK). Interaktionsmodell-Details: `radio-panel-hid.md`.
-- **NEXT = Chunk C:** Device-Katalog (`config/devices.yaml`: Radio Panel 06a3:0d05,
-  hidraw) + **Input-Bits am Gerät messen** (scan-Tool, wie Multi Panel — Selektoren/
-  Encoder/Swap-Bits noch offen) + Runtime/Outputs-Wiring (`outputs.OutputManager` besitzt
-  den Controller, `runtime` routet `consumes()`-Codes) + Profil-Wiring + in-sim.
-  **⚠️ Exakte Event-Namen** (`fract_fast_*` für echten 8.33-Step, WHOLE/FRACT der JF
-  Arrow) = In-Sim-TODO. Feature-**Flag-Bytes** (Helligkeit) noch 0x00 → verifizieren.
+- **Chunk C CODE fertig** (verdrahtet analog Multi-Panel-Chunk-D):
+  - **Device-Katalog:** `config/devices.yaml` → `radio_panel` (06a3:0d05, hidraw).
+  - **OutputManager** (`outputs.py`): neuer `PanelController`-Protocol; Multi + Radio
+    laufen jetzt uniform durch `self._controllers`. `RadioPanelOutput` →
+    `RadioPanelController` registriert. `runtime` brauchte **keine** Änderung (routet
+    schon generisch über `outputs.handles()`/`handle_input()`). `render()` kriegt
+    `blink_on` (Radio ignoriert es, hat keine Blink-LED). Tests in `test_output_manager.py`.
+  - **Profil** (`piper_arrow.yaml`): `radio_panel`-Output-Block, 2 Einheiten (upper/lower)
+    × 4 Bänke (COM1/COM2/NAV1/NAV2) mit echten SimVars + Standard-MSFS-Events.
+  - **Scan-Tools:** `tools/panel-scan/scan_radio.py` (Input-Bits) + `out_radio.py`
+    (Display/Dezimalpunkt/Flags), README aktualisiert.
+- **⏳ NOCH OFFEN (Hardware/In-Sim, NÄCHSTE SESSION):**
+  1. **Input-Bits messen** mit `scan_radio.py` → die **Codes im Profil sind PLATZHALTER**
+     (Rate-Schema: upper-Sel 0-6, lower 7-13, Encoder 14-21, Swap 22-23). Display-Output
+     geht ohne, nur die Knöpfe brauchen echte Codes.
+  2. **`out_radio.py dot`** → Dezimalpunkt-Konvention (`digit+0xD0`) am echten Gerät
+     bestätigen; `positions` → Zell-Layout; `flags` → Helligkeits-Bytes (noch 0x00).
+  3. **Exakte Event-Namen** in-sim: `fract_fast_*` für echten 8.33- vs 25-kHz-Step
+     (aktuell ungesetzt → schneller Dreh = fein wiederholt); COM1-Swap `COM1_RADIO_SWAP`
+     vs `COM_STBY_RADIO_SWAP` gegenprüfen. WHOLE/FRACT sind MSFS-Standard.
 
 ## 🎚️ ALT/VS-MODI GEMAPPT (2026-07-04, UNCOMMITTED, 106 Tests grün)
 Multi-Panel-Tasten **ALT (code 11) / VS (code 12)** verdrahtet — die „versteckten"
