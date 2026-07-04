@@ -1,7 +1,128 @@
 # STATUS — Resume-Anker
 
 > Kurzer Einstiegspunkt: was läuft, was offen ist, wie es weitergeht.
-> Stand: **2026-07-01**. Branch: `refactor/calibration-profile-split` (noch nicht auf `main`).
+> Stand: **2026-07-04**. Multi-Panel ist auf **`main`** gemerged.
+> Aktueller Branch: **`refactor/light-dimmers`** (von main abgezweigt, alles UNCOMMITTED).
+
+## 📻 RADIO PANEL — CHUNK B FERTIG (2026-07-04, UNCOMMITTED, 121 Tests grün)
+Scope-Entscheid User: **COM/NAV zuerst**, Rest (ADF/DME/XPDR) später (falls Credits übrig).
+- **Chunk A fertig:** `mapping/display.py` → `format_frequency()` + `DOT`-Konstante
+  (0xD0, Dezimalpunkt reitet auf der Ziffer). COM/NAV zeigen `118.00`. `NN.NNN`-Shift
+  (decimals=3, `18.005`) ist die Fähigkeit dahinter. Tests `test_display.py`. Display
+  wird mit Multi Panel geteilt.
+- **Chunk B fertig** (`mapping/radio_panel.py` `RadioPanelController` +
+  `models.RadioBank/RadioUnit/RadioPanelOutput`, pure/getestet, `test_radio_panel.py`):
+  - **Anzeige folgt dem Encoder (implizite Kommastellen):** innerer/feiner Encoder →
+    STANDBY-Zeile springt auf `NN.NNN` (3. Nachkommast., führende MHz-Ziffer rollt weg);
+    äußerer/grober → `NNN.NN`. Sticky pro Einheit, Default grob. **ACTIVE-Zeile bleibt
+    immer grob** (Referenz), nur die getunte STANDBY-Zeile folgt.
+  - **Tempo am inneren Encoder = Schrittweite:** langsam → feines Fract-Event (COM
+    8.33 kHz), anhaltend schnell → grobes (`fract_fast_*`, 25 kHz). Exakt der Multi-
+    Panel-Beschleunigungsmechanismus (`_FAST_WINDOW`/`_FAST_AFTER`, inline gespiegelt).
+    NAV ohne `fract_fast_*` → bleibt fein. **Kein Umschaltknopf.**
+  - **Event-basiert** wie SPAD: äußerer → `*_WHOLE_INC/DEC`, innerer → `*_FRACT_INC/DEC`,
+    Druck → `*_RADIO_SWAP`. Zwei unabhängige Einheiten (upper/lower); `render()` = 20
+    Display-Zellen (upper 0-9 / lower 10-19) + 2 Flag-Bytes. `RadioPanelOutput` ist in
+    der `Output`-Union (validate OK). Interaktionsmodell-Details: `radio-panel-hid.md`.
+- **NEXT = Chunk C:** Device-Katalog (`config/devices.yaml`: Radio Panel 06a3:0d05,
+  hidraw) + **Input-Bits am Gerät messen** (scan-Tool, wie Multi Panel — Selektoren/
+  Encoder/Swap-Bits noch offen) + Runtime/Outputs-Wiring (`outputs.OutputManager` besitzt
+  den Controller, `runtime` routet `consumes()`-Codes) + Profil-Wiring + in-sim.
+  **⚠️ Exakte Event-Namen** (`fract_fast_*` für echten 8.33-Step, WHOLE/FRACT der JF
+  Arrow) = In-Sim-TODO. Feature-**Flag-Bytes** (Helligkeit) noch 0x00 → verifizieren.
+
+## 🎚️ ALT/VS-MODI GEMAPPT (2026-07-04, UNCOMMITTED, 106 Tests grün)
+Multi-Panel-Tasten **ALT (code 11) / VS (code 12)** verdrahtet — die „versteckten"
+Hold-Modi der JF-AutoControl.
+- **LED-Read (sauber, sofort korrekt):** neuer generischer `bool_leds`-Mechanismus —
+  `MultiPanelOutput.bool_leds` mappt Tastenname→Bool-Var, unabhängig vom `mode_var`-Enum
+  (ALT/VS koexistieren mit einem Lateralmodus, passen nicht ins 1-Wert-Enum). Byte-Layout
+  = Single-Source-of-Truth in `leds.py` (`_MULTI_BUTTON_BIT`, `MULTI_LED_BUTTONS`),
+  `multi_button_led_byte(... , bool_leds=...)` OR't die Bits drauf; `render()` löst die
+  Vars auf; `simvars()` abonniert sie; Model validiert Tastennamen. Profil: `bool_leds:
+  { alt: L:JF_PA28_AP_alt, vs: L:JF_PA28_AP_vs }`. **LED spiegelt echten Hold-Zustand,
+  egal wie eingekuppelt** → auch via Cockpit-Clickspot testbar.
+- **Write (Best-Guess, VERIFY):** codes 11/12 → Standard-Toggle-Events `AP_ALT_HOLD`/
+  `AP_VS_HOLD` (`value:1` = momentary, 1 Druck = 1 Toggle, kein Doppel). SPAD mappt ALT/VS
+  beim Arrow NICHT (keine Referenz) → **⏳ in-sim prüfen:** bleibt die LED nach Druck dunkel,
+  ignoriert die JF-Gauge das Event → Fallback im Profil-Kommentar (JF-Bool direkt schreiben).
+- Tests: `test_leds.py` (bool_leds-Bits), `test_multi_panel.py` (subscribe/render/validate).
+
+## 🖥️ PROZESS-GUI — PHASE 1 GEBAUT (2026-07-02, UNCOMMITTED)
+**Tkinter-GUI** `src/msfs_peripherals_bridge/gui.py`, Start
+`uv run python -m msfs_peripherals_bridge.gui`. Buttons Bridge/Mapper start+stop,
+Statusampeln (MSFS/Bridge/Mapper), Profil-Dropdown (wirkt beim Mapper-(Neu)start).
+**Kern:** jeder Prozess in eigener Prozessgruppe (`start_new_session=True`) +
+`killpg`-Stop (SIGTERM→SIGKILL via `poll()`) → ganze Proton/Supervisor-Kette weg, kein
+pkill-Selbsttreffer; Bridge-Stop zusätzlich /proc-Sweep nach `bridge/bridge.py` +
+`run-bridge.sh`. Status: Port 7842 / Mapper-PID / `FlightSimulator.exe`.
+ruff+py_compile clean, 102 Tests grün, Prozess-Logik headless smoke-getestet (Fenster
+selbst noch NICHT visuell geprüft; tkinter 8.6 vorhanden). **Phase 2+ (Profil-Editor:
+Geräte-Auto-Mapping, Var-Picker mit Kategorie, Bedingungen/CRS/Heading-Bug) in Memory
+`project-process-gui`.**
+
+## 🔦 DIMMER-REWORK — LICHT-VARS GEFUNDEN + VERDRAHTET (2026-07-02, alles UNCOMMITTED)
+
+**Durchbruch: alle drei Licht-Vars per LVar-Enumeration gefunden, Profil verdrahtet.**
+Ziel war Radio+Panel auf dem Trimrad; heute kam Center-Light dazu.
+
+### ✅ LVar-Enumeration gebaut (der eigentliche Türöffner)
+`bridge/bridge.py`: neuer **`MF.LVars.List`-Pfad** → listet ALLE JF-Arrow-L:Vars
+(714 Stück) in die `MobiFlight.Response`-Area. Umgesetzt: Response-Area gemappt,
+String-Dispatch im `_ReadingSimConnect.my_dispatch_proc` (Route per `dwRequestID`
+in `_string_request_ids`; Float-Pfad unberührt), `list_lvars()`-Methode (sammelt
+zwischen `.List.Start`/`.End`), TCP-Verb `list_lvars`. **In-sim fehlerfrei gelaufen**
+(„Enumerated 714 LVars"). py_compile+ruff clean, 102 Tests grün (bridge.py nicht in Suite).
+- **Volle 714er-Liste + kuratierte Tabellen: `docs/simvars-reference.md` §11.**
+- Neue Tools: **`tools/list_lvars.py`** (auflisten/filtern), **`tools/read_lvars.py`**
+  (mehrere LVars live mitlesen). Beide lint-clean.
+
+### 🎯 LICHT-VARS (alle in-sim 2026-07-02 bestätigt)
+- **Radio LTS (Backlight)** = **`L:CENTRE_LOWER_nav_light`** (0..10, schreibbar; read-back
+  ok). Zwilling von `panel_light` — irreführender Name, aber der „Radio lts"-Knopf
+  schreibt ihn (beim Drehen lief er 1:1 mit). Koppelt zugleich die Außen-Nav-Lights
+  (`nav_light_on` folgt >0). **Spiegel (read-only):** `Radio_light_scaler`=(nav_light−1)/9,
+  `A:LIGHT POTENTIOMETER:2`≈×10. → Das alte `LIGHT_POTENTIOMETER_2_SET`-Event war die
+  Sackgasse (Spiegel, kein Hebel).
+- **Panel-Licht** = `L:CENTRE_LOWER_panel_light` (0..10, schon vorher ok). Spiegel:
+  `Panel_light_scaler`=/10, `A:LIGHT POTENTIOMETER:3`=×10.
+- **Center Light (rotes Dome)** = **`L:LIGHTING_CABIN_0`** (0..100 Helligkeit) **+**
+  **`A:LIGHT CABIN`** (0/1 An-Aus-Gate) — **braucht BEIDES.** Ein einzelner Cockpit-Rotary
+  setzt beide zusammen; `LIGHTING_CABIN_0`=0 allein lässt ein Restglühen (Gate bleibt an).
+  Der Schreibwert **hält** (read-back 0/100 blieb stehen), aber Voll-Aus braucht das Gate.
+
+### ✅ Profil verdrahtet (`profiles/piper_arrow.yaml`, validate OK)
+- **Trimrad-Dimmer** (multi_panel, codes 18/19): Ziele jetzt `L:CENTRE_LOWER_nav_light`
+  (full 10) + `L:CENTRE_LOWER_panel_light` (full 10). Event-Ziel raus.
+- **Switch-Panel code 7 „Cabin center light"** = `sequence`: on_edge
+  `LIGHT CABIN=1` + `L:LIGHTING_CABIN_0=100`, off_edge beide=0.
+
+### ⏳ MORGEN (User: „den Test machen wir morgen"), Sim ist AUS
+1. **Center-Light-Kombi visuell verifizieren**: geht's mit Switch-Panel code 7 voll an
+   **und** ganz aus? Prüfen ob `A:LIGHT CABIN` per SetData schreibbar ist — falls NICHT,
+   im Profil auf `{ event: CABIN_LIGHTS_SET, value: 1/0 }` fürs Gate umstellen.
+2. **Radio-Schreibtest visuell**: schreibt der Trimrad-Dimmer die Radio-Beleuchtung
+   sichtbar? (Read-back war ok; Sim-Absturz kam dazwischen, visuell noch offen.)
+3. **ALT/VS-Modi** (Roadmap): **`JF_PA28_AP_alt` / `JF_PA28_AP_vs`** sind die versteckten
+   Modi (aus der Enumeration!) — Schreib-Ziel UND LED-Read. Multi-Panel codes 11/12.
+   Ganze JF-AP-Familie: `JF_PA28_AP_{master,hdg,nav,omni,roll,alt,vs,loc_norm,loc_rev}`
+   (evtl. sauberere Per-Taste-LED-Quelle als `AUTOPILOT_mode`). Siehe §11.
+
+### ⚙️ Betriebsnotizen (weiter gültig)
+- **Bridge ist Single-Client** (`server.listen(1)`): Mapper ODER ein Skript. Für direkte
+  Reads/Writes **erst den Mapper stoppen**. (Ein 2. Verbinder landet im Listen-Backlog,
+  ungelesen — deshalb wirkte ein paralleler Schreibtest wirkungslos.)
+- **pkill-Selbsttreffer-Falle (Exit 144):** Muster steht in der eigenen Kommandozeile →
+  **per PID killen** oder Bracket-Trick `pkill -f 'run-bridge[.]sh'` NUR wenn die eigene
+  Zeile das Muster nicht enthält. Bridge-Start: `setsid bash bridge/run-bridge.sh &`.
+- **Value-Read-Pfad (LVars via MobiFlight) ist zuverlässig** — Selbst-Test: geschriebene
+  Werte streamten in ~1 s zurück. `_lvar_values` warm nach 1. Stream; frische Multi-Var-
+  Subs haben kurze Anlauf-Verzögerung.
+- **Prozess-Stand Session-Ende:** MSFS **aus** (User), Bridge+Mapper **gestoppt**. Neu
+  hochziehen: `msfs-bridge piper_arrow`. Für Messungen: nur `setsid bash bridge/run-bridge.sh &`
+  (ohne Mapper), dann Tools.
+- Mess-Skripte lagen im Job-tmp (Session-flüchtig) — die **wiederverwendbaren** sind jetzt
+  `tools/list_lvars.py` + `tools/read_lvars.py` im Repo.
 
 ## Was funktioniert (in-sim bestätigt)
 - **Wine-SimConnect-Bridge** (`bridge/bridge.py`): TCP-JSON, K:-Events, A:-SimVars,

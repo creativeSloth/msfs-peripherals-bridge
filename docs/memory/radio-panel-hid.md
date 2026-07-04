@@ -43,6 +43,32 @@ wiederverwenden** (`format_row`/`display_cells`):
   **am Gerät verifizieren** (gängig bei Saitek: Punkt = Ziffernbyte mit gesetztem
   High-Bit, z. B. `+0xD0`). `format_row` muss dafür erweitert werden (Punkt-Param).
 
+## Interaktionsmodell — Anzeige folgt dem Encoder (entschieden 2026-07-04)
+Problem: COM 8.33 kHz braucht **3 Nachkommastellen** (118.**005** vs .**010** vs
+.**015**), aber die 5-Zellen-Zeile `NNN.NN` zeigt nur 2 → dritte Stelle nicht
+darstellbar/unterscheidbar. NAV (50 kHz) und COM 25 kHz kommen mit 2 Stellen aus.
+**Entscheidung (User):** KEIN Umschaltknopf, KEINE Tempo-Erkennung, sondern die
+Anzeige **folgt dem zuletzt gedrehten Encoder**:
+- **innerer (feiner) Encoder** gedreht → View springt auf **`NN.NNN`** (führende 1
+  von COM 1NN.xxx impliziert weg, 3. Nachkommastelle sichtbar, z.B. `18.005`).
+- **äußerer (grober) Encoder** gedreht → View springt auf **`NNN.NN`** (Hunderter/
+  ganze MHz sichtbar).
+- View ist **sticky** bis der andere Encoder benutzt wird; Default = grob `NNN.NN`.
+
+**Zweite Ebene — Tempo steuert die Fract-Schrittweite** (User 2026-07-04): der
+innere Encoder tunt **langsam = fein (8.33 kHz), schnell = grob (25 kHz)**. Das ist
+exakt der Multi-Panel-Beschleunigungs-Mechanismus (`_encoder_step`: `step` vs
+`fast_step`, `_FAST_WINDOW`/`_FAST_AFTER`) → wiederverwenden. Also zwei implizite
+Ebenen, kein Umschaltknopf: *welcher* Encoder = **Ansicht**, *wie schnell* der
+innere = **Schrittweite**.
+
+Umsetzung: `format_frequency(mhz, decimals=2|3)` existiert schon (display.py);
+Controller hält ein `view`-Flag pro Radio + den Beschleunigungs-Zustand.
+**Reihenfolge:** COM/NAV mit Standard-Tuning zuerst; das exakte **8.33-Step/Event**
+(was in der JF-Arrow einen echten 8.33-kHz-Schritt erzeugt) ist der Teil, der
+**in-sim verifiziert** werden muss — die Velocity→Step-Logik selbst ist generisch
+und jetzt schon testbar.
+
 ## Funktionen (aus SPAD `Arrow (Turbo).xml`, Quelle der Wahrheit)
 SPAD nutzt für die ACT/STBY-Tasten die Swap-Events:
 - `COM1_RADIO_SWAP`, `COM2_RADIO_SWAP`, `NAV1_RADIO_SWAP`, `NAV2_RADIO_SWAP`
@@ -55,9 +81,13 @@ Anzuzeigende SimVars je Selektor-Position (Standard MSFS):
 Encoder: großer Knopf = ganze MHz/kHz grob, kleiner = fein; CW/CCW → die
 `*_RADIO_WHOLE_INC/DEC` bzw. `*_RADIO_FRACT_INC/DEC`-Events.
 
-## Nächste Schritte (morgen)
-1. scan-Tool gegen hidraw11 → exakte INPUT-Bits der Selektoren/Encoder/Tasten.
+## Nächste Schritte
+1. scan-Tool gegen hidraw11 → exakte INPUT-Bits der Selektoren/Encoder/Tasten
+   (Codes in `RadioUnit`/`RadioBank` eintragen; aktuell Platzhalter).
 2. out-Tool gegen FEATURE → Ziffern-Reihenfolge + Dezimalpunkt-Kodierung
-   bestätigen, Helligkeits-Flags (Feature #2) testen.
-3. `mapping/display.py` um Dezimalpunkt erweitern; Radio-Controller analog
-   `MultiPanelController` (Selektor wählt Radio, Encoder editiert STBY, Taste swap).
+   bestätigen, Helligkeits-Flags (Feature #2) testen (`_FLAG_BYTES` noch 0x00).
+3. ✅ **`mapping/display.py` um Dezimalpunkt erweitert (Chunk A) + Radio-Controller
+   gebaut (Chunk B):** `mapping/radio_panel.py` `RadioPanelController` +
+   `models.RadioBank/RadioUnit/RadioPanelOutput`, pure/getestet (`test_radio_panel.py`).
+   Selektor wählt Bank, Encoder feuert WHOLE/FRACT-Events (View + Velocity→Step),
+   Druck = SWAP. **Offen (Chunk C):** Device-Katalog + Runtime/Outputs-Wiring + Profil.
