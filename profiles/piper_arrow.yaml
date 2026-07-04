@@ -173,19 +173,22 @@ bindings:
     # Cowl flaps NOT mapped: COWLFLAP1_SET expects a 0..16383 position, but a
     # switch only sends 0/1 (no transform yet on switches). Add later via a
     # SimVar or a scaled switch action.
-    # "Panel lights" switch repurposed -> cabin CENTER light (red cabin dome light
-    # on the Arrow). The panel/radio instrument lighting has no toggle on the real
-    # Piper — it lives on the Multi Panel dimmer (trim wheel) below.
-    # The center light is itself a 0..100% dimmer, not on/off; a 2-pos switch can
-    # only pick the ends -> full on / dark off.
-    # VERIFY the var: 'LIGHT CABIN' is the SPAD/MSFS cabin light; if the JF dome
-    # dimmer is a different LVar, swap it (and lower 100 if the scale is 0..10).
+    # "Panel lights" switch repurposed -> red CENTER light (the Arrow's single
+    # center dome dimmer). Needs BOTH vars, found in-sim 2026-07-02 (see
+    # docs/simvars-reference.md §11):
+    #   - A:LIGHT CABIN       = on/off gate (0/1)
+    #   - L:LIGHTING_CABIN_0  = brightness 0..100
+    # LIGHTING_CABIN_0 alone leaves a residual glow (the gate stays on); the cockpit
+    # rotary sets both together. A 2-pos switch just picks the ends: full on / off.
+    # ⏳ combo write-back not yet visually confirmed (sim closed before the test) —
+    # verify tomorrow that A:LIGHT CABIN is settable via SetData; if it isn't, use
+    # the CABIN_LIGHTS_SET event ({ event: CABIN_LIGHTS_SET, value: 1/0 }) for the gate.
     - name: "Cabin center light"
       source: { kind: switch, code: 7 }
       action:
         type: sequence
-        on_edge:  [ { simvar: "LIGHT CABIN", value: 100 } ]
-        off_edge: [ { simvar: "LIGHT CABIN", value: 0 } ]
+        on_edge:  [ { simvar: "LIGHT CABIN", value: 1 }, { simvar: "L:LIGHTING_CABIN_0", value: 100 } ]
+        off_edge: [ { simvar: "LIGHT CABIN", value: 0 }, { simvar: "L:LIGHTING_CABIN_0", value: 0 } ]
     - name: "Beacon lights"
       source: { kind: switch, code: 8 }
       action: { type: event, event: BEACON_LIGHTS_SET }
@@ -307,6 +310,22 @@ bindings:
         type: sequence
         on_edge:
           - { simvar: "L:AUTOPILOT_MODE", value: 1 }
+    # ALT / VS hold buttons (codes 11/12). Unlike the lateral-mode buttons above
+    # (which SET L:AUTOPILOT_MODE), ALT/VS are *toggled* hold modes that coexist
+    # with the active lateral mode. Best guess = the standard MSFS toggle events
+    # (one momentary press = one toggle). value:1 makes the switch momentary, so
+    # the engine fires on the press edge only (no double-toggle). The button LEDs
+    # read L:JF_PA28_AP_alt/_vs regardless of how the mode engages.
+    # ⏳ VERIFY in-sim: if the JF AutoControl ignores AP_ALT_HOLD/AP_VS_HOLD, the
+    # LED stays dark after a press → fall back to writing the JF bool directly,
+    # e.g. { type: sequence, on_edge: [ { simvar: "L:JF_PA28_AP_alt", value: 1 } ] }
+    # (a set, not a toggle — would then need an off story). See §11.
+    - name: "AP mode ALT hold"
+      source: { kind: switch, code: 11 }
+      action: { type: event, event: AP_ALT_HOLD, value: 1 }
+    - name: "AP mode VS hold"
+      source: { kind: switch, code: 12 }
+      action: { type: event, event: AP_VS_HOLD, value: 1 }
 
 # Panel outputs (LEDs), streamed back from the bridge. The Switch Panel has 3
 # gear-indicator lights (nose/left/right), each green=down&locked / red=in
@@ -352,18 +371,30 @@ outputs:
             alt_sources: [ { simvar: "NAV OBS:2", set_event: VOR2_SET } ] }
       ap_master: "AUTOPILOT MASTER"
       mode_var: "L:AUTOPILOT_MODE"
+      # ALT/VS are *hold* modes that coexist with the active lateral mode, so they
+      # can't ride the single-value L:AUTOPILOT_MODE enum — their LEDs read the JF
+      # per-mode bools directly (found via LVar enumeration, docs/simvars-reference.md
+      # §11). The LED mirrors the real hold state however it was engaged (panel
+      # button or cockpit clickspot), so it lights even if the write below is wrong.
+      bool_leds:
+        alt: "L:JF_PA28_AP_alt"
+        vs:  "L:JF_PA28_AP_vs"
       source_toggle: { device: yoke, code: 291 }
       # Trim wheel = instrument-light dimmer for the radio + panel lights (no
       # switch on the real Piper). The dimmer tracks a shared PERCENT (0..100,
       # step 10 = even 10% stops) and scales each target to its own `full`, so the
-      # two lights move together off one knob. Self-tracks (these can't be read
-      # back yet); the nav light follows (on when percent > 0) via NAV_LIGHTS_SET.
-      # Targets are the real JF Arrow lighting from SPAD Arrow III.xml:
-      #   - radio/instrument light = LIGHT_POTENTIOMETER_2_SET event (0..100 var)
-      #   - panel light = L:CENTRE_LOWER_PANEL_LIGHT (0..10 scale)
-      # VERIFY in-sim: SPAD set the potentiometer A-var to 100 but fired the event
-      # with param 10 — if the radio lights go full at the first detent, the event
-      # scale is 0..10: change that target to `full: 10`.
+      # two lights move together off one knob. The nav light follows (on when
+      # percent > 0) via NAV_LIGHTS_SET.
+      # Targets = the real JF Arrow lighting L:vars, both 0..10 (each detent = one
+      # clean 10% step). Found by enumerating every JF LVar (MF.LVars.List) and
+      # watching which moved with each cockpit knob — see docs/simvars-reference.md §11.
+      #   - radio LTS backlight = L:CENTRE_LOWER_nav_light (0..10), confirmed in-sim
+      #     2026-07-02. Misleading name, but it IS the "Radio lts" knob's var (sibling
+      #     of panel_light). Writing it also gates the exterior nav lights (the JF
+      #     couples nav_light_on to it), so NAV_LIGHTS_SET below is belt-and-braces.
+      #     The old LIGHT_POTENTIOMETER_2_SET event never drove it (dead end); the
+      #     A:var LIGHT POTENTIOMETER:2 is only a read-mirror of nav_light.
+      #   - panel light = L:CENTRE_LOWER_panel_light (0..10), confirmed writable.
       dimmer:
         cw: 18
         ccw: 19
@@ -371,6 +402,6 @@ outputs:
         min: 0
         max: 100
         targets:
-          - { event: LIGHT_POTENTIOMETER_2_SET, full: 100 }   # radio/instrument light
-          - { var: "L:CENTRE_LOWER_PANEL_LIGHT", full: 10 }   # panel light (0..10)
+          - { var: "L:CENTRE_LOWER_nav_light", full: 10 }    # radio LTS backlight (0..10)
+          - { var: "L:CENTRE_LOWER_panel_light", full: 10 }  # panel light (0..10)
         follow_event: NAV_LIGHTS_SET
