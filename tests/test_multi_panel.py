@@ -1,3 +1,6 @@
+import pytest
+from pydantic import ValidationError
+
 from msfs_peripherals_bridge.mapping.display import BLANK, MINUS
 from msfs_peripherals_bridge.mapping.multi_panel import (
     ENCODER_CCW,
@@ -305,3 +308,36 @@ def test_render_minus_for_negative_value():
     c = MultiPanelController(cfg)
     c.on_state("AUTOPILOT VERTICAL HOLD VAR", -500)
     assert list(c.render()[1:6]) == [BLANK, MINUS, 5, 0, 0]
+
+
+def _bool_led_config() -> MultiPanelOutput:
+    return MultiPanelOutput(
+        selector=[
+            SelectorEntry(code=0, label="ALT", simvar="AP ALT", step=100, min=0, max=99999),
+        ],
+        bool_leds={"alt": "L:JF_PA28_AP_alt", "vs": "L:JF_PA28_AP_vs"},
+    )
+
+
+def test_bool_led_vars_are_subscribed():
+    subs = set(MultiPanelController(_bool_led_config()).subscriptions())
+    assert {"L:JF_PA28_AP_alt", "L:JF_PA28_AP_vs"} <= subs
+
+
+def test_bool_leds_light_alt_vs_independent_of_mode():
+    c = MultiPanelController(_bool_led_config())
+    c.on_state("L:AUTOPILOT_MODE", 2)  # HDG (bit 1)
+    c.on_state("L:JF_PA28_AP_alt", 1)  # ALT hold engaged (bit 4)
+    assert c.render()[11] == (1 << 1) | (1 << 4)  # HDG + ALT together
+    c.on_state("L:JF_PA28_AP_vs", 1)  # + VS hold (bit 5)
+    assert c.render()[11] == (1 << 1) | (1 << 4) | (1 << 5)
+    c.on_state("L:JF_PA28_AP_alt", 0)  # ALT off again
+    assert c.render()[11] == (1 << 1) | (1 << 5)
+
+
+def test_bool_leds_reject_unknown_button_name():
+    with pytest.raises(ValidationError):
+        MultiPanelOutput(
+            selector=[SelectorEntry(code=0, label="ALT", simvar="AP ALT", step=1, min=0, max=9)],
+            bool_leds={"bogus": "L:WHATEVER"},
+        )

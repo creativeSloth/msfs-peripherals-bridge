@@ -243,8 +243,12 @@ class MultiPanelController:
             cells = display_cells(top=self._row_value("top"), bottom=self._row_value("bottom"))
         ap_master = (self.values.get(self.config.ap_master) or 0) >= 0.5
         mode = self.values.get(self.config.mode_var)
+        bool_leds = {
+            name: (self.values.get(var) or 0) >= 0.5
+            for name, var in self.config.bool_leds.items()
+        }
         led = multi_button_led_byte(
-            ap_master, int(mode) if mode is not None else None, blink_on
+            ap_master, int(mode) if mode is not None else None, blink_on, bool_leds
         )
         return bytes([_REPORT_ID, *cells, led, 0x00])
 

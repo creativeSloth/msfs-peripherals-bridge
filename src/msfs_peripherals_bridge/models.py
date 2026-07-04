@@ -10,7 +10,7 @@ from __future__ import annotations
 from enum import StrEnum
 from typing import Annotated, Literal
 
-from pydantic import BaseModel, Field, model_validator
+from pydantic import BaseModel, Field, field_validator, model_validator
 
 
 class SourceKind(StrEnum):
@@ -281,6 +281,13 @@ class MultiPanelOutput(BaseModel):
     selector: list[SelectorEntry] = Field(..., min_length=1)
     ap_master: str = Field("AUTOPILOT MASTER", description="Bool SimVar for the AP-master LED.")
     mode_var: str = Field("L:AUTOPILOT_MODE", description="Active-mode var for the mode LEDs.")
+    # Buttons lit straight from a bool var, independent of mode_var — for the
+    # ALT/VS *hold* modes, which coexist with a lateral mode and so can't ride the
+    # single-value mode enum. Maps a Multi Panel button name (alt, vs, …) to its
+    # bool SimVar; the LED mirrors that var whatever engaged it.
+    bool_leds: dict[str, str] = Field(
+        default_factory=dict, description="Button name -> bool var lit directly."
+    )
     # Off-panel button that steps the active source of a selector position with
     # alt_sources (e.g. a yoke rocker flipping the CRS knob between NAV1/NAV2 OBS).
     source_toggle: AuxInput | None = Field(
@@ -289,6 +296,19 @@ class MultiPanelOutput(BaseModel):
     # The trim wheel repurposed as a light dimmer (radio + panel lights).
     dimmer: MultiPanelDimmer | None = Field(None, description="Trim-wheel light dimmer.")
 
+    @field_validator("bool_leds")
+    @classmethod
+    def _known_led_buttons(cls, v: dict[str, str]) -> dict[str, str]:
+        from .mapping.leds import MULTI_LED_BUTTONS
+
+        unknown = set(v) - MULTI_LED_BUTTONS
+        if unknown:
+            raise ValueError(
+                f"unknown Multi Panel LED button(s) {sorted(unknown)}; "
+                f"known: {sorted(MULTI_LED_BUTTONS)}"
+            )
+        return v
+
     def simvars(self) -> list[str]:
         """Every SimVar this controller needs subscribed."""
         names: list[str] = []
@@ -296,6 +316,7 @@ class MultiPanelOutput(BaseModel):
             names.append(entry.simvar)
             names += [s.simvar for s in entry.alt_sources]
         names += [self.ap_master, self.mode_var]
+        names += list(self.bool_leds.values())
         if self.dimmer is not None:
             names += [t.var for t in self.dimmer.targets if t.var is not None]
         return names

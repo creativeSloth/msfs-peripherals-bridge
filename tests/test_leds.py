@@ -73,3 +73,25 @@ def test_multi_ap_on_no_mode_lights_only_ap():
     assert multi_button_led_byte(ap_master=True, mode=None) == AP
     # an unmapped mode value also leaves only AP lit
     assert multi_button_led_byte(ap_master=True, mode=9) == AP
+
+
+ALT = 1 << 4
+VS = 1 << 5
+
+
+def test_bool_leds_light_alt_vs_on_top_of_mode():
+    # ALT/VS hold modes coexist with a lateral mode: HDG (bit 1) solid from the
+    # enum, ALT lit from its own bool at the same time.
+    HDG = 1 << 1
+    assert (
+        multi_button_led_byte(ap_master=True, mode=2, bool_leds={"alt": True, "vs": False})
+        == AP | HDG | ALT
+    )
+    # Both holds can be on together, and stay lit with the AP master off.
+    assert (
+        multi_button_led_byte(ap_master=False, mode=None, bool_leds={"alt": True, "vs": True})
+        == ALT | VS
+    )
+    # A false/absent bool lights nothing extra.
+    assert multi_button_led_byte(ap_master=True, mode=None, bool_leds={"alt": False}) == AP
+    assert multi_button_led_byte(ap_master=True, mode=None, bool_leds={}) == AP
