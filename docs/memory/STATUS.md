@@ -2,7 +2,11 @@
 
 > Kurzer Einstiegspunkt: was läuft, was offen ist, wie es weitergeht.
 > Stand: **2026-07-04**. Multi-Panel ist auf **`main`** gemerged.
-> Aktueller Branch: **`refactor/light-dimmers`** (von main abgezweigt, alles UNCOMMITTED).
+> Aktueller Branch: **`refactor/light-dimmers`**. **Alle unten genannten Threads sind
+> jetzt COMMITTET + auf origin GEPUSHT** (Radio Chunk A/B, ALT/VS-LEDs, Piper-Licht-
+> LVars + LVar-Enumeration, GUI Phase 1). Die „UNCOMMITTED"-Marker in den Abschnitten
+> unten sind historisch — der Code steht. Offen bleibt nur das **In-Sim-Verifizieren**
+> (Center-Light-Combo, Radio-Backlight, ALT/VS-Events) + Radio **Chunk C** (Hardware).
 
 ## 📻 RADIO PANEL — CHUNK B FERTIG (2026-07-04, UNCOMMITTED, 121 Tests grün)
 Scope-Entscheid User: **COM/NAV zuerst**, Rest (ADF/DME/XPDR) später (falls Credits übrig).
