@@ -301,7 +301,80 @@ class MultiPanelOutput(BaseModel):
         return names
 
 
-Output = Annotated[GearLedOutput | MultiPanelOutput, Field(discriminator="type")]
+class RadioBank(BaseModel):
+    """One selector position (COM1/COM2/NAV1/NAV2) on a Radio Panel unit.
+
+    Tuning is *event-based*, mirroring SPAD.neXt and the real panel: the encoders
+    don't compute a frequency, they fire the standard MSFS step events and the sim
+    echoes the new STANDBY value back for the display. ``active``/``standby`` are
+    the frequency SimVars shown on the unit's two display rows; the outer (coarse)
+    knob fires ``whole_inc``/``whole_dec`` (whole MHz), the inner (fine) knob fires
+    ``fract_inc``/``fract_dec`` — or the ``fract_fast_*`` variants once spun fast,
+    so a slow turn steps fine (COM 8.33 kHz) and a fast turn steps coarse (25 kHz).
+    Pushing the encoder swaps active<->standby (``swap_event``).
+    """
+
+    code: int = Field(..., ge=0, description="Selector bit code for this position.")
+    label: str = Field(..., description="Human label, e.g. 'COM1' (logging only).")
+    active: str = Field(..., description="ACTIVE frequency SimVar (top row).")
+    standby: str = Field(..., description="STANDBY frequency SimVar (tuned, bottom row).")
+    swap_event: str = Field(..., description="ACT/STBY swap event, e.g. COM1_RADIO_SWAP.")
+    whole_inc: str = Field(..., description="Outer-knob CW event (whole MHz up).")
+    whole_dec: str = Field(..., description="Outer-knob CCW event (whole MHz down).")
+    fract_inc: str = Field(..., description="Inner-knob CW event, fine step (kHz up).")
+    fract_dec: str = Field(..., description="Inner-knob CCW event, fine step (kHz down).")
+    # Coarse fractional step fired when the inner knob is spun fast (COM 25 kHz vs
+    # the fine 8.33 kHz). None = no fast distinction (e.g. NAV) -> reuse fract_*.
+    fract_fast_inc: str | None = Field(None, description="Inner-knob CW when spun fast.")
+    fract_fast_dec: str | None = Field(None, description="Inner-knob CCW when spun fast.")
+
+
+class RadioUnit(BaseModel):
+    """One half (upper or lower) of the Saitek Radio Panel.
+
+    Each half is an independent radio: a mode selector picking a :class:`RadioBank`,
+    a dual concentric encoder (outer coarse + inner fine, pushable = swap) and a
+    two-row display (ACTIVE over STANDBY). ``row`` places it in the 20-cell feature
+    report — ``upper`` = cells 0..9, ``lower`` = cells 10..19 (see
+    docs/memory/radio-panel-hid.md). The int codes are hardware input bits (to be
+    measured at the device, like the Multi Panel).
+    """
+
+    name: str = Field(..., description="Human label, 'upper'/'lower' (logging only).")
+    row: Literal["upper", "lower"] = Field(..., description="Display half this unit drives.")
+    banks: list[RadioBank] = Field(..., min_length=1, description="Selectable COM/NAV positions.")
+    outer_cw: int = Field(..., description="Outer (coarse/whole) encoder CW code.")
+    outer_ccw: int = Field(..., description="Outer encoder CCW code.")
+    inner_cw: int = Field(..., description="Inner (fine/fract) encoder CW code.")
+    inner_ccw: int = Field(..., description="Inner encoder CCW code.")
+    swap: int = Field(..., description="ACT/STBY push (pushable encoder) code.")
+
+
+class RadioPanelOutput(BaseModel):
+    """Saitek Radio Panel: two independent radio units (COM/NAV), event-tuned.
+
+    Bidirectional like the Multi Panel: the encoders fire step events while the
+    displays show the ACTIVE/STANDBY frequencies streamed back from the sim. Scope
+    is COM and NAV for now (ADF/DME/XPDR later). The display follows the encoder —
+    the fine encoder shifts the tuned row to ``NN.NNN`` to expose the third decimal,
+    the coarse encoder back to ``NNN.NN`` — see :class:`RadioPanelController`.
+    """
+
+    type: Literal["radio_panel"] = "radio_panel"
+    units: list[RadioUnit] = Field(..., min_length=1, description="Radio units (upper/lower).")
+
+    def simvars(self) -> list[str]:
+        """Every frequency SimVar the displays need subscribed."""
+        names: list[str] = []
+        for unit in self.units:
+            for bank in unit.banks:
+                names += [bank.active, bank.standby]
+        return names
+
+
+Output = Annotated[
+    GearLedOutput | MultiPanelOutput | RadioPanelOutput, Field(discriminator="type")
+]
 
 
 class Source(BaseModel):
