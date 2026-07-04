@@ -405,3 +405,71 @@ outputs:
           - { var: "L:CENTRE_LOWER_nav_light", full: 10 }    # radio LTS backlight (0..10)
           - { var: "L:CENTRE_LOWER_panel_light", full: 10 }  # panel light (0..10)
         follow_event: NAV_LIGHTS_SET
+
+  # Radio Panel controller: two independent radio units (upper + lower). Each has
+  # a mode selector picking a COM/NAV bank, a dual concentric encoder (outer coarse
+  # = whole MHz, inner fine = kHz, pushable = ACT/STBY swap) and a two-row display
+  # (ACTIVE over STANDBY). Tuning is event-based (standard MSFS *_INC/DEC +
+  # *_RADIO_SWAP); the display follows the encoder — the inner knob shifts the tuned
+  # standby row to NN.NNN (8.33 kHz third decimal), the outer knob back to NNN.NN —
+  # and the inner-knob spin speed picks fine vs coarse fract steps. Scope = COM/NAV
+  # (ADF/DME/XPDR later). HID structure: docs/memory/radio-panel-hid.md.
+  #
+  # ⚠️ INPUT CODES BELOW ARE PLACEHOLDERS — measure the real selector/encoder/swap
+  # bits with tools/panel-scan/scan_radio.py and replace them. The display output
+  # works regardless of these; only the knobs need the right codes. The guess follows
+  # the 24-bit structure (upper selector 0-6, lower 7-13, encoders 14-21, swaps 22-23).
+  # ⚠️ fract_fast_* (coarse 25 kHz step for a fast inner spin) is left unset: verify
+  # in-sim which event gives a real 8.33 vs 25 kHz step on the JF Arrow, then add
+  # fract_fast_inc/-dec per bank. Without it a fast inner spin just repeats the fine step.
+  radio_panel:
+    - type: radio_panel
+      units:
+        - name: upper
+          row: upper
+          outer_cw: 14
+          outer_ccw: 15
+          inner_cw: 16
+          inner_ccw: 17
+          swap: 22
+          banks:
+            - { code: 0, label: COM1, active: "COM ACTIVE FREQUENCY:1", standby: "COM STANDBY FREQUENCY:1",
+                swap_event: COM1_RADIO_SWAP,
+                whole_inc: COM_RADIO_WHOLE_INC, whole_dec: COM_RADIO_WHOLE_DEC,
+                fract_inc: COM_RADIO_FRACT_INC, fract_dec: COM_RADIO_FRACT_DEC }
+            - { code: 1, label: COM2, active: "COM ACTIVE FREQUENCY:2", standby: "COM STANDBY FREQUENCY:2",
+                swap_event: COM2_RADIO_SWAP,
+                whole_inc: COM2_RADIO_WHOLE_INC, whole_dec: COM2_RADIO_WHOLE_DEC,
+                fract_inc: COM2_RADIO_FRACT_INC, fract_dec: COM2_RADIO_FRACT_DEC }
+            - { code: 2, label: NAV1, active: "NAV ACTIVE FREQUENCY:1", standby: "NAV STANDBY FREQUENCY:1",
+                swap_event: NAV1_RADIO_SWAP,
+                whole_inc: NAV1_RADIO_WHOLE_INC, whole_dec: NAV1_RADIO_WHOLE_DEC,
+                fract_inc: NAV1_RADIO_FRACT_INC, fract_dec: NAV1_RADIO_FRACT_DEC }
+            - { code: 3, label: NAV2, active: "NAV ACTIVE FREQUENCY:2", standby: "NAV STANDBY FREQUENCY:2",
+                swap_event: NAV2_RADIO_SWAP,
+                whole_inc: NAV2_RADIO_WHOLE_INC, whole_dec: NAV2_RADIO_WHOLE_DEC,
+                fract_inc: NAV2_RADIO_FRACT_INC, fract_dec: NAV2_RADIO_FRACT_DEC }
+        - name: lower
+          row: lower
+          outer_cw: 18
+          outer_ccw: 19
+          inner_cw: 20
+          inner_ccw: 21
+          swap: 23
+          banks:
+            - { code: 7, label: COM1, active: "COM ACTIVE FREQUENCY:1", standby: "COM STANDBY FREQUENCY:1",
+                swap_event: COM1_RADIO_SWAP,
+                whole_inc: COM_RADIO_WHOLE_INC, whole_dec: COM_RADIO_WHOLE_DEC,
+                fract_inc: COM_RADIO_FRACT_INC, fract_dec: COM_RADIO_FRACT_DEC }
+            - { code: 8, label: COM2, active: "COM ACTIVE FREQUENCY:2", standby: "COM STANDBY FREQUENCY:2",
+                swap_event: COM2_RADIO_SWAP,
+                whole_inc: COM2_RADIO_WHOLE_INC, whole_dec: COM2_RADIO_WHOLE_DEC,
+                fract_inc: COM2_RADIO_FRACT_INC, fract_dec: COM2_RADIO_FRACT_DEC }
+            - { code: 9, label: NAV1, active: "NAV ACTIVE FREQUENCY:1", standby: "NAV STANDBY FREQUENCY:1",
+                swap_event: NAV1_RADIO_SWAP,
+                whole_inc: NAV1_RADIO_WHOLE_INC, whole_dec: NAV1_RADIO_WHOLE_DEC,
+                fract_inc: NAV1_RADIO_FRACT_INC, fract_dec: NAV1_RADIO_FRACT_DEC }
+            - { code: 10, label: NAV2, active: "NAV ACTIVE FREQUENCY:2", standby: "NAV STANDBY FREQUENCY:2",
+                swap_event: NAV2_RADIO_SWAP,
+                whole_inc: NAV2_RADIO_WHOLE_INC, whole_dec: NAV2_RADIO_WHOLE_DEC,
+                fract_inc: NAV2_RADIO_FRACT_INC, fract_dec: NAV2_RADIO_FRACT_DEC }

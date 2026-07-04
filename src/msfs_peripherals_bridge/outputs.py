@@ -8,10 +8,11 @@ and write it to the panel.
 Two kinds of output live here:
 
 * **Gear LEDs** (switch panel) — pure one-way: SimVar state -> one feature byte.
-* **Multi Panel** — a stateful ``MultiPanelController`` whose display/LEDs depend
-  on both SimVar state *and* device input (the selector + encoder). Its state is
-  touched from two threads — the output thread (``on_state``) and the mapping
-  loop (``handle_input``) — so all controller access is guarded by one lock.
+* **Stateful panel controllers** (Multi Panel, Radio Panel) — whose display/LEDs
+  depend on both SimVar state *and* device input (selector + encoder). Their state
+  is touched from two threads — the output thread (``on_state``) and the mapping
+  loop (``handle_input``) — so all controller access is guarded by one lock. Both
+  expose the same interface (:class:`PanelController`), so they route uniformly.
 
 Kept separate from ``runtime`` so the render/track logic can be unit-tested with
 a fake dispatcher and a fake writer (no socket, no hardware).
@@ -27,7 +28,8 @@ from typing import Protocol
 from .devices.hidraw_reader import write_feature_report
 from .mapping.leds import gear_led_byte
 from .mapping.multi_panel import MultiPanelController
-from .models import GearLedOutput, MultiPanelOutput, Output
+from .mapping.radio_panel import RadioPanelController
+from .models import GearLedOutput, MultiPanelOutput, Output, RadioPanelOutput
 from .simconnect.protocol import Command, Subscribe
 
 log = logging.getLogger(__name__)
@@ -45,6 +47,21 @@ class StateDispatcher(Protocol):
 
     def send(self, command: Command) -> None: ...
     def states(self) -> Iterator[tuple[str, object]]: ...
+
+
+class PanelController(Protocol):
+    """A stateful panel controller (Multi Panel / Radio Panel) the manager drives.
+
+    Both own display/input state and expose this shared interface, so the output
+    manager tracks and renders them uniformly. ``render`` takes the shared blink
+    phase (a controller with no blinking LED just ignores it).
+    """
+
+    def subscriptions(self) -> list[str]: ...
+    def consumes(self, code: int) -> bool: ...
+    def on_event(self, code: int, value: int) -> list[Command]: ...
+    def on_state(self, name: str, value: object) -> None: ...
+    def render(self, blink_on: bool = ...) -> bytes: ...
 
 
 def _as_float(value: object) -> float | None:
@@ -73,7 +90,7 @@ class OutputManager:
         self._blink_on = True  # shared blink phase, flipped by the blink ticker
         # Split outputs by kind, keeping only devices that are actually present.
         self._gear: dict[str, list[GearLedOutput]] = {}
-        self._controllers: dict[str, MultiPanelController] = {}
+        self._controllers: dict[str, PanelController] = {}
         # Off-panel buttons routed to a controller action: (device, code) ->
         # (controller's device_id, controller). E.g. a yoke rocker toggling CRS.
         self._aux: dict[tuple[str, int], tuple[str, MultiPanelController]] = {}
@@ -87,6 +104,8 @@ class OutputManager:
                     if output.source_toggle is not None:
                         tog = output.source_toggle
                         self._aux[(tog.device, tog.code)] = (device_id, controller)
+                elif isinstance(output, RadioPanelOutput):
+                    self._controllers[device_id] = RadioPanelController(output)
                 elif isinstance(output, GearLedOutput):
                     self._gear.setdefault(device_id, []).append(output)
 

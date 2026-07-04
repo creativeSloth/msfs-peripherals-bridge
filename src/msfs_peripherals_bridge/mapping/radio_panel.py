@@ -170,13 +170,17 @@ class RadioPanelController:
         """Record a SimVar update streamed from the bridge."""
         self.values[name] = _as_float(value)
 
-    def render(self) -> bytes:
+    def render(self, blink_on: bool = True) -> bytes:
         """Build the full feature-report buffer (20 display cells + 2 flag bytes).
 
         Each unit fills its display half (``upper`` = cells 0..9, ``lower`` =
         10..19). The ACTIVE row is always coarse ``NNN.NN``; the tuned STANDBY row
         follows the unit's view (fine ``NN.NNN`` while the inner knob was last
         used). Unconfigured halves stay blank.
+
+        ``blink_on`` is accepted for interface parity with the other panel
+        controllers (the output manager passes its shared blink phase); the Radio
+        Panel has no blinking LED, so it is ignored.
         """
         halves: dict[str, list[int]] = {
             "upper": [BLANK] * _HALF_CELLS,

@@ -41,3 +41,13 @@ devices:
     vendor: "06a3"
     product: "0d06"
     transport: hidraw
+
+  # Radio Panel: 3-byte input (2 mode selectors, 4 encoders, 2 swap buttons),
+  # feature output = 20 digits (2 displays x 2 rows x 5 cells) + 2 flag bytes.
+  # HID structure in docs/memory/radio-panel-hid.md; exact input bits measured
+  # with tools/panel-scan/scan_radio.py.
+  - id: radio_panel
+    name: Saitek Pro Flight Radio Panel
+    vendor: "06a3"
+    product: "0d05"
+    transport: hidraw
