@@ -1,13 +1,15 @@
 from msfs_peripherals_bridge.mapping.display import BLANK, DOT
-from msfs_peripherals_bridge.mapping.radio_panel import RadioPanelController
+from msfs_peripherals_bridge.mapping.radio_panel import RadioPanelController, _squawk_step
 from msfs_peripherals_bridge.models import (
+    AdfBank,
     DmeBank,
     DmeSource,
     RadioBank,
     RadioPanelOutput,
     RadioUnit,
+    XpdrBank,
 )
-from msfs_peripherals_bridge.simconnect.protocol import SendEvent
+from msfs_peripherals_bridge.simconnect.protocol import SendEvent, SetSimVar
 
 
 def _com1() -> RadioBank:
@@ -44,7 +46,8 @@ def _dme() -> DmeBank:
 
 def _upper() -> RadioUnit:
     return RadioUnit(
-        name="upper", row="upper", banks=[_com1(), _nav1(), _dme()],
+        name="upper", row="upper",
+        banks=[_com1(), _nav1(), _dme(), XpdrBank(code=3), AdfBank(code=4)],
         outer_cw=5, outer_ccw=6, inner_cw=7, inner_ccw=8, swap=9,
     )
 
@@ -286,3 +289,91 @@ def test_dme_encoders_are_inert():
 def test_dme_simvars_are_subscribed():
     names = set(make_config().simvars())
     assert {"NAV DME:1", "NAV DMESPEED:1", "NAV DME:2", "NAV DMESPEED:2"} <= names
+
+
+# -- XPDR position (mode-less squawk edit) -----------------------------------
+
+
+def test_squawk_step_wraps_octal_within_pair():
+    assert _squawk_step(0x1200, high=False, delta=1) == 0x1201  # ones +1
+    assert _squawk_step(0x1207, high=False, delta=1) == 0x1210  # 07 -> 10 (octal)
+    assert _squawk_step(0x1277, high=False, delta=1) == 0x1200  # low pair wraps 77->00
+    assert _squawk_step(0x1200, high=True, delta=1) == 0x1300  # hundreds +1
+    assert _squawk_step(0x7700, high=True, delta=1) == 0x0000  # high pair wraps 77->00
+
+
+def test_xpdr_inner_steps_low_pair_and_sets_and_echoes():
+    c = RadioPanelController(make_config())
+    c.on_event(code=3, value=1)  # upper -> XPDR
+    c.on_state("TRANSPONDER CODE:1", 0x1200)
+    assert c.on_event(code=7, value=1) == [SendEvent(name="XPNDR_SET", data=0x1201)]
+    assert list(c.render()[1:6]) == [BLANK, 1, 2, 0, 1]  # local echo -> 1201
+
+
+def test_xpdr_outer_steps_high_pair():
+    c = RadioPanelController(make_config())
+    c.on_event(code=3, value=1)
+    c.on_state("TRANSPONDER CODE:1", 0x1200)
+    assert c.on_event(code=5, value=1) == [SendEvent(name="XPNDR_SET", data=0x1300)]
+
+
+def test_xpdr_render_preserves_leading_zeros():
+    c = RadioPanelController(make_config())
+    c.on_event(code=3, value=1)
+    c.on_state("TRANSPONDER CODE:1", 0x0021)
+    assert list(c.render()[1:6]) == [BLANK, 0, 0, 2, 1]  # 0021, not "  21"
+
+
+def test_xpdr_push_is_inert():
+    c = RadioPanelController(make_config())
+    c.on_event(code=3, value=1)
+    c.on_state("TRANSPONDER CODE:1", 0x1200)
+    assert c.on_event(code=9, value=1) == []  # push unused on XPDR
+    assert c.refresh_after(7) == []  # local-echoed -> no ReadNow
+
+
+def test_xpdr_code_var_subscribed():
+    assert "TRANSPONDER CODE:1" in make_config().simvars()
+
+
+# -- ADF position (local-echo tuning, swap) ----------------------------------
+
+
+def test_adf_inner_tunes_standby_fine_and_echoes():
+    c = RadioPanelController(make_config())
+    c.on_event(code=4, value=1)  # upper -> ADF
+    c.on_state("ADF STANDBY FREQUENCY:1", 350.0)
+    cmd = c.on_event(code=7, value=1)  # inner cw -> +fine (1)
+    assert cmd == [SetSimVar(name="ADF STANDBY FREQUENCY:1", unit="number", value=351.0)]
+    assert list(c.render()[6:11]) == [BLANK, 3, 5, 1 + DOT, 0]  # local echo -> 351.0
+
+
+def test_adf_outer_tunes_standby_coarse():
+    c = RadioPanelController(make_config())
+    c.on_event(code=4, value=1)
+    c.on_state("ADF STANDBY FREQUENCY:1", 350.0)
+    assert c.on_event(code=6, value=1) == [  # outer ccw -> -coarse (10)
+        SetSimVar(name="ADF STANDBY FREQUENCY:1", unit="number", value=340.0)
+    ]
+
+
+def test_adf_swap_mirrors_and_fires_event():
+    c = RadioPanelController(make_config())
+    c.on_event(code=4, value=1)
+    c.on_state("ADF ACTIVE FREQUENCY:1", 350.0)
+    c.on_state("ADF STANDBY FREQUENCY:1", 210.0)
+    assert c.on_event(code=9, value=1) == [SendEvent(name="ADF1_RADIO_SWAP")]
+    assert c.values["ADF ACTIVE FREQUENCY:1"] == 210.0  # mirrored instantly
+    assert c.values["ADF STANDBY FREQUENCY:1"] == 350.0
+    assert list(c.render()[1:6]) == [BLANK, 2, 1, 0 + DOT, 0]  # active now 210.0
+
+
+def test_adf_display_scale_converts_hz_to_khz():
+    # if the sim reads ADF in Hz, display_scale=0.001 shows kHz on the panel
+    cfg = RadioPanelOutput(units=[RadioUnit(
+        name="u", row="upper", banks=[AdfBank(code=4, display_scale=0.001, decimals=1)],
+        outer_cw=5, outer_ccw=6, inner_cw=7, inner_ccw=8, swap=9,
+    )])
+    c = RadioPanelController(cfg)
+    c.on_state("ADF ACTIVE FREQUENCY:1", 350000)  # Hz
+    assert list(c.render()[1:6]) == [BLANK, 3, 5, 0 + DOT, 0]  # -> 350.0

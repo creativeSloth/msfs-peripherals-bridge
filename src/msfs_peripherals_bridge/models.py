@@ -380,9 +380,50 @@ class DmeBank(BaseModel):
     )
 
 
+class AdfBank(BaseModel):
+    """ADF selector position — tune the standby frequency, swap it in.
+
+    Unlike COM/NAV (which fire MSFS step events), ADF is tuned by *local echo*: the
+    controller reads the tuned var, adds ``coarse`` (outer knob) or ``fine`` (inner
+    knob) and writes it back — matching how SPAD tuned the JF Arrow's ADF. The push
+    fires ``swap_event``. Steps + display are configurable because the SimVar's read
+    unit isn't known until measured in-sim (SPAD saw a kHz scale) — ``display_scale``
+    multiplies the read value for the readout, ``decimals`` sets its precision.
+    """
+
+    kind: Literal["adf"] = "adf"
+    code: int = Field(..., ge=0, description="Selector bit code for this position.")
+    label: str = Field("ADF", description="Human label (logging only).")
+    active: str = Field("ADF ACTIVE FREQUENCY:1", description="ACTIVE ADF freq SimVar.")
+    standby: str = Field("ADF STANDBY FREQUENCY:1", description="STANDBY ADF freq SimVar.")
+    swap_event: str = Field("ADF1_RADIO_SWAP", description="ACT/STBY swap event.")
+    tune: Literal["standby", "active"] = Field("standby", description="Which row the knobs tune.")
+    coarse: float = Field(10.0, description="Outer-knob step (SimVar units).")
+    fine: float = Field(1.0, description="Inner-knob step (SimVar units).")
+    display_scale: float = Field(1.0, description="Multiply read value for the display.")
+    decimals: int = Field(1, ge=0, description="Display decimals.")
+
+
+class XpdrBank(BaseModel):
+    """Transponder selector position — edit the squawk code, display it.
+
+    The 4-octal-digit squawk is edited mode-lessly with the two encoders: the outer
+    knob steps the left digit pair (thousands+hundreds), the inner knob the right
+    pair (tens+ones), each wrapping within 00-77 octal. The controller reads the
+    current code, applies the step locally and writes it back via ``set_event``
+    (XPNDR_SET, BCD16). The push is unused (no mode).
+    """
+
+    kind: Literal["xpdr"] = "xpdr"
+    code: int = Field(..., ge=0, description="Selector bit code for this position.")
+    label: str = Field("XPDR", description="Human label (logging only).")
+    code_var: str = Field("TRANSPONDER CODE:1", description="Squawk SimVar (BCD16).")
+    set_event: str = Field("XPNDR_SET", description="Event to set the squawk (BCD16 data).")
+
+
 # A selector position is one of the bank kinds, told apart by ``kind``. A callable
 # discriminator lets COM/NAV entries omit ``kind`` (the common case) and default to
-# "freq", while DME (and later ADF/XPDR) tag themselves explicitly.
+# "freq", while DME/XPDR (and later ADF) tag themselves explicitly.
 def _bank_kind(value: object) -> str:
     if isinstance(value, dict):
         return value.get("kind", "freq")
@@ -390,7 +431,10 @@ def _bank_kind(value: object) -> str:
 
 
 RadioBankT = Annotated[
-    Annotated[RadioBank, Tag("freq")] | Annotated[DmeBank, Tag("dme")],
+    Annotated[RadioBank, Tag("freq")]
+    | Annotated[DmeBank, Tag("dme")]
+    | Annotated[XpdrBank, Tag("xpdr")]
+    | Annotated[AdfBank, Tag("adf")],
     Discriminator(_bank_kind),
 ]
 
@@ -422,10 +466,11 @@ class RadioPanelOutput(BaseModel):
     """Saitek Radio Panel: two independent radio units (COM/NAV), event-tuned.
 
     Bidirectional like the Multi Panel: the encoders fire step events while the
-    displays show the ACTIVE/STANDBY frequencies streamed back from the sim. Banks
-    are a discriminated union by ``kind``: COM/NAV freq (:class:`RadioBank`) and DME
-    (:class:`DmeBank`, display-only); ADF/XPDR to follow. The display follows the
-    encoder —
+    displays show the ACTIVE/STANDBY frequencies streamed back from the sim. Banks are
+    a discriminated union by ``kind`` covering all seven selector positions:
+    COM/NAV freq (:class:`RadioBank`, event-tuned), ADF (:class:`AdfBank`, local-echo
+    tuned), DME (:class:`DmeBank`, display-only) and XPDR (:class:`XpdrBank`, squawk).
+    For freq banks the display follows the encoder —
     the fine encoder shifts the tuned row to ``NN.NNN`` to expose the third decimal,
     the coarse encoder back to ``NNN.NN`` — see :class:`RadioPanelController`.
     """
@@ -441,7 +486,9 @@ class RadioPanelOutput(BaseModel):
                 if isinstance(bank, DmeBank):
                     for src in bank.sources:
                         names += [src.distance, src.speed]
-                else:  # freq bank (COM/NAV)
+                elif isinstance(bank, XpdrBank):
+                    names.append(bank.code_var)
+                else:  # freq (COM/NAV) or ADF — both have active + standby
                     names += [bank.active, bank.standby]
         return names
 

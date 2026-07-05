@@ -35,8 +35,8 @@ import time
 from collections.abc import Callable
 from dataclasses import dataclass
 
-from ..models import DmeBank, RadioBank, RadioPanelOutput
-from ..simconnect.protocol import Command, SendEvent
+from ..models import AdfBank, DmeBank, RadioBank, RadioPanelOutput, XpdrBank
+from ..simconnect.protocol import Command, SendEvent, SetSimVar
 from .display import BLANK, ROW_WIDTH, format_frequency, format_measure, format_row
 
 # Report id 0, then 20 display cells + 2 trailing flag bytes (brightness/segment
@@ -74,6 +74,25 @@ def _as_float(value: object) -> float | None:
         return float(value)  # type: ignore[arg-type]
     except (TypeError, ValueError):
         return None
+
+
+def _squawk_digits(bcd: int) -> list[int]:
+    """The four octal digits of a BCD16 squawk (each masked to 0-7)."""
+    return [(bcd >> 12) & 7, (bcd >> 8) & 7, (bcd >> 4) & 7, bcd & 7]
+
+
+def _squawk_step(bcd: int, *, high: bool, delta: int) -> int:
+    """Step one digit pair of a BCD16 squawk, wrapping within 00-77 octal.
+
+    ``high`` steps the left pair (thousands+hundreds), else the right pair
+    (tens+ones). The pair wraps 00<->77 without carrying into the other pair, so the
+    two encoders edit the whole code mode-lessly. Returns the new BCD16 code.
+    """
+    digits = _squawk_digits(bcd)
+    a, b = (0, 1) if high else (2, 3)
+    pair = (digits[a] * 8 + digits[b] + delta) % 64
+    digits[a], digits[b] = divmod(pair, 8)
+    return (digits[0] << 12) | (digits[1] << 8) | (digits[2] << 4) | digits[3]
 
 
 @dataclass
@@ -156,6 +175,26 @@ class RadioPanelController:
             if role == "swap":
                 st.dme_source = (st.dme_source + 1) % len(bank.sources)
             return []
+        if isinstance(bank, XpdrBank):
+            if role == "swap":  # push unused on XPDR (mode-less digit editing)
+                return []
+            current = round(self.values.get(bank.code_var) or 0)
+            high = role in ("outer_cw", "outer_ccw")
+            delta = 1 if role in ("outer_cw", "inner_cw") else -1
+            new = _squawk_step(current, high=high, delta=delta)
+            self.values[bank.code_var] = float(new)  # local echo -> instant display
+            return [SendEvent(name=bank.set_event, data=new)]
+        if isinstance(bank, AdfBank):
+            if role == "swap":  # mirror locally for an instant flip, then fire the event
+                a, s = bank.active, bank.standby
+                self.values[a], self.values[s] = self.values.get(s), self.values.get(a)
+                return [SendEvent(name=bank.swap_event)]
+            step = bank.coarse if role in ("outer_cw", "outer_ccw") else bank.fine
+            delta = step if role in ("outer_cw", "inner_cw") else -step
+            target = bank.standby if bank.tune == "standby" else bank.active
+            new = (self.values.get(target) or 0) + delta
+            self.values[target] = new  # local echo -> instant display
+            return [SetSimVar(name=target, unit="number", value=new)]
         if role == "outer_cw":
             st.fine_view = False
             return [SendEvent(name=bank.whole_inc)]
@@ -198,8 +237,10 @@ class RadioPanelController:
         if role == "select":
             return []
         bank = self._banks[i].get(self._state[i].selected)
-        if bank is None or isinstance(bank, DmeBank):
-            return []  # DME reads stream via the poll; nothing event-driven to refresh
+        if bank is None or isinstance(bank, DmeBank | XpdrBank):
+            # DME streams via the poll; XPDR is local-echoed on write — neither needs
+            # an off-cycle ReadNow.
+            return []
         return [bank.active, bank.standby] if role == "swap" else [bank.standby]
 
     def _bounced(self, code: int) -> bool:
@@ -242,6 +283,12 @@ class RadioPanelController:
             if isinstance(bank, DmeBank):
                 halves[unit.row] = self._render_dme(bank, st)
                 continue
+            if isinstance(bank, XpdrBank):
+                halves[unit.row] = self._render_xpdr(bank)
+                continue
+            if isinstance(bank, AdfBank):
+                halves[unit.row] = self._render_adf(bank)
+                continue
             stby_decimals = _FINE_DECIMALS if st.fine_view else _COARSE_DECIMALS
             halves[unit.row] = format_frequency(
                 self.values.get(bank.active), decimals=_COARSE_DECIMALS
@@ -261,3 +308,31 @@ class RadioPanelController:
         speed = format_row(self.values.get(src.speed), width=ROW_WIDTH - 2)
         bottom = [*format_row(st.dme_source + 1, width=1), BLANK, *speed]
         return top + bottom
+
+    def _render_xpdr(self, bank: XpdrBank) -> list[int]:
+        """Render an XPDR half: the 4-digit squawk on the top row, bottom blank.
+
+        The digit values (0-7) double as their cell bytes, so a leading blank plus
+        the four digits gives ``  1200`` with leading zeros preserved (0021 stays
+        0021). ⏳ in-sim: assumes TRANSPONDER CODE reads as BCD16 (0x1200 = squawk
+        1200); if it reads decimal, adjust the decode here + the write in on_event.
+        """
+        val = self.values.get(bank.code_var)
+        if val is None:
+            return [BLANK] * _HALF_CELLS
+        top = [BLANK, *_squawk_digits(round(val))]
+        return top + [BLANK] * ROW_WIDTH
+
+    def _render_adf(self, bank: AdfBank) -> list[int]:
+        """Render an ADF half: ACTIVE freq on top, STANDBY below (kHz, ``decimals``).
+
+        Values are scaled by ``display_scale`` before formatting so the readout is
+        right whatever unit the SimVar reads in (tuned in-sim).
+        """
+
+        def fmt(name: str) -> list[int]:
+            val = self.values.get(name)
+            scaled = None if val is None else val * bank.display_scale
+            return format_measure(scaled, decimals=bank.decimals)
+
+        return fmt(bank.active) + fmt(bank.standby)
