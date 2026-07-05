@@ -8,10 +8,13 @@
 > unten sind historisch — der Code steht. Offen bleibt nur das **In-Sim-Verifizieren**
 > (Center-Light-Combo, Radio-Backlight, ALT/VS-Events) + Radio **Chunk C** (Hardware).
 
-## 📻 RADIO PANEL — CHUNK C CODE-VERDRAHTET (2026-07-04, COMMITTET+GEPUSHT, 125 Tests grün)
-**Nur noch Hardware/In-Sim offen** — der ganze Code-Pfad steht: Device-Katalog,
-OutputManager-Routing, Profil-Wiring, Scan-Tools. Runterladen + Bits messen + fliegen.
-Scope-Entscheid User: **COM/NAV zuerst**, Rest (ADF/DME/XPDR) später (falls Credits übrig).
+## 📻 RADIO PANEL — HARDWARE-BYTES VERMESSEN (2026-07-05, 125 Tests grün)
+**Input+Output am Gerät (06a3:0d05) gemessen — nur noch In-Sim-Events offen.** Der
+Code-Pfad steht komplett; die Profil-Input-Codes sind jetzt ECHT (waren Platzhalter):
+Selektoren bit0-3/7-10, Swaps **bit14/15**, Encoder bit16-23 (CW=inc, äußere korrigiert);
+Display-Zellorder (links=ACTIVE/rechts=STANDBY), Dezimalpunkt `0xD0`, Helligkeit
+(`flags=0x00`=hell) alle bestätigt → kein Code-Change output-seitig. Mess-Log:
+`docs/memory/radio-panel-measurement.md`. Scope: **COM/NAV zuerst**, Rest später.
 - **Chunk A fertig:** `mapping/display.py` → `format_frequency()` + `DOT`-Konstante
   (0xD0, Dezimalpunkt reitet auf der Ziffer). COM/NAV zeigen `118.00`. `NN.NNN`-Shift
   (decimals=3, `18.005`) ist die Fähigkeit dahinter. Tests `test_display.py`. Display
@@ -41,15 +44,15 @@ Scope-Entscheid User: **COM/NAV zuerst**, Rest (ADF/DME/XPDR) später (falls Cre
     × 4 Bänke (COM1/COM2/NAV1/NAV2) mit echten SimVars + Standard-MSFS-Events.
   - **Scan-Tools:** `tools/panel-scan/scan_radio.py` (Input-Bits) + `out_radio.py`
     (Display/Dezimalpunkt/Flags), README aktualisiert.
-- **⏳ NOCH OFFEN (Hardware/In-Sim, NÄCHSTE SESSION):**
-  1. **Input-Bits messen** mit `scan_radio.py` → die **Codes im Profil sind PLATZHALTER**
-     (Rate-Schema: upper-Sel 0-6, lower 7-13, Encoder 14-21, Swap 22-23). Display-Output
-     geht ohne, nur die Knöpfe brauchen echte Codes.
-  2. **`out_radio.py dot`** → Dezimalpunkt-Konvention (`digit+0xD0`) am echten Gerät
-     bestätigen; `positions` → Zell-Layout; `flags` → Helligkeits-Bytes (noch 0x00).
-  3. **Exakte Event-Namen** in-sim: `fract_fast_*` für echten 8.33- vs 25-kHz-Step
-     (aktuell ungesetzt → schneller Dreh = fein wiederholt); COM1-Swap `COM1_RADIO_SWAP`
-     vs `COM_STBY_RADIO_SWAP` gegenprüfen. WHOLE/FRACT sind MSFS-Standard.
+- ✅ **Input-Bits gemessen** (2026-07-05, `scan_radio.py`): echte Codes im Profil, alle
+  24 Bit gehen auf (Selektoren + innere Encoder trafen die Platzhalter, äußere Encoder
+  + beide Swaps waren daneben → korrigiert). Bit-Karte in `radio-panel-hid.md`.
+- ✅ **Output verifiziert** (2026-07-05, `out_radio.py`): Zell-Order links=ACTIVE/
+  rechts=STANDBY, Dezimalpunkt `0xD0`, Helligkeit `flags=0x00`=hell. Kein Code-Change.
+- **⏳ NUR NOCH In-Sim (NÄCHSTE SESSION):** exakte Event-Namen am fliegenden Arrow —
+  `fract_fast_*` für echten 8.33- vs 25-kHz-Step (aktuell ungesetzt → schneller Dreh =
+  fein wiederholt); COM1-Swap `COM1_RADIO_SWAP` vs `COM_STBY_RADIO_SWAP` gegenprüfen.
+  WHOLE/FRACT/SWAP sind MSFS-Standard, sollten direkt laufen.
 
 ## 🎚️ ALT/VS-MODI GEMAPPT (2026-07-04, UNCOMMITTED, 106 Tests grün)
 Multi-Panel-Tasten **ALT (code 11) / VS (code 12)** verdrahtet — die „versteckten"

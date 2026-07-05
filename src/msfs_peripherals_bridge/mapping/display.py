@@ -9,8 +9,8 @@ encoding. A row is five digit cells, one byte each:
     digit+0xD0  digit with a trailing decimal point (Radio Panel, e.g. 118.00)
 
 (Digit/blank/minus measured 2026-06-30 on the Multi Panel — see
-docs/memory/multi-panel-hid.md. The decimal-point offset is the documented
-Saitek convention, to VERIFY on the Radio Panel — see docs/memory/radio-panel-hid.md.)
+docs/memory/multi-panel-hid.md. The decimal-point offset was verified on the Radio
+Panel 2026-07-05 — see docs/memory/radio-panel-hid.md.)
 
 This module turns a numeric value into the five cell bytes for a row, right
 justified and blank padded. It is pure so it can be unit-tested without hardware.
@@ -23,7 +23,7 @@ BLANK = 0x0F
 MINUS = 0xEE
 # Saitek lights a cell's trailing decimal point by adding 0xD0 to its digit byte
 # (digit 8 with dot -> 0xD8); the dot rides on the digit, costing no extra cell.
-# ⚠️ VERIFY on the Radio Panel hardware — single source of truth, change here only.
+# Verified on the Radio Panel 2026-07-05 (out_radio.py) — single source of truth.
 DOT = 0xD0
 
 # A character (from str(int)) -> its cell byte.

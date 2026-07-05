@@ -34,7 +34,8 @@ from ..simconnect.protocol import Command, SendEvent
 from .display import BLANK, ROW_WIDTH, format_frequency
 
 # Report id 0, then 20 display cells + 2 trailing flag bytes (brightness/segment
-# extras — value to verify in-sim; 0 is safe/blank). See radio-panel-hid.md.
+# extras — verified 2026-07-05: 0x00 leaves the display fully lit). See
+# radio-panel-hid.md.
 _REPORT_ID = 0x00
 _FLAG_BYTES = (0x00, 0x00)
 _HALF_CELLS = ROW_WIDTH * 2  # a unit owns two display rows (active + standby)
