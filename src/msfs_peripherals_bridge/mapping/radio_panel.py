@@ -8,11 +8,12 @@ events and the sim echoes the new STANDBY frequency back on the state stream for
 the display (no local frequency math). Two implicit UI layers, decided 2026-07-04
 (see docs/memory/radio-panel-hid.md):
 
-* **which encoder = which view** — the display follows the last-turned encoder:
-  the inner (fine) knob shifts the tuned STANDBY row to ``NN.NNN`` (third decimal
-  visible, the implied leading MHz digit rolls off), the outer (coarse) knob back
-  to ``NNN.NN``. Sticky per unit, default coarse. The ACTIVE row stays coarse — a
-  reference you read at a glance.
+* **which encoder = which view** — on a bank with ``fine_view`` (COM 8.33 kHz), the
+  inner (fine) knob shifts the tuned STANDBY row to ``NN.NNN`` (third decimal
+  visible, the implied leading MHz digit rolls off) and the outer (coarse) knob
+  shifts it back to ``NNN.NN``. NAV (50 kHz, third decimal always 0) has
+  ``fine_view=False`` and stays ``NNN.NN`` throughout. Sticky per unit, reset to
+  coarse on a selector move. The ACTIVE row stays coarse — a reference at a glance.
 * **every inner detent = one fine step** — the inner knob always fires the fine
   fract event (COM 8.33 kHz). The spin-speed acceleration (a sustained fast spin
   switching to a coarse ``fract_fast_*`` event) was removed 2026-07-05: it was inert
@@ -143,6 +144,7 @@ class RadioPanelController:
         st = self._state[i]
         if role == "select":
             st.selected = code
+            st.fine_view = False  # a fresh bank starts coarse (NN.NNN is per-bank)
             return []
         bank = self._banks[i].get(st.selected)
         if bank is None:  # selector parked on an out-of-scope position (ADF/DME/…)
@@ -159,10 +161,10 @@ class RadioPanelController:
         # piper_arrow.yaml anyway (no fract_fast_* defined there). The model keeps
         # the fract_fast_* fields, so it can be reinstated once bounce is solved.
         if role == "inner_cw":
-            st.fine_view = True
+            st.fine_view = bank.fine_view  # COM shifts to NN.NNN; NAV stays coarse
             return [SendEvent(name=bank.fract_inc)]
         if role == "inner_ccw":
-            st.fine_view = True
+            st.fine_view = bank.fine_view
             return [SendEvent(name=bank.fract_dec)]
         # role == "swap": mirror the swap locally so the display flips instantly,
         # then fire the sim event (the poll / a scheduled ReadNow reconciles truth).

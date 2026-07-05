@@ -438,11 +438,11 @@ outputs:
           swap: 14
           banks:
             - { code: 0, label: COM1, active: "COM ACTIVE FREQUENCY:1", standby: "COM STANDBY FREQUENCY:1",
-                swap_event: COM1_RADIO_SWAP,
+                swap_event: COM1_RADIO_SWAP, fine_view: true,
                 whole_inc: COM_RADIO_WHOLE_INC, whole_dec: COM_RADIO_WHOLE_DEC,
                 fract_inc: COM_RADIO_FRACT_INC, fract_dec: COM_RADIO_FRACT_DEC }
             - { code: 1, label: COM2, active: "COM ACTIVE FREQUENCY:2", standby: "COM STANDBY FREQUENCY:2",
-                swap_event: COM2_RADIO_SWAP,
+                swap_event: COM2_RADIO_SWAP, fine_view: true,
                 whole_inc: COM2_RADIO_WHOLE_INC, whole_dec: COM2_RADIO_WHOLE_DEC,
                 fract_inc: COM2_RADIO_FRACT_INC, fract_dec: COM2_RADIO_FRACT_DEC }
             - { code: 2, label: NAV1, active: "NAV ACTIVE FREQUENCY:1", standby: "NAV STANDBY FREQUENCY:1",
@@ -462,11 +462,11 @@ outputs:
           swap: 15
           banks:
             - { code: 7, label: COM1, active: "COM ACTIVE FREQUENCY:1", standby: "COM STANDBY FREQUENCY:1",
-                swap_event: COM1_RADIO_SWAP,
+                swap_event: COM1_RADIO_SWAP, fine_view: true,
                 whole_inc: COM_RADIO_WHOLE_INC, whole_dec: COM_RADIO_WHOLE_DEC,
                 fract_inc: COM_RADIO_FRACT_INC, fract_dec: COM_RADIO_FRACT_DEC }
             - { code: 8, label: COM2, active: "COM ACTIVE FREQUENCY:2", standby: "COM STANDBY FREQUENCY:2",
-                swap_event: COM2_RADIO_SWAP,
+                swap_event: COM2_RADIO_SWAP, fine_view: true,
                 whole_inc: COM2_RADIO_WHOLE_INC, whole_dec: COM2_RADIO_WHOLE_DEC,
                 fract_inc: COM2_RADIO_FRACT_INC, fract_dec: COM2_RADIO_FRACT_DEC }
             - { code: 9, label: NAV1, active: "NAV ACTIVE FREQUENCY:1", standby: "NAV STANDBY FREQUENCY:1",

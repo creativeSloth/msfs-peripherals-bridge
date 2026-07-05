@@ -233,7 +233,7 @@ def _radio_output() -> RadioPanelOutput:
                 outer_cw=14, outer_ccw=15, inner_cw=16, inner_ccw=17, swap=22,
                 banks=[
                     RadioBank(
-                        code=0, label="COM1",
+                        code=0, label="COM1", fine_view=True,
                         active="COM ACTIVE FREQUENCY:1", standby="COM STANDBY FREQUENCY:1",
                         swap_event="COM1_RADIO_SWAP",
                         whole_inc="COM_RADIO_WHOLE_INC", whole_dec="COM_RADIO_WHOLE_DEC",

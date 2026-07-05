@@ -6,7 +6,7 @@ from msfs_peripherals_bridge.simconnect.protocol import SendEvent
 
 def _com1() -> RadioBank:
     return RadioBank(
-        code=0, label="COM1",
+        code=0, label="COM1", fine_view=True,
         active="COM ACTIVE FREQUENCY:1", standby="COM STANDBY FREQUENCY:1",
         swap_event="COM1_RADIO_SWAP",
         whole_inc="COM_RADIO_WHOLE_INC", whole_dec="COM_RADIO_WHOLE_DEC",
@@ -137,6 +137,30 @@ def test_render_active_coarse_standby_follows_view():
     # the coarse knob shifts it back
     c.on_event(code=5, value=1)
     assert list(c.render()[6:11]) == [1, 1, 8 + DOT, 3, 0]
+
+
+def test_nav_inner_knob_keeps_coarse_view():
+    # NAV steps 50 kHz (third decimal always 0), so its bank has fine_view=False:
+    # the inner knob still tunes but the standby row must NOT shift to NN.NNN.
+    c = RadioPanelController(make_config())
+    c.on_event(code=1, value=1)  # upper -> NAV1 (fine_view defaults False)
+    c.on_state("NAV STANDBY FREQUENCY:1", 110.50)
+    coarse = [1, 1, 0 + DOT, 5, 0]  # 110.50
+    assert list(c.render()[6:11]) == coarse
+    assert c.on_event(code=7, value=1) == [SendEvent(name="NAV1_RADIO_FRACT_INC")]
+    assert list(c.render()[6:11]) == coarse  # still NNN.NN, no fine shift
+
+
+def test_selector_move_resets_fine_view():
+    # fine-tune COM1 (view shifts), then select NAV1: the view resets to coarse so
+    # the new bank isn't stuck showing NN.NNN carried over from the previous one.
+    c = RadioPanelController(make_config())
+    c.on_state("COM STANDBY FREQUENCY:1", 118.30)
+    c.on_event(code=7, value=1)  # COM1 inner -> fine view
+    assert list(c.render()[6:11]) == [1, 8 + DOT, 3, 0, 0]  # 18.300 fine
+    c.on_event(code=1, value=1)  # select NAV1 -> resets to coarse
+    c.on_state("NAV STANDBY FREQUENCY:1", 110.50)
+    assert list(c.render()[6:11]) == [1, 1, 0 + DOT, 5, 0]  # 110.50 coarse
 
 
 def test_render_places_units_in_upper_and_lower_halves():

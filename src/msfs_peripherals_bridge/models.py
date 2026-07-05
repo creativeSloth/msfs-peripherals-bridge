@@ -348,6 +348,11 @@ class RadioBank(BaseModel):
     # the fine 8.33 kHz). None = no fast distinction (e.g. NAV) -> reuse fract_*.
     fract_fast_inc: str | None = Field(None, description="Inner-knob CW when spun fast.")
     fract_fast_dec: str | None = Field(None, description="Inner-knob CCW when spun fast.")
+    # Whether the inner knob shifts the STANDBY row to the 3-decimal fine view
+    # (NN.NNN). Only COM 8.33 kHz has a meaningful third decimal; NAV steps 50 kHz
+    # (third decimal always 0), so its fine view would just roll the lead digit off
+    # for nothing. Opt-in per bank: COM -> true, NAV/ADF/XPDR -> false.
+    fine_view: bool = Field(False, description="Inner knob shifts standby to NN.NNN (COM 8.33).")
 
 
 class RadioUnit(BaseModel):
