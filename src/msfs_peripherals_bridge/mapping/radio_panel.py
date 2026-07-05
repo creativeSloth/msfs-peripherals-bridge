@@ -35,9 +35,9 @@ import time
 from collections.abc import Callable
 from dataclasses import dataclass
 
-from ..models import RadioBank, RadioPanelOutput
+from ..models import DmeBank, RadioBank, RadioPanelOutput
 from ..simconnect.protocol import Command, SendEvent
-from .display import BLANK, ROW_WIDTH, format_frequency
+from .display import BLANK, ROW_WIDTH, format_frequency, format_measure, format_row
 
 # Report id 0, then 20 display cells + 2 trailing flag bytes (brightness/segment
 # extras — verified 2026-07-05: 0x00 leaves the display fully lit). See
@@ -82,6 +82,7 @@ class _UnitState:
 
     selected: int  # currently selected bank code
     fine_view: bool = False  # True = inner-encoder view (NN.NNN); False = coarse
+    dme_source: int = 0  # index into a DmeBank's sources (swap cycles NAV1/NAV2)
 
 
 class RadioPanelController:
@@ -95,7 +96,7 @@ class RadioPanelController:
         self.values: dict[str, float | None] = {}
         self._units = config.units
         # Per-unit bank lookup + mutable state, parallel to config.units.
-        self._banks: list[dict[int, RadioBank]] = [
+        self._banks: list[dict[int, RadioBank | DmeBank]] = [
             {b.code: b for b in u.banks} for u in self._units
         ]
         self._state: list[_UnitState] = [
@@ -147,7 +148,13 @@ class RadioPanelController:
             st.fine_view = False  # a fresh bank starts coarse (NN.NNN is per-bank)
             return []
         bank = self._banks[i].get(st.selected)
-        if bank is None:  # selector parked on an out-of-scope position (ADF/DME/…)
+        if bank is None:  # selector parked on an out-of-scope position (ADF/XPDR/…)
+            return []
+        if isinstance(bank, DmeBank):
+            # DME is display-only: the push cycles NAV1<->NAV2, the encoders do
+            # nothing. No sim command — the manager re-renders from cached values.
+            if role == "swap":
+                st.dme_source = (st.dme_source + 1) % len(bank.sources)
             return []
         if role == "outer_cw":
             st.fine_view = False
@@ -191,8 +198,8 @@ class RadioPanelController:
         if role == "select":
             return []
         bank = self._banks[i].get(self._state[i].selected)
-        if bank is None:
-            return []
+        if bank is None or isinstance(bank, DmeBank):
+            return []  # DME reads stream via the poll; nothing event-driven to refresh
         return [bank.active, bank.standby] if role == "swap" else [bank.standby]
 
     def _bounced(self, code: int) -> bool:
@@ -232,9 +239,25 @@ class RadioPanelController:
             bank = self._banks[i].get(st.selected)
             if bank is None:
                 continue  # leave the half blank
+            if isinstance(bank, DmeBank):
+                halves[unit.row] = self._render_dme(bank, st)
+                continue
             stby_decimals = _FINE_DECIMALS if st.fine_view else _COARSE_DECIMALS
             halves[unit.row] = format_frequency(
                 self.values.get(bank.active), decimals=_COARSE_DECIMALS
             ) + format_frequency(self.values.get(bank.standby), decimals=stby_decimals)
         cells = halves["upper"] + halves["lower"]
         return bytes([_REPORT_ID, *cells, *_FLAG_BYTES])
+
+    def _render_dme(self, bank: DmeBank, st: _UnitState) -> list[int]:
+        """Render a DME half: distance on top, ``<nav> <ground-speed>`` below.
+
+        The top row shows the selected source's DME distance (e.g. ``  12.3``); the
+        bottom row leads with the 1-based NAV index (which source the push selected)
+        then its ground speed (``2  180``). Both stream in via the poll.
+        """
+        src = bank.sources[st.dme_source % len(bank.sources)]
+        top = format_measure(self.values.get(src.distance), decimals=1)
+        speed = format_row(self.values.get(src.speed), width=ROW_WIDTH - 2)
+        bottom = [*format_row(st.dme_source + 1, width=1), BLANK, *speed]
+        return top + bottom

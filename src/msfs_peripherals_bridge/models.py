@@ -10,7 +10,7 @@ from __future__ import annotations
 from enum import StrEnum
 from typing import Annotated, Literal
 
-from pydantic import BaseModel, Field, field_validator, model_validator
+from pydantic import BaseModel, Discriminator, Field, Tag, field_validator, model_validator
 
 
 class SourceKind(StrEnum):
@@ -335,6 +335,7 @@ class RadioBank(BaseModel):
     Pushing the encoder swaps active<->standby (``swap_event``).
     """
 
+    kind: Literal["freq"] = "freq"
     code: int = Field(..., ge=0, description="Selector bit code for this position.")
     label: str = Field(..., description="Human label, e.g. 'COM1' (logging only).")
     active: str = Field(..., description="ACTIVE frequency SimVar (top row).")
@@ -355,6 +356,45 @@ class RadioBank(BaseModel):
     fine_view: bool = Field(False, description="Inner knob shifts standby to NN.NNN (COM 8.33).")
 
 
+class DmeSource(BaseModel):
+    """One DME readout source (a NAV radio's distance + ground speed)."""
+
+    label: str = Field(..., description="Shown source digit, e.g. '1' or '2' (NAV index).")
+    distance: str = Field(..., description="DME distance SimVar, e.g. 'NAV DME:1' (nmiles).")
+    speed: str = Field(..., description="DME ground-speed SimVar, e.g. 'NAV DMESPEED:1' (knots).")
+
+
+class DmeBank(BaseModel):
+    """DME selector position — a *display-only* readout (no tuning).
+
+    The Saitek DME position shows the distance + ground speed of a NAV's DME. Unlike
+    SPAD's fixed NAV1 readout, the push (swap) cycles the active :class:`DmeSource`
+    (NAV1<->NAV2), so one position covers both. The encoders do nothing here.
+    """
+
+    kind: Literal["dme"] = "dme"
+    code: int = Field(..., ge=0, description="Selector bit code for this position.")
+    label: str = Field("DME", description="Human label (logging only).")
+    sources: list[DmeSource] = Field(
+        ..., min_length=1, description="DME sources the push cycles through (NAV1, NAV2)."
+    )
+
+
+# A selector position is one of the bank kinds, told apart by ``kind``. A callable
+# discriminator lets COM/NAV entries omit ``kind`` (the common case) and default to
+# "freq", while DME (and later ADF/XPDR) tag themselves explicitly.
+def _bank_kind(value: object) -> str:
+    if isinstance(value, dict):
+        return value.get("kind", "freq")
+    return getattr(value, "kind", "freq")
+
+
+RadioBankT = Annotated[
+    Annotated[RadioBank, Tag("freq")] | Annotated[DmeBank, Tag("dme")],
+    Discriminator(_bank_kind),
+]
+
+
 class RadioUnit(BaseModel):
     """One half (upper or lower) of the Saitek Radio Panel.
 
@@ -368,7 +408,9 @@ class RadioUnit(BaseModel):
 
     name: str = Field(..., description="Human label, 'upper'/'lower' (logging only).")
     row: Literal["upper", "lower"] = Field(..., description="Display half this unit drives.")
-    banks: list[RadioBank] = Field(..., min_length=1, description="Selectable COM/NAV positions.")
+    banks: list[RadioBankT] = Field(
+        ..., min_length=1, description="Selectable positions (COM/NAV freq, DME, …)."
+    )
     outer_cw: int = Field(..., description="Outer (coarse/whole) encoder CW code.")
     outer_ccw: int = Field(..., description="Outer encoder CCW code.")
     inner_cw: int = Field(..., description="Inner (fine/fract) encoder CW code.")
@@ -380,8 +422,10 @@ class RadioPanelOutput(BaseModel):
     """Saitek Radio Panel: two independent radio units (COM/NAV), event-tuned.
 
     Bidirectional like the Multi Panel: the encoders fire step events while the
-    displays show the ACTIVE/STANDBY frequencies streamed back from the sim. Scope
-    is COM and NAV for now (ADF/DME/XPDR later). The display follows the encoder —
+    displays show the ACTIVE/STANDBY frequencies streamed back from the sim. Banks
+    are a discriminated union by ``kind``: COM/NAV freq (:class:`RadioBank`) and DME
+    (:class:`DmeBank`, display-only); ADF/XPDR to follow. The display follows the
+    encoder —
     the fine encoder shifts the tuned row to ``NN.NNN`` to expose the third decimal,
     the coarse encoder back to ``NNN.NN`` — see :class:`RadioPanelController`.
     """
@@ -390,11 +434,15 @@ class RadioPanelOutput(BaseModel):
     units: list[RadioUnit] = Field(..., min_length=1, description="Radio units (upper/lower).")
 
     def simvars(self) -> list[str]:
-        """Every frequency SimVar the displays need subscribed."""
+        """Every SimVar the displays need subscribed (per bank kind)."""
         names: list[str] = []
         for unit in self.units:
             for bank in unit.banks:
-                names += [bank.active, bank.standby]
+                if isinstance(bank, DmeBank):
+                    for src in bank.sources:
+                        names += [src.distance, src.speed]
+                else:  # freq bank (COM/NAV)
+                    names += [bank.active, bank.standby]
         return names
 
 

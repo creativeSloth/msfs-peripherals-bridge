@@ -46,6 +46,28 @@ def format_row(value: float | None, width: int = ROW_WIDTH) -> list[int]:
     return [_GLYPH[ch] for ch in text]
 
 
+def format_measure(value: float | None, *, decimals: int = 1, width: int = ROW_WIDTH) -> list[int]:
+    """Right-justified number with a trailing decimal point, leading zeros blanked.
+
+    For gauge readouts like DME distance (12.3). Unlike :func:`format_frequency`
+    (fixed 3-digit, zero-padded freqs), this blanks leading zeros so 12.3 renders as
+    ``  12.3`` — the dot rides on the last integer digit. ``None``/negative/overflow
+    render all-blank.
+    """
+    if value is None or value < 0:
+        return [BLANK] * width
+    scaled = round(value * (10**decimals))
+    digits = str(scaled).rjust(decimals + 1, "0")  # keep at least one integer digit
+    int_str, frac_str = (digits[:-decimals], digits[-decimals:]) if decimals else (digits, "")
+    cells = [_GLYPH[c] for c in int_str]
+    if decimals:
+        cells[-1] += DOT
+        cells += [_GLYPH[c] for c in frac_str]
+    if len(cells) > width:  # too wide for the row -> blank rather than mislead
+        return [BLANK] * width
+    return [BLANK] * (width - len(cells)) + cells
+
+
 def format_frequency(
     mhz: float | None, *, decimals: int = 2, width: int = ROW_WIDTH
 ) -> list[int]:

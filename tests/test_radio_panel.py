@@ -1,6 +1,12 @@
 from msfs_peripherals_bridge.mapping.display import BLANK, DOT
 from msfs_peripherals_bridge.mapping.radio_panel import RadioPanelController
-from msfs_peripherals_bridge.models import RadioBank, RadioPanelOutput, RadioUnit
+from msfs_peripherals_bridge.models import (
+    DmeBank,
+    DmeSource,
+    RadioBank,
+    RadioPanelOutput,
+    RadioUnit,
+)
 from msfs_peripherals_bridge.simconnect.protocol import SendEvent
 
 
@@ -26,9 +32,19 @@ def _nav1() -> RadioBank:
     )
 
 
+def _dme() -> DmeBank:
+    return DmeBank(
+        code=2,
+        sources=[
+            DmeSource(label="1", distance="NAV DME:1", speed="NAV DMESPEED:1"),
+            DmeSource(label="2", distance="NAV DME:2", speed="NAV DMESPEED:2"),
+        ],
+    )
+
+
 def _upper() -> RadioUnit:
     return RadioUnit(
-        name="upper", row="upper", banks=[_com1(), _nav1()],
+        name="upper", row="upper", banks=[_com1(), _nav1(), _dme()],
         outer_cw=5, outer_ccw=6, inner_cw=7, inner_ccw=8, swap=9,
     )
 
@@ -231,3 +247,42 @@ def test_selector_not_debounced():
     assert c.on_event(code=1, value=1) == []  # upper -> NAV1
     assert c.on_event(code=0, value=1) == []  # upper -> COM1 (not dropped as bounce)
     assert c.on_event(code=5, value=1) == [SendEvent(name="COM_RADIO_WHOLE_INC")]
+
+
+# -- DME position (display-only, NAV1<->NAV2 source cycle) --------------------
+
+
+def test_dme_renders_distance_over_nav_and_speed():
+    c = RadioPanelController(make_config())
+    c.on_event(code=2, value=1)  # upper -> DME
+    c.on_state("NAV DME:1", 12.3)
+    c.on_state("NAV DMESPEED:1", 180)
+    report = c.render()
+    assert list(report[1:6]) == [BLANK, BLANK, 1, 2 + DOT, 3]  # top: distance 12.3
+    assert list(report[6:11]) == [1, BLANK, 1, 8, 0]  # bottom: nav 1, GS 180
+
+
+def test_dme_swap_cycles_nav_source():
+    c = RadioPanelController(make_config())
+    c.on_event(code=2, value=1)  # DME
+    c.on_state("NAV DME:1", 12.3)
+    c.on_state("NAV DME:2", 5.0)
+    c.on_state("NAV DMESPEED:1", 180)
+    c.on_state("NAV DMESPEED:2", 90)
+    assert list(c.render()[1:6]) == [BLANK, BLANK, 1, 2 + DOT, 3]  # NAV1 12.3
+    assert c.on_event(code=9, value=1) == []  # push cycles source, no sim command
+    assert list(c.render()[1:6]) == [BLANK, BLANK, BLANK, 5 + DOT, 0]  # NAV2 5.0
+    assert list(c.render()[6:11]) == [2, BLANK, BLANK, 9, 0]  # nav 2, GS 90
+
+
+def test_dme_encoders_are_inert():
+    c = RadioPanelController(make_config())
+    c.on_event(code=2, value=1)  # DME
+    assert c.on_event(code=7, value=1) == []  # inner: nothing
+    assert c.on_event(code=5, value=1) == []  # outer: nothing
+    assert c.refresh_after(9) == []  # swap on DME: nothing to ReadNow
+
+
+def test_dme_simvars_are_subscribed():
+    names = set(make_config().simvars())
+    assert {"NAV DME:1", "NAV DMESPEED:1", "NAV DME:2", "NAV DMESPEED:2"} <= names

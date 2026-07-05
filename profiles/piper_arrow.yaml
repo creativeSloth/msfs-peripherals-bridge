@@ -173,22 +173,15 @@ bindings:
     # Cowl flaps NOT mapped: COWLFLAP1_SET expects a 0..16383 position, but a
     # switch only sends 0/1 (no transform yet on switches). Add later via a
     # SimVar or a scaled switch action.
-    # "Panel lights" switch repurposed -> red CENTER light (the Arrow's single
-    # center dome dimmer). Needs BOTH vars, found in-sim 2026-07-02 (see
-    # docs/simvars-reference.md §11):
-    #   - A:LIGHT CABIN       = on/off gate (0/1)
-    #   - L:LIGHTING_CABIN_0  = brightness 0..100
-    # LIGHTING_CABIN_0 alone leaves a residual glow (the gate stays on); the cockpit
-    # rotary sets both together. A 2-pos switch just picks the ends: full on / off.
-    # ⏳ combo write-back not yet visually confirmed (sim closed before the test) —
-    # verify tomorrow that A:LIGHT CABIN is settable via SetData; if it isn't, use
-    # the CABIN_LIGHTS_SET event ({ event: CABIN_LIGHTS_SET, value: 1/0 }) for the gate.
-    - name: "Cabin center light"
-      source: { kind: switch, code: 7 }
-      action:
-        type: sequence
-        on_edge:  [ { simvar: "LIGHT CABIN", value: 1 }, { simvar: "L:LIGHTING_CABIN_0", value: 100 } ]
-        off_edge: [ { simvar: "LIGHT CABIN", value: 0 }, { simvar: "L:LIGHTING_CABIN_0", value: 0 } ]
+    # Switch code 7 (the "panel lights" toggle) is INTENTIONALLY UNMAPPED — the red
+    # center/cabin dome light it was meant to drive is not externally controllable on
+    # this JF Arrow. Traced in-sim 2026-07-05 (see docs/memory/radio-panel-measurement.md
+    # / STATUS): its rotary drives ONLY L:LIGHTING_CABIN_0 (verified across 229 light
+    # vars), but writing that var holds the value yet does NOT light the lamp; the
+    # emissive is set by an A: var the JF gauge only touches on real knob interaction,
+    # which our SimConnect/MobiFlight writes can't reproduce (CABIN_LIGHTS_SET/TOGGLE
+    # do nothing, and the A: light vars aren't even readable). JustFlight modelling
+    # limit — parked. Re-open only if the knob's H: input event turns up.
     - name: "Beacon lights"
       source: { kind: switch, code: 8 }
       action: { type: event, event: BEACON_LIGHTS_SET }
@@ -453,6 +446,14 @@ outputs:
                 swap_event: NAV2_RADIO_SWAP,
                 whole_inc: NAV2_RADIO_WHOLE_INC, whole_dec: NAV2_RADIO_WHOLE_DEC,
                 fract_inc: NAV2_RADIO_FRACT_INC, fract_dec: NAV2_RADIO_FRACT_DEC }
+            # DME position (display only): distance on top, "<nav> <GS>" below; the
+            # ACT/STBY push cycles NAV1<->NAV2. Codes 4/5/6 = ADF/DME/XPDR (measured).
+            - kind: dme
+              code: 5
+              label: DME
+              sources:
+                - { label: "1", distance: "NAV DME:1", speed: "NAV DMESPEED:1" }
+                - { label: "2", distance: "NAV DME:2", speed: "NAV DMESPEED:2" }
         - name: lower
           row: lower
           outer_cw: 22
@@ -477,3 +478,10 @@ outputs:
                 swap_event: NAV2_RADIO_SWAP,
                 whole_inc: NAV2_RADIO_WHOLE_INC, whole_dec: NAV2_RADIO_WHOLE_DEC,
                 fract_inc: NAV2_RADIO_FRACT_INC, fract_dec: NAV2_RADIO_FRACT_DEC }
+            # DME position (display only), lower unit — codes 11/12/13 = ADF/DME/XPDR.
+            - kind: dme
+              code: 12
+              label: DME
+              sources:
+                - { label: "1", distance: "NAV DME:1", speed: "NAV DMESPEED:1" }
+                - { label: "2", distance: "NAV DME:2", speed: "NAV DMESPEED:2" }
