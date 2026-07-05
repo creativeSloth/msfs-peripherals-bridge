@@ -9,7 +9,36 @@
 > unten sind historisch — der Code steht. Offen bleibt nur das **In-Sim-Verifizieren**
 > (Center-Light-Combo, Radio-Backlight, ALT/VS-Events) + Radio **Chunk C** (Hardware).
 
-## 🎯 RADIO — PRELL-THEORIE WIDERLEGT + B2 GEBAUT (2026-07-05, 3. Runde) — HIER WEITER
+## 🎯 RADIO PANEL KOMPLETT (2026-07-05, 4. Runde) — HIER WEITER = NUR NOCH IN-SIM
+Alles committet auf `refactor/light-dimmers` (noch nicht gepusht/gemergt). **151 Tests
+grün, ruff clean, 4 Profile valide.** Diese Session gebaut:
+- **B2 Low-Latency-Echo** (`606cda8`) — Prell-Theorie per Messung widerlegt (Encoder pollt
+  8 ms, kein fangbares Prellen); No-Op-Encoder-Debounce raus, Swap-Debounce bleibt; `ReadNow`
+  (Bridge-Verb) refresht die getunte Var ~90 ms nach dem Event → Anzeige folgt sofort.
+- **NAV Fine-View aus** (`36657f1`) — pro Bank (`RadioBank.fine_view`); COM zeigt die 8.33-
+  Stelle, NAV bleibt `NNN.NN`. COM-Tuning unverändert (die `.010`-Sprünge sind korrektes
+  8.33, kein Bug — mit ofcom/ICAO belegt). 25-kHz-Umbau verworfen (User fliegt „mal hier mal da").
+- **DME/XPDR/ADF** (`724053e`, `e31e1de`) — `kind`-diskriminierte Bank-Union. **DME** = reine
+  Anzeige (Distanz oben, „<nav> <GS>" unten, Push cyclet NAV1↔NAV2). **XPDR** = mode-loser
+  Squawk-Edit (äußerer Knopf linkes Ziffernpaar, innerer rechtes, oktal; `XPNDR_SET` BCD16).
+  **ADF** = Standby via Local-Echo tunen + `ADF1_RADIO_SWAP`. Codes 4/5/6 (oben) + 11/12/13
+  (unten). Cabin-Light **geparkt** (JF-Modellgrenze, s. u. / `radio-panel-measurement.md`).
+- **ALT/VS** war schon vorher committet (`af3c4d4`): Tasten 11/12 → `AP_ALT_HOLD`/`AP_VS_HOLD`,
+  LEDs via `bool_leds` aus `L:JF_PA28_AP_alt/_vs`. **In-sim noch nicht verifiziert.**
+
+**⏳ NÄCHSTE SESSION = IN-SIM-VERIFY (Mapper neu starten, lädt neues Profil!):**
+1. **DME**: zeigt Distanz/GS? Push toggelt NAV1↔NAV2 sichtbar?
+2. **XPDR**: Squawk-Anzeige stimmt? (Annahme: `TRANSPONDER CODE` liest als **BCD16** — falls
+   Anzeige Müll → Decode in `_render_xpdr`/`on_event` anpassen.) Encoder ändern Code sauber?
+3. **ADF**: Anzeige-Einheit prüfen (SimVar liest kHz oder Hz?) → `coarse/fine/display_scale/
+   decimals/tune` im Profil justieren. Tunen die Knöpfe? Swap?
+4. **ALT/VS**: AP-Master an → ALT (code 11)/VS (code 12) drücken → LED an + hält die JF-Gauge?
+   (Falls Event ignoriert → Fallback JF-Bool direkt, Kommentar im Profil.)
+5. Wenn alles ok → **pushen + nach `main` mergen** + Branch löschen.
+Mapper-Neustart: alten killen (`pgrep -f "msfs_peripherals_bridge run"`, MSFS+bridge.py NICHT
+anfassen), dann `msfs-bridge piper_arrow` (oder nur den Mapper, wenn Bridge läuft).
+
+## 🎯 RADIO — PRELL-THEORIE WIDERLEGT + B2 GEBAUT (2026-07-05, 3. Runde) — HISTORISCH
 **Stand: 135 Tests grün, ruff clean, 4 Profile valide, alles UNCOMMITTED auf
 `refactor/light-dimmers`.** Danach: committen/pushen/**mergen nach main** + Branch löschen.
 Offen bleibt Cabin-Light + ALT/VS + B2 IN-SIM (Credits vorher beachten).
