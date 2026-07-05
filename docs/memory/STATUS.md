@@ -38,6 +38,27 @@ grün, ruff clean, 4 Profile valide.** Diese Session gebaut:
 Mapper-Neustart: alten killen (`pgrep -f "msfs_peripherals_bridge run"`, MSFS+bridge.py NICHT
 anfassen), dann `msfs-bridge piper_arrow` (oder nur den Mapper, wenn Bridge läuft).
 
+## 🔋 OFFENER WUNSCH (User, 2026-07-05) — BATTERY-GATING aller Panels (NOCH NICHT GEBAUT)
+User will: **alle Displays + LEDs an allen Panels leuchten NUR, wenn der Battery-Switch im
+Game an ist.** Gear-LEDs machen das schon (`GearLedOutput.power = ELECTRICAL MASTER BATTERY`,
+in-sim „dunkel ohne Batterie" bestätigt) — fehlt für **Multi Panel** + **Radio Panel**
+(deren `render()` leuchtet immer). **Fertiges Design (nur umsetzen, ~30 Min):**
+- **Modell:** `power: str | None = None` (opt-in!) an `MultiPanelOutput` + `RadioPanelOutput`.
+  Default `None` = kein Gating → **bricht KEINE bestehenden Render-Tests** (die setzen keine
+  Batterie). Im **Profil** bei beiden Output-Blöcken `power: ELECTRICAL MASTER BATTERY` setzen.
+- **Controller** (`multi_panel.py` + `radio_panel.py`): `self._power = config.power`;
+  `subscriptions()` += `self._power` (wenn gesetzt); in `render()` ganz oben:
+  `powered = self._power is None or (self.values.get(self._power) or 0) >= 0.5` — wenn nicht
+  powered → **Blank-Report** zurückgeben (Radio: `bytes([_REPORT_ID, *[BLANK]*20, *_FLAG_BYTES])`
+  = wie `test_render_all_blank_without_state`; Multi: `bytes([_REPORT_ID, *display_cells(None,
+  None), 0x00, 0x00])` = alle Ziffern blank + LED-Byte 0). Semantik wie Gear (None/unbekannt →
+  dunkel). `on_state` der Power-Var triggert das Re-Render automatisch (läuft schon über
+  `OutputManager.on_state`→`_write_if_changed`). **Kein OutputManager-/Protokoll-Change nötig.**
+- **Tests:** je Controller 2 Fälle — Batterie aus (→ Blank) / an (→ zeigt). Bestehende Tests
+  bleiben grün (power default None).
+- ⚠️ Evtl. will User Radio später auf **Avionics-Bus** statt Batterie — das `power`-Feld macht
+  das per Profil möglich (z. B. `A:AVIONICS MASTER SWITCH`). Erstmal Batterie wie gewünscht.
+
 ## 🎯 RADIO — PRELL-THEORIE WIDERLEGT + B2 GEBAUT (2026-07-05, 3. Runde) — HISTORISCH
 **Stand: 135 Tests grün, ruff clean, 4 Profile valide, alles UNCOMMITTED auf
 `refactor/light-dimmers`.** Danach: committen/pushen/**mergen nach main** + Branch löschen.
