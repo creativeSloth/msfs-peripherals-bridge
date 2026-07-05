@@ -11,7 +11,12 @@ from msfs_peripherals_bridge.models import (
     SelectorSource,
 )
 from msfs_peripherals_bridge.outputs import OutputManager
-from msfs_peripherals_bridge.simconnect.protocol import SendEvent, Subscribe
+from msfs_peripherals_bridge.simconnect.protocol import ReadNow, SendEvent, Subscribe
+
+
+def _fire_now(delay, fn):
+    """Test scheduler: run the refresh synchronously for deterministic assertions."""
+    fn()
 
 NOSE_GREEN = 1 << 0
 LEFT_GREEN = 1 << 1
@@ -289,3 +294,51 @@ def test_radio_inner_encoder_shifts_standby_to_fine_view():
     assert commands == [SendEvent(name="COM_RADIO_FRACT_INC")]
     # inner knob -> standby row (cells 5..9) shifts to the fine view 18.300
     assert list(writes[-1][6:11]) == [1, 8 + DOT, 3, 0, 0]
+
+
+def _readnow_manager(dispatcher, schedule):
+    return OutputManager(
+        {"radio_panel": [_radio_output()]},
+        {"radio_panel": "/dev/hidrawR"},
+        dispatcher,
+        writer=lambda p, r: None,
+        schedule=schedule,
+    )
+
+
+def test_radio_encoder_schedules_readnow_of_tuned_var():
+    dispatcher = FakeDispatcher()
+    manager = _readnow_manager(dispatcher, _fire_now)
+    manager.handle_input("radio_panel", 16, value=1)  # inner CW tunes standby
+    reads = [c for c in dispatcher.sent if isinstance(c, ReadNow)]
+    assert reads == [ReadNow("COM STANDBY FREQUENCY:1")]
+
+
+def test_radio_swap_schedules_readnow_of_both_rows():
+    dispatcher = FakeDispatcher()
+    manager = _readnow_manager(dispatcher, _fire_now)
+    manager.handle_input("radio_panel", 22, value=1)  # swap flips both rows
+    reads = [c.name for c in dispatcher.sent if isinstance(c, ReadNow)]
+    assert reads == ["COM ACTIVE FREQUENCY:1", "COM STANDBY FREQUENCY:1"]
+
+
+def test_selector_move_schedules_no_readnow():
+    dispatcher = FakeDispatcher()
+    manager = _readnow_manager(dispatcher, _fire_now)
+    manager.handle_input("radio_panel", 0, value=1)  # selector COM1: idempotent
+    assert not [c for c in dispatcher.sent if isinstance(c, ReadNow)]
+
+
+def test_detent_burst_coalesces_to_one_readnow():
+    captured: list = []
+    dispatcher = FakeDispatcher()
+    manager = _readnow_manager(dispatcher, lambda delay, fn: captured.append(fn))
+    for _ in range(3):  # three quick inner detents, each arms a timer
+        manager.handle_input("radio_panel", 16, value=1)
+    assert len(captured) == 3
+    captured[0]()  # earlier (superseded) timers flush nothing
+    captured[1]()
+    assert not [c for c in dispatcher.sent if isinstance(c, ReadNow)]
+    captured[2]()  # only the last-armed generation flushes, once
+    reads = [c for c in dispatcher.sent if isinstance(c, ReadNow)]
+    assert reads == [ReadNow("COM STANDBY FREQUENCY:1")]

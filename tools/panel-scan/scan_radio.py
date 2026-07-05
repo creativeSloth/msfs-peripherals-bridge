@@ -23,6 +23,14 @@ For an encoder turn you'll see a bit pulse up then down per detent — turn slow
 one click at a time, to capture CW vs CCW. For a selector, watch which bit is set
 in each of its positions.
 
+TIMING (for the contact-bounce hunt): each line prints the gap since the previous
+change (``+N.Nms``), and every ``bitK↑`` carries the gap since that SAME bit last
+went up (``Δ N.Nms``). Turn ONE encoder detent at a normal pace: a clean detent is
+a single ``bitK↑``; contact bounce shows up as two or more ``bitK↑`` a few ms apart.
+Read off the largest bounce gap you see and set the controller's _ENCODER_DEBOUNCE
+just above it (in src/.../mapping/radio_panel.py). Stop the mapper first — it holds
+the same hidraw node open.
+
 Ctrl-C to quit. Linux-only, reads /dev/hidraw directly (06a3 nodes are 0666).
 """
 
@@ -31,6 +39,7 @@ from __future__ import annotations
 import os
 import select
 import sys
+import time
 
 PRODUCT = 0x0D05  # Radio Panel
 VENDOR = 0x06A3
@@ -60,7 +69,13 @@ def bits(data: bytes) -> str:
     return " ".join(f"{b:08b}"[::-1] for b in data)  # LSB-first so bit0 is leftmost
 
 
-def changed_bits(prev: bytes, cur: bytes) -> list[str]:
+def changed_bits(prev: bytes, cur: bytes, last_up: dict[int, float], now: float) -> list[str]:
+    """Format changed bit indices; annotate each ↑ with the gap since its last ↑.
+
+    ``last_up`` maps bit index -> monotonic time of that bit's previous rising edge
+    and is updated in place, so a bouncing detent (several ↑ a few ms apart on the
+    same bit) prints small ``Δ`` gaps and the debounce window can be read off them.
+    """
     out: list[str] = []
     for i in range(max(len(prev), len(cur))):
         p = prev[i] if i < len(prev) else 0
@@ -68,8 +83,15 @@ def changed_bits(prev: bytes, cur: bytes) -> list[str]:
         diff = p ^ c
         for bit in range(8):
             mask = 1 << bit
-            if diff & mask:
-                out.append(f"bit{i * 8 + bit}{'↑' if c & mask else '↓'}")
+            if not diff & mask:
+                continue
+            idx = i * 8 + bit
+            if c & mask:  # rising edge
+                gap = now - last_up[idx] if idx in last_up else None
+                last_up[idx] = now
+                out.append(f"bit{idx}↑" + (f" (Δ {gap * 1000:.1f}ms)" if gap is not None else ""))
+            else:
+                out.append(f"bit{idx}↓")
     return out
 
 
@@ -78,21 +100,28 @@ def main() -> None:
     print(f"Reading {path} (Radio Panel). Operate one control at a time. Ctrl-C to quit.\n")
     fd = os.open(path, os.O_RDONLY)
     prev: bytes | None = None
+    last_up: dict[int, float] = {}  # bit index -> monotonic time of its last ↑
+    last_change: float | None = None
     try:
         while True:
             select.select([fd], [], [])
             data = os.read(fd, 64)
             if not data:
                 continue
+            now = time.monotonic()
             if prev is None:
                 prev = data
                 print(f"baseline (idle): hex[{fmt(data)}]  bits[{bits(data)}]\n")
                 continue
             if data == prev:
                 continue
-            marks = ", ".join(changed_bits(prev, data)) or "(no bit diff — length/other)"
-            print(f"hex[{fmt(data)}]  changed: {marks}")
+            marks = ", ".join(changed_bits(prev, data, last_up, now))
+            marks = marks or "(no bit diff — length/other)"
+            gap_ms = (now - last_change) * 1000 if last_change is not None else None
+            since = f"+{gap_ms:6.1f}ms" if gap_ms is not None else "   start "
+            print(f"{since}  hex[{fmt(data)}]  changed: {marks}")
             prev = data
+            last_change = now
     except KeyboardInterrupt:
         print("\nbye")
     finally:

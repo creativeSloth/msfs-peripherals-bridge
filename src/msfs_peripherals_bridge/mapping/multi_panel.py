@@ -92,6 +92,11 @@ class MultiPanelController:
         d = self.config.dimmer
         return d is not None and code in (d.cw, d.ccw)
 
+    def refresh_after(self, code: int) -> list[str]:
+        """No off-cycle read-back needed: this panel's display is driven by its own
+        encoder value and mode LEDs, not by echoing a var it just nudged."""
+        return []
+
     def _source(self, entry: SelectorEntry) -> tuple[str, str | None]:
         """The active ``(simvar, set_event)`` for ``entry`` given its source index."""
         idx = self._source_index.get(entry.code, 0)

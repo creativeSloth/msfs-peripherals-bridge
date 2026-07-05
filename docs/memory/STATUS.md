@@ -1,12 +1,49 @@
 # STATUS — Resume-Anker
 
 > Kurzer Einstiegspunkt: was läuft, was offen ist, wie es weitergeht.
-> Stand: **2026-07-04**. Multi-Panel ist auf **`main`** gemerged.
+> Stand: **2026-07-05** (Radio-Prellen widerlegt + B2 Low-Latency-Echo gebaut, s.u.).
+> Multi-Panel ist auf **`main`** gemerged.
 > Aktueller Branch: **`refactor/light-dimmers`**. **Alle unten genannten Threads sind
 > jetzt COMMITTET + auf origin GEPUSHT** (Radio Chunk A/B, ALT/VS-LEDs, Piper-Licht-
 > LVars + LVar-Enumeration, GUI Phase 1). Die „UNCOMMITTED"-Marker in den Abschnitten
 > unten sind historisch — der Code steht. Offen bleibt nur das **In-Sim-Verifizieren**
 > (Center-Light-Combo, Radio-Backlight, ALT/VS-Events) + Radio **Chunk C** (Hardware).
+
+## 🎯 RADIO — PRELL-THEORIE WIDERLEGT + B2 GEBAUT (2026-07-05, 3. Runde) — HIER WEITER
+**Stand: 135 Tests grün, ruff clean, 4 Profile valide, alles UNCOMMITTED auf
+`refactor/light-dimmers`.** Danach: committen/pushen/**mergen nach main** + Branch löschen.
+Offen bleibt Cabin-Light + ALT/VS + B2 IN-SIM (Credits vorher beachten).
+
+**Durchbruch: der Fract-Encoder PRELLT NICHT.** `scan_radio.py` um Timing erweitert, User
+hat beide Encoder × beide Richtungen im Normaltempo gedreht. 163 ↑→↑-Abstände: **Minimum
+16 ms = USB-Poll-Boden** (8 ms Poll + Pflicht-↓-Frame → schneller unmöglich), glattes
+Kontinuum ohne Lücke, metronomische Serien = echtes Drehen. Prellen wäre bimodal → ist es
+nicht. **Das `.015 je Rastung` war Overshoot durch die 1-s-Display-Latenz**, kein Bounce.
+Voll-Analyse: `radio-panel-measurement.md` §Phase 3.
+
+**Konsequenz umgesetzt (UNCOMMITTED):**
+- **Encoder-Debounce ENTFERNT** (`_ENCODER_DEBOUNCE` war No-Op: 16 ms > 8 ms → feuerte nie).
+  **Swap-Debounce bleibt** (`_SWAP_DEBOUNCE=0.20`, echter Taster-Chatter, Runde-2-bestätigt).
+- **B2 HYBRID gebaut** (User-Wahl) = sofortiges Anzeige-Echo, Sim bleibt Wahrheit, KEINE
+  8.33/25-kHz-Kanalisierung lokal nachbauen:
+  - **`ReadNow`-Command** (`simconnect/protocol.py`) + **`read_now`-Verb** (`bridge/bridge.py`
+    `ClientHandler._read_now`): liest 1 abonnierte Var off-cycle, pusht sofort `state`,
+    updatet Sent-Cache (Poll doppelt-frei). Wire-Test `test_protocol.py`.
+  - **`RadioPanelController.refresh_after(code)`**: Encoder → getunte STANDBY-Var, Swap →
+    active+standby. **Swap lokal gespiegelt** (Cache-Tausch + sofort rendern → Flip ohne
+    Sim-Wartezeit). Tests `test_radio_panel.py`.
+  - **`OutputManager`**: coalesced `ReadNow` **~90 ms** nach dem Event (Generation-Counter →
+    Rast-Burst = 1 Read; 90 ms, damit der Sim das Event angewandt hat, sonst liest man den
+    Vor-Event-Wert). Scheduler injizierbar; `_stop`-Gate gegen Late-Fire beim Shutdown.
+    `MultiPanelController.refresh_after=[]`. Tests `test_output_manager.py`.
+- **Beschleunigung war schon vorher raus** (2026-07-05): inner-Encoder feuert immer den
+  feinen Schritt; `fract_fast_*`-Model-Felder bleiben (reversibel).
+
+**⏳ NÄCHSTE SESSION — B2 IN-SIM verifizieren** (`msfs-bridge piper_arrow`, JF Arrow):
+Folgt die Anzeige jetzt in ~100 ms statt bis 1 s (Overshoot weg)? Kommt der Swap-Flip
+sofort? Falls der Read noch den Vor-Event-Wert erwischt → `_REFRESH_DELAY` (outputs.py, 90 ms)
+hoch. **Bridge MUSS neu starten** (neuer `read_now`-Verb): `pkill -f run-bridge.sh` → neu.
+Danach immer noch offen: exakte Event-Namen (`fract_fast_*` ungesetzt; COM1-Swap-Variante).
 
 ## 📻 RADIO PANEL — HARDWARE-BYTES VERMESSEN (2026-07-05, 125 Tests grün)
 **Input+Output am Gerät (06a3:0d05) gemessen — nur noch In-Sim-Events offen.** Der

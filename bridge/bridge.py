@@ -630,6 +630,8 @@ class ClientSession:
                     self._subscriptions.setdefault(msg["name"], None)
                     self._sub_units[msg["name"]] = msg.get("unit") or "number"
                 log.info("Subscribed to %s [%s]", msg["name"], self._sub_units[msg["name"]])
+            elif op == "read_now":
+                self._read_now(msg["name"], msg.get("unit"))
             elif op == "list_lvars":
                 names = self.sim.list_lvars(float(msg.get("timeout", 8.0)))
                 self._send({"op": "lvars", "names": names})
@@ -640,6 +642,28 @@ class ClientSession:
             self._on_sim_lost(exc)
         except Exception as exc:
             log.error("Failed to handle %s: %s", op, exc)
+
+    def _read_now(self, name: str, unit: str | None) -> None:
+        """Read one subscribed var off the poll cycle and push its value now.
+
+        Fires when the Linux side has just sent a tuning event and wants the
+        read-back (e.g. the Radio Panel's tuned frequency) far sooner than the
+        1 s poll. Updates the sent-value cache so the next poll won't re-emit the
+        same value. The caller (mapper) delays this a few frames after the event
+        so the sim has applied it — a stale read here just gets corrected by the
+        next poll.
+        """
+        chosen = unit or self._sub_units.get(name) or "number"
+        try:
+            value = self.sim.read_subscribed(name, chosen)
+        except SimDisconnected as exc:
+            self._on_sim_lost(exc)
+            return
+        if value is None:
+            return
+        with self._lock:
+            self._subscriptions[name] = value
+        self._send({"op": "state", "name": name, "value": value})
 
     def _on_sim_lost(self, exc: BaseException) -> None:
         """SimConnect went away mid-session: log once, stop the loops, and

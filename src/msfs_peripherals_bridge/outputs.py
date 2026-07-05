@@ -20,6 +20,7 @@ a fake dispatcher and a fake writer (no socket, no hardware).
 
 from __future__ import annotations
 
+import contextlib
 import logging
 import threading
 from collections.abc import Callable, Iterator
@@ -30,7 +31,7 @@ from .mapping.leds import gear_led_byte
 from .mapping.multi_panel import MultiPanelController
 from .mapping.radio_panel import RadioPanelController
 from .models import GearLedOutput, MultiPanelOutput, Output, RadioPanelOutput
-from .simconnect.protocol import Command, Subscribe
+from .simconnect.protocol import Command, ReadNow, Subscribe
 
 log = logging.getLogger(__name__)
 
@@ -40,6 +41,19 @@ _REPORT_ID = 0x00
 # Blink phase half-period: a blinking LED (the OMNI-mode IAS light) toggles every
 # this-many seconds, so a full on/off cycle is ~1 s (1 Hz).
 _BLINK_HALF_PERIOD = 0.5
+
+# Delay before a post-input ReadNow, so the sim has applied the event we just fired
+# (it processes client events on its next frame). ~90 ms is a few frames — instant
+# to the eye, still far under the 1 s poll. A burst of detents coalesces to one
+# ReadNow this-long after the last one (see _schedule_refresh).
+_REFRESH_DELAY = 0.09
+
+
+def _default_schedule(delay: float, fn: Callable[[], None]) -> None:
+    """Run ``fn`` after ``delay`` seconds on a daemon timer (real-clock default)."""
+    timer = threading.Timer(delay, fn)
+    timer.daemon = True
+    timer.start()
 
 
 class StateDispatcher(Protocol):
@@ -60,6 +74,7 @@ class PanelController(Protocol):
     def subscriptions(self) -> list[str]: ...
     def consumes(self, code: int) -> bool: ...
     def on_event(self, code: int, value: int) -> list[Command]: ...
+    def refresh_after(self, code: int) -> list[str]: ...
     def on_state(self, name: str, value: object) -> None: ...
     def render(self, blink_on: bool = ...) -> bytes: ...
 
@@ -80,14 +95,22 @@ class OutputManager:
         device_paths: dict[str, str],
         dispatcher: StateDispatcher,
         writer: Callable[[str, bytes], None] = write_feature_report,
+        schedule: Callable[[float, Callable[[], None]], None] = _default_schedule,
     ) -> None:
         self._paths = device_paths
         self._dispatcher = dispatcher
         self._writer = writer
+        self._schedule = schedule
         self._lock = threading.Lock()
         self._values: dict[str, float | None] = {}
         self._last_report: dict[str, bytes] = {}  # device_id -> last bytes written
         self._blink_on = True  # shared blink phase, flipped by the blink ticker
+        self._stop: threading.Event | None = None  # set in run(), gates late refreshes
+        # Coalesced post-input ReadNow (B2 low-latency echo): pending var names +
+        # a generation counter so only the last-armed timer of a burst flushes.
+        self._refresh_lock = threading.Lock()
+        self._refresh_pending: set[str] = set()
+        self._refresh_gen = 0
         # Split outputs by kind, keeping only devices that are actually present.
         self._gear: dict[str, list[GearLedOutput]] = {}
         self._controllers: dict[str, PanelController] = {}
@@ -151,7 +174,40 @@ class OutputManager:
         with self._lock:
             commands = controller.on_event(code, value)
             self._write_if_changed(device_id)
+            # Snapshot the vars to re-read under the same lock (consistent selection);
+            # only when the input actually acted, so a dropped/idempotent one is quiet.
+            refresh = controller.refresh_after(code) if commands else []
+        self._schedule_refresh(refresh)
         return commands
+
+    def _schedule_refresh(self, names: list[str]) -> None:
+        """Arm a coalesced ReadNow for ``names`` after ``_REFRESH_DELAY``.
+
+        A generation counter collapses a burst of detents into a single flush: each
+        call re-arms, and only the timer carrying the latest generation flushes (the
+        earlier ones fire, see they are superseded, and drop out).
+        """
+        if not names:
+            return
+        with self._refresh_lock:
+            self._refresh_pending.update(names)
+            self._refresh_gen += 1
+            gen = self._refresh_gen
+        self._schedule(_REFRESH_DELAY, lambda: self._flush_refresh(gen))
+
+    def _flush_refresh(self, gen: int) -> None:
+        if self._stop is not None and self._stop.is_set():
+            return
+        with self._refresh_lock:
+            if gen != self._refresh_gen:
+                return  # a later detent re-armed; its timer will flush the pending set
+            names = sorted(self._refresh_pending)
+            self._refresh_pending = set()
+        for name in names:
+            # A missed refresh only costs one poll of extra display lag, never state,
+            # so a send failing on a shutting-down socket is not worth surfacing.
+            with contextlib.suppress(OSError):
+                self._dispatcher.send(ReadNow(name))
 
     # -- output (bridge state thread) --------------------------------------
     def on_state(self, name: str, value: object) -> None:
@@ -212,6 +268,7 @@ class OutputManager:
         the bridge's state stream. Daemon-friendly: the stream ends when the
         socket closes on shutdown.
         """
+        self._stop = stop
         self.subscribe_all()
         with self._lock:
             for device_id in self._devices:

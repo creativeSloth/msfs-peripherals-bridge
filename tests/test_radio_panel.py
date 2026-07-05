@@ -97,19 +97,16 @@ def test_swap_button_fires_swap_event():
     assert c.on_event(code=9, value=1) == [SendEvent(name="COM1_RADIO_SWAP")]
 
 
-def test_inner_slow_stays_fine_fast_switches_to_coarse():
+def test_inner_knob_always_fires_fine_step():
+    # Acceleration removed 2026-07-05 (isolating encoder bounce): a fast inner spin
+    # no longer switches to a coarse fract_fast_* event — every detent is the fine
+    # 8.33 kHz step, regardless of spin speed.
     t = [0.0]
     c = RadioPanelController(make_config(), clock=lambda: t[0])
-    # detents 1-3 stay fine (streak 0,1,2 < _FAST_AFTER); detent 4 (streak 3) coarse.
     fine = SendEvent(name="COM_RADIO_FRACT_INC")
-    coarse = SendEvent(name="COM_RADIO_25_INC")
-    for _ in range(3):
+    for _ in range(6):  # even a sustained fast spin stays fine
         assert c.on_event(code=7, value=1) == [fine]
         t[0] += 0.02
-    assert c.on_event(code=7, value=1) == [coarse]  # sustained fast -> 25 kHz
-    # a slow detent resets the streak back to fine
-    t[0] += 1.0
-    assert c.on_event(code=7, value=1) == [fine]
 
 
 def test_nav_without_fast_events_stays_fine_when_spun_fast():
@@ -155,3 +152,58 @@ def test_render_all_blank_without_state():
     report = RadioPanelController(make_config()).render()
     assert list(report[1:21]) == [BLANK] * 20
     assert list(report[21:23]) == [0x00, 0x00]
+
+
+def test_encoder_is_never_debounced():
+    # Measured 2026-07-05: the encoders don't bounce (8 ms USB poll floors any
+    # repeat at 16 ms), so no time guard applies — even two detents at the same
+    # instant both fire. Only the swap button is debounced.
+    t = [0.0]
+    c = RadioPanelController(make_config(), clock=lambda: t[0])
+    inc = SendEvent(name="COM_RADIO_FRACT_INC")
+    assert c.on_event(code=7, value=1) == [inc]
+    assert c.on_event(code=7, value=1) == [inc]  # no clock advance -> still fires
+
+
+def test_refresh_after_names_the_tuned_var():
+    c = RadioPanelController(make_config())
+    # an inner/outer detent changes the selected bank's STANDBY -> re-read that
+    assert c.refresh_after(7) == ["COM STANDBY FREQUENCY:1"]  # inner cw
+    assert c.refresh_after(5) == ["COM STANDBY FREQUENCY:1"]  # outer cw
+    # a swap flips both rows -> re-read both
+    assert c.refresh_after(9) == ["COM ACTIVE FREQUENCY:1", "COM STANDBY FREQUENCY:1"]
+    # selector moves and unknown codes change nothing
+    assert c.refresh_after(0) == []  # selector
+    assert c.refresh_after(999) == []
+
+
+def test_swap_mirrors_active_and_standby_locally():
+    c = RadioPanelController(make_config())
+    c.on_state("COM ACTIVE FREQUENCY:1", 118.00)
+    c.on_state("COM STANDBY FREQUENCY:1", 121.30)
+    assert c.on_event(code=9, value=1) == [SendEvent(name="COM1_RADIO_SWAP")]
+    # the display flips instantly, before the sim confirms
+    assert c.values["COM ACTIVE FREQUENCY:1"] == 121.30
+    assert c.values["COM STANDBY FREQUENCY:1"] == 118.00
+    assert list(c.render()[1:6]) == [1, 2, 1 + DOT, 3, 0]  # active now 121.30
+
+
+def test_swap_bounce_within_window_dropped():
+    t = [0.0]
+    c = RadioPanelController(make_config(), clock=lambda: t[0])
+    swap = SendEvent(name="COM1_RADIO_SWAP")
+    assert c.on_event(code=9, value=1) == [swap]
+    t[0] += 0.05  # button bounce, < _SWAP_DEBOUNCE (200 ms) -> swallowed
+    assert c.on_event(code=9, value=1) == []
+    t[0] += 0.30  # deliberate second swap -> fires
+    assert c.on_event(code=9, value=1) == [swap]
+
+
+def test_selector_not_debounced():
+    t = [0.0]
+    c = RadioPanelController(make_config(), clock=lambda: t[0])
+    # a selector re-point is idempotent; back-to-back moves must always apply,
+    # so selecting COM1 right after NAV1 (no clock advance) must still take effect.
+    assert c.on_event(code=1, value=1) == []  # upper -> NAV1
+    assert c.on_event(code=0, value=1) == []  # upper -> COM1 (not dropped as bounce)
+    assert c.on_event(code=5, value=1) == [SendEvent(name="COM_RADIO_WHOLE_INC")]

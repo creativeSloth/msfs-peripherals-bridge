@@ -13,10 +13,15 @@ the display (no local frequency math). Two implicit UI layers, decided 2026-07-0
   visible, the implied leading MHz digit rolls off), the outer (coarse) knob back
   to ``NNN.NN``. Sticky per unit, default coarse. The ACTIVE row stays coarse — a
   reference you read at a glance.
-* **how fast the inner knob = step size** — a sustained fast spin swaps the fine
-  fract event (COM 8.33 kHz) for the coarse one (25 kHz), reusing the Multi
-  Panel's gentle acceleration (same ``_FAST_WINDOW``/``_FAST_AFTER``). A bank with
-  no ``fract_fast_*`` (e.g. NAV) just keeps firing its fine event.
+* **every inner detent = one fine step** — the inner knob always fires the fine
+  fract event (COM 8.33 kHz). The spin-speed acceleration (a sustained fast spin
+  switching to a coarse ``fract_fast_*`` event) was removed 2026-07-05: it was inert
+  in piper_arrow.yaml and confused the encoder-bounce investigation. The model keeps
+  the ``fract_fast_*`` fields so it can be reinstated later.
+
+Because tuning is a read-back, the display would otherwise lag the 1 s subscription
+poll; :meth:`refresh_after` names the tuned var so the output manager can ReadNow it
+off-cycle, and a swap is mirrored locally (:meth:`on_event`) for an instant flip.
 
 Pure: input methods return SimConnect ``Command``s and ``render`` returns the
 feature-report bytes, so the whole behaviour is unit-testable. The runtime feeds
@@ -45,12 +50,22 @@ _HALF_CELLS = ROW_WIDTH * 2  # a unit owns two display rows (active + standby)
 _COARSE_DECIMALS = 2
 _FINE_DECIMALS = 3
 
-# Gentle inner-encoder acceleration — mirrors MultiPanelController: a detent is
-# "fast" when it lands within _FAST_WINDOW of the previous one, and the coarse
-# (25 kHz) event only kicks in after _FAST_AFTER fast detents in a row, so a brief
-# quick turn stays fine (8.33 kHz).
-_FAST_WINDOW = 0.06
-_FAST_AFTER = 3
+# Swap-button debounce. The runtime's engine debounce does NOT cover this path
+# (runtime.py routes controller inputs straight to handle_input), and a momentary
+# pushbutton genuinely chatters, so the swap double-fired. A repeat within the
+# window is dropped; the window slides (each press re-arms it) so a whole bounce
+# burst collapses to one swap. 200 ms is well under any deliberate double-swap.
+#
+# The *encoders* are NOT debounced: measuring real bounce timing at the device
+# (tools/panel-scan/scan_radio.py, 2026-07-05) proved they don't bounce in any way
+# a time guard can catch. The panel polls over USB every 8 ms, and with a mandatory
+# release frame between two rising edges the fastest a bit can repeat is 16 ms —
+# the measured minimum, with a smooth 16→300 ms spread and no short-gap cluster
+# (bounce would be bimodal). The earlier "detent jumps .015" was not bounce but
+# display-latency overshoot (the read-back lagged up to a second, so the user kept
+# turning); ReadNow now refreshes the tuned var within tens of ms to fix that. See
+# docs/memory/radio-panel-measurement.md.
+_SWAP_DEBOUNCE = 0.20
 
 
 def _as_float(value: object) -> float | None:
@@ -66,8 +81,6 @@ class _UnitState:
 
     selected: int  # currently selected bank code
     fine_view: bool = False  # True = inner-encoder view (NN.NNN); False = coarse
-    last_tick: float | None = None
-    fast_streak: int = 0
 
 
 class RadioPanelController:
@@ -98,6 +111,8 @@ class RadioPanelController:
             self._routes[u.inner_cw] = (i, "inner_cw")
             self._routes[u.inner_ccw] = (i, "inner_ccw")
             self._routes[u.swap] = (i, "swap")
+        # code -> last accepted/seen press time, for the contact-bounce guard.
+        self._last_fire: dict[int, float] = {}
 
     def subscriptions(self) -> list[str]:
         """Frequency SimVars this controller needs streamed from the bridge."""
@@ -121,6 +136,10 @@ class RadioPanelController:
         if route is None:
             return []
         i, role = route
+        # Only the swap button is debounced (a momentary contact chatters); selector
+        # moves are idempotent and the encoders don't bounce (measured — see above).
+        if role == "swap" and self._bounced(code):
+            return []
         st = self._state[i]
         if role == "select":
             st.selected = code
@@ -134,37 +153,56 @@ class RadioPanelController:
         if role == "outer_ccw":
             st.fine_view = False
             return [SendEvent(name=bank.whole_dec)]
+        # Inner knob = fine (8.33 kHz) fract step. The spin-speed acceleration (a
+        # sustained fast spin switching to a coarse 25 kHz fract_fast_* event) was
+        # removed 2026-07-05 while isolating encoder contact-bounce. It was inert in
+        # piper_arrow.yaml anyway (no fract_fast_* defined there). The model keeps
+        # the fract_fast_* fields, so it can be reinstated once bounce is solved.
         if role == "inner_cw":
             st.fine_view = True
-            return [self._fract_event(st, bank, up=True)]
+            return [SendEvent(name=bank.fract_inc)]
         if role == "inner_ccw":
             st.fine_view = True
-            return [self._fract_event(st, bank, up=False)]
-        # role == "swap"
+            return [SendEvent(name=bank.fract_dec)]
+        # role == "swap": mirror the swap locally so the display flips instantly,
+        # then fire the sim event (the poll / a scheduled ReadNow reconciles truth).
+        active, standby = bank.active, bank.standby
+        self.values[active], self.values[standby] = (
+            self.values.get(standby),
+            self.values.get(active),
+        )
+        st.fine_view = False  # the swapped-in standby reads plainly, not mid-fine-tune
         return [SendEvent(name=bank.swap_event)]
 
-    def _fract_event(self, st: _UnitState, bank: RadioBank, *, up: bool) -> SendEvent:
-        """Pick the inner-knob event: fine normally, coarse on a sustained fast spin.
+    def refresh_after(self, code: int) -> list[str]:
+        """SimVars worth re-reading right after acting on ``code`` (low-latency echo).
 
-        The coarse ``fract_fast_*`` event only applies once the spin has been fast
-        for a few detents in a row; a bank without one (NAV) stays on the fine
-        event throughout.
+        A tuning detent changes the selected bank's STANDBY frequency; a swap
+        changes both rows. The output manager reads these off-cycle via ReadNow so
+        the display catches up in tens of ms instead of waiting for the 1 s poll.
+        Selector moves and out-of-scope banks change nothing → refresh nothing.
         """
-        if self._tick_is_fast(st):
-            name = (bank.fract_fast_inc if up else bank.fract_fast_dec) or (
-                bank.fract_inc if up else bank.fract_dec
-            )
-        else:
-            name = bank.fract_inc if up else bank.fract_dec
-        return SendEvent(name=name)
+        route = self._routes.get(code)
+        if route is None:
+            return []
+        i, role = route
+        if role == "select":
+            return []
+        bank = self._banks[i].get(self._state[i].selected)
+        if bank is None:
+            return []
+        return [bank.active, bank.standby] if role == "swap" else [bank.standby]
 
-    def _tick_is_fast(self, st: _UnitState) -> bool:
-        """Update ``st``'s spin streak for this detent; True once it's sustained-fast."""
+    def _bounced(self, code: int) -> bool:
+        """True if the swap button repeats within its debounce window (chatter).
+
+        Sliding window: every press re-arms the guard, so a chatter burst collapses
+        to one swap while a deliberate second press (>200 ms later) passes through.
+        """
         now = self._clock()
-        gap = None if st.last_tick is None else now - st.last_tick
-        st.last_tick = now
-        st.fast_streak = st.fast_streak + 1 if (gap is not None and gap < _FAST_WINDOW) else 0
-        return st.fast_streak >= _FAST_AFTER
+        last = self._last_fire.get(code)
+        self._last_fire[code] = now
+        return last is not None and now - last < _SWAP_DEBOUNCE
 
     # -- output ------------------------------------------------------------
     def on_state(self, name: str, value: object) -> None:

@@ -29,6 +29,42 @@ Alle 24 Bit gehen auf. Selektoren + innere Encoder = wie Platzhalter; **äußere
 
 **⏳ Bleibt: nur noch In-Sim** (Event-Namen `fract_fast_*` / COM-Swap am fliegenden Arrow).
 
+## ✅ PHASE 3 — ENCODER-PRELLEN GEMESSEN 2026-07-05 (Prell-Theorie WIDERLEGT)
+`scan_radio.py` um Timing erweitert (`+N.Nms` seit letztem Change, `Δ N.Nms` = Abstand
+zum letzten ↑ **desselben Bits**). User hat beide Encoder × beide Richtungen im normalen
+Tempo gedreht (bit16/17 = ein Encoder cw/ccw, bit20/21 = der andere). 163 ↑→↑-Abstände
+< 300 ms ausgewertet:
+- **Minimum = 16 ms** — und das ist der *physikalische Boden*: USB-Poll = **8 ms**, plus
+  ein zwingender ↓-Frame zwischen zwei ↑ desselben Bits → schneller kann das Gerät gar
+  nicht melden. Kein sub-16-ms-Impuls existiert.
+- Verteilung ist ein **glattes Kontinuum 16 → 300 ms, unimodal, ohne Lücke**. Echtes
+  Kontaktprellen wäre **bimodal** (kurzer Prell-Cluster klar getrennt vom Rast-Cluster).
+- Regelmäßige Serien (`56,56,56,56`, `16,16,16,16,16`) = metronomisch → echtes gleich-
+  mäßiges Drehen, kein Chatter. Langsam: **1 Rastung = 1 sauberer Impuls**.
+
+**Schlussfolgerung:** Die Encoder **prellen nicht** in einer Form, die ein Zeit-Debounce
+fangen könnte. Das alte `_ENCODER_DEBOUNCE = 8 ms` war ein **No-Op** (16 ms > 8 ms → feuert
+nie); hochdrehen würde nur echte Schnelldreh-Rastungen fressen. Das `.015 je Rastung` war
+**kein Prellen, sondern Overshoot durch die 1-s-Display-Latenz** (User dreht weiter, weil
+die Anzeige hinterherhängt). → Encoder-Debounce **entfernt**; nur Swap-Debounce (200 ms,
+echter Taster-Chatter) bleibt. Fix gegen den Overshoot = **B2** (unten).
+
+## 🔧 B2 HYBRID — LOW-LATENCY DISPLAY-ECHO gebaut 2026-07-05 (UNCOMMITTED, 135 Tests grün)
+Sofortiges Anzeige-Feedback ohne die 8.33/25-kHz-Kanalisierung lokal nachzubauen (Sim
+bleibt Wahrheit):
+- **`ReadNow`-Command** (`simconnect/protocol.py`) + **`read_now`-Verb** (`bridge/bridge.py`):
+  liest EINE abonnierte Var off-cycle und pusht sofort ein `state` (aktualisiert den
+  Sent-Cache → Poll sendet nicht doppelt).
+- **`RadioPanelController.refresh_after(code)`**: nennt die getunte Var (Encoder → STANDBY,
+  Swap → active+standby). **Swap wird lokal gespiegelt** (active/standby im Cache getauscht +
+  sofort gerendert), Anzeige flippt ohne auf den Sim zu warten.
+- **`OutputManager`**: coalesced `ReadNow` ~90 ms nach dem Event (Generation-Counter →
+  Rast-Burst kollabiert zu 1 Read; 90 ms, damit der Sim das Event angewandt hat). Scheduler
+  injizierbar (Tests). `MultiPanelController.refresh_after` = `[]` (kein Read-back-Display).
+- **⏳ NUR NOCH IN-SIM:** am fliegenden Arrow prüfen, dass die Anzeige jetzt in ~100 ms
+  statt bis 1 s folgt (Overshoot weg) und der Swap-Flip sofort kommt. 90-ms-Delay ggf.
+  justieren, falls der Read noch den Vor-Event-Wert erwischt.
+
 ## Vorbedingungen (schon geprüft)
 - [x] Panel erkannt: `/dev/hidraw5` = „Saitek Pro Flight Radio Panel"
 - [x] Kein Mapper/Bridge hält den Node (sonst würde er Scan-Events klauen)

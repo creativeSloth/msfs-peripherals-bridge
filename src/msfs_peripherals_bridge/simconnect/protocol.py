@@ -10,6 +10,7 @@ Linux -> bridge:
     {"op": "subscribe", "name": "TITLE", "unit": "string"}
     {"op": "event_from_var", "event": "HEADING_BUG_SET",
      "read": "PLANE HEADING DEGREES MAGNETIC", "unit": "degrees"}
+    {"op": "read_now", "name": "COM ACTIVE FREQUENCY:1"}
 
 bridge -> Linux:
     {"op": "state", "name": "TITLE", "value": "Cessna 172"}
@@ -72,7 +73,29 @@ class Subscribe:
         return {"op": "subscribe", "name": self.name, "unit": self.unit}
 
 
-Command = SendEvent | SetSimVar | SendEventFromVar | Subscribe
+@dataclass(frozen=True, slots=True)
+class ReadNow:
+    """Read an already-subscribed SimVar *immediately* and stream one ``state`` back.
+
+    The subscribed-variable poll only runs once a second, so a display driven by a
+    read-back (the Radio Panel's tuned frequency) lags up to a second behind an
+    event we just fired. This asks the bridge to read that one var off-cycle and
+    push its current value now, so the panel catches up in tens of milliseconds
+    instead. ``unit`` is optional — the bridge reuses the unit from the existing
+    subscription when omitted.
+    """
+
+    name: str
+    unit: str | None = None
+
+    def to_wire(self) -> dict[str, object]:
+        frame: dict[str, object] = {"op": "read_now", "name": self.name}
+        if self.unit is not None:
+            frame["unit"] = self.unit
+        return frame
+
+
+Command = SendEvent | SetSimVar | SendEventFromVar | Subscribe | ReadNow
 
 
 def encode(command: Command) -> bytes:
