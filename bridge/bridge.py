@@ -759,31 +759,58 @@ def main() -> None:
     server = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
     server.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
     server.bind((args.host, args.port))
-    server.listen(1)
+    server.listen(8)  # multi-client: the mapper + monitors/tools subscribe at once
     log.info("Bridge listening on %s:%s", args.host, args.port)
+
+    # One sim handle, shared by every client session and swapped out on a
+    # reconnect. All DLL access goes through SimConnectBridge._lock (an RLock), so
+    # concurrent sessions are serialized at the sim level — no extra locking here.
+    sim_box = {"sim": sim}
+    reconnect = threading.Event()
+
+    def handle_client(conn: socket.socket, addr: object) -> None:
+        log.info("Linux app connected from %s", addr)
+        sim_lost = False
+        try:
+            sim_lost = ClientSession(conn, sim_box["sim"]).serve()
+        except Exception:
+            log.exception("Session from %s ended with an error", addr)
+        finally:
+            with contextlib.suppress(OSError):
+                conn.close()
+            log.info("Client %s disconnected", addr)
+        # A sim CTD/shutdown leaves SimConnect dead — ask the manager to re-attach.
+        if sim_lost:
+            reconnect.set()
+
+    def reconnect_manager() -> None:
+        while True:
+            reconnect.wait()
+            reconnect.clear()
+            try:
+                sim_box["sim"]._check_alive()
+                continue  # stale signal from an ending session — handle still healthy
+            except SimDisconnected:
+                pass
+            log.warning("Reconnecting to SimConnect (waiting for MSFS)…")
+            with contextlib.suppress(Exception):
+                sim_box["sim"].close()
+            sim_box["sim"] = connect_sim()
+            log.info("Reconnected to SimConnect; ready for clients")
+
+    threading.Thread(target=reconnect_manager, name="sim-reconnect", daemon=True).start()
+
     try:
         while True:
             conn, addr = server.accept()
-            log.info("Linux app connected from %s", addr)
-            sim_lost = False
-            try:
-                sim_lost = ClientSession(conn, sim).serve()
-            except Exception:
-                log.exception("Session ended with an error; waiting for next client")
-            finally:
-                conn.close()
-            # A sim CTD/shutdown leaves SimConnect dead; drop the old handle and
-            # wait for MSFS to come back so the bridge re-attaches on its own.
-            if sim_lost or getattr(sim.sc, "quit", 0):
-                log.warning("Reconnecting to SimConnect (waiting for MSFS)…")
-                sim.close()
-                sim = connect_sim()
-            log.info("Ready for next client on %s:%s", args.host, args.port)
+            threading.Thread(
+                target=handle_client, args=(conn, addr), name="client", daemon=True
+            ).start()
     except KeyboardInterrupt:
         log.info("Shutting down")
     finally:
         server.close()
-        sim.close()
+        sim_box["sim"].close()
 
 
 if __name__ == "__main__":

@@ -25,6 +25,7 @@ import os
 import signal
 import subprocess
 import sys
+import threading
 import time
 from pathlib import Path
 
@@ -210,45 +211,88 @@ def _attach_tooltip(widget, text) -> None:
     widget.bind("<Leave>", hide)
 
 
-def _snapshot_values(
-    names, *, host: str = "127.0.0.1", port: int = BRIDGE_PORT, window: float = 0.8
-):
-    """Open a short-lived bridge connection, subscribe to ``names`` and collect the
-    latest streamed value for each over ~``window`` seconds. Returns {name: value}.
+class _ValueMonitor:
+    """Background bridge subscriber for the Statistik tab.
 
-    The bridge is single-client, so the caller must ensure the mapper is stopped —
-    otherwise this connect fights it."""
-    import json
-    import socket
+    A daemon thread keeps a live ``{wire_name: value}`` map for the current
+    variable list, subscribing over the bridge and reconnecting when the list
+    changes. It connects whenever the bridge port is listening — once the bridge
+    is multi-client this coexists with the mapper. Thread-safe; poll ``values()``
+    from the Tk loop, set the watch list with ``set_names()``.
+    """
 
-    result: dict[str, object] = {}
-    try:
-        sock = socket.create_connection((host, port), timeout=2)
-    except OSError:
-        return result
-    with sock:
-        for name in names:
-            sock.sendall((json.dumps({"op": "subscribe", "name": name}) + "\n").encode())
-        sock.settimeout(window)
-        end = time.monotonic() + window
-        buf = b""
-        while time.monotonic() < end:
+    def __init__(self, *, host: str = "127.0.0.1", port: int = BRIDGE_PORT):
+        self._host, self._port = host, port
+        self._lock = threading.Lock()
+        self._names: list[str] = []
+        self._values: dict[str, object] = {}
+        self._gen = 0  # bumped on a name change -> the reader reconnects
+        self._stop = threading.Event()
+        self._thread = threading.Thread(target=self._run, name="value-monitor", daemon=True)
+
+    def start(self) -> None:
+        self._thread.start()
+
+    def stop(self) -> None:
+        self._stop.set()
+
+    def set_names(self, names) -> None:
+        names = list(names)
+        with self._lock:
+            if names != self._names:
+                self._names = names
+                self._gen += 1
+                self._values = {k: v for k, v in self._values.items() if k in names}
+
+    def values(self) -> dict[str, object]:
+        with self._lock:
+            return dict(self._values)
+
+    def _run(self) -> None:
+        import json
+        import socket
+
+        while not self._stop.is_set():
+            with self._lock:
+                names, gen = list(self._names), self._gen
+            if not names or not _port_listening(self._port):
+                self._stop.wait(0.5)
+                continue
             try:
-                chunk = sock.recv(65536)
+                sock = socket.create_connection((self._host, self._port), timeout=2)
             except OSError:
-                break
-            if not chunk:
-                break
-            buf += chunk
-            while b"\n" in buf:
-                line, buf = buf.split(b"\n", 1)
-                try:
-                    msg = json.loads(line)
-                except (json.JSONDecodeError, ValueError):
-                    continue
-                if msg.get("op") == "state":
-                    result[msg.get("name")] = msg.get("value")
-    return result
+                self._stop.wait(1.0)
+                continue
+            try:
+                sock.settimeout(0.5)
+                for name in names:
+                    sock.sendall((json.dumps({"op": "subscribe", "name": name}) + "\n").encode())
+                buf = b""
+                while not self._stop.is_set():
+                    with self._lock:
+                        if gen != self._gen:
+                            break  # list changed -> reconnect with the new set
+                    try:
+                        chunk = sock.recv(65536)
+                    except TimeoutError:
+                        continue
+                    except OSError:
+                        break
+                    if not chunk:
+                        break
+                    buf += chunk
+                    while b"\n" in buf:
+                        line, buf = buf.split(b"\n", 1)
+                        try:
+                            msg = json.loads(line)
+                        except (json.JSONDecodeError, ValueError):
+                            continue
+                        if msg.get("op") == "state":
+                            with self._lock:
+                                self._values[msg.get("name")] = msg.get("value")
+            finally:
+                with contextlib.suppress(OSError):
+                    sock.close()
 
 
 def _open_var_picker(parent, catalog, on_add) -> None:
@@ -319,7 +363,7 @@ def _open_var_picker(parent, catalog, on_add) -> None:
 # --------------------------------------------------------------------------- #
 def run() -> None:
     import tkinter as tk
-    from tkinter import messagebox, ttk
+    from tkinter import ttk
 
     from . import gui_catalog
 
@@ -334,6 +378,8 @@ def run() -> None:
         else profiles[0] if profiles else "piper_arrow"
     )
     catalog = gui_catalog.load_catalog(root_dir / "docs" / "simvars-reference.md")
+    monitor = _ValueMonitor()
+    monitor.start()
 
     win = tk.Tk()
     win.title("MSFS Peripherals Bridge — Control")
@@ -443,49 +489,52 @@ def run() -> None:
     tsb.grid(row=1, column=3, sticky="ns", pady=6)
     tree.config(yscrollcommand=tsb.set)
 
+    def _wire(kind: str, name: str) -> str | None:
+        """The name to subscribe to: A: bare, L: prefixed, K: events carry no value."""
+        if kind == "L:":
+            return "L:" + name
+        if kind == "A:":
+            return name
+        return None
+
+    def _sync_monitor():
+        monitor.set_names([
+            w for iid in tree.get_children("")
+            if (w := _wire(tree.set(iid, "kind"), tree.set(iid, "name"))) is not None
+        ])
+
     def add_var(v):
         key = f"{v.kind}\t{v.name}"
         if tree.exists(key):
             return
         tree.insert("", "end", iid=key, values=(v.kind, v.name, v.unit, "—"))
+        _sync_monitor()
 
     def remove_selected():
         for iid in tree.selection():
             tree.delete(iid)
+        _sync_monitor()
 
-    def read_values():
-        names = [tree.set(iid, "name") for iid in tree.get_children("")]
-        if not names:
-            return
-        if mapper["ctl"] is not None and mapper["ctl"].is_running():
-            messagebox.showinfo(
-                "Werte lesen",
-                "Der Mapper hält die (single-client-)Bridge belegt.\n"
-                "Für einen Snapshot bitte kurz den Mapper stoppen.\n\n"
-                "Dauerhaftes Mitlesen während des Mappens braucht eine "
-                "Multi-Client-Bridge (siehe Konzept).",
-            )
-            return
-        if not _port_listening(BRIDGE_PORT):
-            messagebox.showinfo("Werte lesen", "Bridge läuft nicht (Port 7842 ist zu).")
-            return
-        vals = _snapshot_values(names)
+    def update_values():
+        vals = monitor.values()
         for iid in tree.get_children(""):
-            nm = tree.set(iid, "name")
-            if nm in vals:
-                tree.set(iid, "value", _fmt_value(vals[nm]))
+            kind = tree.set(iid, "kind")
+            if kind == "K:":
+                tree.set(iid, "value", "(Event)")
+                continue
+            w = _wire(kind, tree.set(iid, "name"))
+            tree.set(iid, "value", _fmt_value(vals[w]) if w in vals else "—")
 
     sbtn = ttk.Frame(stab)
     sbtn.grid(row=2, column=0, columnspan=4, sticky="ew", pady=(6, 0))
     b_add = ttk.Button(sbtn, text="Variable hinzufügen …",
                        command=lambda: _open_var_picker(win, catalog, add_var))
     b_rm = ttk.Button(sbtn, text="Entfernen", command=remove_selected)
-    b_read = ttk.Button(sbtn, text="Werte lesen (Snapshot)", command=read_values)
     b_add.pack(side="left")
     b_rm.pack(side="left", padx=6)
-    b_read.pack(side="left")
+    mon_state = ttk.Label(sbtn, text="", foreground="#666")
+    mon_state.pack(side="right")
     _attach_tooltip(b_add, "Popup: nach Typ (A:/K:/L:) filtern + Namen suchen")
-    _attach_tooltip(b_read, "Kurz subscriben + aktuellen Wert lesen (Mapper muss aus sein)")
 
     # --- bottom status bar (small lamps) ----------------------------------- #
     ttk.Separator(win, orient="horizontal").grid(row=2, column=0, sticky="ew", pady=(8, 0))
@@ -507,13 +556,17 @@ def run() -> None:
         if mapper["ctl"] is not None:
             mapper["ctl"].poll()
         _set_lamp("MSFS", _msfs_running())
-        _set_lamp("Bridge", _port_listening(BRIDGE_PORT))
+        bridge_up = _port_listening(BRIDGE_PORT)
+        _set_lamp("Bridge", bridge_up)
         _set_lamp("Mapper", mapper["ctl"] is not None and mapper["ctl"].is_running())
+        update_values()
+        mon_state.config(text="● live" if bridge_up else "Bridge aus")
         win.after(_POLL_MS, refresh)
 
     def _on_close():
-        # Don't orphan the mapper this GUI started (it would keep stealing the
-        # single-client bridge slot). Leave the bridge up — it is meant to persist.
+        # Stop the monitor thread and don't orphan the mapper this GUI started;
+        # leave the bridge up (it is meant to persist so a mapper can reattach).
+        monitor.stop()
         stop_mapper()
         win.destroy()
 

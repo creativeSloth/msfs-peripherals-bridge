@@ -8,7 +8,39 @@
 > (Battery-Gating + die 🆕-Threads). **172 Tests grün, ruff clean, 4 Profile valide.**
 > Ältere „UNCOMMITTED"-Marker weiter unten sind historisch (Code steht/committet).
 
-## 🆕 SESSION 2026-07-09 — ALT/VS-Input gefunden + Sticky-Fix + Barometer (UNCOMMITTED)
+## 🚧 IN ARBEIT (2026-07-09 spät) — GUI-Live-Monitor + Bridge MULTI-CLIENT (UNVERIFIZIERT!)
+**Branch `feat/gui-var-monitor`** (von `main` nach dem Merge). **Committet, aber NICHT in-sim
+verifiziert** — Credits waren alle, Live-Test stand unmittelbar bevor. **174 Tests grün, ruff
+clean, py_compile ok.** Geändert: `src/.../gui.py`, `bridge/bridge.py`.
+
+**Was gebaut wurde:**
+- **GUI Statistik-Live-Monitor** (`gui.py`): neue `_ValueMonitor`-Klasse = Hintergrund-Thread,
+  der dauerhaft subscribed und `{wire_name: value}` hält; `refresh()` updatet die Tabelle 1×/s.
+  Snapshot-Button raus. **L:-Präfix-Fix** (das war der „Strich": L:Vars müssen als `L:<name>`
+  subscribt werden, A: bar, K: = kein Wert). set_names bei Add/Remove, Reconnect bei Listen-Änderung.
+- **Bridge MULTI-CLIENT** (`bridge/bridge.py` `main()`): `listen(1)`→`listen(8)`, **Thread pro
+  Client** (`handle_client`) + **Reconnect-Manager-Thread** (statt inline). DLL-Zugriffe bleiben
+  durch `SimConnectBridge._lock` (RLock) serialisiert — **auditiert:** send_event/set_simvar/
+  _mf_exec/read_lvar/read_var/read_simvar/list_lvars/close alle unter `_lock` → parallele Clients
+  safe. Reconnect-Manager wirft einen **gesunden** Sim nicht weg (prüft `_check_alive()`).
+  Damit können **Mapper UND GUI-Monitor gleichzeitig** subscriben (das war der User-Wunsch).
+
+**🔴 NÄCHSTE SESSION = ERST VERIFIZIEREN, bevor man dem Multi-Client traut (fragile Wine-Komp.):**
+1. Bridge neu starten (`msfs-bridge`/`run-bridge.sh` — lädt neuen `bridge.py`).
+2. **Multi-Client-Test:** ZWEI gleichzeitige Verbindungen (z.B. 2× `tools/probe_altvs.py` in
+   getrennten Terminals, oder das Snippet aus dem Session-Scratchpad `mc_test.py`) → BEIDE müssen
+   `state`-Frames bekommen. Wenn nur eine kriegt was → Multi-Client greift nicht.
+3. **GUI+Mapper gleichzeitig:** Mapper starten, GUI „Statistik" → Variablen adden → Werte müssen
+   **live updaten, während der Mapper läuft** (kein „Strich" mehr, kein Connect/Reset-Geflacker
+   im bridge.log). Falls AV/Crash im Log → Lock-Audit vertiefen.
+4. Wenn stabil → nach `main` mergen. **Offen:** Tests für `gui_catalog`/Monitor fehlen noch.
+
+**Ebenfalls offen (Konzept, wartet auf 2 User-Antworten):** Mapping-Tab (Geräte/Tasten mappen +
+Sonderfunktionen). Stufenplan A(Viewer)/B(Editor+Learn+Speichern)/C(Sonderfunktions-Editoren).
+Fragen: (1) `ruamel.yaml` als Dep ok (kommentarerhaltendes Speichern)? (2) Stufe A oder A+B zuerst?
+`msfs-gui`-Launcher liegt user-lokal in `~/.local/bin` (nicht im Repo).
+
+## 🆕 SESSION 2026-07-09 — ALT/VS-Input gefunden + Sticky-Fix + Barometer (gemerged nach main)
 Bridge (nur, ohne Mapper) live am JF Arrow; per neuem Tool `tools/probe_altvs.py` (subscribe +
 optional Write/RPN auf 1 Verbindung, stdout line-buffered) getrieben. **172 Tests grün, ruff
 clean, 4 Profile valid.** MSFS ist einmal mittendrin **abgestürzt (CTD)**, vom User neu gestartet;
