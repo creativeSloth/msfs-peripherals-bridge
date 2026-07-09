@@ -8,10 +8,13 @@
 > (Battery-Gating + die 🆕-Threads). **172 Tests grün, ruff clean, 4 Profile valide.**
 > Ältere „UNCOMMITTED"-Marker weiter unten sind historisch (Code steht/committet).
 
-## 🚧 IN ARBEIT (2026-07-09 spät) — GUI-Live-Monitor + Bridge MULTI-CLIENT (UNVERIFIZIERT!)
-**Branch `feat/gui-var-monitor`** (von `main` nach dem Merge). **Committet, aber NICHT in-sim
-verifiziert** — Credits waren alle, Live-Test stand unmittelbar bevor. **174 Tests grün, ruff
-clean, py_compile ok.** Geändert: `src/.../gui.py`, `bridge/bridge.py`.
+## 🚧 IN ARBEIT (2026-07-09 spät) — GUI-Live-Monitor + Bridge MULTI-CLIENT
+**Branch `feat/gui-var-monitor`** (von `main` nach dem Merge). **174 Tests grün, ruff clean,
+py_compile ok.** Geändert: `src/.../gui.py`, `bridge/bridge.py`.
+**✅ MULTI-CLIENT IN-SIM VERIFIZIERT (2026-07-09):** zwei gleichzeitige Bridge-Verbindungen
+bekamen BEIDE `state`-Frames (Test-Snippet: A=2/B=2, „MULTIT-CLIENT OK"). Der Bridge-Umbau steht.
+**Offen nur noch:** GUI+Mapper VISUELL zusammen prüfen (Statistik-Werte updaten live, während der
+Mapper läuft) — dann nach `main` mergen. GUI-Monitor subscribt gleich (L:-Präfix), sollte greifen.
 
 **Was gebaut wurde:**
 - **GUI Statistik-Live-Monitor** (`gui.py`): neue `_ValueMonitor`-Klasse = Hintergrund-Thread,
