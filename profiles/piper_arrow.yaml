@@ -353,17 +353,17 @@ outputs:
       selector:
         # fast_step = gentle acceleration: only after a sustained fast spin, and
         # ~half the old jump (was ALT 1000 / HDG 10). Drop fast_step to disable.
-        # sticky: the JF gauge drives AUTOPILOT ALTITUDE LOCK VAR to 0 (ALT capture)
-        # or 80000 (VS active) on mode switches, which would clobber the dialed
-        # target — so the panel keeps its own encoder-owned value (starts at 0).
+        # The display shows the live sim value (user choice 2026-07-09). The JF
+        # gauge drives AUTOPILOT ALTITUDE LOCK VAR to 0/80000 on mode switches, so
+        # the readout follows that — a `sticky: true` field exists to keep an
+        # encoder-owned value instead, but ALT/VS deliberately stay live.
         - { code: 0, label: ALT, simvar: "AUTOPILOT ALTITUDE LOCK VAR",
-            set_event: AP_ALT_VAR_SET_ENGLISH, step: 100, fast_step: 300, min: 0, max: 99999,
-            sticky: true }
+            set_event: AP_ALT_VAR_SET_ENGLISH, step: 100, fast_step: 300, min: 0, max: 99999 }
         # VS lives on the *bottom* display row so ALT (top) and VS stay visible
         # together; switching ALT<->VS only re-points the encoder.
         - { code: 1, label: VS, simvar: "AUTOPILOT VERTICAL HOLD VAR",
             set_event: AP_VS_VAR_SET_ENGLISH, step: 100, fast_step: 300, min: -9999, max: 9999,
-            display_row: bottom, sticky: true }
+            display_row: bottom }
         - { code: 2, label: IAS, simvar: "AUTOPILOT AIRSPEED HOLD VAR",
             set_event: AP_SPD_VAR_SET, step: 1, fast_step: 3, min: 0, max: 360 }
         - { code: 3, label: HDG, simvar: "AUTOPILOT HEADING LOCK DIR",

@@ -46,6 +46,10 @@ uns Schluss machen"). Das Panel-Display ist damit bewusst vom Sim-Ziel entkoppel
   (User: „entscheide du"), Entscheidung aber offen — falls (b): `models.py sticky`,
   `multi_panel.py _sticky/_value_for`, Profil `sticky: true` an ALT+VS und die Sticky-Tests
   isoliert zurücknehmen (revert).
+  **→ FINAL ENTSCHIEDEN 2026-07-09: (b) immer live Sim-Wert.** (Kurz war (c) Hybrid im Gespräch,
+  dann verworfen.) `sticky: true` bei ALT+VS im Profil wieder ENTFERNT → Display folgt der SimVar
+  (inkl. der 0/80000-Gauge-Resets, vom User akzeptiert). Das `sticky`-Feature (models/controller/
+  Tests) bleibt als **ungenutzter Opt-in** im Code — auf Wunsch ganz entfernbar.
 
 **✅ Bug #4 GEKLÄRT — es sind ZWEI Höhenmesser (in-sim verifiziert), kein dritter:**
 | # | Instrument | Var | Steuerbar |
