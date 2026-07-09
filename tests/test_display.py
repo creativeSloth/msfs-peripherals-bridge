@@ -1,9 +1,26 @@
 from msfs_peripherals_bridge.mapping.display import (
     BLANK,
+    DOT,
     MINUS,
     display_cells,
+    format_frequency,
     format_row,
 )
+
+
+def test_frequency_normal_view_has_dot_after_third_digit():
+    # COM/NAV normal view NNN.NN: 118.00 -> "118.00", dot rides on the 8.
+    assert format_frequency(118.00) == [1, 1, 8 + DOT, 0, 0]
+    assert format_frequency(110.55) == [1, 1, 0 + DOT, 5, 5]
+
+
+def test_frequency_fine_view_shifts_to_expose_third_decimal():
+    # NN.NNN drops the implied leading 1 so the third decimal fits: 118.005 -> 18.005
+    assert format_frequency(118.005, decimals=3) == [1, 8 + DOT, 0, 0, 5]
+
+
+def test_frequency_none_is_blank():
+    assert format_frequency(None) == [BLANK] * 5
 
 
 def test_simple_number_is_right_justified_blank_padded():

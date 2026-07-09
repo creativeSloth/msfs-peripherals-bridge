@@ -10,7 +10,7 @@ from __future__ import annotations
 from enum import StrEnum
 from typing import Annotated, Literal
 
-from pydantic import BaseModel, Field, model_validator
+from pydantic import BaseModel, Discriminator, Field, Tag, field_validator, model_validator
 
 
 class SourceKind(StrEnum):
@@ -126,7 +126,20 @@ class SequenceAction(BaseModel):
     )
 
 
-Action = EventAction | SimVarAction | EventFromVarAction | SequenceAction
+class RpnAction(BaseModel):
+    """Run a raw RPN (MobiFlight calculator) expression on a button press.
+
+    For controls a fixed set/event can't express. The headline case is a stateless
+    bool toggle: ``(L:JF_PA28_AP_alt) ! (>L:JF_PA28_AP_alt)`` flips the LVar and,
+    because ``!`` is a logical NOT, always writes exactly 0 or 1 — no drift into
+    other values however it is pressed. Momentary: fires once on the press edge.
+    """
+
+    type: Literal["rpn"] = "rpn"
+    code: str = Field(..., description="RPN expression, e.g. '(L:X) ! (>L:X)'.")
+
+
+Action = EventAction | SimVarAction | EventFromVarAction | SequenceAction | RpnAction
 
 
 class GearLedOutput(BaseModel):
@@ -201,6 +214,18 @@ class SelectorEntry(BaseModel):
     min: float
     max: float
     rollover: bool = Field(False, description="Wrap min<->max instead of clamping (HDG/CRS).")
+    # Keep a local, encoder-owned value instead of showing the live SimVar. Use for
+    # values the aircraft gauge overwrites out-of-band: on the JF Arrow, engaging a
+    # vertical mode drives AUTOPILOT ALTITUDE LOCK VAR / VERTICAL HOLD VAR to 0 /
+    # 80000, which would otherwise clobber the target the user dialed in. A sticky
+    # value starts at 0 (or `min` if 0 is out of range) and only the encoder changes
+    # it, so the display holds the last set value across mode switches.
+    sticky: bool = Field(False, description="Encoder-owned value; ignore live SimVar (ALT/VS).")
+    # Some gauges park an "off" value far out of range (the JF Arrow drives
+    # AUTOPILOT ALTITUDE LOCK VAR to 80000 when the ALT hold is off / VS is active).
+    # When set, a live value >= off_above — or a missing (None) value — is shown as
+    # 0 instead, and the encoder edits up from 0. None = show the raw value.
+    off_above: float | None = Field(None, description="Value >= this (or None) displays as 0.")
     # Which display row this value lives on. Rows are persistent: ALT on top and
     # VS on the bottom stay visible together, the selector only re-points the
     # encoder. The selected value owns its row; the other row keeps its last value.
@@ -281,6 +306,13 @@ class MultiPanelOutput(BaseModel):
     selector: list[SelectorEntry] = Field(..., min_length=1)
     ap_master: str = Field("AUTOPILOT MASTER", description="Bool SimVar for the AP-master LED.")
     mode_var: str = Field("L:AUTOPILOT_MODE", description="Active-mode var for the mode LEDs.")
+    # Buttons lit straight from a bool var, independent of mode_var — for the
+    # ALT/VS *hold* modes, which coexist with a lateral mode and so can't ride the
+    # single-value mode enum. Maps a Multi Panel button name (alt, vs, …) to its
+    # bool SimVar; the LED mirrors that var whatever engaged it.
+    bool_leds: dict[str, str] = Field(
+        default_factory=dict, description="Button name -> bool var lit directly."
+    )
     # Off-panel button that steps the active source of a selector position with
     # alt_sources (e.g. a yoke rocker flipping the CRS knob between NAV1/NAV2 OBS).
     source_toggle: AuxInput | None = Field(
@@ -288,6 +320,26 @@ class MultiPanelOutput(BaseModel):
     )
     # The trim wheel repurposed as a light dimmer (radio + panel lights).
     dimmer: MultiPanelDimmer | None = Field(None, description="Trim-wheel light dimmer.")
+    # Optional power gate: when set, the display + LEDs light only while this bool
+    # var is on (e.g. ELECTRICAL MASTER BATTERY). Default None = always lit, so this
+    # breaks no render behaviour for panels that don't set it. Matches the gear
+    # LEDs, which already go dark without battery.
+    power: str | None = Field(
+        None, description="Bool var gating the display/LEDs (None = always on)."
+    )
+
+    @field_validator("bool_leds")
+    @classmethod
+    def _known_led_buttons(cls, v: dict[str, str]) -> dict[str, str]:
+        from .mapping.leds import MULTI_LED_BUTTONS
+
+        unknown = set(v) - MULTI_LED_BUTTONS
+        if unknown:
+            raise ValueError(
+                f"unknown Multi Panel LED button(s) {sorted(unknown)}; "
+                f"known: {sorted(MULTI_LED_BUTTONS)}"
+            )
+        return v
 
     def simvars(self) -> list[str]:
         """Every SimVar this controller needs subscribed."""
@@ -296,12 +348,209 @@ class MultiPanelOutput(BaseModel):
             names.append(entry.simvar)
             names += [s.simvar for s in entry.alt_sources]
         names += [self.ap_master, self.mode_var]
+        names += list(self.bool_leds.values())
         if self.dimmer is not None:
             names += [t.var for t in self.dimmer.targets if t.var is not None]
+        if self.power is not None:
+            names.append(self.power)
         return names
 
 
-Output = Annotated[GearLedOutput | MultiPanelOutput, Field(discriminator="type")]
+class RadioBank(BaseModel):
+    """One selector position (COM1/COM2/NAV1/NAV2) on a Radio Panel unit.
+
+    Tuning is *event-based*, mirroring SPAD.neXt and the real panel: the encoders
+    don't compute a frequency, they fire the standard MSFS step events and the sim
+    echoes the new STANDBY value back for the display. ``active``/``standby`` are
+    the frequency SimVars shown on the unit's two display rows; the outer (coarse)
+    knob fires ``whole_inc``/``whole_dec`` (whole MHz), the inner (fine) knob fires
+    ``fract_inc``/``fract_dec`` — or the ``fract_fast_*`` variants once spun fast,
+    so a slow turn steps fine (COM 8.33 kHz) and a fast turn steps coarse (25 kHz).
+    Pushing the encoder swaps active<->standby (``swap_event``).
+    """
+
+    kind: Literal["freq"] = "freq"
+    code: int = Field(..., ge=0, description="Selector bit code for this position.")
+    label: str = Field(..., description="Human label, e.g. 'COM1' (logging only).")
+    active: str = Field(..., description="ACTIVE frequency SimVar (top row).")
+    standby: str = Field(..., description="STANDBY frequency SimVar (tuned, bottom row).")
+    swap_event: str = Field(..., description="ACT/STBY swap event, e.g. COM1_RADIO_SWAP.")
+    whole_inc: str = Field(..., description="Outer-knob CW event (whole MHz up).")
+    whole_dec: str = Field(..., description="Outer-knob CCW event (whole MHz down).")
+    fract_inc: str = Field(..., description="Inner-knob CW event, fine step (kHz up).")
+    fract_dec: str = Field(..., description="Inner-knob CCW event, fine step (kHz down).")
+    # Coarse fractional step fired when the inner knob is spun fast (COM 25 kHz vs
+    # the fine 8.33 kHz). None = no fast distinction (e.g. NAV) -> reuse fract_*.
+    fract_fast_inc: str | None = Field(None, description="Inner-knob CW when spun fast.")
+    fract_fast_dec: str | None = Field(None, description="Inner-knob CCW when spun fast.")
+    # Whether the inner knob shifts the STANDBY row to the 3-decimal fine view
+    # (NN.NNN). Only COM 8.33 kHz has a meaningful third decimal; NAV steps 50 kHz
+    # (third decimal always 0), so its fine view would just roll the lead digit off
+    # for nothing. Opt-in per bank: COM -> true, NAV/ADF/XPDR -> false.
+    fine_view: bool = Field(False, description="Inner knob shifts standby to NN.NNN (COM 8.33).")
+
+
+class DmeSource(BaseModel):
+    """One DME readout source (a NAV radio's distance + ground speed)."""
+
+    label: str = Field(..., description="Shown source digit, e.g. '1' or '2' (NAV index).")
+    distance: str = Field(..., description="DME distance SimVar, e.g. 'NAV DME:1' (nmiles).")
+    speed: str = Field(..., description="DME ground-speed SimVar, e.g. 'NAV DMESPEED:1' (knots).")
+
+
+class DmeBank(BaseModel):
+    """DME selector position — a *display-only* readout (no tuning).
+
+    The Saitek DME position shows the distance + ground speed of a NAV's DME. Unlike
+    SPAD's fixed NAV1 readout, the push (swap) cycles the active :class:`DmeSource`
+    (NAV1<->NAV2), so one position covers both. The encoders do nothing here.
+    """
+
+    kind: Literal["dme"] = "dme"
+    code: int = Field(..., ge=0, description="Selector bit code for this position.")
+    label: str = Field("DME", description="Human label (logging only).")
+    sources: list[DmeSource] = Field(
+        ..., min_length=1, description="DME sources the push cycles through (NAV1, NAV2)."
+    )
+
+
+class AdfBank(BaseModel):
+    """ADF selector position — set the kHz frequency a digit-pair at a time.
+
+    The 4-digit kHz frequency is edited with the two encoders + the push: the push
+    toggles a two-digit cursor between the high pair (1000s, 100s) and the low pair
+    (10s, 1s); the outer knob steps the active pair's left digit, the inner its
+    right (each 0-9, wrapping), and the whole value is clamped to
+    ``[min_khz, max_khz]`` so no out-of-range frequency can be dialled. Two dots in
+    the display mark the active pair. The value is read/written on ``freq`` — the
+    STANDBY var, which reads cleanly (ACTIVE reads garbage on the JF Arrow);
+    ``scale`` converts the SimVar to kHz (measured 2026-07-08: reads Hz, so 0.001).
+    """
+
+    kind: Literal["adf"] = "adf"
+    code: int = Field(..., ge=0, description="Selector bit code for this position.")
+    label: str = Field("ADF", description="Human label (logging only).")
+    freq: str = Field("ADF STANDBY FREQUENCY:1", description="Freq SimVar (reads Hz).")
+    scale: float = Field(0.001, description="Multiply the SimVar to get kHz (Hz->kHz).")
+    min_khz: int = Field(190, ge=0, description="Lowest dialable kHz (clamp floor).")
+    max_khz: int = Field(1799, ge=0, description="Highest dialable kHz (clamp ceiling).")
+
+
+class XpdrBank(BaseModel):
+    """Transponder selector position — edit the squawk (top), set the QNH (bottom).
+
+    The 4-octal-digit squawk is edited a digit at a time: the push walks an edit
+    cursor across the four digits (a dot in the display marks the active one) and
+    the inner knob steps the digit under the cursor (0-7, wrapping). The controller
+    reads the current code, applies the step locally and writes it back via
+    ``set_event`` (XPNDR_SET, BCD16).
+
+    The otherwise-idle *outer* knob doubles as the altimeter (QNH) setting: it fires
+    ``baro_inc`` / ``baro_dec`` and the bottom display row shows ``baro_var`` (hPa,
+    a 4-digit integer). Leave ``baro_var`` None to keep the bottom row blank.
+    """
+
+    kind: Literal["xpdr"] = "xpdr"
+    code: int = Field(..., ge=0, description="Selector bit code for this position.")
+    label: str = Field("XPDR", description="Human label (logging only).")
+    code_var: str = Field("TRANSPONDER CODE:1", description="Squawk SimVar (BCD16).")
+    set_event: str = Field("XPNDR_SET", description="Event to set the squawk (BCD16 data).")
+    # Outer knob = altimeter/QNH setting on the bottom row (None = bottom stays blank).
+    # Shown as NN.NN with the dot on the 2nd digit (e.g. 29.92 inHg for the Piper).
+    baro_var: str | None = Field(None, description="QNH SimVar for the bottom row (inHg).")
+    baro_scale: float = Field(1.0, description="Multiply baro_var to inHg (already inHg = 1).")
+    baro_inc: str = Field("KOHLSMAN_INC", description="Outer-knob-CW event (QNH up).")
+    baro_dec: str = Field("KOHLSMAN_DEC", description="Outer-knob-CCW event (QNH down).")
+
+
+# A selector position is one of the bank kinds, told apart by ``kind``. A callable
+# discriminator lets COM/NAV entries omit ``kind`` (the common case) and default to
+# "freq", while DME/XPDR (and later ADF) tag themselves explicitly.
+def _bank_kind(value: object) -> str:
+    if isinstance(value, dict):
+        return value.get("kind", "freq")
+    return getattr(value, "kind", "freq")
+
+
+RadioBankT = Annotated[
+    Annotated[RadioBank, Tag("freq")]
+    | Annotated[DmeBank, Tag("dme")]
+    | Annotated[XpdrBank, Tag("xpdr")]
+    | Annotated[AdfBank, Tag("adf")],
+    Discriminator(_bank_kind),
+]
+
+
+class RadioUnit(BaseModel):
+    """One half (upper or lower) of the Saitek Radio Panel.
+
+    Each half is an independent radio: a mode selector picking a :class:`RadioBank`,
+    a dual concentric encoder (outer coarse + inner fine, pushable = swap) and a
+    two-row display (ACTIVE over STANDBY). ``row`` places it in the 20-cell feature
+    report — ``upper`` = cells 0..9, ``lower`` = cells 10..19 (see
+    docs/memory/radio-panel-hid.md). The int codes are hardware input bits (to be
+    measured at the device, like the Multi Panel).
+    """
+
+    name: str = Field(..., description="Human label, 'upper'/'lower' (logging only).")
+    row: Literal["upper", "lower"] = Field(..., description="Display half this unit drives.")
+    banks: list[RadioBankT] = Field(
+        ..., min_length=1, description="Selectable positions (COM/NAV freq, DME, …)."
+    )
+    outer_cw: int = Field(..., description="Outer (coarse/whole) encoder CW code.")
+    outer_ccw: int = Field(..., description="Outer encoder CCW code.")
+    inner_cw: int = Field(..., description="Inner (fine/fract) encoder CW code.")
+    inner_ccw: int = Field(..., description="Inner encoder CCW code.")
+    swap: int = Field(..., description="ACT/STBY push (pushable encoder) code.")
+
+
+class RadioPanelOutput(BaseModel):
+    """Saitek Radio Panel: two independent radio units (COM/NAV), event-tuned.
+
+    Bidirectional like the Multi Panel: the encoders fire step events while the
+    displays show the ACTIVE/STANDBY frequencies streamed back from the sim. Banks are
+    a discriminated union by ``kind`` covering all seven selector positions:
+    COM/NAV freq (:class:`RadioBank`, event-tuned), ADF (:class:`AdfBank`, local-echo
+    tuned), DME (:class:`DmeBank`, display-only) and XPDR (:class:`XpdrBank`, squawk).
+    For freq banks the display follows the encoder —
+    the fine encoder shifts the tuned row to ``NN.NNN`` to expose the third decimal,
+    the coarse encoder back to ``NNN.NN`` — see :class:`RadioPanelController`.
+    """
+
+    type: Literal["radio_panel"] = "radio_panel"
+    units: list[RadioUnit] = Field(..., min_length=1, description="Radio units (upper/lower).")
+    # Optional power gate: when set, the display lights only while this bool var is
+    # on (e.g. ELECTRICAL MASTER BATTERY). Default None = always lit, so this breaks
+    # no render behaviour for panels that don't set it. Matches the gear LEDs, which
+    # already go dark without battery. Use AVIONICS MASTER SWITCH here for a bus gate.
+    power: str | None = Field(
+        None, description="Bool var gating the display (None = always on)."
+    )
+
+    def simvars(self) -> list[str]:
+        """Every SimVar the displays need subscribed (per bank kind)."""
+        names: list[str] = []
+        for unit in self.units:
+            for bank in unit.banks:
+                if isinstance(bank, DmeBank):
+                    for src in bank.sources:
+                        names += [src.distance, src.speed]
+                elif isinstance(bank, XpdrBank):
+                    names.append(bank.code_var)
+                    if bank.baro_var is not None:
+                        names.append(bank.baro_var)
+                elif isinstance(bank, AdfBank):
+                    names.append(bank.freq)
+                else:  # freq (COM/NAV) — active + standby
+                    names += [bank.active, bank.standby]
+        if self.power is not None:
+            names.append(self.power)
+        return names
+
+
+Output = Annotated[
+    GearLedOutput | MultiPanelOutput | RadioPanelOutput, Field(discriminator="type")
+]
 
 
 class Source(BaseModel):

@@ -1,13 +1,22 @@
+from msfs_peripherals_bridge.mapping.display import DOT
 from msfs_peripherals_bridge.mapping.multi_panel import ENCODER_CW
 from msfs_peripherals_bridge.models import (
     AuxInput,
     GearLedOutput,
     MultiPanelOutput,
+    RadioBank,
+    RadioPanelOutput,
+    RadioUnit,
     SelectorEntry,
     SelectorSource,
 )
 from msfs_peripherals_bridge.outputs import OutputManager
-from msfs_peripherals_bridge.simconnect.protocol import SendEvent, Subscribe
+from msfs_peripherals_bridge.simconnect.protocol import ReadNow, SendEvent, Subscribe
+
+
+def _fire_now(delay, fn):
+    """Test scheduler: run the refresh synchronously for deterministic assertions."""
+    fn()
 
 NOSE_GREEN = 1 << 0
 LEFT_GREEN = 1 << 1
@@ -211,3 +220,125 @@ def test_aux_toggle_routes_to_controller_and_rewrites_panel():
     before = len(writes)
     assert manager.handle_input("yoke", 291, value=0) == []
     assert len(writes) == before
+
+
+# --- Radio Panel controller routed through the OutputManager ----------------
+
+
+def _radio_output() -> RadioPanelOutput:
+    return RadioPanelOutput(
+        units=[
+            RadioUnit(
+                name="upper", row="upper",
+                outer_cw=14, outer_ccw=15, inner_cw=16, inner_ccw=17, swap=22,
+                banks=[
+                    RadioBank(
+                        code=0, label="COM1", fine_view=True,
+                        active="COM ACTIVE FREQUENCY:1", standby="COM STANDBY FREQUENCY:1",
+                        swap_event="COM1_RADIO_SWAP",
+                        whole_inc="COM_RADIO_WHOLE_INC", whole_dec="COM_RADIO_WHOLE_DEC",
+                        fract_inc="COM_RADIO_FRACT_INC", fract_dec="COM_RADIO_FRACT_DEC",
+                    ),
+                ],
+            ),
+        ],
+    )
+
+
+def _radio_manager(writer):
+    return OutputManager(
+        {"radio_panel": [_radio_output()]},
+        {"radio_panel": "/dev/hidrawR"},
+        FakeDispatcher(),
+        writer=writer,
+    )
+
+
+def test_radio_subscribes_to_frequency_vars():
+    dispatcher = FakeDispatcher()
+    manager = OutputManager(
+        {"radio_panel": [_radio_output()]}, {"radio_panel": "/dev/hidrawR"}, dispatcher
+    )
+    manager.subscribe_all()
+    subscribed = {c.name for c in dispatcher.sent if isinstance(c, Subscribe)}
+    assert subscribed == {"COM ACTIVE FREQUENCY:1", "COM STANDBY FREQUENCY:1"}
+
+
+def test_radio_handles_its_input_codes():
+    manager = _radio_manager(lambda p, r: None)
+    assert manager.handles("radio_panel", 0) is True  # selector COM1
+    assert manager.handles("radio_panel", 16) is True  # inner encoder CW
+    assert manager.handles("radio_panel", 22) is True  # ACT/STBY swap
+    assert manager.handles("radio_panel", 99) is False  # not ours
+
+
+def test_radio_outer_encoder_fires_event_and_writes_display():
+    writes: list[bytes] = []
+    manager = _radio_manager(lambda path, report: writes.append(report))
+    manager.on_state("COM ACTIVE FREQUENCY:1", 118.00)
+    manager.on_state("COM STANDBY FREQUENCY:1", 118.30)
+
+    commands = manager.handle_input("radio_panel", 14, value=1)  # outer CW
+    assert commands == [SendEvent(name="COM_RADIO_WHOLE_INC")]
+    # 23-byte report; upper ACTIVE row (cells 0..4) shows 118.00.
+    assert len(writes[-1]) == 23
+    assert list(writes[-1][1:6]) == [1, 1, 8 + DOT, 0, 0]
+
+
+def test_radio_inner_encoder_shifts_standby_to_fine_view():
+    writes: list[bytes] = []
+    manager = _radio_manager(lambda path, report: writes.append(report))
+    manager.on_state("COM STANDBY FREQUENCY:1", 118.30)
+
+    commands = manager.handle_input("radio_panel", 16, value=1)  # inner CW
+    assert commands == [SendEvent(name="COM_RADIO_FRACT_INC")]
+    # inner knob -> standby row (cells 5..9) shifts to the fine view 18.300
+    assert list(writes[-1][6:11]) == [1, 8 + DOT, 3, 0, 0]
+
+
+def _readnow_manager(dispatcher, schedule):
+    return OutputManager(
+        {"radio_panel": [_radio_output()]},
+        {"radio_panel": "/dev/hidrawR"},
+        dispatcher,
+        writer=lambda p, r: None,
+        schedule=schedule,
+    )
+
+
+def test_radio_encoder_schedules_readnow_of_tuned_var():
+    dispatcher = FakeDispatcher()
+    manager = _readnow_manager(dispatcher, _fire_now)
+    manager.handle_input("radio_panel", 16, value=1)  # inner CW tunes standby
+    reads = [c for c in dispatcher.sent if isinstance(c, ReadNow)]
+    assert reads == [ReadNow("COM STANDBY FREQUENCY:1")]
+
+
+def test_radio_swap_schedules_readnow_of_both_rows():
+    dispatcher = FakeDispatcher()
+    manager = _readnow_manager(dispatcher, _fire_now)
+    manager.handle_input("radio_panel", 22, value=1)  # swap flips both rows
+    reads = [c.name for c in dispatcher.sent if isinstance(c, ReadNow)]
+    assert reads == ["COM ACTIVE FREQUENCY:1", "COM STANDBY FREQUENCY:1"]
+
+
+def test_selector_move_schedules_no_readnow():
+    dispatcher = FakeDispatcher()
+    manager = _readnow_manager(dispatcher, _fire_now)
+    manager.handle_input("radio_panel", 0, value=1)  # selector COM1: idempotent
+    assert not [c for c in dispatcher.sent if isinstance(c, ReadNow)]
+
+
+def test_detent_burst_coalesces_to_one_readnow():
+    captured: list = []
+    dispatcher = FakeDispatcher()
+    manager = _readnow_manager(dispatcher, lambda delay, fn: captured.append(fn))
+    for _ in range(3):  # three quick inner detents, each arms a timer
+        manager.handle_input("radio_panel", 16, value=1)
+    assert len(captured) == 3
+    captured[0]()  # earlier (superseded) timers flush nothing
+    captured[1]()
+    assert not [c for c in dispatcher.sent if isinstance(c, ReadNow)]
+    captured[2]()  # only the last-armed generation flushes, once
+    reads = [c for c in dispatcher.sent if isinstance(c, ReadNow)]
+    assert reads == [ReadNow("COM STANDBY FREQUENCY:1")]

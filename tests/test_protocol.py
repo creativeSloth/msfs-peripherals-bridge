@@ -5,6 +5,7 @@ from __future__ import annotations
 import json
 
 from msfs_peripherals_bridge.simconnect.protocol import (
+    ReadNow,
     SendEvent,
     SendEventFromVar,
     SetSimVar,
@@ -41,6 +42,20 @@ def test_subscribe_frame():
         "op": "subscribe",
         "name": "TITLE",
         "unit": "string",
+    }
+
+
+def test_read_now_frame_omits_unit_when_unset():
+    # bridge.py reads msg["name"] and msg.get("unit") under this op; the unit is
+    # optional so it can fall back to the existing subscription's unit.
+    assert _wire(ReadNow("COM STANDBY FREQUENCY:1")) == {
+        "op": "read_now",
+        "name": "COM STANDBY FREQUENCY:1",
+    }
+    assert _wire(ReadNow("NAV OBS:2", unit="degrees")) == {
+        "op": "read_now",
+        "name": "NAV OBS:2",
+        "unit": "degrees",
     }
 
 

@@ -60,6 +60,9 @@ class MultiPanelController:
     ) -> None:
         self.config = config
         self._clock = clock
+        # Optional battery/avionics gate: dark unless this bool var reads on. None =
+        # always lit (its var is in subscriptions() via config.simvars()).
+        self._power = config.power
         # Encoder spin tracking for gentle acceleration (timestamp of the last
         # detent + how many fast detents have stacked up in a row).
         self._last_tick: float | None = None
@@ -80,6 +83,14 @@ class MultiPanelController:
         # The dimmer self-tracks its percent: the lights are L: vars the bridge
         # can write but not yet read back, so we can't seed from sim state.
         self._dimmer_value: float = config.dimmer.min if config.dimmer is not None else 0.0
+        # Sticky selector values (e.g. ALT/VS): local, encoder-owned so the JF
+        # gauge's out-of-band resets don't clobber the dialed target. Start at 0
+        # (or min when 0 is out of range); only on_encoder changes them.
+        self._sticky: dict[int, float] = {
+            e.code: (0.0 if e.min <= 0 <= e.max else e.min)
+            for e in config.selector
+            if e.sticky
+        }
 
     def subscriptions(self) -> list[str]:
         """SimVars this controller needs streamed from the bridge."""
@@ -91,6 +102,11 @@ class MultiPanelController:
             return True
         d = self.config.dimmer
         return d is not None and code in (d.cw, d.ccw)
+
+    def refresh_after(self, code: int) -> list[str]:
+        """No off-cycle read-back needed: this panel's display is driven by its own
+        encoder value and mode LEDs, not by echoing a var it just nudged."""
+        return []
 
     def _source(self, entry: SelectorEntry) -> tuple[str, str | None]:
         """The active ``(simvar, set_event)`` for ``entry`` given its source index."""
@@ -142,12 +158,17 @@ class MultiPanelController:
         if entry is None:
             return []
         simvar, set_event = self._source(entry)
-        current = self.values.get(simvar)
+        current = self._value_for(entry)
         if current is None:
             return []
+        if entry.off_above is not None and current >= entry.off_above:
+            current = 0.0  # editing up from an "off" sentinel (e.g. ALT 80000) starts at 0
         step = self._encoder_step(entry)
         new = _adjust(current, step if clockwise else -step, entry)
-        self.values[simvar] = new
+        if entry.sticky:
+            self._sticky[entry.code] = new
+        else:
+            self.values[simvar] = new
         data = round(new)
         if set_event is not None:
             return [SendEvent(name=set_event, data=data)]
@@ -214,20 +235,38 @@ class MultiPanelController:
         """Record a SimVar update streamed from the bridge."""
         self.values[name] = _as_float(value)
 
+    def _value_for(self, entry: SelectorEntry) -> float | None:
+        """The value to show/edit for ``entry``: local when sticky, else the live
+        SimVar (kept fresh by ``on_state``)."""
+        if entry.sticky:
+            return self._sticky.get(entry.code)
+        simvar, _ = self._source(entry)
+        return self.values.get(simvar)
+
     def _row_value(self, row: str) -> float | None:
-        """The live value currently shown on ``row`` (None if nothing assigned)."""
+        """The value currently shown on ``row`` (None if nothing assigned).
+
+        With ``off_above`` set, a live value at/above that sentinel — or a missing
+        value — reads as 0 (e.g. the JF ALT target parks at 80000 when off)."""
         entry = self._row_entry.get(row)
         if entry is None:
             return None
-        simvar, _ = self._source(entry)
-        return self.values.get(simvar)
+        value = self._value_for(entry)
+        if entry.off_above is not None and (value is None or value >= entry.off_above):
+            return 0.0
+        return value
 
     def render(self, blink_on: bool = True) -> bytes:
         """Build the full feature-report buffer (display cells + LED byte).
 
         ``blink_on`` is the shared blink phase (driven by the output manager's
         ticker) that flashes the OMNI-mode IAS LED.
+
+        With a ``power`` gate configured, an off/unknown battery blanks the whole
+        panel (all cells + LED byte 0), like the gear LEDs go dark without power.
         """
+        if not self._powered():
+            return bytes([_REPORT_ID, *display_cells(None, None), 0x00, 0x00])
         selected = self._by_code.get(self.selector)
         if selected is not None and selected.alt_sources:
             # The panel blanks the bottom row in CRS mode, so the 1-based source
@@ -243,10 +282,20 @@ class MultiPanelController:
             cells = display_cells(top=self._row_value("top"), bottom=self._row_value("bottom"))
         ap_master = (self.values.get(self.config.ap_master) or 0) >= 0.5
         mode = self.values.get(self.config.mode_var)
+        bool_leds = {
+            name: (self.values.get(var) or 0) >= 0.5
+            for name, var in self.config.bool_leds.items()
+        }
         led = multi_button_led_byte(
-            ap_master, int(mode) if mode is not None else None, blink_on
+            ap_master, int(mode) if mode is not None else None, blink_on, bool_leds
         )
         return bytes([_REPORT_ID, *cells, led, 0x00])
+
+    def _powered(self) -> bool:
+        """True unless a power gate is configured and reads off/unknown."""
+        if self._power is None:
+            return True
+        return (self.values.get(self._power) or 0) >= 0.5
 
 
 def _other_row(row: str) -> str:

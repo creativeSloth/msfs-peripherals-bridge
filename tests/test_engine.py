@@ -8,6 +8,7 @@ from msfs_peripherals_bridge.models import (
     EventAction,
     EventFromVarAction,
     Profile,
+    RpnAction,
     SequenceAction,
     SimVarAction,
     Source,
@@ -16,6 +17,7 @@ from msfs_peripherals_bridge.models import (
     WriteStep,
 )
 from msfs_peripherals_bridge.simconnect.protocol import (
+    RpnExec,
     SendEvent,
     SendEventFromVar,
     SetSimVar,
@@ -122,6 +124,17 @@ def test_momentary_switch_fires_only_on_enter_edge():
     engine = MappingEngine(_switch_binding(EventAction(event="GEAR_UP", value=1)))
     assert engine.resolve(DeviceEvent("switch_panel", SourceKind.SWITCH, 9, 1)) == [
         SendEvent(name="GEAR_UP", data=1)
+    ]
+    assert engine.resolve(DeviceEvent("switch_panel", SourceKind.SWITCH, 9, 0)) == []
+
+
+def test_rpn_action_is_momentary_toggle():
+    # An RPN action (e.g. an LVar NOT toggle) fires once on the press edge only —
+    # firing on both edges would toggle twice and net out to nothing.
+    rpn = "(L:JF_PA28_AP_alt) ! (>L:JF_PA28_AP_alt)"
+    engine = MappingEngine(_switch_binding(RpnAction(code=rpn)))
+    assert engine.resolve(DeviceEvent("switch_panel", SourceKind.SWITCH, 9, 1)) == [
+        RpnExec(code=rpn)
     ]
     assert engine.resolve(DeviceEvent("switch_panel", SourceKind.SWITCH, 9, 0)) == []
 
