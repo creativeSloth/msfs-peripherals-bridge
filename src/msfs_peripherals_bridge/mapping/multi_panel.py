@@ -161,6 +161,8 @@ class MultiPanelController:
         current = self._value_for(entry)
         if current is None:
             return []
+        if entry.off_above is not None and current >= entry.off_above:
+            current = 0.0  # editing up from an "off" sentinel (e.g. ALT 80000) starts at 0
         step = self._encoder_step(entry)
         new = _adjust(current, step if clockwise else -step, entry)
         if entry.sticky:
@@ -242,11 +244,17 @@ class MultiPanelController:
         return self.values.get(simvar)
 
     def _row_value(self, row: str) -> float | None:
-        """The value currently shown on ``row`` (None if nothing assigned)."""
+        """The value currently shown on ``row`` (None if nothing assigned).
+
+        With ``off_above`` set, a live value at/above that sentinel — or a missing
+        value — reads as 0 (e.g. the JF ALT target parks at 80000 when off)."""
         entry = self._row_entry.get(row)
         if entry is None:
             return None
-        return self._value_for(entry)
+        value = self._value_for(entry)
+        if entry.off_above is not None and (value is None or value >= entry.off_above):
+            return 0.0
+        return value
 
     def render(self, blink_on: bool = True) -> bytes:
         """Build the full feature-report buffer (display cells + LED byte).

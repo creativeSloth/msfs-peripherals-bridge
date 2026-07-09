@@ -221,6 +221,11 @@ class SelectorEntry(BaseModel):
     # value starts at 0 (or `min` if 0 is out of range) and only the encoder changes
     # it, so the display holds the last set value across mode switches.
     sticky: bool = Field(False, description="Encoder-owned value; ignore live SimVar (ALT/VS).")
+    # Some gauges park an "off" value far out of range (the JF Arrow drives
+    # AUTOPILOT ALTITUDE LOCK VAR to 80000 when the ALT hold is off / VS is active).
+    # When set, a live value >= off_above — or a missing (None) value — is shown as
+    # 0 instead, and the encoder edits up from 0. None = show the raw value.
+    off_above: float | None = Field(None, description="Value >= this (or None) displays as 0.")
     # Which display row this value lives on. Rows are persistent: ALT on top and
     # VS on the bottom stay visible together, the selector only re-points the
     # encoder. The selected value owns its row; the other row keeps its last value.

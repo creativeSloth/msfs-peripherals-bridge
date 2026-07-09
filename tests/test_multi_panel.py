@@ -211,6 +211,36 @@ def test_sticky_values_persist_across_selector_switch():
     assert list(report[6:11]) == [BLANK, MINUS, 1, 0, 0]   # bottom VS "-100"
 
 
+def _off_above_config() -> MultiPanelOutput:
+    return MultiPanelOutput(
+        selector=[
+            SelectorEntry(
+                code=0, label="ALT", simvar="AP ALT", set_event="AP_ALT_VAR_SET_ENGLISH",
+                step=100, min=0, max=99999, off_above=60000,
+            ),
+        ],
+    )
+
+
+def test_off_above_shows_zero_for_sentinel_and_missing():
+    c = MultiPanelController(_off_above_config())
+    # No state yet -> 0 (not blank).
+    assert list(c.render()[1:6]) == [BLANK, BLANK, BLANK, BLANK, 0]
+    # The JF "off" sentinel (ALT LOCK VAR parks at 80000) -> 0.
+    c.on_state("AP ALT", 80000)
+    assert list(c.render()[1:6]) == [BLANK, BLANK, BLANK, BLANK, 0]
+    # A real target below the threshold shows through.
+    c.on_state("AP ALT", 5000)
+    assert list(c.render()[1:6]) == [BLANK, 5, 0, 0, 0]
+
+
+def test_off_above_encoder_edits_up_from_zero_when_off():
+    c = MultiPanelController(_off_above_config())
+    c.on_state("AP ALT", 80000)  # off sentinel
+    # Turning the knob edits up from 0, not from 80000.
+    assert c.on_encoder(clockwise=True) == [SendEvent(name="AP_ALT_VAR_SET_ENGLISH", data=100)]
+
+
 def _crs_config() -> MultiPanelOutput:
     return MultiPanelOutput(
         selector=[

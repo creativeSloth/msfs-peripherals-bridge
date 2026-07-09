@@ -46,10 +46,13 @@ uns Schluss machen"). Das Panel-Display ist damit bewusst vom Sim-Ziel entkoppel
   (User: „entscheide du"), Entscheidung aber offen — falls (b): `models.py sticky`,
   `multi_panel.py _sticky/_value_for`, Profil `sticky: true` an ALT+VS und die Sticky-Tests
   isoliert zurücknehmen (revert).
-  **→ FINAL ENTSCHIEDEN 2026-07-09: (b) immer live Sim-Wert.** (Kurz war (c) Hybrid im Gespräch,
-  dann verworfen.) `sticky: true` bei ALT+VS im Profil wieder ENTFERNT → Display folgt der SimVar
-  (inkl. der 0/80000-Gauge-Resets, vom User akzeptiert). Das `sticky`-Feature (models/controller/
-  Tests) bleibt als **ungenutzter Opt-in** im Code — auf Wunsch ganz entfernbar.
+  **→ FINAL 2026-07-09: (b) immer live Sim-Wert, ABER `off_above`-Maske (vom User als „genial"
+  abgenommen).** `sticky: true` bei ALT+VS raus → Display folgt der SimVar. Neu:
+  `SelectorEntry.off_above` (models) — ein Live-Wert ≥ Schwelle *oder* ein fehlender (None) Wert
+  wird als **0** angezeigt, und der Encoder editiert von 0 hoch. Profil: ALT `off_above: 60000`
+  (fängt das JF-„aus"-Sentinel 80000 → 0), VS `off_above: 30000` (fängt None→0). In
+  `multi_panel.py` (`_row_value` + `on_encoder`). Tests in `test_multi_panel.py`. Das `sticky`-
+  Feature bleibt als ungenutzter Opt-in im Code.
 
 **✅ Bug #4 GEKLÄRT — es sind ZWEI Höhenmesser (in-sim verifiziert), kein dritter:**
 | # | Instrument | Var | Steuerbar |
