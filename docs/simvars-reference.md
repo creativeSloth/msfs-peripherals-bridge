@@ -10,6 +10,81 @@ button or axis. Use it to fill in `action:` blocks in `profiles/*.yaml`.
 
 ---
 
+## Overview at a glance (diagrams)
+
+Two maps that consolidate the tables below: **how** the bridge reaches each kind
+of variable, and **what** each peripheral actually drives in the Piper Arrow
+profile (`profiles/piper_arrow.yaml`). Node prefixes match §1: `K:` key event,
+`A:` SimVar, `L:` local var. Anything `L:/H:/B:` needs the MobiFlight WASM module;
+`K:/A:` go straight through SimConnect.
+
+### How the bridge reaches each variable kind
+
+```mermaid
+flowchart LR
+    hw["Linux peripheral<br/>hidraw / evdev"] --> mapper["mapper<br/>(this project)"]
+    mapper -->|"TCP JSON"| bridge["Wine SimConnect bridge<br/>bridge.py · runs in Proton"]
+
+    bridge -->|"SimConnect — no WASM"| direct{{"K: key events (write)<br/>A: SimVars (read · some write)"}}
+    bridge -->|"needs MobiFlight WASM"| wasm{{"L: local vars (read/write)<br/>H: gauge events (pulse)<br/>B: input events (_SET)"}}
+
+    direct --> sim(["MSFS"])
+    wasm --> mf["MobiFlight<br/>WASM module"] --> sim
+```
+
+### What each peripheral drives (Piper Arrow profile)
+
+Solid arrow = we **write** it; dashed arrow = we **read** it (for a display or LED).
+
+```mermaid
+flowchart LR
+    yoke["Fulcrum Yoke"]:::dev
+    tq6["VirtualFly TQ6+"]:::dev
+    trim["Saitek Trim Wheel"]:::dev
+    pedals["Saitek Pedals"]:::dev
+    swp["Saitek Switch Panel"]:::dev
+    mp["Saitek Multi Panel"]:::dev
+    rp["Saitek Radio Panel"]:::dev
+
+    %% flight-control + engine axes
+    yoke --> fc["K: AILERON_SET · ELEVATOR_SET"]:::k
+    pedals --> pd["K: RUDDER_SET · AXIS_*_BRAKE_SET"]:::k
+    tq6 --> eng["K: THROTTLE1 / PROP_PITCH1 / MIXTURE1_SET"]:::k
+    trim --> tw["K: ELEVATOR_TRIM_SET"]:::k
+    yoke --> ygrip["K: PARKING_BRAKES · FUEL_SELECTOR_* · ATC_0 · HEADING_BUG_SET"]:::k
+
+    %% switch panel
+    swp --> elec["K: BATTERY / ALTERNATOR / PITOT / ANTI_ICE / lights _SET"]:::k
+    swp --> mags["K: MAGNETO1_* · GEAR_UP / GEAR_DOWN"]:::k
+    swp --> pump["L: CENTRE_LOWER_FUELPUMP"]:::l
+    swp --> avio["sequence → K: AVIONICS_* + L: KN62_POWER + COM volumes"]:::mix
+    swp -.->|"read → gear LEDs"| swr["A: GEAR CENTER/LEFT/RIGHT POSITION"]:::a
+
+    %% multi panel
+    mp --> apk["K: AP_MASTER · FLAPS · AP_ALT/VS/SPD_VAR_SET · HEADING_BUG_SET · VOR1/2_SET"]:::k
+    mp --> mode["L: AUTOPILOT_MODE · AUTOPILOT_HDG"]:::l
+    mp --> hold["L: JF_PA28_AP_alt / _vs  (RPN toggle)"]:::l
+    mp --> dim["L: CENTRE_LOWER_nav_light / panel_light  (dimmer)"]:::l
+    mp -.->|"read → display + LEDs"| mpr["A: AUTOPILOT MASTER · L: AUTOPILOT_MODE · L: JF_PA28_AP_*"]:::a
+
+    %% radio panel
+    rp --> radk["K: COM/NAV *_WHOLE/FRACT_INC-DEC · *_RADIO_SWAP · XPNDR_SET · KOHLSMAN_INC/DEC"]:::k
+    rp -.->|"read → 2-row display"| radr["A: COM/NAV freq · NAV DME · TRANSPONDER CODE · KOHLSMAN · ADF STANDBY FREQ"]:::a
+
+    classDef dev fill:#e2e8f0,stroke:#475569,color:#0f172a;
+    classDef k fill:#dbeafe,stroke:#2563eb,color:#1e3a8a;
+    classDef a fill:#dcfce7,stroke:#16a34a,color:#14532d;
+    classDef l fill:#fef9c3,stroke:#ca8a04,color:#713f12;
+    classDef mix fill:#fae8ff,stroke:#a21caf,color:#701a75;
+```
+
+> **Legend.** Blue = `K:` events (SimConnect-direct). Green = `A:` SimVars we read
+> back. Amber = `L:` add-on vars via the WASM bridge. Purple = a multi-step
+> `sequence` mixing both. The one still-missing input — the JF **ALT/VS mode
+> toggle** — is expected to be an `H:` gauge event (see §11 / STATUS bug #1).
+
+---
+
 ## 1. The five kinds of "variable"
 
 | Prefix | Name | Direction | How we reach it | Needs WASM bridge? |
@@ -278,9 +353,33 @@ area, bracketed by the `MF.LVars.List.Start` / `.End` markers.
 | REV (backcourse) | `JF_PA28_AP_loc_rev` | — |
 
 The **per-mode `JF_PA28_AP_*` bools** are the cleanest LED-read source (one bool
-per Multi-Panel button). `AUTOPILOT_mode` is the enum Chunk C currently reads.
-`JF_PA28_AP_alt` / `_vs` answer the "hidden ALT/VS modes" roadmap item — each is
-both the write target and the LED read.
+per Multi-Panel button) — `JF_PA28_AP_alt` / `_vs` are the correct **LED read** for
+the hidden ALT/VS modes. `AUTOPILOT_mode` is the enum Chunk C currently reads.
+
+**Engaging ALT/VS (found in-sim 2026-07-09, `tools/probe_altvs.py`):**
+- `JF_PA28_AP_alt` / `_vs` are gauge **OUTPUTS** — writing them is a no-op (the gauge
+  overwrites them every frame). Use them for the LED read only.
+- **Write `L:AUTOPILOT_alt = 1` to engage ALT hold, `L:AUTOPILOT_vs = 1` to engage VS.**
+  These are the real inputs (the bare `AUTOPILOT_*`, not the `JF_PA28_AP_*` mirror).
+  The two modes are **mutually exclusive** (engaging one clears the other on its own).
+- ⚠️ They are **ENGAGE/SELECT** commands, **not toggles**: writing `1` again or writing
+  `0` does **not** disengage (both verified). Drop the vertical mode via AP master or by
+  selecting the other mode. A true on/off toggle would need the JF `H:` clickspot event
+  (not enumerable via `MF.LVars.List`).
+- `AUTOPILOT_alt_up`/`_dn` + `AUTOPILOT_vs_up`/`_dn` are the ALT-target / VS-rate
+  **adjust** (the encoder side), not the mode toggle.
+
+Wired in `piper_arrow.yaml` (Multi-Panel codes 11/12). See STATUS 2026-07-09.
+
+### Altimeters — two independent baro settings (verified in-sim 2026-07-09)
+The Arrow has **two** barometric instruments, each with its own Kollsman knob:
+| Instrument | Baro L:Vars | Sim `A:` var | Settable from the bridge? |
+|-----------|-------------|--------------|---------------------------|
+| **Main altimeter** | `ALTIMETER_baro_knob` / `ALTIMETER_baro_scale` | `KOHLSMAN SETTING HG` (inHg) | ✅ via `KOHLSMAN_SET` / `KOHLSMAN_INC`/`_DEC` (wired to the Radio-Panel XPDR outer knob) |
+| **Standby altimeter** | `STBY_ALTIMETER_baro_knob` (0..99 pos) / `STBY_ALTIMETER_baro_scale` | — | ❌ gauge-managed: `baro_scale` writes are overwritten every frame, `baro_knob` writes stick but don't move the pressure. Needs the JF `H:` knob event → left manual. |
+
+Turning the main knob moves `ALTIMETER_baro_*` **and** `KOHLSMAN SETTING HG`; turning
+the standby knob moves only `STBY_ALTIMETER_baro_*` — they are fully independent.
 
 ### Full list (714 L:Vars, sorted, 2026-07-02)
 <details><summary>expand — all 714 names</summary>

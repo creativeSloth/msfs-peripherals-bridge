@@ -165,6 +165,52 @@ def test_display_rows_persist_alt_top_vs_bottom():
     assert list(report[6:11]) == [BLANK, MINUS, 5, 0, 0]  # bottom "-500"
 
 
+def _sticky_config() -> MultiPanelOutput:
+    return MultiPanelOutput(
+        selector=[
+            SelectorEntry(
+                code=0, label="ALT", simvar="AUTOPILOT ALTITUDE LOCK VAR",
+                set_event="AP_ALT_VAR_SET_ENGLISH", step=100, min=0, max=99999,
+                sticky=True,
+            ),
+            SelectorEntry(
+                code=1, label="VS", simvar="AUTOPILOT VERTICAL HOLD VAR",
+                set_event="AP_VS_VAR_SET_ENGLISH", step=100, min=-9999, max=9999,
+                display_row="bottom", sticky=True,
+            ),
+        ],
+    )
+
+
+def test_sticky_value_starts_at_zero_and_edits_without_state():
+    # Encoder-owned: it starts at 0 and the encoder works immediately, without
+    # waiting for a SimVar to stream in.
+    c = MultiPanelController(_sticky_config())
+    assert c.on_encoder(clockwise=True) == [SendEvent(name="AP_ALT_VAR_SET_ENGLISH", data=100)]
+    assert list(c.render()[1:6]) == [BLANK, BLANK, 1, 0, 0]  # top "  100"
+
+
+def test_sticky_value_ignores_gauge_reset():
+    # The JF gauge drives ALTITUDE LOCK VAR to 80000 / 0 on mode switches; a sticky
+    # value must not follow it — the dialed target stays put.
+    c = MultiPanelController(_sticky_config())
+    c.on_encoder(clockwise=True)
+    c.on_encoder(clockwise=True)  # -> 200
+    c.on_state("AUTOPILOT ALTITUDE LOCK VAR", 80000)
+    c.on_state("AUTOPILOT ALTITUDE LOCK VAR", 0)
+    assert list(c.render()[1:6]) == [BLANK, BLANK, 2, 0, 0]  # still "  200"
+
+
+def test_sticky_values_persist_across_selector_switch():
+    c = MultiPanelController(_sticky_config())
+    c.on_encoder(clockwise=True)    # ALT (top) -> 100
+    c.on_selector(1)                # VS
+    c.on_encoder(clockwise=False)   # VS (bottom) -> -100
+    report = c.render()
+    assert list(report[1:6]) == [BLANK, BLANK, 1, 0, 0]    # top ALT still "  100"
+    assert list(report[6:11]) == [BLANK, MINUS, 1, 0, 0]   # bottom VS "-100"
+
+
 def _crs_config() -> MultiPanelOutput:
     return MultiPanelOutput(
         selector=[
@@ -308,6 +354,44 @@ def test_render_minus_for_negative_value():
     c = MultiPanelController(cfg)
     c.on_state("AUTOPILOT VERTICAL HOLD VAR", -500)
     assert list(c.render()[1:6]) == [BLANK, MINUS, 5, 0, 0]
+
+
+def _powered_config() -> MultiPanelOutput:
+    cfg = make_config()
+    return cfg.model_copy(update={"power": "ELECTRICAL MASTER BATTERY"})
+
+
+def test_power_gate_in_subscriptions():
+    c = MultiPanelController(_powered_config())
+    assert "ELECTRICAL MASTER BATTERY" in c.subscriptions()
+
+
+def test_render_blank_when_battery_off():
+    c = MultiPanelController(_powered_config())
+    c.on_state("AUTOPILOT ALTITUDE LOCK VAR", 5000)
+    c.on_state("AUTOPILOT MASTER", 1)
+    c.on_state("L:AUTOPILOT_MODE", 2)  # would light HDG if powered
+    # Battery unknown -> dark; then explicitly off -> still dark.
+    assert list(c.render()[1:13]) == [BLANK] * 10 + [0x00, 0x00]
+    c.on_state("ELECTRICAL MASTER BATTERY", 0)
+    assert list(c.render()[1:13]) == [BLANK] * 10 + [0x00, 0x00]
+
+
+def test_render_lit_when_battery_on():
+    c = MultiPanelController(_powered_config())
+    c.on_state("AUTOPILOT ALTITUDE LOCK VAR", 5000)
+    c.on_state("AUTOPILOT MASTER", 1)
+    c.on_state("ELECTRICAL MASTER BATTERY", 1)
+    report = c.render()
+    assert list(report[1:6]) == [BLANK, 5, 0, 0, 0]  # ALT value shown (right-justified)
+    assert report[11] == (1 << 0)  # AP LED lit
+
+
+def test_no_power_gate_always_lit():
+    # Default config has no power var -> renders without any battery state.
+    c = MultiPanelController(make_config())
+    c.on_state("AUTOPILOT ALTITUDE LOCK VAR", 5000)
+    assert list(c.render()[1:6]) == [BLANK, 5, 0, 0, 0]
 
 
 def _bool_led_config() -> MultiPanelOutput:

@@ -12,13 +12,14 @@ from ..models import (
     EventAction,
     EventFromVarAction,
     Profile,
+    RpnAction,
     SequenceAction,
     SimVarAction,
     Source,
     SourceKind,
     WriteStep,
 )
-from ..simconnect.protocol import Command, SendEvent, SendEventFromVar, SetSimVar
+from ..simconnect.protocol import Command, RpnExec, SendEvent, SendEventFromVar, SetSimVar
 from .transforms import shape_axis
 
 
@@ -74,7 +75,7 @@ class MappingEngine:
             # forward the live 0/1 state on both edges so a toggle switch drives
             # a `*_SET` event or a SimVar to match the physical position.
             action = binding.action
-            momentary = isinstance(action, EventFromVarAction) or (
+            momentary = isinstance(action, EventFromVarAction | RpnAction) or (
                 isinstance(action, EventAction) and action.value is not None
             )
             if momentary and event.value != 1:
@@ -116,4 +117,6 @@ class MappingEngine:
         if isinstance(action, EventAction):
             data = action.value if action.value is not None else round(value)
             return SendEvent(name=action.event, data=int(data))
+        if isinstance(action, RpnAction):
+            return RpnExec(code=action.code)
         raise TypeError(f"Unsupported action: {action!r}")

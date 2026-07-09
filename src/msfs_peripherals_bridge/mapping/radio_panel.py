@@ -37,7 +37,7 @@ from dataclasses import dataclass
 
 from ..models import AdfBank, DmeBank, RadioBank, RadioPanelOutput, XpdrBank
 from ..simconnect.protocol import Command, SendEvent, SetSimVar
-from .display import BLANK, ROW_WIDTH, format_frequency, format_measure, format_row
+from .display import BLANK, DOT, ROW_WIDTH, format_frequency, format_measure, format_row
 
 # Report id 0, then 20 display cells + 2 trailing flag bytes (brightness/segment
 # extras — verified 2026-07-05: 0x00 leaves the display fully lit). See
@@ -81,18 +81,43 @@ def _squawk_digits(bcd: int) -> list[int]:
     return [(bcd >> 12) & 7, (bcd >> 8) & 7, (bcd >> 4) & 7, bcd & 7]
 
 
-def _squawk_step(bcd: int, *, high: bool, delta: int) -> int:
-    """Step one digit pair of a BCD16 squawk, wrapping within 00-77 octal.
+def _squawk_step_digit(bcd: int, index: int, delta: int) -> int:
+    """Step a single octal digit (0-7, wrapping) of a BCD16 squawk.
 
-    ``high`` steps the left pair (thousands+hundreds), else the right pair
-    (tens+ones). The pair wraps 00<->77 without carrying into the other pair, so the
-    two encoders edit the whole code mode-lessly. Returns the new BCD16 code.
+    ``index`` 0 = leftmost (thousands) .. 3 = rightmost (ones). Only that digit
+    changes — squawk digits are independent, there is no carry into the neighbours.
+    Squawk codes are octal (Mode A: 4096 codes = 8^4), so each digit wraps 0-7.
+    Returns the new BCD16 code.
     """
     digits = _squawk_digits(bcd)
-    a, b = (0, 1) if high else (2, 3)
-    pair = (digits[a] * 8 + digits[b] + delta) % 64
-    digits[a], digits[b] = divmod(pair, 8)
+    digits[index] = (digits[index] + delta) % 8
     return (digits[0] << 12) | (digits[1] << 8) | (digits[2] << 4) | digits[3]
+
+
+def _khz_digits(khz: int) -> list[int]:
+    """The four decimal digits (thousands, hundreds, tens, ones) of a kHz value."""
+    return [(khz // 1000) % 10, (khz // 100) % 10, (khz // 10) % 10, khz % 10]
+
+
+def _step_khz_digit(khz: int, index: int, delta: int, *, lo: int, hi: int) -> int:
+    """Step one decimal digit of a 4-digit kHz value, wrapping *within that digit*.
+
+    The digit wraps over only the range that keeps the whole frequency inside
+    ``[lo, hi]`` while the other digits stay put — so at the top the thousands digit
+    cycles 0..1 and, with thousands = 1, the hundreds cycle 0..7 (max 1799), each
+    without disturbing its neighbours or clamping them to 9. ``index`` 0 = thousands.
+    """
+    place = (1000, 100, 10, 1)[index]
+    digits = _khz_digits(khz)
+    others = khz - digits[index] * place  # the value with this digit zeroed out
+    hi_allow, lo_need = hi - others, lo - others  # digit*place must land in here
+    dmax = min(9, hi_allow // place) if hi_allow >= 0 else -1
+    dmin = max(0, (lo_need + place - 1) // place) if lo_need > 0 else 0  # ceil, clamped
+    if dmin > dmax:  # no digit keeps the value in range (shouldn't happen) -> no change
+        return khz
+    span = dmax - dmin + 1
+    digits[index] = dmin + (digits[index] - dmin + delta) % span
+    return digits[0] * 1000 + digits[1] * 100 + digits[2] * 10 + digits[3]
 
 
 @dataclass
@@ -102,6 +127,8 @@ class _UnitState:
     selected: int  # currently selected bank code
     fine_view: bool = False  # True = inner-encoder view (NN.NNN); False = coarse
     dme_source: int = 0  # index into a DmeBank's sources (swap cycles NAV1/NAV2)
+    xpdr_cursor: int = 0  # XPDR digit under edit (0=leftmost..3); push walks it
+    adf_pair: int = 0  # ADF cursor pair: 0 = high (1000s,100s), 1 = low (10s,1s)
 
 
 class RadioPanelController:
@@ -112,6 +139,9 @@ class RadioPanelController:
     ) -> None:
         self.config = config
         self._clock = clock
+        # Optional battery/avionics gate: dark unless this bool var reads on. None =
+        # always lit (its var is in subscriptions() via config.simvars()).
+        self._power = config.power
         self.values: dict[str, float | None] = {}
         self._units = config.units
         # Per-unit bank lookup + mutable state, parallel to config.units.
@@ -165,6 +195,8 @@ class RadioPanelController:
         if role == "select":
             st.selected = code
             st.fine_view = False  # a fresh bank starts coarse (NN.NNN is per-bank)
+            st.xpdr_cursor = 0  # a fresh XPDR landing starts at the leftmost digit
+            st.adf_pair = 0  # a fresh ADF landing starts on the high digit pair
             return []
         bank = self._banks[i].get(st.selected)
         if bank is None:  # selector parked on an out-of-scope position (ADF/XPDR/…)
@@ -176,25 +208,38 @@ class RadioPanelController:
                 st.dme_source = (st.dme_source + 1) % len(bank.sources)
             return []
         if isinstance(bank, XpdrBank):
-            if role == "swap":  # push unused on XPDR (mode-less digit editing)
+            # Digit-at-a-time squawk edit on the top row: the push walks a cursor
+            # across the four digits (a dot marks it); the inner knob steps the digit
+            # under the cursor (octal 0-7, wrapping). The outer knob is the altimeter
+            # (QNH) setting shown on the bottom row — it fires baro_inc/baro_dec.
+            if role == "swap":
+                st.xpdr_cursor = (st.xpdr_cursor + 1) % 4
                 return []
+            if role == "outer_cw":
+                return [SendEvent(name=bank.baro_inc)] if bank.baro_var else []
+            if role == "outer_ccw":
+                return [SendEvent(name=bank.baro_dec)] if bank.baro_var else []
+            delta = 1 if role == "inner_cw" else -1
             current = round(self.values.get(bank.code_var) or 0)
-            high = role in ("outer_cw", "outer_ccw")
-            delta = 1 if role in ("outer_cw", "inner_cw") else -1
-            new = _squawk_step(current, high=high, delta=delta)
+            new = _squawk_step_digit(current, st.xpdr_cursor, delta)
             self.values[bank.code_var] = float(new)  # local echo -> instant display
             return [SendEvent(name=bank.set_event, data=new)]
         if isinstance(bank, AdfBank):
-            if role == "swap":  # mirror locally for an instant flip, then fire the event
-                a, s = bank.active, bank.standby
-                self.values[a], self.values[s] = self.values.get(s), self.values.get(a)
-                return [SendEvent(name=bank.swap_event)]
-            step = bank.coarse if role in ("outer_cw", "outer_ccw") else bank.fine
-            delta = step if role in ("outer_cw", "inner_cw") else -step
-            target = bank.standby if bank.tune == "standby" else bank.active
-            new = (self.values.get(target) or 0) + delta
-            self.values[target] = new  # local echo -> instant display
-            return [SetSimVar(name=target, unit="number", value=new)]
+            # Digit-pair edit: the push toggles a two-digit cursor between the high
+            # pair (1000s,100s) and the low pair (10s,1s); the outer knob steps the
+            # pair's left digit, the inner its right (0-9 wrap), the whole kHz value
+            # clamped to [min_khz, max_khz]. Two dots mark the active pair.
+            if role == "swap":
+                st.adf_pair ^= 1
+                return []
+            khz = round((self.values.get(bank.freq) or 0) * bank.scale)
+            left = st.adf_pair * 2  # high pair -> digit 0, low pair -> digit 2
+            idx = left if role in ("outer_cw", "outer_ccw") else left + 1
+            delta = 1 if role in ("outer_cw", "inner_cw") else -1
+            new_khz = _step_khz_digit(khz, idx, delta, lo=bank.min_khz, hi=bank.max_khz)
+            raw = new_khz / bank.scale
+            self.values[bank.freq] = raw  # local echo -> instant display
+            return [SetSimVar(name=bank.freq, unit="number", value=raw)]
         if role == "outer_cw":
             st.fine_view = False
             return [SendEvent(name=bank.whole_inc)]
@@ -237,8 +282,14 @@ class RadioPanelController:
         if role == "select":
             return []
         bank = self._banks[i].get(self._state[i].selected)
-        if bank is None or isinstance(bank, DmeBank | XpdrBank):
-            # DME streams via the poll; XPDR is local-echoed on write — neither needs
+        if isinstance(bank, XpdrBank):
+            # The squawk is local-echoed, but the QNH (outer knob -> KOHLSMAN event)
+            # is applied by the sim, so read it back off-cycle to kill the poll lag.
+            if bank.baro_var is not None and role in ("outer_cw", "outer_ccw"):
+                return [bank.baro_var]
+            return []
+        if bank is None or isinstance(bank, DmeBank | AdfBank):
+            # DME streams via the poll; ADF is local-echoed on write — neither needs
             # an off-cycle ReadNow.
             return []
         return [bank.active, bank.standby] if role == "swap" else [bank.standby]
@@ -270,7 +321,12 @@ class RadioPanelController:
         ``blink_on`` is accepted for interface parity with the other panel
         controllers (the output manager passes its shared blink phase); the Radio
         Panel has no blinking LED, so it is ignored.
+
+        With a ``power`` gate configured, an off/unknown battery blanks the whole
+        display (all 20 cells), like the gear LEDs go dark without power.
         """
+        if not self._powered():
+            return bytes([_REPORT_ID, *[BLANK] * (_HALF_CELLS * 2), *_FLAG_BYTES])
         halves: dict[str, list[int]] = {
             "upper": [BLANK] * _HALF_CELLS,
             "lower": [BLANK] * _HALF_CELLS,
@@ -284,10 +340,10 @@ class RadioPanelController:
                 halves[unit.row] = self._render_dme(bank, st)
                 continue
             if isinstance(bank, XpdrBank):
-                halves[unit.row] = self._render_xpdr(bank)
+                halves[unit.row] = self._render_xpdr(bank, st)
                 continue
             if isinstance(bank, AdfBank):
-                halves[unit.row] = self._render_adf(bank)
+                halves[unit.row] = self._render_adf(bank, st)
                 continue
             stby_decimals = _FINE_DECIMALS if st.fine_view else _COARSE_DECIMALS
             halves[unit.row] = format_frequency(
@@ -295,6 +351,12 @@ class RadioPanelController:
             ) + format_frequency(self.values.get(bank.standby), decimals=stby_decimals)
         cells = halves["upper"] + halves["lower"]
         return bytes([_REPORT_ID, *cells, *_FLAG_BYTES])
+
+    def _powered(self) -> bool:
+        """True unless a power gate is configured and reads off/unknown."""
+        if self._power is None:
+            return True
+        return (self.values.get(self._power) or 0) >= 0.5
 
     def _render_dme(self, bank: DmeBank, st: _UnitState) -> list[int]:
         """Render a DME half: distance on top, ``<nav> <ground-speed>`` below.
@@ -309,30 +371,61 @@ class RadioPanelController:
         bottom = [*format_row(st.dme_source + 1, width=1), BLANK, *speed]
         return top + bottom
 
-    def _render_xpdr(self, bank: XpdrBank) -> list[int]:
-        """Render an XPDR half: the 4-digit squawk on the top row, bottom blank.
+    def _render_xpdr(self, bank: XpdrBank, st: _UnitState) -> list[int]:
+        """Render an XPDR half: 4-digit squawk on top, altimeter (QNH) below.
 
         The digit values (0-7) double as their cell bytes, so a leading blank plus
         the four digits gives ``  1200`` with leading zeros preserved (0021 stays
-        0021). ⏳ in-sim: assumes TRANSPONDER CODE reads as BCD16 (0x1200 = squawk
-        1200); if it reads decimal, adjust the decode here + the write in on_event.
+        0021). A DOT rides on the digit under the edit cursor (``st.xpdr_cursor``,
+        0 = leftmost) to show which digit the inner knob will change. The bottom row
+        shows the QNH as ``NN.NN`` (e.g. ``29.92`` inHg) when ``baro_var`` is set,
+        else stays blank. ⏳ in-sim: assumes TRANSPONDER CODE reads as BCD16
+        (0x1200 = squawk 1200); if it reads decimal, adjust the decode + the write.
         """
         val = self.values.get(bank.code_var)
         if val is None:
-            return [BLANK] * _HALF_CELLS
-        top = [BLANK, *_squawk_digits(round(val))]
-        return top + [BLANK] * ROW_WIDTH
+            top = [BLANK] * ROW_WIDTH
+        else:
+            digits = _squawk_digits(round(val))
+            digits[st.xpdr_cursor] += DOT  # mark the digit currently being edited
+            top = [BLANK, *digits]
+        return top + self._render_baro(bank)
 
-    def _render_adf(self, bank: AdfBank) -> list[int]:
-        """Render an ADF half: ACTIVE freq on top, STANDBY below (kHz, ``decimals``).
+    def _render_baro(self, bank: XpdrBank) -> list[int]:
+        """The QNH bottom row: ``NN.NN`` with the dot on the 2nd digit (e.g. 29.92).
 
-        Values are scaled by ``display_scale`` before formatting so the readout is
-        right whatever unit the SimVar reads in (tuned in-sim).
+        ``baro_var`` is read (scaled by ``baro_scale``), taken to hundredths and
+        shown as four digits with the decimal point riding on the second one. No
+        ``baro_var`` (or no value yet) leaves the row blank.
         """
+        if bank.baro_var is None:
+            return [BLANK] * ROW_WIDTH
+        val = self.values.get(bank.baro_var)
+        if val is None:
+            return [BLANK] * ROW_WIDTH
+        hundredths = round(val * bank.baro_scale * 100)
+        if not 0 <= hundredths <= 9999:
+            return [BLANK] * ROW_WIDTH
+        d = [(hundredths // 1000) % 10, (hundredths // 100) % 10,
+             (hundredths // 10) % 10, hundredths % 10]
+        d[1] += DOT  # decimal point after the 2nd digit -> NN.NN
+        return [BLANK, *d]
 
-        def fmt(name: str) -> list[int]:
-            val = self.values.get(name)
-            scaled = None if val is None else val * bank.display_scale
-            return format_measure(scaled, decimals=bank.decimals)
+    def _render_adf(self, bank: AdfBank, st: _UnitState) -> list[int]:
+        """Render an ADF half: the 4-digit kHz frequency on top (bottom blank).
 
-        return fmt(bank.active) + fmt(bank.standby)
+        The value is read from ``freq`` and scaled to kHz (``scale``); its four
+        digits fill the top row (leading zeros kept, e.g. ``0350``). Two DOTs mark
+        the digit pair under the cursor (``st.adf_pair``: 0 = 1000s+100s, 1 =
+        10s+1s) — the pair the encoders are currently editing.
+        """
+        val = self.values.get(bank.freq)
+        if val is None:
+            return [BLANK] * _HALF_CELLS
+        khz = round(val * bank.scale)
+        khz = max(0, min(9999, khz))  # display-width guard
+        digits = _khz_digits(khz)
+        left = st.adf_pair * 2
+        digits[left] += DOT       # two dots -> the active pair
+        digits[left + 1] += DOT
+        return [BLANK, *digits] + [BLANK] * ROW_WIDTH

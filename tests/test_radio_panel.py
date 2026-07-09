@@ -1,5 +1,8 @@
 from msfs_peripherals_bridge.mapping.display import BLANK, DOT
-from msfs_peripherals_bridge.mapping.radio_panel import RadioPanelController, _squawk_step
+from msfs_peripherals_bridge.mapping.radio_panel import (
+    RadioPanelController,
+    _squawk_step_digit,
+)
 from msfs_peripherals_bridge.models import (
     AdfBank,
     DmeBank,
@@ -197,6 +200,31 @@ def test_render_all_blank_without_state():
     assert list(report[21:23]) == [0x00, 0x00]
 
 
+def _powered_config() -> RadioPanelOutput:
+    return make_config().model_copy(update={"power": "ELECTRICAL MASTER BATTERY"})
+
+
+def test_power_gate_in_subscriptions():
+    c = RadioPanelController(_powered_config())
+    assert "ELECTRICAL MASTER BATTERY" in c.subscriptions()
+
+
+def test_render_blank_when_battery_off():
+    c = RadioPanelController(_powered_config())
+    c.on_state("COM STANDBY FREQUENCY:2", 121.90)  # would show on lower standby
+    # Battery unknown -> dark; then explicitly off -> still dark.
+    assert list(c.render()[1:21]) == [BLANK] * 20
+    c.on_state("ELECTRICAL MASTER BATTERY", 0)
+    assert list(c.render()[1:21]) == [BLANK] * 20
+
+
+def test_render_lit_when_battery_on():
+    c = RadioPanelController(_powered_config())
+    c.on_state("COM STANDBY FREQUENCY:2", 121.90)
+    c.on_state("ELECTRICAL MASTER BATTERY", 1)
+    assert list(c.render()[16:21]) == [1, 2, 1 + DOT, 9, 0]  # lower standby 121.90
+
+
 def test_encoder_is_never_debounced():
     # Measured 2026-07-05: the encoders don't bounce (8 ms USB poll floors any
     # repeat at 16 ms), so no time guard applies — even two detents at the same
@@ -294,41 +322,56 @@ def test_dme_simvars_are_subscribed():
 # -- XPDR position (mode-less squawk edit) -----------------------------------
 
 
-def test_squawk_step_wraps_octal_within_pair():
-    assert _squawk_step(0x1200, high=False, delta=1) == 0x1201  # ones +1
-    assert _squawk_step(0x1207, high=False, delta=1) == 0x1210  # 07 -> 10 (octal)
-    assert _squawk_step(0x1277, high=False, delta=1) == 0x1200  # low pair wraps 77->00
-    assert _squawk_step(0x1200, high=True, delta=1) == 0x1300  # hundreds +1
-    assert _squawk_step(0x7700, high=True, delta=1) == 0x0000  # high pair wraps 77->00
+def test_squawk_step_digit_wraps_octal_per_digit():
+    assert _squawk_step_digit(0x1200, 3, 1) == 0x1201  # ones +1
+    assert _squawk_step_digit(0x1207, 3, 1) == 0x1200  # ones wrap 7->0, no carry
+    assert _squawk_step_digit(0x1200, 0, 1) == 0x2200  # thousands +1
+    assert _squawk_step_digit(0x7200, 0, 1) == 0x0200  # thousands wrap 7->0
+    assert _squawk_step_digit(0x1200, 1, -1) == 0x1100  # hundreds -1
 
 
-def test_xpdr_inner_steps_low_pair_and_sets_and_echoes():
+def test_xpdr_inner_steps_cursor_digit_and_sets_and_echoes():
     c = RadioPanelController(make_config())
-    c.on_event(code=3, value=1)  # upper -> XPDR
+    c.on_event(code=3, value=1)  # upper -> XPDR (cursor starts at leftmost digit)
     c.on_state("TRANSPONDER CODE:1", 0x1200)
-    assert c.on_event(code=7, value=1) == [SendEvent(name="XPNDR_SET", data=0x1201)]
-    assert list(c.render()[1:6]) == [BLANK, 1, 2, 0, 1]  # local echo -> 1201
+    assert c.on_event(code=7, value=1) == [SendEvent(name="XPNDR_SET", data=0x2200)]
+    assert list(c.render()[1:6]) == [BLANK, 2 + DOT, 2, 0, 0]  # echo 2200, dot leftmost
 
 
-def test_xpdr_outer_steps_high_pair():
+def test_xpdr_push_walks_the_cursor_and_moves_the_dot():
     c = RadioPanelController(make_config())
     c.on_event(code=3, value=1)
     c.on_state("TRANSPONDER CODE:1", 0x1200)
-    assert c.on_event(code=5, value=1) == [SendEvent(name="XPNDR_SET", data=0x1300)]
+    assert c.on_event(code=9, value=1) == []  # push -> cursor to 2nd digit, no command
+    assert list(c.render()[1:6]) == [BLANK, 1, 2 + DOT, 0, 0]  # dot moved right
+    # inner knob now edits the 2nd digit (hundreds)
+    assert c.on_event(code=7, value=1) == [SendEvent(name="XPNDR_SET", data=0x1300)]
+
+
+def test_xpdr_outer_knob_is_unused():
+    c = RadioPanelController(make_config())
+    c.on_event(code=3, value=1)
+    c.on_state("TRANSPONDER CODE:1", 0x1200)
+    assert c.on_event(code=5, value=1) == []  # outer knob does nothing on XPDR
+    assert c.on_event(code=6, value=1) == []
 
 
 def test_xpdr_render_preserves_leading_zeros():
     c = RadioPanelController(make_config())
     c.on_event(code=3, value=1)
     c.on_state("TRANSPONDER CODE:1", 0x0021)
-    assert list(c.render()[1:6]) == [BLANK, 0, 0, 2, 1]  # 0021, not "  21"
+    assert list(c.render()[1:6]) == [BLANK, 0 + DOT, 0, 2, 1]  # 0021 + cursor dot
 
 
-def test_xpdr_push_is_inert():
-    c = RadioPanelController(make_config())
+def test_xpdr_cursor_wraps_after_four_pushes():
+    t = [0.0]
+    c = RadioPanelController(make_config(), clock=lambda: t[0])
     c.on_event(code=3, value=1)
     c.on_state("TRANSPONDER CODE:1", 0x1200)
-    assert c.on_event(code=9, value=1) == []  # push unused on XPDR
+    for _ in range(4):
+        t[0] += 0.30  # clear the swap debounce between deliberate pushes
+        c.on_event(code=9, value=1)  # four pushes -> back to leftmost
+    assert list(c.render()[1:6]) == [BLANK, 1 + DOT, 2, 0, 0]
     assert c.refresh_after(7) == []  # local-echoed -> no ReadNow
 
 
@@ -336,44 +379,126 @@ def test_xpdr_code_var_subscribed():
     assert "TRANSPONDER CODE:1" in make_config().simvars()
 
 
-# -- ADF position (local-echo tuning, swap) ----------------------------------
+# -- ADF position (digit-pair kHz edit) --------------------------------------
 
 
-def test_adf_inner_tunes_standby_fine_and_echoes():
+def test_adf_displays_khz_with_dots_on_high_pair():
     c = RadioPanelController(make_config())
-    c.on_event(code=4, value=1)  # upper -> ADF
-    c.on_state("ADF STANDBY FREQUENCY:1", 350.0)
-    cmd = c.on_event(code=7, value=1)  # inner cw -> +fine (1)
-    assert cmd == [SetSimVar(name="ADF STANDBY FREQUENCY:1", unit="number", value=351.0)]
-    assert list(c.render()[6:11]) == [BLANK, 3, 5, 1 + DOT, 0]  # local echo -> 351.0
+    c.on_event(code=4, value=1)  # upper -> ADF (cursor starts on high pair)
+    c.on_state("ADF STANDBY FREQUENCY:1", 350000)  # Hz -> 350 kHz
+    assert list(c.render()[1:6]) == [BLANK, 0 + DOT, 3 + DOT, 5, 0]  # 0350, high dots
 
 
-def test_adf_outer_tunes_standby_coarse():
+def test_adf_inner_steps_right_digit_of_pair_and_echoes():
     c = RadioPanelController(make_config())
     c.on_event(code=4, value=1)
-    c.on_state("ADF STANDBY FREQUENCY:1", 350.0)
-    assert c.on_event(code=6, value=1) == [  # outer ccw -> -coarse (10)
-        SetSimVar(name="ADF STANDBY FREQUENCY:1", unit="number", value=340.0)
+    c.on_state("ADF STANDBY FREQUENCY:1", 350000)
+    # inner cw -> right digit of the high pair = hundreds: 350 -> 450
+    cmd = c.on_event(code=7, value=1)
+    assert cmd == [SetSimVar(name="ADF STANDBY FREQUENCY:1", unit="number", value=450000.0)]
+    assert list(c.render()[1:6]) == [BLANK, 0 + DOT, 4 + DOT, 5, 0]
+
+
+def test_adf_outer_steps_left_digit_of_pair():
+    c = RadioPanelController(make_config())
+    c.on_event(code=4, value=1)
+    c.on_state("ADF STANDBY FREQUENCY:1", 350000)
+    # outer cw -> left digit of the high pair = thousands: 350 -> 1350
+    assert c.on_event(code=5, value=1) == [
+        SetSimVar(name="ADF STANDBY FREQUENCY:1", unit="number", value=1350000.0)
     ]
 
 
-def test_adf_swap_mirrors_and_fires_event():
+def test_adf_push_toggles_pair_and_moves_dots():
+    t = [0.0]
+    c = RadioPanelController(make_config(), clock=lambda: t[0])
+    c.on_event(code=4, value=1)
+    c.on_state("ADF STANDBY FREQUENCY:1", 350000)
+    c.on_event(code=9, value=1)  # push -> low pair
+    assert list(c.render()[1:6]) == [BLANK, 0, 3, 5 + DOT, 0 + DOT]  # dots on low pair
+    # inner now edits the low pair's right digit = ones: 350 -> 351
+    assert c.on_event(code=7, value=1) == [
+        SetSimVar(name="ADF STANDBY FREQUENCY:1", unit="number", value=351000.0)
+    ]
+
+
+def test_adf_thousands_digit_wraps_0_1_at_ceiling():
     c = RadioPanelController(make_config())
     c.on_event(code=4, value=1)
-    c.on_state("ADF ACTIVE FREQUENCY:1", 350.0)
-    c.on_state("ADF STANDBY FREQUENCY:1", 210.0)
-    assert c.on_event(code=9, value=1) == [SendEvent(name="ADF1_RADIO_SWAP")]
-    assert c.values["ADF ACTIVE FREQUENCY:1"] == 210.0  # mirrored instantly
-    assert c.values["ADF STANDBY FREQUENCY:1"] == 350.0
-    assert list(c.render()[1:6]) == [BLANK, 2, 1, 0 + DOT, 0]  # active now 210.0
+    c.on_state("ADF STANDBY FREQUENCY:1", 1799000)  # thousands = 1 (max)
+    # thousands wraps 1 -> 0 (0..1 only), the other digits untouched -> 0799
+    assert c.on_event(code=5, value=1) == [
+        SetSimVar(name="ADF STANDBY FREQUENCY:1", unit="number", value=799000.0)
+    ]
 
 
-def test_adf_display_scale_converts_hz_to_khz():
-    # if the sim reads ADF in Hz, display_scale=0.001 shows kHz on the panel
-    cfg = RadioPanelOutput(units=[RadioUnit(
-        name="u", row="upper", banks=[AdfBank(code=4, display_scale=0.001, decimals=1)],
+def test_adf_hundreds_wraps_at_7_without_touching_low_digits():
+    # Regression: the old whole-value clamp stuck hundreds at 7 and slammed the
+    # tens/ones to 9. Now the hundreds digit wraps 0..7 (thousands=1) on its own.
+    c = RadioPanelController(make_config())
+    c.on_event(code=4, value=1)
+    c.on_state("ADF STANDBY FREQUENCY:1", 1750000)  # 1,7,5,0
+    # inner cw = hundreds +1: 7 wraps to 0, tens/ones stay 5/0 -> 1050
+    assert c.on_event(code=7, value=1) == [
+        SetSimVar(name="ADF STANDBY FREQUENCY:1", unit="number", value=1050000.0)
+    ]
+
+
+def test_adf_hundreds_reaches_8_9_when_thousands_zero():
+    # With thousands = 0 the whole value stays <= 1799, so hundreds spans 0..9
+    # (800-999 kHz must be dialable).
+    c = RadioPanelController(make_config())
+    c.on_event(code=4, value=1)
+    c.on_state("ADF STANDBY FREQUENCY:1", 750000)  # 0,7,5,0
+    assert c.on_event(code=7, value=1) == [  # hundreds 7 -> 8 -> 850
+        SetSimVar(name="ADF STANDBY FREQUENCY:1", unit="number", value=850000.0)
+    ]
+
+
+def test_adf_freq_var_subscribed():
+    assert "ADF STANDBY FREQUENCY:1" in make_config().simvars()
+
+
+# -- XPDR barometer (outer knob = QNH on the bottom row) ----------------------
+
+
+def _xpdr_baro_config() -> RadioPanelOutput:
+    return RadioPanelOutput(units=[RadioUnit(
+        name="u", row="upper",
+        banks=[XpdrBank(code=3, baro_var="KOHLSMAN SETTING HG")],
         outer_cw=5, outer_ccw=6, inner_cw=7, inner_ccw=8, swap=9,
     )])
-    c = RadioPanelController(cfg)
-    c.on_state("ADF ACTIVE FREQUENCY:1", 350000)  # Hz
-    assert list(c.render()[1:6]) == [BLANK, 3, 5, 0 + DOT, 0]  # -> 350.0
+
+
+def test_xpdr_outer_knob_fires_baro_events():
+    c = RadioPanelController(_xpdr_baro_config())
+    c.on_event(code=3, value=1)  # -> XPDR
+    assert c.on_event(code=5, value=1) == [SendEvent(name="KOHLSMAN_INC")]  # outer cw
+    assert c.on_event(code=6, value=1) == [SendEvent(name="KOHLSMAN_DEC")]  # outer ccw
+
+
+def test_xpdr_baro_renders_inhg_with_dot_on_second_digit():
+    c = RadioPanelController(_xpdr_baro_config())
+    c.on_event(code=3, value=1)
+    c.on_state("TRANSPONDER CODE:1", 0x1200)
+    c.on_state("KOHLSMAN SETTING HG", 29.92)
+    assert list(c.render()[6:11]) == [BLANK, 2, 9 + DOT, 9, 2]  # 29.92 on the bottom row
+
+
+def test_xpdr_without_baro_leaves_outer_and_bottom_inert():
+    c = RadioPanelController(make_config())  # XpdrBank(code=3) has no baro_var
+    c.on_event(code=3, value=1)
+    c.on_state("TRANSPONDER CODE:1", 0x1200)
+    assert c.on_event(code=5, value=1) == []  # outer knob does nothing
+    assert list(c.render()[6:11]) == [BLANK] * 5  # bottom row blank
+
+
+def test_xpdr_baro_refreshes_off_cycle_but_squawk_does_not():
+    c = RadioPanelController(_xpdr_baro_config())
+    c.on_event(code=3, value=1)
+    assert c.refresh_after(5) == ["KOHLSMAN SETTING HG"]  # outer knob -> ReadNow QNH
+    assert c.refresh_after(7) == []  # inner knob (squawk) is local-echoed
+
+
+def test_xpdr_baro_var_subscribed():
+    assert "KOHLSMAN SETTING HG" in _xpdr_baro_config().simvars()

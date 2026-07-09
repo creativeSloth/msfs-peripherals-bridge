@@ -95,7 +95,22 @@ class ReadNow:
         return frame
 
 
-Command = SendEvent | SetSimVar | SendEventFromVar | Subscribe | ReadNow
+@dataclass(frozen=True, slots=True)
+class RpnExec:
+    """Run a raw MobiFlight RPN (calculator) expression on the sim.
+
+    For controls a fixed set/event can't express — e.g. a stateless bool toggle
+    ``(L:X) ! (>L:X)`` that always writes 0 or 1 whatever the current value is
+    (the ``!`` operator is a logical NOT). The bridge runs it via the WASM channel.
+    """
+
+    code: str
+
+    def to_wire(self) -> dict[str, object]:
+        return {"op": "rpn", "code": self.code}
+
+
+Command = SendEvent | SetSimVar | SendEventFromVar | Subscribe | ReadNow | RpnExec
 
 
 def encode(command: Command) -> bytes:

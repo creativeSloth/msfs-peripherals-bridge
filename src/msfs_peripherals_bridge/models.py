@@ -126,7 +126,20 @@ class SequenceAction(BaseModel):
     )
 
 
-Action = EventAction | SimVarAction | EventFromVarAction | SequenceAction
+class RpnAction(BaseModel):
+    """Run a raw RPN (MobiFlight calculator) expression on a button press.
+
+    For controls a fixed set/event can't express. The headline case is a stateless
+    bool toggle: ``(L:JF_PA28_AP_alt) ! (>L:JF_PA28_AP_alt)`` flips the LVar and,
+    because ``!`` is a logical NOT, always writes exactly 0 or 1 — no drift into
+    other values however it is pressed. Momentary: fires once on the press edge.
+    """
+
+    type: Literal["rpn"] = "rpn"
+    code: str = Field(..., description="RPN expression, e.g. '(L:X) ! (>L:X)'.")
+
+
+Action = EventAction | SimVarAction | EventFromVarAction | SequenceAction | RpnAction
 
 
 class GearLedOutput(BaseModel):
@@ -201,6 +214,13 @@ class SelectorEntry(BaseModel):
     min: float
     max: float
     rollover: bool = Field(False, description="Wrap min<->max instead of clamping (HDG/CRS).")
+    # Keep a local, encoder-owned value instead of showing the live SimVar. Use for
+    # values the aircraft gauge overwrites out-of-band: on the JF Arrow, engaging a
+    # vertical mode drives AUTOPILOT ALTITUDE LOCK VAR / VERTICAL HOLD VAR to 0 /
+    # 80000, which would otherwise clobber the target the user dialed in. A sticky
+    # value starts at 0 (or `min` if 0 is out of range) and only the encoder changes
+    # it, so the display holds the last set value across mode switches.
+    sticky: bool = Field(False, description="Encoder-owned value; ignore live SimVar (ALT/VS).")
     # Which display row this value lives on. Rows are persistent: ALT on top and
     # VS on the bottom stay visible together, the selector only re-points the
     # encoder. The selected value owns its row; the other row keeps its last value.
@@ -295,6 +315,13 @@ class MultiPanelOutput(BaseModel):
     )
     # The trim wheel repurposed as a light dimmer (radio + panel lights).
     dimmer: MultiPanelDimmer | None = Field(None, description="Trim-wheel light dimmer.")
+    # Optional power gate: when set, the display + LEDs light only while this bool
+    # var is on (e.g. ELECTRICAL MASTER BATTERY). Default None = always lit, so this
+    # breaks no render behaviour for panels that don't set it. Matches the gear
+    # LEDs, which already go dark without battery.
+    power: str | None = Field(
+        None, description="Bool var gating the display/LEDs (None = always on)."
+    )
 
     @field_validator("bool_leds")
     @classmethod
@@ -319,6 +346,8 @@ class MultiPanelOutput(BaseModel):
         names += list(self.bool_leds.values())
         if self.dimmer is not None:
             names += [t.var for t in self.dimmer.targets if t.var is not None]
+        if self.power is not None:
+            names.append(self.power)
         return names
 
 
@@ -381,37 +410,39 @@ class DmeBank(BaseModel):
 
 
 class AdfBank(BaseModel):
-    """ADF selector position — tune the standby frequency, swap it in.
+    """ADF selector position — set the kHz frequency a digit-pair at a time.
 
-    Unlike COM/NAV (which fire MSFS step events), ADF is tuned by *local echo*: the
-    controller reads the tuned var, adds ``coarse`` (outer knob) or ``fine`` (inner
-    knob) and writes it back — matching how SPAD tuned the JF Arrow's ADF. The push
-    fires ``swap_event``. Steps + display are configurable because the SimVar's read
-    unit isn't known until measured in-sim (SPAD saw a kHz scale) — ``display_scale``
-    multiplies the read value for the readout, ``decimals`` sets its precision.
+    The 4-digit kHz frequency is edited with the two encoders + the push: the push
+    toggles a two-digit cursor between the high pair (1000s, 100s) and the low pair
+    (10s, 1s); the outer knob steps the active pair's left digit, the inner its
+    right (each 0-9, wrapping), and the whole value is clamped to
+    ``[min_khz, max_khz]`` so no out-of-range frequency can be dialled. Two dots in
+    the display mark the active pair. The value is read/written on ``freq`` — the
+    STANDBY var, which reads cleanly (ACTIVE reads garbage on the JF Arrow);
+    ``scale`` converts the SimVar to kHz (measured 2026-07-08: reads Hz, so 0.001).
     """
 
     kind: Literal["adf"] = "adf"
     code: int = Field(..., ge=0, description="Selector bit code for this position.")
     label: str = Field("ADF", description="Human label (logging only).")
-    active: str = Field("ADF ACTIVE FREQUENCY:1", description="ACTIVE ADF freq SimVar.")
-    standby: str = Field("ADF STANDBY FREQUENCY:1", description="STANDBY ADF freq SimVar.")
-    swap_event: str = Field("ADF1_RADIO_SWAP", description="ACT/STBY swap event.")
-    tune: Literal["standby", "active"] = Field("standby", description="Which row the knobs tune.")
-    coarse: float = Field(10.0, description="Outer-knob step (SimVar units).")
-    fine: float = Field(1.0, description="Inner-knob step (SimVar units).")
-    display_scale: float = Field(1.0, description="Multiply read value for the display.")
-    decimals: int = Field(1, ge=0, description="Display decimals.")
+    freq: str = Field("ADF STANDBY FREQUENCY:1", description="Freq SimVar (reads Hz).")
+    scale: float = Field(0.001, description="Multiply the SimVar to get kHz (Hz->kHz).")
+    min_khz: int = Field(190, ge=0, description="Lowest dialable kHz (clamp floor).")
+    max_khz: int = Field(1799, ge=0, description="Highest dialable kHz (clamp ceiling).")
 
 
 class XpdrBank(BaseModel):
-    """Transponder selector position — edit the squawk code, display it.
+    """Transponder selector position — edit the squawk (top), set the QNH (bottom).
 
-    The 4-octal-digit squawk is edited mode-lessly with the two encoders: the outer
-    knob steps the left digit pair (thousands+hundreds), the inner knob the right
-    pair (tens+ones), each wrapping within 00-77 octal. The controller reads the
-    current code, applies the step locally and writes it back via ``set_event``
-    (XPNDR_SET, BCD16). The push is unused (no mode).
+    The 4-octal-digit squawk is edited a digit at a time: the push walks an edit
+    cursor across the four digits (a dot in the display marks the active one) and
+    the inner knob steps the digit under the cursor (0-7, wrapping). The controller
+    reads the current code, applies the step locally and writes it back via
+    ``set_event`` (XPNDR_SET, BCD16).
+
+    The otherwise-idle *outer* knob doubles as the altimeter (QNH) setting: it fires
+    ``baro_inc`` / ``baro_dec`` and the bottom display row shows ``baro_var`` (hPa,
+    a 4-digit integer). Leave ``baro_var`` None to keep the bottom row blank.
     """
 
     kind: Literal["xpdr"] = "xpdr"
@@ -419,6 +450,12 @@ class XpdrBank(BaseModel):
     label: str = Field("XPDR", description="Human label (logging only).")
     code_var: str = Field("TRANSPONDER CODE:1", description="Squawk SimVar (BCD16).")
     set_event: str = Field("XPNDR_SET", description="Event to set the squawk (BCD16 data).")
+    # Outer knob = altimeter/QNH setting on the bottom row (None = bottom stays blank).
+    # Shown as NN.NN with the dot on the 2nd digit (e.g. 29.92 inHg for the Piper).
+    baro_var: str | None = Field(None, description="QNH SimVar for the bottom row (inHg).")
+    baro_scale: float = Field(1.0, description="Multiply baro_var to inHg (already inHg = 1).")
+    baro_inc: str = Field("KOHLSMAN_INC", description="Outer-knob-CW event (QNH up).")
+    baro_dec: str = Field("KOHLSMAN_DEC", description="Outer-knob-CCW event (QNH down).")
 
 
 # A selector position is one of the bank kinds, told apart by ``kind``. A callable
@@ -477,6 +514,13 @@ class RadioPanelOutput(BaseModel):
 
     type: Literal["radio_panel"] = "radio_panel"
     units: list[RadioUnit] = Field(..., min_length=1, description="Radio units (upper/lower).")
+    # Optional power gate: when set, the display lights only while this bool var is
+    # on (e.g. ELECTRICAL MASTER BATTERY). Default None = always lit, so this breaks
+    # no render behaviour for panels that don't set it. Matches the gear LEDs, which
+    # already go dark without battery. Use AVIONICS MASTER SWITCH here for a bus gate.
+    power: str | None = Field(
+        None, description="Bool var gating the display (None = always on)."
+    )
 
     def simvars(self) -> list[str]:
         """Every SimVar the displays need subscribed (per bank kind)."""
@@ -488,8 +532,14 @@ class RadioPanelOutput(BaseModel):
                         names += [src.distance, src.speed]
                 elif isinstance(bank, XpdrBank):
                     names.append(bank.code_var)
-                else:  # freq (COM/NAV) or ADF — both have active + standby
+                    if bank.baro_var is not None:
+                        names.append(bank.baro_var)
+                elif isinstance(bank, AdfBank):
+                    names.append(bank.freq)
+                else:  # freq (COM/NAV) — active + standby
                     names += [bank.active, bank.standby]
+        if self.power is not None:
+            names.append(self.power)
         return names
 
 
