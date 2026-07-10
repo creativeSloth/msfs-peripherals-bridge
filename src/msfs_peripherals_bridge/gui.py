@@ -21,6 +21,7 @@ reads the kernel socket table, MSFS/Mapper come from a ``/proc`` scan.
 from __future__ import annotations
 
 import contextlib
+import json
 import os
 import signal
 import subprocess
@@ -29,10 +30,45 @@ import threading
 import time
 from pathlib import Path
 
-from .config import profiles_dir, project_root
+from .config import gui_settings_file, profiles_dir, project_root
 
 BRIDGE_PORT = 7842
 _POLL_MS = 1000  # status refresh cadence
+
+
+# --------------------------------------------------------------------------- #
+# persisted GUI state (Statistik var selection)
+# --------------------------------------------------------------------------- #
+def load_statistik_selection(path: Path | None = None) -> list[dict[str, str]]:
+    """Restore the saved Statistik var list as ``{kind, name, unit}`` dicts.
+
+    Best-effort: a missing or malformed file yields an empty selection.
+    """
+    p = path or gui_settings_file()
+    try:
+        data = json.loads(p.read_text(encoding="utf-8"))
+    except (OSError, json.JSONDecodeError, ValueError):
+        return []
+    items = data.get("statistik_vars") if isinstance(data, dict) else None
+    out: list[dict[str, str]] = []
+    if isinstance(items, list):
+        for it in items:
+            if isinstance(it, dict) and isinstance(it.get("kind"), str) \
+                    and isinstance(it.get("name"), str):
+                unit = it.get("unit")
+                out.append({
+                    "kind": it["kind"], "name": it["name"],
+                    "unit": unit if isinstance(unit, str) else "",
+                })
+    return out
+
+
+def save_statistik_selection(vars_: list[dict[str, str]], path: Path | None = None) -> None:
+    """Persist the Statistik var list; failures are non-fatal (best-effort)."""
+    p = path or gui_settings_file()
+    with contextlib.suppress(OSError):
+        p.parent.mkdir(parents=True, exist_ok=True)
+        p.write_text(json.dumps({"statistik_vars": vars_}, indent=2), encoding="utf-8")
 
 
 # --------------------------------------------------------------------------- #
@@ -476,11 +512,11 @@ def run() -> None:
     ttk.Label(stab, text="Live-Wertliste — Variablen zum Beobachten zusammenstellen:"
               ).grid(row=0, column=0, columnspan=4, sticky="w")
 
-    tree = ttk.Treeview(stab, columns=("kind", "name", "unit", "value"),
+    tree = ttk.Treeview(stab, columns=("kind", "name", "value", "unit"),
                         show="headings", height=10)
     for col, head, w, anchor in (
         ("kind", "Typ", 44, "center"), ("name", "Variable", 260, "w"),
-        ("unit", "Einheit", 74, "center"), ("value", "Wert", 90, "center"),
+        ("value", "Wert", 90, "center"), ("unit", "Einheit", 74, "center"),
     ):
         tree.heading(col, text=head)
         tree.column(col, width=w, anchor=anchor)
@@ -503,17 +539,27 @@ def run() -> None:
             if (w := _wire(tree.set(iid, "kind"), tree.set(iid, "name"))) is not None
         ])
 
-    def add_var(v):
+    def _persist_selection():
+        save_statistik_selection([
+            {"kind": tree.set(iid, "kind"), "name": tree.set(iid, "name"),
+             "unit": tree.set(iid, "unit")}
+            for iid in tree.get_children("")
+        ])
+
+    def add_var(v, *, persist=True):
         key = f"{v.kind}\t{v.name}"
         if tree.exists(key):
             return
-        tree.insert("", "end", iid=key, values=(v.kind, v.name, v.unit, "—"))
+        tree.insert("", "end", iid=key, values=(v.kind, v.name, "—", v.unit))
         _sync_monitor()
+        if persist:
+            _persist_selection()
 
     def remove_selected():
         for iid in tree.selection():
             tree.delete(iid)
         _sync_monitor()
+        _persist_selection()
 
     def update_values():
         vals = monitor.values()
@@ -524,6 +570,16 @@ def run() -> None:
                 continue
             w = _wire(kind, tree.set(iid, "name"))
             tree.set(iid, "value", _fmt_value(vals[w]) if w in vals else "—")
+
+    # Restore the var selection saved from the last session (before wiring buttons).
+    for _saved in load_statistik_selection():
+        add_var(
+            gui_catalog.CatalogVar(
+                name=_saved["name"], kind=_saved["kind"],
+                unit=_saved.get("unit", ""), category="",
+            ),
+            persist=False,
+        )
 
     sbtn = ttk.Frame(stab)
     sbtn.grid(row=2, column=0, columnspan=4, sticky="ew", pady=(6, 0))

@@ -1,0 +1,9055 @@
+{
+ "attribution": "SimVar/Event names, units and settable flags derived from Python-SimConnect (MIT License), https://github.com/odwdinc/Python-SimConnect",
+ "simvars": [
+  {
+   "name": "NUMBER OF ENGINES",
+   "unit": "Number",
+   "settable": false,
+   "category": "Aircraft Engine"
+  },
+  {
+   "name": "ENGINE CONTROL SELECT",
+   "unit": "Mask",
+   "settable": true,
+   "category": "Aircraft Engine"
+  },
+  {
+   "name": "THROTTLE LOWER LIMIT",
+   "unit": "Percent",
+   "settable": false,
+   "category": "Aircraft Engine"
+  },
+  {
+   "name": "ENGINE TYPE",
+   "unit": "Enum",
+   "settable": false,
+   "category": "Aircraft Engine"
+  },
+  {
+   "name": "MASTER IGNITION SWITCH",
+   "unit": "Bool",
+   "settable": false,
+   "category": "Aircraft Engine"
+  },
+  {
+   "name": "GENERAL ENG COMBUSTION:1",
+   "unit": "Bool",
+   "settable": true,
+   "category": "Aircraft Engine"
+  },
+  {
+   "name": "GENERAL ENG MASTER ALTERNATOR:1",
+   "unit": "Bool",
+   "settable": false,
+   "category": "Aircraft Engine"
+  },
+  {
+   "name": "GENERAL ENG FUEL PUMP SWITCH:1",
+   "unit": "Bool",
+   "settable": false,
+   "category": "Aircraft Engine"
+  },
+  {
+   "name": "GENERAL ENG FUEL PUMP ON:1",
+   "unit": "Bool",
+   "settable": false,
+   "category": "Aircraft Engine"
+  },
+  {
+   "name": "GENERAL ENG RPM:1",
+   "unit": "Rpm",
+   "settable": false,
+   "category": "Aircraft Engine"
+  },
+  {
+   "name": "GENERAL ENG PCT MAX RPM:1",
+   "unit": "Percent",
+   "settable": false,
+   "category": "Aircraft Engine"
+  },
+  {
+   "name": "GENERAL ENG MAX REACHED RPM:1",
+   "unit": "Rpm",
+   "settable": false,
+   "category": "Aircraft Engine"
+  },
+  {
+   "name": "GENERAL ENG THROTTLE LEVER POSITION:1",
+   "unit": "Percent",
+   "settable": true,
+   "category": "Aircraft Engine"
+  },
+  {
+   "name": "GENERAL ENG MIXTURE LEVER POSITION:1",
+   "unit": "Percent",
+   "settable": true,
+   "category": "Aircraft Engine"
+  },
+  {
+   "name": "GENERAL ENG PROPELLER LEVER POSITION:1",
+   "unit": "Percent",
+   "settable": true,
+   "category": "Aircraft Engine"
+  },
+  {
+   "name": "GENERAL ENG STARTER:1",
+   "unit": "Bool",
+   "settable": false,
+   "category": "Aircraft Engine"
+  },
+  {
+   "name": "GENERAL ENG EXHAUST GAS TEMPERATURE:1",
+   "unit": "Rankine",
+   "settable": true,
+   "category": "Aircraft Engine"
+  },
+  {
+   "name": "GENERAL ENG OIL PRESSURE:1",
+   "unit": "Psf",
+   "settable": true,
+   "category": "Aircraft Engine"
+  },
+  {
+   "name": "GENERAL ENG OIL LEAKED PERCENT:1",
+   "unit": "Percent",
+   "settable": false,
+   "category": "Aircraft Engine"
+  },
+  {
+   "name": "GENERAL ENG COMBUSTION SOUND PERCENT:1",
+   "unit": "Percent",
+   "settable": false,
+   "category": "Aircraft Engine"
+  },
+  {
+   "name": "GENERAL ENG DAMAGE PERCENT:1",
+   "unit": "Percent",
+   "settable": false,
+   "category": "Aircraft Engine"
+  },
+  {
+   "name": "GENERAL ENG OIL TEMPERATURE:1",
+   "unit": "Rankine",
+   "settable": true,
+   "category": "Aircraft Engine"
+  },
+  {
+   "name": "GENERAL ENG FAILED:1",
+   "unit": "Bool",
+   "settable": false,
+   "category": "Aircraft Engine"
+  },
+  {
+   "name": "GENERAL ENG GENERATOR SWITCH:1",
+   "unit": "Bool",
+   "settable": false,
+   "category": "Aircraft Engine"
+  },
+  {
+   "name": "GENERAL ENG GENERATOR ACTIVE:1",
+   "unit": "Bool",
+   "settable": true,
+   "category": "Aircraft Engine"
+  },
+  {
+   "name": "GENERAL ENG ANTI ICE POSITION:1",
+   "unit": "Bool",
+   "settable": false,
+   "category": "Aircraft Engine"
+  },
+  {
+   "name": "GENERAL ENG FUEL VALVE:1",
+   "unit": "Bool",
+   "settable": false,
+   "category": "Aircraft Engine"
+  },
+  {
+   "name": "GENERAL ENG FUEL PRESSURE:1",
+   "unit": "Psi",
+   "settable": true,
+   "category": "Aircraft Engine"
+  },
+  {
+   "name": "GENERAL ENG ELAPSED TIME:1",
+   "unit": "Hours",
+   "settable": false,
+   "category": "Aircraft Engine"
+  },
+  {
+   "name": "RECIP ENG COWL FLAP POSITION:1",
+   "unit": "Percent",
+   "settable": true,
+   "category": "Aircraft Engine"
+  },
+  {
+   "name": "RECIP ENG PRIMER:1",
+   "unit": "Bool",
+   "settable": true,
+   "category": "Aircraft Engine"
+  },
+  {
+   "name": "RECIP ENG MANIFOLD PRESSURE:1",
+   "unit": "Psi",
+   "settable": true,
+   "category": "Aircraft Engine"
+  },
+  {
+   "name": "RECIP ENG ALTERNATE AIR POSITION:1",
+   "unit": "Position",
+   "settable": true,
+   "category": "Aircraft Engine"
+  },
+  {
+   "name": "RECIP ENG COOLANT RESERVOIR PERCENT:1",
+   "unit": "Percent",
+   "settable": true,
+   "category": "Aircraft Engine"
+  },
+  {
+   "name": "RECIP ENG LEFT MAGNETO:1",
+   "unit": "Bool",
+   "settable": true,
+   "category": "Aircraft Engine"
+  },
+  {
+   "name": "RECIP ENG RIGHT MAGNETO:1",
+   "unit": "Bool",
+   "settable": true,
+   "category": "Aircraft Engine"
+  },
+  {
+   "name": "RECIP ENG BRAKE POWER:1",
+   "unit": "Foot pounds per second",
+   "settable": true,
+   "category": "Aircraft Engine"
+  },
+  {
+   "name": "RECIP ENG STARTER TORQUE:1",
+   "unit": "Foot pound",
+   "settable": true,
+   "category": "Aircraft Engine"
+  },
+  {
+   "name": "RECIP ENG TURBOCHARGER FAILED:1",
+   "unit": "Bool",
+   "settable": true,
+   "category": "Aircraft Engine"
+  },
+  {
+   "name": "RECIP ENG EMERGENCY BOOST ACTIVE:1",
+   "unit": "Bool",
+   "settable": true,
+   "category": "Aircraft Engine"
+  },
+  {
+   "name": "RECIP ENG EMERGENCY BOOST ELAPSED TIME:1",
+   "unit": "Hours",
+   "settable": true,
+   "category": "Aircraft Engine"
+  },
+  {
+   "name": "RECIP ENG WASTEGATE POSITION:1",
+   "unit": "Percent",
+   "settable": true,
+   "category": "Aircraft Engine"
+  },
+  {
+   "name": "RECIP ENG TURBINE INLET TEMPERATURE:1",
+   "unit": "Celsius",
+   "settable": true,
+   "category": "Aircraft Engine"
+  },
+  {
+   "name": "RECIP ENG CYLINDER HEAD TEMPERATURE:1",
+   "unit": "Celsius",
+   "settable": true,
+   "category": "Aircraft Engine"
+  },
+  {
+   "name": "RECIP ENG RADIATOR TEMPERATURE:1",
+   "unit": "Celsius",
+   "settable": true,
+   "category": "Aircraft Engine"
+  },
+  {
+   "name": "RECIP ENG FUEL AVAILABLE:1",
+   "unit": "Bool",
+   "settable": true,
+   "category": "Aircraft Engine"
+  },
+  {
+   "name": "RECIP ENG FUEL FLOW:1",
+   "unit": "Pounds per hour",
+   "settable": true,
+   "category": "Aircraft Engine"
+  },
+  {
+   "name": "RECIP ENG FUEL TANK SELECTOR:1",
+   "unit": "Enum",
+   "settable": false,
+   "category": "Aircraft Engine"
+  },
+  {
+   "name": "RECIP ENG FUEL NUMBER TANKS USED:1",
+   "unit": "Number",
+   "settable": false,
+   "category": "Aircraft Engine"
+  },
+  {
+   "name": "RECIP CARBURETOR TEMPERATURE:1",
+   "unit": "Celsius",
+   "settable": true,
+   "category": "Aircraft Engine"
+  },
+  {
+   "name": "RECIP MIXTURE RATIO:1",
+   "unit": "Ratio",
+   "settable": true,
+   "category": "Aircraft Engine"
+  },
+  {
+   "name": "TURB ENG N1:1",
+   "unit": "Percent",
+   "settable": true,
+   "category": "Aircraft Engine"
+  },
+  {
+   "name": "TURB ENG N2:1",
+   "unit": "Percent",
+   "settable": true,
+   "category": "Aircraft Engine"
+  },
+  {
+   "name": "TURB ENG CORRECTED N1:1",
+   "unit": "Percent",
+   "settable": true,
+   "category": "Aircraft Engine"
+  },
+  {
+   "name": "TURB ENG CORRECTED N2:1",
+   "unit": "Percent",
+   "settable": true,
+   "category": "Aircraft Engine"
+  },
+  {
+   "name": "TURB ENG CORRECTED FF:1",
+   "unit": "Pounds per hour",
+   "settable": true,
+   "category": "Aircraft Engine"
+  },
+  {
+   "name": "TURB ENG MAX TORQUE PERCENT:1",
+   "unit": "Percent",
+   "settable": true,
+   "category": "Aircraft Engine"
+  },
+  {
+   "name": "TURB ENG PRESSURE RATIO:1",
+   "unit": "Ratio",
+   "settable": true,
+   "category": "Aircraft Engine"
+  },
+  {
+   "name": "TURB ENG ITT:1",
+   "unit": "Rankine",
+   "settable": true,
+   "category": "Aircraft Engine"
+  },
+  {
+   "name": "TURB ENG AFTERBURNER:1",
+   "unit": "Bool",
+   "settable": false,
+   "category": "Aircraft Engine"
+  },
+  {
+   "name": "TURB ENG JET THRUST:1",
+   "unit": "Pounds",
+   "settable": false,
+   "category": "Aircraft Engine"
+  },
+  {
+   "name": "TURB ENG BLEED AIR:1",
+   "unit": "Psi",
+   "settable": false,
+   "category": "Aircraft Engine"
+  },
+  {
+   "name": "TURB ENG TANK SELECTOR:1",
+   "unit": "Enum",
+   "settable": false,
+   "category": "Aircraft Engine"
+  },
+  {
+   "name": "TURB ENG NUM TANKS USED:1",
+   "unit": "Number",
+   "settable": false,
+   "category": "Aircraft Engine"
+  },
+  {
+   "name": "TURB ENG FUEL FLOW PPH:1",
+   "unit": "Pounds per hour",
+   "settable": false,
+   "category": "Aircraft Engine"
+  },
+  {
+   "name": "TURB ENG FUEL AVAILABLE:1",
+   "unit": "Bool",
+   "settable": false,
+   "category": "Aircraft Engine"
+  },
+  {
+   "name": "TURB ENG REVERSE NOZZLE PERCENT:1",
+   "unit": "Percent",
+   "settable": false,
+   "category": "Aircraft Engine"
+  },
+  {
+   "name": "TURB ENG VIBRATION:1",
+   "unit": "Number",
+   "settable": false,
+   "category": "Aircraft Engine"
+  },
+  {
+   "name": "ENG FAILED:1",
+   "unit": "Number",
+   "settable": false,
+   "category": "Aircraft Engine"
+  },
+  {
+   "name": "ENG RPM ANIMATION PERCENT:1",
+   "unit": "Percent",
+   "settable": false,
+   "category": "Aircraft Engine"
+  },
+  {
+   "name": "ENG ON FIRE:1",
+   "unit": "Bool",
+   "settable": true,
+   "category": "Aircraft Engine"
+  },
+  {
+   "name": "ENG FUEL FLOW BUG POSITION:1",
+   "unit": "Pounds per hour",
+   "settable": false,
+   "category": "Aircraft Engine"
+  },
+  {
+   "name": "PROP RPM:1",
+   "unit": "Rpm",
+   "settable": true,
+   "category": "Aircraft Engine"
+  },
+  {
+   "name": "PROP MAX RPM PERCENT:1",
+   "unit": "Percent",
+   "settable": false,
+   "category": "Aircraft Engine"
+  },
+  {
+   "name": "PROP THRUST:1",
+   "unit": "Pounds",
+   "settable": false,
+   "category": "Aircraft Engine"
+  },
+  {
+   "name": "PROP BETA:1",
+   "unit": "Radians",
+   "settable": false,
+   "category": "Aircraft Engine"
+  },
+  {
+   "name": "PROP FEATHERING INHIBIT:1",
+   "unit": "Bool",
+   "settable": false,
+   "category": "Aircraft Engine"
+  },
+  {
+   "name": "PROP FEATHERED:1",
+   "unit": "Bool",
+   "settable": false,
+   "category": "Aircraft Engine"
+  },
+  {
+   "name": "PROP SYNC DELTA LEVER:1",
+   "unit": "Position",
+   "settable": false,
+   "category": "Aircraft Engine"
+  },
+  {
+   "name": "PROP AUTO FEATHER ARMED:1",
+   "unit": "Bool",
+   "settable": false,
+   "category": "Aircraft Engine"
+  },
+  {
+   "name": "PROP FEATHER SWITCH:1",
+   "unit": "Bool",
+   "settable": false,
+   "category": "Aircraft Engine"
+  },
+  {
+   "name": "PANEL AUTO FEATHER SWITCH:1",
+   "unit": "Bool",
+   "settable": false,
+   "category": "Aircraft Engine"
+  },
+  {
+   "name": "PROP SYNC ACTIVE:1",
+   "unit": "Bool",
+   "settable": false,
+   "category": "Aircraft Engine"
+  },
+  {
+   "name": "PROP DEICE SWITCH:1",
+   "unit": "Bool",
+   "settable": false,
+   "category": "Aircraft Engine"
+  },
+  {
+   "name": "ENG COMBUSTION",
+   "unit": "Bool",
+   "settable": false,
+   "category": "Aircraft Engine"
+  },
+  {
+   "name": "ENG N1 RPM:1",
+   "unit": "Rpm (0 to 16384 = 0 to 100%)",
+   "settable": false,
+   "category": "Aircraft Engine"
+  },
+  {
+   "name": "ENG N2 RPM:1",
+   "unit": "Rpm(0 to 16384 = 0 to 100%)",
+   "settable": false,
+   "category": "Aircraft Engine"
+  },
+  {
+   "name": "ENG FUEL FLOW GPH:1",
+   "unit": "Gallons per hour",
+   "settable": false,
+   "category": "Aircraft Engine"
+  },
+  {
+   "name": "ENG FUEL FLOW PPH:1",
+   "unit": "Pounds per hour",
+   "settable": false,
+   "category": "Aircraft Engine"
+  },
+  {
+   "name": "ENG TORQUE:1",
+   "unit": "Foot pounds",
+   "settable": false,
+   "category": "Aircraft Engine"
+  },
+  {
+   "name": "ENG ANTI ICE:1",
+   "unit": "Bool",
+   "settable": false,
+   "category": "Aircraft Engine"
+  },
+  {
+   "name": "ENG PRESSURE RATIO:1",
+   "unit": "Ratio (0-16384)",
+   "settable": false,
+   "category": "Aircraft Engine"
+  },
+  {
+   "name": "ENG EXHAUST GAS TEMPERATURE:1",
+   "unit": "Rankine",
+   "settable": false,
+   "category": "Aircraft Engine"
+  },
+  {
+   "name": "ENG EXHAUST GAS TEMPERATURE GES:1",
+   "unit": "Percent over 100",
+   "settable": false,
+   "category": "Aircraft Engine"
+  },
+  {
+   "name": "ENG CYLINDER HEAD TEMPERATURE:1",
+   "unit": "Rankine",
+   "settable": false,
+   "category": "Aircraft Engine"
+  },
+  {
+   "name": "ENG OIL TEMPERATURE:1",
+   "unit": "Rankine",
+   "settable": false,
+   "category": "Aircraft Engine"
+  },
+  {
+   "name": "ENG OIL PRESSURE:1",
+   "unit": "foot pounds",
+   "settable": false,
+   "category": "Aircraft Engine"
+  },
+  {
+   "name": "ENG OIL QUANTITY:1",
+   "unit": "Percent over 100",
+   "settable": false,
+   "category": "Aircraft Engine"
+  },
+  {
+   "name": "ENG HYDRAULIC PRESSURE:1",
+   "unit": "foot pounds",
+   "settable": false,
+   "category": "Aircraft Engine"
+  },
+  {
+   "name": "ENG HYDRAULIC QUANTITY:1",
+   "unit": "Percent over 100",
+   "settable": false,
+   "category": "Aircraft Engine"
+  },
+  {
+   "name": "ENG MANIFOLD PRESSURE:1",
+   "unit": "inHG.",
+   "settable": false,
+   "category": "Aircraft Engine"
+  },
+  {
+   "name": "ENG VIBRATION:1",
+   "unit": "Number",
+   "settable": false,
+   "category": "Aircraft Engine"
+  },
+  {
+   "name": "ENG RPM SCALER:1",
+   "unit": "Scalar",
+   "settable": false,
+   "category": "Aircraft Engine"
+  },
+  {
+   "name": "ENG MAX RPM",
+   "unit": "Rpm",
+   "settable": false,
+   "category": "Aircraft Engine"
+  },
+  {
+   "name": "GENERAL ENG STARTER ACTIVE",
+   "unit": "Bool",
+   "settable": false,
+   "category": "Aircraft Engine"
+  },
+  {
+   "name": "GENERAL ENG FUEL USED SINCE START",
+   "unit": "Pounds",
+   "settable": false,
+   "category": "Aircraft Engine"
+  },
+  {
+   "name": "TURB ENG PRIMARY NOZZLE PERCENT:1",
+   "unit": "Percent over 100",
+   "settable": false,
+   "category": "Aircraft Engine"
+  },
+  {
+   "name": "TURB ENG IGNITION SWITCH",
+   "unit": "Bool",
+   "settable": false,
+   "category": "Aircraft Engine"
+  },
+  {
+   "name": "TURB ENG MASTER STARTER SWITCH",
+   "unit": "Bool",
+   "settable": false,
+   "category": "Aircraft Engine"
+  },
+  {
+   "name": "TURB ENG AFTERBURNER STAGE ACTIVE",
+   "unit": "Number",
+   "settable": false,
+   "category": "Aircraft Engine"
+  },
+  {
+   "name": "FUEL TANK CENTER LEVEL",
+   "unit": "Percent Over 100",
+   "settable": true,
+   "category": "Aircraft Fuel"
+  },
+  {
+   "name": "FUEL TANK CENTER2 LEVEL",
+   "unit": "Percent Over 100",
+   "settable": true,
+   "category": "Aircraft Fuel"
+  },
+  {
+   "name": "FUEL TANK CENTER3 LEVEL",
+   "unit": "Percent Over 100",
+   "settable": true,
+   "category": "Aircraft Fuel"
+  },
+  {
+   "name": "FUEL TANK LEFT MAIN LEVEL",
+   "unit": "Percent Over 100",
+   "settable": true,
+   "category": "Aircraft Fuel"
+  },
+  {
+   "name": "FUEL TANK LEFT AUX LEVEL",
+   "unit": "Percent Over 100",
+   "settable": true,
+   "category": "Aircraft Fuel"
+  },
+  {
+   "name": "FUEL TANK LEFT TIP LEVEL",
+   "unit": "Percent Over 100",
+   "settable": true,
+   "category": "Aircraft Fuel"
+  },
+  {
+   "name": "FUEL TANK RIGHT MAIN LEVEL",
+   "unit": "Percent Over 100",
+   "settable": true,
+   "category": "Aircraft Fuel"
+  },
+  {
+   "name": "FUEL TANK RIGHT AUX LEVEL",
+   "unit": "Percent Over 100",
+   "settable": true,
+   "category": "Aircraft Fuel"
+  },
+  {
+   "name": "FUEL TANK RIGHT TIP LEVEL",
+   "unit": "Percent Over 100",
+   "settable": true,
+   "category": "Aircraft Fuel"
+  },
+  {
+   "name": "FUEL TANK EXTERNAL1 LEVEL",
+   "unit": "Percent Over 100",
+   "settable": true,
+   "category": "Aircraft Fuel"
+  },
+  {
+   "name": "FUEL TANK EXTERNAL2 LEVEL",
+   "unit": "Percent Over 100",
+   "settable": true,
+   "category": "Aircraft Fuel"
+  },
+  {
+   "name": "FUEL TANK CENTER CAPACITY",
+   "unit": "Gallons",
+   "settable": false,
+   "category": "Aircraft Fuel"
+  },
+  {
+   "name": "FUEL TANK CENTER2 CAPACITY",
+   "unit": "Gallons",
+   "settable": false,
+   "category": "Aircraft Fuel"
+  },
+  {
+   "name": "FUEL TANK CENTER3 CAPACITY",
+   "unit": "Gallons",
+   "settable": false,
+   "category": "Aircraft Fuel"
+  },
+  {
+   "name": "FUEL TANK LEFT MAIN CAPACITY",
+   "unit": "Gallons",
+   "settable": false,
+   "category": "Aircraft Fuel"
+  },
+  {
+   "name": "FUEL TANK LEFT AUX CAPACITY",
+   "unit": "Gallons",
+   "settable": false,
+   "category": "Aircraft Fuel"
+  },
+  {
+   "name": "FUEL TANK LEFT TIP CAPACITY",
+   "unit": "Gallons",
+   "settable": false,
+   "category": "Aircraft Fuel"
+  },
+  {
+   "name": "FUEL TANK RIGHT MAIN CAPACITY",
+   "unit": "Gallons",
+   "settable": false,
+   "category": "Aircraft Fuel"
+  },
+  {
+   "name": "FUEL TANK RIGHT AUX CAPACITY",
+   "unit": "Gallons",
+   "settable": false,
+   "category": "Aircraft Fuel"
+  },
+  {
+   "name": "FUEL TANK RIGHT TIP CAPACITY",
+   "unit": "Gallons",
+   "settable": false,
+   "category": "Aircraft Fuel"
+  },
+  {
+   "name": "FUEL TANK EXTERNAL1 CAPACITY",
+   "unit": "Gallons",
+   "settable": false,
+   "category": "Aircraft Fuel"
+  },
+  {
+   "name": "FUEL TANK EXTERNAL2 CAPACITY",
+   "unit": "Gallons",
+   "settable": false,
+   "category": "Aircraft Fuel"
+  },
+  {
+   "name": "FUEL LEFT CAPACITY",
+   "unit": "Gallons",
+   "settable": false,
+   "category": "Aircraft Fuel"
+  },
+  {
+   "name": "FUEL RIGHT CAPACITY",
+   "unit": "Gallons",
+   "settable": false,
+   "category": "Aircraft Fuel"
+  },
+  {
+   "name": "FUEL TANK CENTER QUANTITY",
+   "unit": "Gallons",
+   "settable": true,
+   "category": "Aircraft Fuel"
+  },
+  {
+   "name": "FUEL TANK CENTER2 QUANTITY",
+   "unit": "Gallons",
+   "settable": true,
+   "category": "Aircraft Fuel"
+  },
+  {
+   "name": "FUEL TANK CENTER3 QUANTITY",
+   "unit": "Gallons",
+   "settable": true,
+   "category": "Aircraft Fuel"
+  },
+  {
+   "name": "FUEL TANK LEFT MAIN QUANTITY",
+   "unit": "Gallons",
+   "settable": true,
+   "category": "Aircraft Fuel"
+  },
+  {
+   "name": "FUEL TANK LEFT AUX QUANTITY",
+   "unit": "Gallons",
+   "settable": true,
+   "category": "Aircraft Fuel"
+  },
+  {
+   "name": "FUEL TANK LEFT TIP QUANTITY",
+   "unit": "Gallons",
+   "settable": true,
+   "category": "Aircraft Fuel"
+  },
+  {
+   "name": "FUEL TANK RIGHT MAIN QUANTITY",
+   "unit": "Gallons",
+   "settable": true,
+   "category": "Aircraft Fuel"
+  },
+  {
+   "name": "FUEL TANK RIGHT AUX QUANTITY",
+   "unit": "Gallons",
+   "settable": true,
+   "category": "Aircraft Fuel"
+  },
+  {
+   "name": "FUEL TANK RIGHT TIP QUANTITY",
+   "unit": "Gallons",
+   "settable": true,
+   "category": "Aircraft Fuel"
+  },
+  {
+   "name": "FUEL TANK EXTERNAL1 QUANTITY",
+   "unit": "Gallons",
+   "settable": true,
+   "category": "Aircraft Fuel"
+  },
+  {
+   "name": "FUEL TANK EXTERNAL2 QUANTITY",
+   "unit": "Gallons",
+   "settable": true,
+   "category": "Aircraft Fuel"
+  },
+  {
+   "name": "FUEL LEFT QUANTITY",
+   "unit": "Gallons",
+   "settable": false,
+   "category": "Aircraft Fuel"
+  },
+  {
+   "name": "FUEL RIGHT QUANTITY",
+   "unit": "Gallons",
+   "settable": false,
+   "category": "Aircraft Fuel"
+  },
+  {
+   "name": "FUEL TOTAL QUANTITY",
+   "unit": "Gallons",
+   "settable": false,
+   "category": "Aircraft Fuel"
+  },
+  {
+   "name": "FUEL WEIGHT PER GALLON",
+   "unit": "Pounds",
+   "settable": false,
+   "category": "Aircraft Fuel"
+  },
+  {
+   "name": "FUEL TANK SELECTOR:1",
+   "unit": "Enum",
+   "settable": false,
+   "category": "Aircraft Fuel"
+  },
+  {
+   "name": "FUEL CROSS FEED",
+   "unit": "Enum",
+   "settable": false,
+   "category": "Aircraft Fuel"
+  },
+  {
+   "name": "FUEL TOTAL CAPACITY",
+   "unit": "Gallons",
+   "settable": false,
+   "category": "Aircraft Fuel"
+  },
+  {
+   "name": "FUEL SELECTED QUANTITY PERCENT",
+   "unit": "Percent Over 100",
+   "settable": false,
+   "category": "Aircraft Fuel"
+  },
+  {
+   "name": "FUEL SELECTED QUANTITY",
+   "unit": "Gallons",
+   "settable": false,
+   "category": "Aircraft Fuel"
+  },
+  {
+   "name": "FUEL TOTAL QUANTITY WEIGHT",
+   "unit": "Pounds",
+   "settable": false,
+   "category": "Aircraft Fuel"
+  },
+  {
+   "name": "NUM FUEL SELECTORS",
+   "unit": "Number",
+   "settable": false,
+   "category": "Aircraft Fuel"
+  },
+  {
+   "name": "UNLIMITED FUEL",
+   "unit": "Bool",
+   "settable": false,
+   "category": "Aircraft Fuel"
+  },
+  {
+   "name": "ESTIMATED FUEL FLOW",
+   "unit": "Pounds per hour",
+   "settable": false,
+   "category": "Aircraft Fuel"
+  },
+  {
+   "name": "LIGHT STROBE",
+   "unit": "Bool",
+   "settable": false,
+   "category": "Aircraft Lights"
+  },
+  {
+   "name": "LIGHT PANEL",
+   "unit": "Bool",
+   "settable": false,
+   "category": "Aircraft Lights"
+  },
+  {
+   "name": "LIGHT LANDING",
+   "unit": "Bool",
+   "settable": false,
+   "category": "Aircraft Lights"
+  },
+  {
+   "name": "LIGHT TAXI",
+   "unit": "Bool",
+   "settable": false,
+   "category": "Aircraft Lights"
+  },
+  {
+   "name": "LIGHT BEACON",
+   "unit": "Bool",
+   "settable": false,
+   "category": "Aircraft Lights"
+  },
+  {
+   "name": "LIGHT NAV",
+   "unit": "Bool",
+   "settable": false,
+   "category": "Aircraft Lights"
+  },
+  {
+   "name": "LIGHT LOGO",
+   "unit": "Bool",
+   "settable": false,
+   "category": "Aircraft Lights"
+  },
+  {
+   "name": "LIGHT WING",
+   "unit": "Bool",
+   "settable": false,
+   "category": "Aircraft Lights"
+  },
+  {
+   "name": "LIGHT RECOGNITION",
+   "unit": "Bool",
+   "settable": false,
+   "category": "Aircraft Lights"
+  },
+  {
+   "name": "LIGHT CABIN",
+   "unit": "Bool",
+   "settable": false,
+   "category": "Aircraft Lights"
+  },
+  {
+   "name": "LIGHT ON STATES",
+   "unit": "Mask",
+   "settable": false,
+   "category": "Aircraft Lights"
+  },
+  {
+   "name": "LIGHT STATES",
+   "unit": "Mask",
+   "settable": false,
+   "category": "Aircraft Lights"
+  },
+  {
+   "name": "LANDING LIGHT PBH",
+   "unit": "SIMCONNECT_DATA_XYZ",
+   "settable": false,
+   "category": "Aircraft Lights"
+  },
+  {
+   "name": "LIGHT TAXI ON",
+   "unit": "Bool",
+   "settable": false,
+   "category": "Aircraft Lights"
+  },
+  {
+   "name": "LIGHT STROBE ON",
+   "unit": "Bool",
+   "settable": false,
+   "category": "Aircraft Lights"
+  },
+  {
+   "name": "LIGHT PANEL ON",
+   "unit": "Bool",
+   "settable": false,
+   "category": "Aircraft Lights"
+  },
+  {
+   "name": "LIGHT RECOGNITION ON",
+   "unit": "Bool",
+   "settable": false,
+   "category": "Aircraft Lights"
+  },
+  {
+   "name": "LIGHT WING ON",
+   "unit": "Bool",
+   "settable": false,
+   "category": "Aircraft Lights"
+  },
+  {
+   "name": "LIGHT LOGO ON",
+   "unit": "Bool",
+   "settable": false,
+   "category": "Aircraft Lights"
+  },
+  {
+   "name": "LIGHT CABIN ON",
+   "unit": "Bool",
+   "settable": false,
+   "category": "Aircraft Lights"
+  },
+  {
+   "name": "LIGHT HEAD ON",
+   "unit": "Bool",
+   "settable": false,
+   "category": "Aircraft Lights"
+  },
+  {
+   "name": "LIGHT BRAKE ON",
+   "unit": "Bool",
+   "settable": false,
+   "category": "Aircraft Lights"
+  },
+  {
+   "name": "LIGHT NAV ON",
+   "unit": "Bool",
+   "settable": false,
+   "category": "Aircraft Lights"
+  },
+  {
+   "name": "LIGHT BEACON ON",
+   "unit": "Bool",
+   "settable": false,
+   "category": "Aircraft Lights"
+  },
+  {
+   "name": "LIGHT LANDING ON",
+   "unit": "Bool",
+   "settable": false,
+   "category": "Aircraft Lights"
+  },
+  {
+   "name": "GROUND VELOCITY",
+   "unit": "Knots",
+   "settable": false,
+   "category": "Aircraft Position and Speed"
+  },
+  {
+   "name": "TOTAL WORLD VELOCITY",
+   "unit": "Feet per second",
+   "settable": false,
+   "category": "Aircraft Position and Speed"
+  },
+  {
+   "name": "VELOCITY BODY Z",
+   "unit": "Feet per second",
+   "settable": true,
+   "category": "Aircraft Position and Speed"
+  },
+  {
+   "name": "VELOCITY BODY X",
+   "unit": "Feet per second",
+   "settable": true,
+   "category": "Aircraft Position and Speed"
+  },
+  {
+   "name": "VELOCITY BODY Y",
+   "unit": "Feet per second",
+   "settable": true,
+   "category": "Aircraft Position and Speed"
+  },
+  {
+   "name": "VELOCITY WORLD Z",
+   "unit": "Feet per second",
+   "settable": true,
+   "category": "Aircraft Position and Speed"
+  },
+  {
+   "name": "VELOCITY WORLD X",
+   "unit": "Feet per second",
+   "settable": true,
+   "category": "Aircraft Position and Speed"
+  },
+  {
+   "name": "VELOCITY WORLD Y",
+   "unit": "Feet per second",
+   "settable": true,
+   "category": "Aircraft Position and Speed"
+  },
+  {
+   "name": "ACCELERATION WORLD X",
+   "unit": "Feet per second squared",
+   "settable": true,
+   "category": "Aircraft Position and Speed"
+  },
+  {
+   "name": "ACCELERATION WORLD Y",
+   "unit": "Feet per second squared",
+   "settable": true,
+   "category": "Aircraft Position and Speed"
+  },
+  {
+   "name": "ACCELERATION WORLD Z",
+   "unit": "Feet per second squared",
+   "settable": true,
+   "category": "Aircraft Position and Speed"
+  },
+  {
+   "name": "ACCELERATION BODY X",
+   "unit": "Feet per second squared",
+   "settable": true,
+   "category": "Aircraft Position and Speed"
+  },
+  {
+   "name": "ACCELERATION BODY Y",
+   "unit": "Feet per second squared",
+   "settable": true,
+   "category": "Aircraft Position and Speed"
+  },
+  {
+   "name": "ACCELERATION BODY Z",
+   "unit": "Feet per second squared",
+   "settable": true,
+   "category": "Aircraft Position and Speed"
+  },
+  {
+   "name": "ROTATION VELOCITY BODY X",
+   "unit": "Feet per second",
+   "settable": true,
+   "category": "Aircraft Position and Speed"
+  },
+  {
+   "name": "ROTATION VELOCITY BODY Y",
+   "unit": "Feet per second",
+   "settable": true,
+   "category": "Aircraft Position and Speed"
+  },
+  {
+   "name": "ROTATION VELOCITY BODY Z",
+   "unit": "Feet per second",
+   "settable": true,
+   "category": "Aircraft Position and Speed"
+  },
+  {
+   "name": "RELATIVE WIND VELOCITY BODY X",
+   "unit": "Feet per second",
+   "settable": false,
+   "category": "Aircraft Position and Speed"
+  },
+  {
+   "name": "RELATIVE WIND VELOCITY BODY Y",
+   "unit": "Feet per second",
+   "settable": false,
+   "category": "Aircraft Position and Speed"
+  },
+  {
+   "name": "RELATIVE WIND VELOCITY BODY Z",
+   "unit": "Feet per second",
+   "settable": false,
+   "category": "Aircraft Position and Speed"
+  },
+  {
+   "name": "PLANE ALT ABOVE GROUND",
+   "unit": "Feet",
+   "settable": true,
+   "category": "Aircraft Position and Speed"
+  },
+  {
+   "name": "PLANE LATITUDE",
+   "unit": "Degrees",
+   "settable": true,
+   "category": "Aircraft Position and Speed"
+  },
+  {
+   "name": "PLANE LONGITUDE",
+   "unit": "Degrees",
+   "settable": true,
+   "category": "Aircraft Position and Speed"
+  },
+  {
+   "name": "PLANE ALTITUDE",
+   "unit": "Feet",
+   "settable": true,
+   "category": "Aircraft Position and Speed"
+  },
+  {
+   "name": "PLANE PITCH DEGREES",
+   "unit": "Radians",
+   "settable": true,
+   "category": "Aircraft Position and Speed"
+  },
+  {
+   "name": "PLANE BANK DEGREES",
+   "unit": "Radians",
+   "settable": true,
+   "category": "Aircraft Position and Speed"
+  },
+  {
+   "name": "PLANE HEADING DEGREES TRUE",
+   "unit": "Radians",
+   "settable": true,
+   "category": "Aircraft Position and Speed"
+  },
+  {
+   "name": "PLANE HEADING DEGREES MAGNETIC",
+   "unit": "Radians",
+   "settable": true,
+   "category": "Aircraft Position and Speed"
+  },
+  {
+   "name": "MAGVAR",
+   "unit": "Degrees",
+   "settable": false,
+   "category": "Aircraft Position and Speed"
+  },
+  {
+   "name": "GROUND ALTITUDE",
+   "unit": "Meters",
+   "settable": false,
+   "category": "Aircraft Position and Speed"
+  },
+  {
+   "name": "SIM ON GROUND",
+   "unit": "Bool",
+   "settable": false,
+   "category": "Aircraft Position and Speed"
+  },
+  {
+   "name": "INCIDENCE ALPHA",
+   "unit": "Radians",
+   "settable": false,
+   "category": "Aircraft Position and Speed"
+  },
+  {
+   "name": "INCIDENCE BETA",
+   "unit": "Radians",
+   "settable": false,
+   "category": "Aircraft Position and Speed"
+  },
+  {
+   "name": "WING FLEX PCT:1",
+   "unit": "Percent over 100",
+   "settable": true,
+   "category": "Aircraft Position and Speed"
+  },
+  {
+   "name": "STRUCT LATLONALT",
+   "unit": "SIMCONNECT_DATA_LATLONALT",
+   "settable": false,
+   "category": "Aircraft Position and Speed"
+  },
+  {
+   "name": "STRUCT LATLONALTPBH",
+   "unit": "SIMCONNECT_DATA_LATLONALT",
+   "settable": false,
+   "category": "Aircraft Position and Speed"
+  },
+  {
+   "name": "STRUCT SURFACE RELATIVE VELOCITY",
+   "unit": "SIMCONNECT_DATA_XYZ",
+   "settable": false,
+   "category": "Aircraft Position and Speed"
+  },
+  {
+   "name": "STRUCT WORLDVELOCITY",
+   "unit": "SIMCONNECT_DATA_XYZ",
+   "settable": false,
+   "category": "Aircraft Position and Speed"
+  },
+  {
+   "name": "STRUCT WORLD ROTATION VELOCITY",
+   "unit": "SIMCONNECT_DATA_XYZ",
+   "settable": false,
+   "category": "Aircraft Position and Speed"
+  },
+  {
+   "name": "STRUCT BODY VELOCITY",
+   "unit": "SIMCONNECT_DATA_XYZ",
+   "settable": false,
+   "category": "Aircraft Position and Speed"
+  },
+  {
+   "name": "STRUCT BODY ROTATION VELOCITY",
+   "unit": "SIMCONNECT_DATA_XYZ",
+   "settable": false,
+   "category": "Aircraft Position and Speed"
+  },
+  {
+   "name": "STRUCT WORLD ACCELERATION",
+   "unit": "SIMCONNECT_DATA_XYZ",
+   "settable": false,
+   "category": "Aircraft Position and Speed"
+  },
+  {
+   "name": "STRUCT ENGINE POSITION:1",
+   "unit": "SIMCONNECT_DATA_XYZ.",
+   "settable": false,
+   "category": "Aircraft Position and Speed"
+  },
+  {
+   "name": "STRUCT EYEPOINT DYNAMIC ANGLE",
+   "unit": "SIMCONNECT_DATA_XYZ",
+   "settable": false,
+   "category": "Aircraft Position and Speed"
+  },
+  {
+   "name": "STRUCT EYEPOINT DYNAMIC OFFSET",
+   "unit": "SIMCONNECT_DATA_XYZ",
+   "settable": false,
+   "category": "Aircraft Position and Speed"
+  },
+  {
+   "name": "EYEPOINT POSITION",
+   "unit": "SIMCONNECT_DATA_XYZ",
+   "settable": false,
+   "category": "Aircraft Position and Speed"
+  },
+  {
+   "name": "AIRSPEED TRUE",
+   "unit": "Knots",
+   "settable": true,
+   "category": "Aircraft Flight Instrumentation"
+  },
+  {
+   "name": "AIRSPEED INDICATED",
+   "unit": "Knots",
+   "settable": true,
+   "category": "Aircraft Flight Instrumentation"
+  },
+  {
+   "name": "AIRSPEED TRUE CALIBRATE",
+   "unit": "Degrees",
+   "settable": true,
+   "category": "Aircraft Flight Instrumentation"
+  },
+  {
+   "name": "AIRSPEED BARBER POLE",
+   "unit": "Knots",
+   "settable": false,
+   "category": "Aircraft Flight Instrumentation"
+  },
+  {
+   "name": "AIRSPEED MACH",
+   "unit": "Mach",
+   "settable": false,
+   "category": "Aircraft Flight Instrumentation"
+  },
+  {
+   "name": "VERTICAL SPEED",
+   "unit": "feet/minute",
+   "settable": true,
+   "category": "Aircraft Flight Instrumentation"
+  },
+  {
+   "name": "MACH MAX OPERATE",
+   "unit": "Mach",
+   "settable": false,
+   "category": "Aircraft Flight Instrumentation"
+  },
+  {
+   "name": "STALL WARNING",
+   "unit": "Bool",
+   "settable": false,
+   "category": "Aircraft Flight Instrumentation"
+  },
+  {
+   "name": "OVERSPEED WARNING",
+   "unit": "Bool",
+   "settable": false,
+   "category": "Aircraft Flight Instrumentation"
+  },
+  {
+   "name": "BARBER POLE MACH",
+   "unit": "Mach",
+   "settable": false,
+   "category": "Aircraft Flight Instrumentation"
+  },
+  {
+   "name": "INDICATED ALTITUDE",
+   "unit": "Feet",
+   "settable": true,
+   "category": "Aircraft Flight Instrumentation"
+  },
+  {
+   "name": "KOHLSMAN SETTING MB",
+   "unit": "Millibars",
+   "settable": true,
+   "category": "Aircraft Flight Instrumentation"
+  },
+  {
+   "name": "KOHLSMAN SETTING HG",
+   "unit": "inHg",
+   "settable": false,
+   "category": "Aircraft Flight Instrumentation"
+  },
+  {
+   "name": "ATTITUDE INDICATOR PITCH DEGREES",
+   "unit": "Radians",
+   "settable": false,
+   "category": "Aircraft Flight Instrumentation"
+  },
+  {
+   "name": "ATTITUDE INDICATOR BANK DEGREES",
+   "unit": "Radians",
+   "settable": false,
+   "category": "Aircraft Flight Instrumentation"
+  },
+  {
+   "name": "ATTITUDE BARS POSITION",
+   "unit": "Percent Over 100",
+   "settable": false,
+   "category": "Aircraft Flight Instrumentation"
+  },
+  {
+   "name": "ATTITUDE CAGE",
+   "unit": "Bool",
+   "settable": false,
+   "category": "Aircraft Flight Instrumentation"
+  },
+  {
+   "name": "WISKEY COMPASS INDICATION DEGREES",
+   "unit": "Degrees",
+   "settable": true,
+   "category": "Aircraft Flight Instrumentation"
+  },
+  {
+   "name": "PLANE HEADING DEGREES GYRO",
+   "unit": "Radians",
+   "settable": true,
+   "category": "Aircraft Flight Instrumentation"
+  },
+  {
+   "name": "HEADING INDICATOR",
+   "unit": "Radians",
+   "settable": false,
+   "category": "Aircraft Flight Instrumentation"
+  },
+  {
+   "name": "GYRO DRIFT ERROR",
+   "unit": "Radians",
+   "settable": false,
+   "category": "Aircraft Flight Instrumentation"
+  },
+  {
+   "name": "DELTA HEADING RATE",
+   "unit": "Radians per second",
+   "settable": true,
+   "category": "Aircraft Flight Instrumentation"
+  },
+  {
+   "name": "TURN COORDINATOR BALL",
+   "unit": "Position",
+   "settable": false,
+   "category": "Aircraft Flight Instrumentation"
+  },
+  {
+   "name": "ANGLE OF ATTACK INDICATOR",
+   "unit": "Radians",
+   "settable": false,
+   "category": "Aircraft Flight Instrumentation"
+  },
+  {
+   "name": "RADIO HEIGHT",
+   "unit": "Feet",
+   "settable": false,
+   "category": "Aircraft Flight Instrumentation"
+  },
+  {
+   "name": "PARTIAL PANEL ADF",
+   "unit": "Enum",
+   "settable": true,
+   "category": "Aircraft Flight Instrumentation"
+  },
+  {
+   "name": "PARTIAL PANEL AIRSPEED",
+   "unit": "Enum",
+   "settable": true,
+   "category": "Aircraft Flight Instrumentation"
+  },
+  {
+   "name": "PARTIAL PANEL ALTIMETER",
+   "unit": "Enum",
+   "settable": true,
+   "category": "Aircraft Flight Instrumentation"
+  },
+  {
+   "name": "PARTIAL PANEL ATTITUDE",
+   "unit": "Enum",
+   "settable": true,
+   "category": "Aircraft Flight Instrumentation"
+  },
+  {
+   "name": "PARTIAL PANEL COMM",
+   "unit": "Enum",
+   "settable": true,
+   "category": "Aircraft Flight Instrumentation"
+  },
+  {
+   "name": "PARTIAL PANEL COMPASS",
+   "unit": "Enum",
+   "settable": true,
+   "category": "Aircraft Flight Instrumentation"
+  },
+  {
+   "name": "PARTIAL PANEL ELECTRICAL",
+   "unit": "Enum",
+   "settable": true,
+   "category": "Aircraft Flight Instrumentation"
+  },
+  {
+   "name": "PARTIAL PANEL AVIONICS",
+   "unit": "Enum",
+   "settable": false,
+   "category": "Aircraft Flight Instrumentation"
+  },
+  {
+   "name": "PARTIAL PANEL ENGINE",
+   "unit": "Enum",
+   "settable": true,
+   "category": "Aircraft Flight Instrumentation"
+  },
+  {
+   "name": "PARTIAL PANEL FUEL INDICATOR",
+   "unit": "Enum",
+   "settable": false,
+   "category": "Aircraft Flight Instrumentation"
+  },
+  {
+   "name": "PARTIAL PANEL HEADING",
+   "unit": "Enum",
+   "settable": true,
+   "category": "Aircraft Flight Instrumentation"
+  },
+  {
+   "name": "PARTIAL PANEL VERTICAL VELOCITY",
+   "unit": "Enum",
+   "settable": true,
+   "category": "Aircraft Flight Instrumentation"
+  },
+  {
+   "name": "PARTIAL PANEL TRANSPONDER",
+   "unit": "Enum",
+   "settable": true,
+   "category": "Aircraft Flight Instrumentation"
+  },
+  {
+   "name": "PARTIAL PANEL NAV",
+   "unit": "Enum",
+   "settable": true,
+   "category": "Aircraft Flight Instrumentation"
+  },
+  {
+   "name": "PARTIAL PANEL PITOT",
+   "unit": "Enum",
+   "settable": true,
+   "category": "Aircraft Flight Instrumentation"
+  },
+  {
+   "name": "PARTIAL PANEL TURN COORDINATOR",
+   "unit": "Enum",
+   "settable": false,
+   "category": "Aircraft Flight Instrumentation"
+  },
+  {
+   "name": "PARTIAL PANEL VACUUM",
+   "unit": "Enum",
+   "settable": true,
+   "category": "Aircraft Flight Instrumentation"
+  },
+  {
+   "name": "MAX G FORCE",
+   "unit": "Gforce",
+   "settable": false,
+   "category": "Aircraft Flight Instrumentation"
+  },
+  {
+   "name": "MIN G FORCE",
+   "unit": "Gforce",
+   "settable": false,
+   "category": "Aircraft Flight Instrumentation"
+  },
+  {
+   "name": "SUCTION PRESSURE",
+   "unit": "inHg",
+   "settable": true,
+   "category": "Aircraft Flight Instrumentation"
+  },
+  {
+   "name": "AVIONICS MASTER SWITCH",
+   "unit": "Bool",
+   "settable": false,
+   "category": "Aircraft Avionics"
+  },
+  {
+   "name": "NAV SOUND:1",
+   "unit": "Bool",
+   "settable": false,
+   "category": "Aircraft Avionics"
+  },
+  {
+   "name": "DME SOUND",
+   "unit": "Bool",
+   "settable": false,
+   "category": "Aircraft Avionics"
+  },
+  {
+   "name": "ADF SOUND:1",
+   "unit": "Bool",
+   "settable": false,
+   "category": "Aircraft Avionics"
+  },
+  {
+   "name": "MARKER SOUND",
+   "unit": "Bool",
+   "settable": false,
+   "category": "Aircraft Avionics"
+  },
+  {
+   "name": "COM TRANSMIT:1",
+   "unit": "Bool",
+   "settable": false,
+   "category": "Aircraft Avionics"
+  },
+  {
+   "name": "COM RECIEVE ALL",
+   "unit": "Bool",
+   "settable": false,
+   "category": "Aircraft Avionics"
+  },
+  {
+   "name": "COM ACTIVE FREQUENCY:1",
+   "unit": "MHz",
+   "settable": false,
+   "category": "Aircraft Avionics"
+  },
+  {
+   "name": "COM STANDBY FREQUENCY:1",
+   "unit": "MHz",
+   "settable": false,
+   "category": "Aircraft Avionics"
+  },
+  {
+   "name": "NAV AVAILABLE:1",
+   "unit": "Bool",
+   "settable": false,
+   "category": "Aircraft Avionics"
+  },
+  {
+   "name": "NAV ACTIVE FREQUENCY:1",
+   "unit": "MHz",
+   "settable": false,
+   "category": "Aircraft Avionics"
+  },
+  {
+   "name": "NAV STANDBY FREQUENCY:1",
+   "unit": "MHz",
+   "settable": false,
+   "category": "Aircraft Avionics"
+  },
+  {
+   "name": "NAV SIGNAL:1",
+   "unit": "Number",
+   "settable": false,
+   "category": "Aircraft Avionics"
+  },
+  {
+   "name": "NAV HAS NAV:1",
+   "unit": "Bool",
+   "settable": false,
+   "category": "Aircraft Avionics"
+  },
+  {
+   "name": "NAV HAS LOCALIZER:1",
+   "unit": "Bool",
+   "settable": false,
+   "category": "Aircraft Avionics"
+  },
+  {
+   "name": "NAV HAS DME:1",
+   "unit": "Bool",
+   "settable": false,
+   "category": "Aircraft Avionics"
+  },
+  {
+   "name": "NAV HAS GLIDE SLOPE:1",
+   "unit": "Bool",
+   "settable": false,
+   "category": "Aircraft Avionics"
+  },
+  {
+   "name": "NAV BACK COURSE FLAGS:1",
+   "unit": "Flags",
+   "settable": false,
+   "category": "Aircraft Avionics"
+  },
+  {
+   "name": "NAV MAGVAR:1",
+   "unit": "Degrees",
+   "settable": false,
+   "category": "Aircraft Avionics"
+  },
+  {
+   "name": "NAV RADIAL:1",
+   "unit": "Degrees",
+   "settable": false,
+   "category": "Aircraft Avionics"
+  },
+  {
+   "name": "NAV RADIAL ERROR:1",
+   "unit": "Degrees",
+   "settable": false,
+   "category": "Aircraft Avionics"
+  },
+  {
+   "name": "NAV LOCALIZER:1",
+   "unit": "Degrees",
+   "settable": false,
+   "category": "Aircraft Avionics"
+  },
+  {
+   "name": "NAV GLIDE SLOPE ERROR:1",
+   "unit": "Degrees",
+   "settable": false,
+   "category": "Aircraft Avionics"
+  },
+  {
+   "name": "NAV CDI:1",
+   "unit": "Number",
+   "settable": false,
+   "category": "Aircraft Avionics"
+  },
+  {
+   "name": "NAV GSI:1",
+   "unit": "Number",
+   "settable": false,
+   "category": "Aircraft Avionics"
+  },
+  {
+   "name": "NAV GS FLAG:1",
+   "unit": "Bool",
+   "settable": false,
+   "category": "Aircraft Avionics"
+  },
+  {
+   "name": "NAV OBS:1",
+   "unit": "Degrees",
+   "settable": false,
+   "category": "Aircraft Avionics"
+  },
+  {
+   "name": "NAV DME:1",
+   "unit": "Nautical miles",
+   "settable": false,
+   "category": "Aircraft Avionics"
+  },
+  {
+   "name": "NAV DMESPEED:1",
+   "unit": "Knots",
+   "settable": false,
+   "category": "Aircraft Avionics"
+  },
+  {
+   "name": "ADF ACTIVE FREQUENCY:1",
+   "unit": "Frequency ADF BCD32",
+   "settable": false,
+   "category": "Aircraft Avionics"
+  },
+  {
+   "name": "ADF STANDBY FREQUENCY:1",
+   "unit": "Hz",
+   "settable": false,
+   "category": "Aircraft Avionics"
+  },
+  {
+   "name": "ADF RADIAL:1",
+   "unit": "Degrees",
+   "settable": false,
+   "category": "Aircraft Avionics"
+  },
+  {
+   "name": "ADF SIGNAL:1",
+   "unit": "Number",
+   "settable": false,
+   "category": "Aircraft Avionics"
+  },
+  {
+   "name": "TRANSPONDER CODE:1",
+   "unit": "BCO16",
+   "settable": false,
+   "category": "Aircraft Avionics"
+  },
+  {
+   "name": "MARKER BEACON STATE",
+   "unit": "Enum",
+   "settable": true,
+   "category": "Aircraft Avionics"
+  },
+  {
+   "name": "INNER MARKER",
+   "unit": "Bool",
+   "settable": true,
+   "category": "Aircraft Avionics"
+  },
+  {
+   "name": "MIDDLE MARKER",
+   "unit": "Bool",
+   "settable": true,
+   "category": "Aircraft Avionics"
+  },
+  {
+   "name": "OUTER MARKER",
+   "unit": "Bool",
+   "settable": true,
+   "category": "Aircraft Avionics"
+  },
+  {
+   "name": "NAV RAW GLIDE SLOPE:1",
+   "unit": "Degrees",
+   "settable": false,
+   "category": "Aircraft Avionics"
+  },
+  {
+   "name": "ADF CARD",
+   "unit": "Degrees",
+   "settable": false,
+   "category": "Aircraft Avionics"
+  },
+  {
+   "name": "HSI CDI NEEDLE",
+   "unit": "Number",
+   "settable": false,
+   "category": "Aircraft Avionics"
+  },
+  {
+   "name": "HSI GSI NEEDLE",
+   "unit": "Number",
+   "settable": false,
+   "category": "Aircraft Avionics"
+  },
+  {
+   "name": "HSI CDI NEEDLE VALID",
+   "unit": "Bool",
+   "settable": false,
+   "category": "Aircraft Avionics"
+  },
+  {
+   "name": "HSI GSI NEEDLE VALID",
+   "unit": "Bool",
+   "settable": false,
+   "category": "Aircraft Avionics"
+  },
+  {
+   "name": "HSI TF FLAGS",
+   "unit": "Enum",
+   "settable": false,
+   "category": "Aircraft Avionics"
+  },
+  {
+   "name": "HSI BEARING VALID",
+   "unit": "Bool",
+   "settable": false,
+   "category": "Aircraft Avionics"
+  },
+  {
+   "name": "HSI BEARING",
+   "unit": "Degrees",
+   "settable": false,
+   "category": "Aircraft Avionics"
+  },
+  {
+   "name": "HSI HAS LOCALIZER",
+   "unit": "Bool",
+   "settable": false,
+   "category": "Aircraft Avionics"
+  },
+  {
+   "name": "HSI SPEED",
+   "unit": "Knots",
+   "settable": false,
+   "category": "Aircraft Avionics"
+  },
+  {
+   "name": "HSI DISTANCE",
+   "unit": "Nautical miles",
+   "settable": false,
+   "category": "Aircraft Avionics"
+  },
+  {
+   "name": "GPS POSITION LAT",
+   "unit": "Degrees",
+   "settable": false,
+   "category": "Aircraft Avionics"
+  },
+  {
+   "name": "GPS POSITION LON",
+   "unit": "Degrees",
+   "settable": false,
+   "category": "Aircraft Avionics"
+  },
+  {
+   "name": "GPS POSITION ALT",
+   "unit": "Meters",
+   "settable": false,
+   "category": "Aircraft Avionics"
+  },
+  {
+   "name": "GPS MAGVAR",
+   "unit": "Radians",
+   "settable": false,
+   "category": "Aircraft Avionics"
+  },
+  {
+   "name": "GPS IS ACTIVE FLIGHT PLAN",
+   "unit": "Bool",
+   "settable": false,
+   "category": "Aircraft Avionics"
+  },
+  {
+   "name": "GPS IS ACTIVE WAY POINT",
+   "unit": "Bool",
+   "settable": false,
+   "category": "Aircraft Avionics"
+  },
+  {
+   "name": "GPS IS ARRIVED",
+   "unit": "Bool",
+   "settable": false,
+   "category": "Aircraft Avionics"
+  },
+  {
+   "name": "GPS IS DIRECTTO FLIGHTPLAN",
+   "unit": "Bool",
+   "settable": false,
+   "category": "Aircraft Avionics"
+  },
+  {
+   "name": "GPS GROUND SPEED",
+   "unit": "Meters per second",
+   "settable": false,
+   "category": "Aircraft Avionics"
+  },
+  {
+   "name": "GPS GROUND TRUE HEADING",
+   "unit": "Radians",
+   "settable": false,
+   "category": "Aircraft Avionics"
+  },
+  {
+   "name": "GPS GROUND MAGNETIC TRACK",
+   "unit": "Radians",
+   "settable": false,
+   "category": "Aircraft Avionics"
+  },
+  {
+   "name": "GPS GROUND TRUE TRACK",
+   "unit": "Radians",
+   "settable": false,
+   "category": "Aircraft Avionics"
+  },
+  {
+   "name": "GPS WP DISTANCE",
+   "unit": "Meters",
+   "settable": false,
+   "category": "Aircraft Avionics"
+  },
+  {
+   "name": "GPS WP BEARING",
+   "unit": "Radians",
+   "settable": false,
+   "category": "Aircraft Avionics"
+  },
+  {
+   "name": "GPS WP TRUE BEARING",
+   "unit": "Radians",
+   "settable": false,
+   "category": "Aircraft Avionics"
+  },
+  {
+   "name": "GPS WP CROSS TRK",
+   "unit": "Meters",
+   "settable": false,
+   "category": "Aircraft Avionics"
+  },
+  {
+   "name": "GPS WP DESIRED TRACK",
+   "unit": "Radians",
+   "settable": false,
+   "category": "Aircraft Avionics"
+  },
+  {
+   "name": "GPS WP TRUE REQ HDG",
+   "unit": "Radians",
+   "settable": false,
+   "category": "Aircraft Avionics"
+  },
+  {
+   "name": "GPS WP VERTICAL SPEED",
+   "unit": "Meters per second",
+   "settable": false,
+   "category": "Aircraft Avionics"
+  },
+  {
+   "name": "GPS WP TRACK ANGLE ERROR",
+   "unit": "Radians",
+   "settable": false,
+   "category": "Aircraft Avionics"
+  },
+  {
+   "name": "GPS ETE",
+   "unit": "Seconds",
+   "settable": false,
+   "category": "Aircraft Avionics"
+  },
+  {
+   "name": "GPS ETA",
+   "unit": "Seconds",
+   "settable": false,
+   "category": "Aircraft Avionics"
+  },
+  {
+   "name": "GPS WP NEXT LAT",
+   "unit": "Degrees",
+   "settable": false,
+   "category": "Aircraft Avionics"
+  },
+  {
+   "name": "GPS WP NEXT LON",
+   "unit": "Degrees",
+   "settable": false,
+   "category": "Aircraft Avionics"
+  },
+  {
+   "name": "GPS WP NEXT ALT",
+   "unit": "Meters",
+   "settable": false,
+   "category": "Aircraft Avionics"
+  },
+  {
+   "name": "GPS WP PREV VALID",
+   "unit": "Bool",
+   "settable": false,
+   "category": "Aircraft Avionics"
+  },
+  {
+   "name": "GPS WP PREV LAT",
+   "unit": "Degrees",
+   "settable": false,
+   "category": "Aircraft Avionics"
+  },
+  {
+   "name": "GPS WP PREV LON",
+   "unit": "Degrees",
+   "settable": false,
+   "category": "Aircraft Avionics"
+  },
+  {
+   "name": "GPS WP PREV ALT",
+   "unit": "Meters",
+   "settable": false,
+   "category": "Aircraft Avionics"
+  },
+  {
+   "name": "GPS WP ETE",
+   "unit": "Seconds",
+   "settable": false,
+   "category": "Aircraft Avionics"
+  },
+  {
+   "name": "GPS WP ETA",
+   "unit": "Seconds",
+   "settable": false,
+   "category": "Aircraft Avionics"
+  },
+  {
+   "name": "GPS COURSE TO STEER",
+   "unit": "Radians",
+   "settable": false,
+   "category": "Aircraft Avionics"
+  },
+  {
+   "name": "GPS FLIGHT PLAN WP INDEX",
+   "unit": "Number",
+   "settable": false,
+   "category": "Aircraft Avionics"
+  },
+  {
+   "name": "GPS FLIGHT PLAN WP COUNT",
+   "unit": "Number",
+   "settable": false,
+   "category": "Aircraft Avionics"
+  },
+  {
+   "name": "GPS IS ACTIVE WP LOCKED",
+   "unit": "Bool",
+   "settable": false,
+   "category": "Aircraft Avionics"
+  },
+  {
+   "name": "GPS IS APPROACH LOADED",
+   "unit": "Bool",
+   "settable": false,
+   "category": "Aircraft Avionics"
+  },
+  {
+   "name": "GPS IS APPROACH ACTIVE",
+   "unit": "Bool",
+   "settable": false,
+   "category": "Aircraft Avionics"
+  },
+  {
+   "name": "GPS APPROACH IS WP RUNWAY",
+   "unit": "Bool",
+   "settable": false,
+   "category": "Aircraft Avionics"
+  },
+  {
+   "name": "GPS APPROACH APPROACH INDEX",
+   "unit": "Number",
+   "settable": false,
+   "category": "Aircraft Avionics"
+  },
+  {
+   "name": "GPS APPROACH TRANSITION INDEX",
+   "unit": "Number",
+   "settable": false,
+   "category": "Aircraft Avionics"
+  },
+  {
+   "name": "GPS APPROACH IS FINAL",
+   "unit": "Bool",
+   "settable": false,
+   "category": "Aircraft Avionics"
+  },
+  {
+   "name": "GPS APPROACH IS MISSED",
+   "unit": "Bool",
+   "settable": false,
+   "category": "Aircraft Avionics"
+  },
+  {
+   "name": "GPS APPROACH TIMEZONE DEVIATION",
+   "unit": "Seconds",
+   "settable": false,
+   "category": "Aircraft Avionics"
+  },
+  {
+   "name": "GPS APPROACH WP INDEX",
+   "unit": "Number",
+   "settable": false,
+   "category": "Aircraft Avionics"
+  },
+  {
+   "name": "GPS APPROACH WP COUNT",
+   "unit": "Number",
+   "settable": false,
+   "category": "Aircraft Avionics"
+  },
+  {
+   "name": "GPS DRIVES NAV1",
+   "unit": "Bool",
+   "settable": false,
+   "category": "Aircraft Avionics"
+  },
+  {
+   "name": "COM RECEIVE ALL",
+   "unit": "Bool",
+   "settable": false,
+   "category": "Aircraft Avionics"
+  },
+  {
+   "name": "COM AVAILABLE",
+   "unit": "Bool",
+   "settable": false,
+   "category": "Aircraft Avionics"
+  },
+  {
+   "name": "COM TEST:1",
+   "unit": "Bool",
+   "settable": false,
+   "category": "Aircraft Avionics"
+  },
+  {
+   "name": "TRANSPONDER AVAILABLE",
+   "unit": "Bool",
+   "settable": false,
+   "category": "Aircraft Avionics"
+  },
+  {
+   "name": "ADF AVAILABLE",
+   "unit": "Bool",
+   "settable": false,
+   "category": "Aircraft Avionics"
+  },
+  {
+   "name": "ADF FREQUENCY:1",
+   "unit": "Frequency BCD16",
+   "settable": false,
+   "category": "Aircraft Avionics"
+  },
+  {
+   "name": "ADF EXT FREQUENCY:1",
+   "unit": "Frequency BCD16",
+   "settable": false,
+   "category": "Aircraft Avionics"
+  },
+  {
+   "name": "ADF IDENT",
+   "unit": "String",
+   "settable": false,
+   "category": "Aircraft Avionics"
+  },
+  {
+   "name": "ADF NAME",
+   "unit": "String",
+   "settable": false,
+   "category": "Aircraft Avionics"
+  },
+  {
+   "name": "NAV IDENT",
+   "unit": "String",
+   "settable": false,
+   "category": "Aircraft Avionics"
+  },
+  {
+   "name": "NAV NAME",
+   "unit": "String",
+   "settable": false,
+   "category": "Aircraft Avionics"
+  },
+  {
+   "name": "NAV CODES:1",
+   "unit": "Flags",
+   "settable": false,
+   "category": "Aircraft Avionics"
+  },
+  {
+   "name": "NAV GLIDE SLOPE",
+   "unit": "Number",
+   "settable": false,
+   "category": "Aircraft Avionics"
+  },
+  {
+   "name": "NAV RELATIVE BEARING TO STATION:1",
+   "unit": "Degrees",
+   "settable": false,
+   "category": "Aircraft Avionics"
+  },
+  {
+   "name": "SELECTED DME",
+   "unit": "Number",
+   "settable": false,
+   "category": "Aircraft Avionics"
+  },
+  {
+   "name": "GPS WP NEXT ID",
+   "unit": "String",
+   "settable": false,
+   "category": "Aircraft Avionics"
+  },
+  {
+   "name": "GPS WP PREV ID",
+   "unit": "String",
+   "settable": false,
+   "category": "Aircraft Avionics"
+  },
+  {
+   "name": "GPS TARGET DISTANCE",
+   "unit": "Meters",
+   "settable": false,
+   "category": "Aircraft Avionics"
+  },
+  {
+   "name": "GPS TARGET ALTITUDE",
+   "unit": "Meters",
+   "settable": false,
+   "category": "Aircraft Avionics"
+  },
+  {
+   "name": "ADF LATLONALT:1",
+   "unit": "SIMCONNECT_DATA_LATLONALT",
+   "settable": false,
+   "category": "Aircraft Avionics"
+  },
+  {
+   "name": "NAV VOR LATLONALT:1",
+   "unit": "SIMCONNECT_DATA_LATLONALT",
+   "settable": false,
+   "category": "Aircraft Avionics"
+  },
+  {
+   "name": "NAV GS LATLONALT:1",
+   "unit": "SIMCONNECT_DATA_LATLONALT",
+   "settable": false,
+   "category": "Aircraft Avionics"
+  },
+  {
+   "name": "NAV DME LATLONALT:1",
+   "unit": "SIMCONNECT_DATA_LATLONALT",
+   "settable": false,
+   "category": "Aircraft Avionics"
+  },
+  {
+   "name": "INNER MARKER LATLONALT",
+   "unit": "SIMCONNECT_DATA_LATLONALT",
+   "settable": false,
+   "category": "Aircraft Avionics"
+  },
+  {
+   "name": "MIDDLE MARKER LATLONALT",
+   "unit": "SIMCONNECT_DATA_LATLONALT",
+   "settable": false,
+   "category": "Aircraft Avionics"
+  },
+  {
+   "name": "OUTER MARKER LATLONALT",
+   "unit": "SIMCONNECT_DATA_LATLONALT",
+   "settable": false,
+   "category": "Aircraft Avionics"
+  },
+  {
+   "name": "YOKE Y POSITION",
+   "unit": "Position",
+   "settable": true,
+   "category": "Aircraft Controls"
+  },
+  {
+   "name": "YOKE X POSITION",
+   "unit": "Position",
+   "settable": true,
+   "category": "Aircraft Controls"
+  },
+  {
+   "name": "RUDDER PEDAL POSITION",
+   "unit": "Position",
+   "settable": true,
+   "category": "Aircraft Controls"
+  },
+  {
+   "name": "RUDDER POSITION",
+   "unit": "Position",
+   "settable": true,
+   "category": "Aircraft Controls"
+  },
+  {
+   "name": "ELEVATOR POSITION",
+   "unit": "Position",
+   "settable": true,
+   "category": "Aircraft Controls"
+  },
+  {
+   "name": "AILERON POSITION",
+   "unit": "Position",
+   "settable": true,
+   "category": "Aircraft Controls"
+  },
+  {
+   "name": "ELEVATOR TRIM POSITION",
+   "unit": "Radians",
+   "settable": true,
+   "category": "Aircraft Controls"
+  },
+  {
+   "name": "ELEVATOR TRIM INDICATOR",
+   "unit": "Position",
+   "settable": false,
+   "category": "Aircraft Controls"
+  },
+  {
+   "name": "ELEVATOR TRIM PCT",
+   "unit": "Percent Over 100",
+   "settable": false,
+   "category": "Aircraft Controls"
+  },
+  {
+   "name": "BRAKE LEFT POSITION",
+   "unit": "Position",
+   "settable": true,
+   "category": "Aircraft Controls"
+  },
+  {
+   "name": "BRAKE RIGHT POSITION",
+   "unit": "Position",
+   "settable": true,
+   "category": "Aircraft Controls"
+  },
+  {
+   "name": "BRAKE INDICATOR",
+   "unit": "Position",
+   "settable": false,
+   "category": "Aircraft Controls"
+  },
+  {
+   "name": "BRAKE PARKING POSITION",
+   "unit": "Position",
+   "settable": true,
+   "category": "Aircraft Controls"
+  },
+  {
+   "name": "BRAKE PARKING INDICATOR",
+   "unit": "Bool",
+   "settable": false,
+   "category": "Aircraft Controls"
+  },
+  {
+   "name": "SPOILERS ARMED",
+   "unit": "Bool",
+   "settable": false,
+   "category": "Aircraft Controls"
+  },
+  {
+   "name": "SPOILERS HANDLE POSITION",
+   "unit": "Percent Over 100",
+   "settable": true,
+   "category": "Aircraft Controls"
+  },
+  {
+   "name": "SPOILERS LEFT POSITION",
+   "unit": "Percent Over 100",
+   "settable": false,
+   "category": "Aircraft Controls"
+  },
+  {
+   "name": "SPOILERS RIGHT POSITION",
+   "unit": "Percent Over 100",
+   "settable": false,
+   "category": "Aircraft Controls"
+  },
+  {
+   "name": "FLAPS HANDLE PERCENT",
+   "unit": "Percent Over 100",
+   "settable": false,
+   "category": "Aircraft Controls"
+  },
+  {
+   "name": "FLAPS HANDLE INDEX",
+   "unit": "Number",
+   "settable": true,
+   "category": "Aircraft Controls"
+  },
+  {
+   "name": "FLAPS NUM HANDLE POSITIONS",
+   "unit": "Number",
+   "settable": false,
+   "category": "Aircraft Controls"
+  },
+  {
+   "name": "TRAILING EDGE FLAPS LEFT PERCENT",
+   "unit": "Percent Over 100",
+   "settable": true,
+   "category": "Aircraft Controls"
+  },
+  {
+   "name": "TRAILING EDGE FLAPS RIGHT PERCENT",
+   "unit": "Percent Over 100",
+   "settable": true,
+   "category": "Aircraft Controls"
+  },
+  {
+   "name": "TRAILING EDGE FLAPS LEFT ANGLE",
+   "unit": "Radians",
+   "settable": false,
+   "category": "Aircraft Controls"
+  },
+  {
+   "name": "TRAILING EDGE FLAPS RIGHT ANGLE",
+   "unit": "Radians",
+   "settable": false,
+   "category": "Aircraft Controls"
+  },
+  {
+   "name": "LEADING EDGE FLAPS LEFT PERCENT",
+   "unit": "Percent Over 100",
+   "settable": true,
+   "category": "Aircraft Controls"
+  },
+  {
+   "name": "LEADING EDGE FLAPS RIGHT PERCENT",
+   "unit": "Percent Over 100",
+   "settable": true,
+   "category": "Aircraft Controls"
+  },
+  {
+   "name": "LEADING EDGE FLAPS LEFT ANGLE",
+   "unit": "Radians",
+   "settable": false,
+   "category": "Aircraft Controls"
+  },
+  {
+   "name": "LEADING EDGE FLAPS RIGHT ANGLE",
+   "unit": "Radians",
+   "settable": false,
+   "category": "Aircraft Controls"
+  },
+  {
+   "name": "AILERON LEFT DEFLECTION",
+   "unit": "Radians",
+   "settable": false,
+   "category": "Aircraft Controls"
+  },
+  {
+   "name": "AILERON LEFT DEFLECTION PCT",
+   "unit": "Percent Over 100",
+   "settable": false,
+   "category": "Aircraft Controls"
+  },
+  {
+   "name": "AILERON RIGHT DEFLECTION",
+   "unit": "Radians",
+   "settable": false,
+   "category": "Aircraft Controls"
+  },
+  {
+   "name": "AILERON RIGHT DEFLECTION PCT",
+   "unit": "Percent Over 100",
+   "settable": false,
+   "category": "Aircraft Controls"
+  },
+  {
+   "name": "AILERON AVERAGE DEFLECTION",
+   "unit": "Radians",
+   "settable": false,
+   "category": "Aircraft Controls"
+  },
+  {
+   "name": "AILERON TRIM",
+   "unit": "Radians",
+   "settable": false,
+   "category": "Aircraft Controls"
+  },
+  {
+   "name": "AILERON TRIM PCT",
+   "unit": "Percent Over 100",
+   "settable": true,
+   "category": "Aircraft Controls"
+  },
+  {
+   "name": "RUDDER DEFLECTION",
+   "unit": "Radians",
+   "settable": false,
+   "category": "Aircraft Controls"
+  },
+  {
+   "name": "RUDDER DEFLECTION PCT",
+   "unit": "Percent Over 100",
+   "settable": false,
+   "category": "Aircraft Controls"
+  },
+  {
+   "name": "RUDDER TRIM",
+   "unit": "Radians",
+   "settable": false,
+   "category": "Aircraft Controls"
+  },
+  {
+   "name": "RUDDER TRIM PCT",
+   "unit": "Percent Over 100",
+   "settable": true,
+   "category": "Aircraft Controls"
+  },
+  {
+   "name": "FLAPS AVAILABLE",
+   "unit": "Bool",
+   "settable": false,
+   "category": "Aircraft Controls"
+  },
+  {
+   "name": "FLAP DAMAGE BY SPEED",
+   "unit": "Bool",
+   "settable": false,
+   "category": "Aircraft Controls"
+  },
+  {
+   "name": "FLAP SPEED EXCEEDED",
+   "unit": "Bool",
+   "settable": false,
+   "category": "Aircraft Controls"
+  },
+  {
+   "name": "ELEVATOR DEFLECTION",
+   "unit": "Radians",
+   "settable": false,
+   "category": "Aircraft Controls"
+  },
+  {
+   "name": "ELEVATOR DEFLECTION PCT",
+   "unit": "Percent Over 100",
+   "settable": false,
+   "category": "Aircraft Controls"
+  },
+  {
+   "name": "ALTERNATE STATIC SOURCE OPEN",
+   "unit": "Bool",
+   "settable": false,
+   "category": "Aircraft Controls"
+  },
+  {
+   "name": "FOLDING WING HANDLE POSITION",
+   "unit": "Bool",
+   "settable": false,
+   "category": "Aircraft Controls"
+  },
+  {
+   "name": "FUEL DUMP SWITCH",
+   "unit": "Bool",
+   "settable": false,
+   "category": "Aircraft Controls"
+  },
+  {
+   "name": "AUTOPILOT AVAILABLE",
+   "unit": "Bool",
+   "settable": false,
+   "category": "Aircraft Autopilot"
+  },
+  {
+   "name": "AUTOPILOT MASTER",
+   "unit": "Bool",
+   "settable": false,
+   "category": "Aircraft Autopilot"
+  },
+  {
+   "name": "AUTOPILOT NAV SELECTED",
+   "unit": "Number",
+   "settable": false,
+   "category": "Aircraft Autopilot"
+  },
+  {
+   "name": "AUTOPILOT WING LEVELER",
+   "unit": "Bool",
+   "settable": false,
+   "category": "Aircraft Autopilot"
+  },
+  {
+   "name": "AUTOPILOT NAV1 LOCK",
+   "unit": "Bool",
+   "settable": false,
+   "category": "Aircraft Autopilot"
+  },
+  {
+   "name": "AUTOPILOT HEADING LOCK",
+   "unit": "Bool",
+   "settable": false,
+   "category": "Aircraft Autopilot"
+  },
+  {
+   "name": "AUTOPILOT HEADING LOCK DIR",
+   "unit": "Degrees",
+   "settable": false,
+   "category": "Aircraft Autopilot"
+  },
+  {
+   "name": "AUTOPILOT ALTITUDE LOCK",
+   "unit": "Bool",
+   "settable": false,
+   "category": "Aircraft Autopilot"
+  },
+  {
+   "name": "AUTOPILOT ALTITUDE LOCK VAR",
+   "unit": "Feet",
+   "settable": false,
+   "category": "Aircraft Autopilot"
+  },
+  {
+   "name": "AUTOPILOT ATTITUDE HOLD",
+   "unit": "Bool",
+   "settable": false,
+   "category": "Aircraft Autopilot"
+  },
+  {
+   "name": "AUTOPILOT GLIDESLOPE HOLD",
+   "unit": "Bool",
+   "settable": false,
+   "category": "Aircraft Autopilot"
+  },
+  {
+   "name": "AUTOPILOT PITCH HOLD REF",
+   "unit": "Radians",
+   "settable": false,
+   "category": "Aircraft Autopilot"
+  },
+  {
+   "name": "AUTOPILOT APPROACH HOLD",
+   "unit": "Bool",
+   "settable": false,
+   "category": "Aircraft Autopilot"
+  },
+  {
+   "name": "AUTOPILOT BACKCOURSE HOLD",
+   "unit": "Bool",
+   "settable": false,
+   "category": "Aircraft Autopilot"
+  },
+  {
+   "name": "AUTOPILOT VERTICAL HOLD VAR",
+   "unit": "Feet/minute",
+   "settable": false,
+   "category": "Aircraft Autopilot"
+  },
+  {
+   "name": "AUTOPILOT PITCH HOLD",
+   "unit": "Bool",
+   "settable": false,
+   "category": "Aircraft Autopilot"
+  },
+  {
+   "name": "AUTOPILOT FLIGHT DIRECTOR ACTIVE",
+   "unit": "Bool",
+   "settable": false,
+   "category": "Aircraft Autopilot"
+  },
+  {
+   "name": "AUTOPILOT FLIGHT DIRECTOR PITCH",
+   "unit": "Radians",
+   "settable": false,
+   "category": "Aircraft Autopilot"
+  },
+  {
+   "name": "AUTOPILOT FLIGHT DIRECTOR BANK",
+   "unit": "Radians",
+   "settable": false,
+   "category": "Aircraft Autopilot"
+  },
+  {
+   "name": "AUTOPILOT AIRSPEED HOLD",
+   "unit": "Bool",
+   "settable": false,
+   "category": "Aircraft Autopilot"
+  },
+  {
+   "name": "AUTOPILOT AIRSPEED HOLD VAR",
+   "unit": "Knots",
+   "settable": false,
+   "category": "Aircraft Autopilot"
+  },
+  {
+   "name": "AUTOPILOT MACH HOLD",
+   "unit": "Bool",
+   "settable": false,
+   "category": "Aircraft Autopilot"
+  },
+  {
+   "name": "AUTOPILOT MACH HOLD VAR",
+   "unit": "Number",
+   "settable": false,
+   "category": "Aircraft Autopilot"
+  },
+  {
+   "name": "AUTOPILOT YAW DAMPER",
+   "unit": "Bool",
+   "settable": false,
+   "category": "Aircraft Autopilot"
+  },
+  {
+   "name": "AUTOPILOT RPM HOLD VAR",
+   "unit": "Number",
+   "settable": false,
+   "category": "Aircraft Autopilot"
+  },
+  {
+   "name": "AUTOPILOT THROTTLE ARM",
+   "unit": "Bool",
+   "settable": false,
+   "category": "Aircraft Autopilot"
+  },
+  {
+   "name": "AUTOPILOT TAKEOFF POWER ACTIVE",
+   "unit": "Bool",
+   "settable": false,
+   "category": "Aircraft Autopilot"
+  },
+  {
+   "name": "AUTOTHROTTLE ACTIVE",
+   "unit": "Bool",
+   "settable": false,
+   "category": "Aircraft Autopilot"
+  },
+  {
+   "name": "AUTOPILOT VERTICAL HOLD",
+   "unit": "Bool",
+   "settable": false,
+   "category": "Aircraft Autopilot"
+  },
+  {
+   "name": "AUTOPILOT RPM HOLD",
+   "unit": "Bool",
+   "settable": false,
+   "category": "Aircraft Autopilot"
+  },
+  {
+   "name": "AUTOPILOT MAX BANK",
+   "unit": "Radians",
+   "settable": false,
+   "category": "Aircraft Autopilot"
+  },
+  {
+   "name": "FLY BY WIRE ELAC SWITCH",
+   "unit": "Bool",
+   "settable": false,
+   "category": "Aircraft Autopilot"
+  },
+  {
+   "name": "FLY BY WIRE FAC SWITCH",
+   "unit": "Bool",
+   "settable": false,
+   "category": "Aircraft Autopilot"
+  },
+  {
+   "name": "FLY BY WIRE SEC SWITCH",
+   "unit": "Bool",
+   "settable": false,
+   "category": "Aircraft Autopilot"
+  },
+  {
+   "name": "FLY BY WIRE ELAC FAILED",
+   "unit": "Bool",
+   "settable": false,
+   "category": "Aircraft Autopilot"
+  },
+  {
+   "name": "FLY BY WIRE FAC FAILED",
+   "unit": "Bool",
+   "settable": false,
+   "category": "Aircraft Autopilot"
+  },
+  {
+   "name": "FLY BY WIRE SEC FAILED",
+   "unit": "Bool",
+   "settable": false,
+   "category": "Aircraft Autopilot"
+  },
+  {
+   "name": "AUTOPILOT FLIGHT LEVEL CHANGE",
+   "unit": "Bool",
+   "settable": false,
+   "category": "Aircraft Autopilot"
+  },
+  {
+   "name": "IS GEAR RETRACTABLE",
+   "unit": "Bool",
+   "settable": false,
+   "category": "Aircraft Landing Gear"
+  },
+  {
+   "name": "IS GEAR SKIS",
+   "unit": "Bool",
+   "settable": false,
+   "category": "Aircraft Landing Gear"
+  },
+  {
+   "name": "IS GEAR FLOATS",
+   "unit": "Bool",
+   "settable": false,
+   "category": "Aircraft Landing Gear"
+  },
+  {
+   "name": "IS GEAR SKIDS",
+   "unit": "Bool",
+   "settable": false,
+   "category": "Aircraft Landing Gear"
+  },
+  {
+   "name": "IS GEAR WHEELS",
+   "unit": "Bool",
+   "settable": false,
+   "category": "Aircraft Landing Gear"
+  },
+  {
+   "name": "GEAR HANDLE POSITION",
+   "unit": "Bool",
+   "settable": true,
+   "category": "Aircraft Landing Gear"
+  },
+  {
+   "name": "GEAR HYDRAULIC PRESSURE",
+   "unit": "psf",
+   "settable": false,
+   "category": "Aircraft Landing Gear"
+  },
+  {
+   "name": "TAILWHEEL LOCK ON",
+   "unit": "Bool",
+   "settable": false,
+   "category": "Aircraft Landing Gear"
+  },
+  {
+   "name": "GEAR CENTER POSITION",
+   "unit": "Percent Over 100",
+   "settable": true,
+   "category": "Aircraft Landing Gear"
+  },
+  {
+   "name": "GEAR LEFT POSITION",
+   "unit": "Percent Over 100",
+   "settable": true,
+   "category": "Aircraft Landing Gear"
+  },
+  {
+   "name": "GEAR RIGHT POSITION",
+   "unit": "Percent Over 100",
+   "settable": true,
+   "category": "Aircraft Landing Gear"
+  },
+  {
+   "name": "GEAR TAIL POSITION",
+   "unit": "Percent Over 100",
+   "settable": false,
+   "category": "Aircraft Landing Gear"
+  },
+  {
+   "name": "GEAR AUX POSITION",
+   "unit": "Percent Over 100",
+   "settable": false,
+   "category": "Aircraft Landing Gear"
+  },
+  {
+   "name": "GEAR POSITION:1",
+   "unit": "Enum",
+   "settable": true,
+   "category": "Aircraft Landing Gear"
+  },
+  {
+   "name": "GEAR ANIMATION POSITION:1",
+   "unit": "Number",
+   "settable": false,
+   "category": "Aircraft Landing Gear"
+  },
+  {
+   "name": "GEAR TOTAL PCT EXTENDED",
+   "unit": "Percentage",
+   "settable": false,
+   "category": "Aircraft Landing Gear"
+  },
+  {
+   "name": "AUTO BRAKE SWITCH CB",
+   "unit": "Number",
+   "settable": false,
+   "category": "Aircraft Landing Gear"
+  },
+  {
+   "name": "WATER RUDDER HANDLE POSITION",
+   "unit": "Percent Over 100",
+   "settable": true,
+   "category": "Aircraft Landing Gear"
+  },
+  {
+   "name": "WATER LEFT RUDDER EXTENDED",
+   "unit": "Percentage",
+   "settable": false,
+   "category": "Aircraft Landing Gear"
+  },
+  {
+   "name": "WATER RIGHT RUDDER EXTENDED",
+   "unit": "Percentage",
+   "settable": false,
+   "category": "Aircraft Landing Gear"
+  },
+  {
+   "name": "GEAR CENTER STEER ANGLE",
+   "unit": "Percent Over 100",
+   "settable": false,
+   "category": "Aircraft Landing Gear"
+  },
+  {
+   "name": "GEAR LEFT STEER ANGLE",
+   "unit": "Percent Over 100",
+   "settable": false,
+   "category": "Aircraft Landing Gear"
+  },
+  {
+   "name": "GEAR RIGHT STEER ANGLE",
+   "unit": "Percent Over 100",
+   "settable": false,
+   "category": "Aircraft Landing Gear"
+  },
+  {
+   "name": "GEAR AUX STEER ANGLE",
+   "unit": "Percent Over 100",
+   "settable": false,
+   "category": "Aircraft Landing Gear"
+  },
+  {
+   "name": "GEAR STEER ANGLE:1",
+   "unit": "Percent Over 100",
+   "settable": false,
+   "category": "Aircraft Landing Gear"
+  },
+  {
+   "name": "WATER LEFT RUDDER STEER ANGLE",
+   "unit": "Percent Over 100",
+   "settable": false,
+   "category": "Aircraft Landing Gear"
+  },
+  {
+   "name": "WATER RIGHT RUDDER STEER ANGLE",
+   "unit": "Percent Over 100",
+   "settable": false,
+   "category": "Aircraft Landing Gear"
+  },
+  {
+   "name": "GEAR CENTER STEER ANGLE PCT",
+   "unit": "Percent Over 100",
+   "settable": false,
+   "category": "Aircraft Landing Gear"
+  },
+  {
+   "name": "GEAR LEFT STEER ANGLE PCT",
+   "unit": "Percent Over 100",
+   "settable": false,
+   "category": "Aircraft Landing Gear"
+  },
+  {
+   "name": "GEAR RIGHT STEER ANGLE PCT",
+   "unit": "Percent Over 100",
+   "settable": false,
+   "category": "Aircraft Landing Gear"
+  },
+  {
+   "name": "GEAR AUX STEER ANGLE PCT",
+   "unit": "Percent Over 100",
+   "settable": false,
+   "category": "Aircraft Landing Gear"
+  },
+  {
+   "name": "GEAR STEER ANGLE PCT:1",
+   "unit": "Percent Over 100",
+   "settable": false,
+   "category": "Aircraft Landing Gear"
+  },
+  {
+   "name": "WATER LEFT RUDDER STEER ANGLE PCT",
+   "unit": "Percent Over 100",
+   "settable": false,
+   "category": "Aircraft Landing Gear"
+  },
+  {
+   "name": "WATER RIGHT RUDDER STEER ANGLE PCT",
+   "unit": "Percent Over 100",
+   "settable": false,
+   "category": "Aircraft Landing Gear"
+  },
+  {
+   "name": "WHEEL RPM:1",
+   "unit": "Rpm",
+   "settable": false,
+   "category": "Aircraft Landing Gear"
+  },
+  {
+   "name": "CENTER WHEEL RPM",
+   "unit": "Rpm",
+   "settable": false,
+   "category": "Aircraft Landing Gear"
+  },
+  {
+   "name": "LEFT WHEEL RPM",
+   "unit": "Rpm",
+   "settable": false,
+   "category": "Aircraft Landing Gear"
+  },
+  {
+   "name": "RIGHT WHEEL RPM",
+   "unit": "Rpm",
+   "settable": false,
+   "category": "Aircraft Landing Gear"
+  },
+  {
+   "name": "AUX WHEEL RPM",
+   "unit": "Rpm",
+   "settable": false,
+   "category": "Aircraft Landing Gear"
+  },
+  {
+   "name": "WHEEL ROTATION ANGLE:1",
+   "unit": "Radians",
+   "settable": false,
+   "category": "Aircraft Landing Gear"
+  },
+  {
+   "name": "CENTER WHEEL ROTATION ANGLE",
+   "unit": "Radians",
+   "settable": false,
+   "category": "Aircraft Landing Gear"
+  },
+  {
+   "name": "LEFT WHEEL ROTATION ANGLE",
+   "unit": "Radians",
+   "settable": false,
+   "category": "Aircraft Landing Gear"
+  },
+  {
+   "name": "RIGHT WHEEL ROTATION ANGLE",
+   "unit": "Radians",
+   "settable": false,
+   "category": "Aircraft Landing Gear"
+  },
+  {
+   "name": "AUX WHEEL ROTATION ANGLE",
+   "unit": "Radians",
+   "settable": false,
+   "category": "Aircraft Landing Gear"
+  },
+  {
+   "name": "GEAR EMERGENCY HANDLE POSITION",
+   "unit": "Bool",
+   "settable": false,
+   "category": "Aircraft Landing Gear"
+  },
+  {
+   "name": "GEAR WARNING",
+   "unit": "Enum",
+   "settable": false,
+   "category": "Aircraft Landing Gear"
+  },
+  {
+   "name": "ANTISKID BRAKES ACTIVE",
+   "unit": "Bool",
+   "settable": false,
+   "category": "Aircraft Landing Gear"
+  },
+  {
+   "name": "RETRACT FLOAT SWITCH",
+   "unit": "Bool",
+   "settable": false,
+   "category": "Aircraft Landing Gear"
+  },
+  {
+   "name": "RETRACT LEFT FLOAT EXTENDED",
+   "unit": "Percent",
+   "settable": false,
+   "category": "Aircraft Landing Gear"
+  },
+  {
+   "name": "RETRACT RIGHT FLOAT EXTENDED",
+   "unit": "Percent",
+   "settable": false,
+   "category": "Aircraft Landing Gear"
+  },
+  {
+   "name": "STEER INPUT CONTROL",
+   "unit": "Percent over 100",
+   "settable": false,
+   "category": "Aircraft Landing Gear"
+  },
+  {
+   "name": "GEAR DAMAGE BY SPEED",
+   "unit": "Bool",
+   "settable": false,
+   "category": "Aircraft Landing Gear"
+  },
+  {
+   "name": "GEAR SPEED EXCEEDED",
+   "unit": "Bool",
+   "settable": false,
+   "category": "Aircraft Landing Gear"
+  },
+  {
+   "name": "NOSEWHEEL LOCK ON",
+   "unit": "Bool",
+   "settable": false,
+   "category": "Aircraft Landing Gear"
+  },
+  {
+   "name": "AMBIENT DENSITY",
+   "unit": "Slugs per cubic feet",
+   "settable": false,
+   "category": "Aircraft Environment"
+  },
+  {
+   "name": "AMBIENT TEMPERATURE",
+   "unit": "Celsius",
+   "settable": false,
+   "category": "Aircraft Environment"
+  },
+  {
+   "name": "AMBIENT PRESSURE",
+   "unit": "inHg",
+   "settable": false,
+   "category": "Aircraft Environment"
+  },
+  {
+   "name": "AMBIENT WIND VELOCITY",
+   "unit": "Knots",
+   "settable": false,
+   "category": "Aircraft Environment"
+  },
+  {
+   "name": "AMBIENT WIND DIRECTION",
+   "unit": "Degrees",
+   "settable": false,
+   "category": "Aircraft Environment"
+  },
+  {
+   "name": "AMBIENT WIND X",
+   "unit": "Meters per second",
+   "settable": false,
+   "category": "Aircraft Environment"
+  },
+  {
+   "name": "AMBIENT WIND Y",
+   "unit": "Meters per second",
+   "settable": false,
+   "category": "Aircraft Environment"
+  },
+  {
+   "name": "AMBIENT WIND Z",
+   "unit": "Meters per second",
+   "settable": false,
+   "category": "Aircraft Environment"
+  },
+  {
+   "name": "STRUCT AMBIENT WIND",
+   "unit": "Feet per second",
+   "settable": false,
+   "category": "Aircraft Environment"
+  },
+  {
+   "name": "AIRCRAFT WIND X",
+   "unit": "Knots",
+   "settable": false,
+   "category": "Aircraft Environment"
+  },
+  {
+   "name": "AIRCRAFT WIND Y",
+   "unit": "Knots",
+   "settable": false,
+   "category": "Aircraft Environment"
+  },
+  {
+   "name": "AIRCRAFT WIND Z",
+   "unit": "Knots",
+   "settable": false,
+   "category": "Aircraft Environment"
+  },
+  {
+   "name": "BAROMETER PRESSURE",
+   "unit": "Millibars",
+   "settable": false,
+   "category": "Aircraft Environment"
+  },
+  {
+   "name": "SEA LEVEL PRESSURE",
+   "unit": "Millibars",
+   "settable": false,
+   "category": "Aircraft Environment"
+  },
+  {
+   "name": "TOTAL AIR TEMPERATURE",
+   "unit": "Celsius",
+   "settable": false,
+   "category": "Aircraft Environment"
+  },
+  {
+   "name": "WINDSHIELD RAIN EFFECT AVAILABLE",
+   "unit": "Bool",
+   "settable": false,
+   "category": "Aircraft Environment"
+  },
+  {
+   "name": "AMBIENT IN CLOUD",
+   "unit": "Bool",
+   "settable": false,
+   "category": "Aircraft Environment"
+  },
+  {
+   "name": "AMBIENT VISIBILITY",
+   "unit": "Meters",
+   "settable": false,
+   "category": "Aircraft Environment"
+  },
+  {
+   "name": "STANDARD ATM TEMPERATURE",
+   "unit": "Rankine",
+   "settable": false,
+   "category": "Aircraft Environment"
+  },
+  {
+   "name": "ROTOR BRAKE HANDLE POS",
+   "unit": "Percent Over 100",
+   "settable": false,
+   "category": "Helicopter Specific"
+  },
+  {
+   "name": "ROTOR BRAKE ACTIVE",
+   "unit": "Bool",
+   "settable": false,
+   "category": "Helicopter Specific"
+  },
+  {
+   "name": "ROTOR CLUTCH SWITCH POS",
+   "unit": "Bool",
+   "settable": false,
+   "category": "Helicopter Specific"
+  },
+  {
+   "name": "ROTOR CLUTCH ACTIVE",
+   "unit": "Bool",
+   "settable": false,
+   "category": "Helicopter Specific"
+  },
+  {
+   "name": "ROTOR TEMPERATURE",
+   "unit": "Rankine",
+   "settable": false,
+   "category": "Helicopter Specific"
+  },
+  {
+   "name": "ROTOR CHIP DETECTED",
+   "unit": "Bool",
+   "settable": false,
+   "category": "Helicopter Specific"
+  },
+  {
+   "name": "ROTOR GOV SWITCH POS",
+   "unit": "Bool",
+   "settable": false,
+   "category": "Helicopter Specific"
+  },
+  {
+   "name": "ROTOR GOV ACTIVE",
+   "unit": "Bool",
+   "settable": false,
+   "category": "Helicopter Specific"
+  },
+  {
+   "name": "ROTOR LATERAL TRIM PCT",
+   "unit": "Percent Over 100",
+   "settable": false,
+   "category": "Helicopter Specific"
+  },
+  {
+   "name": "ROTOR RPM PCT",
+   "unit": "Percent Over 100",
+   "settable": false,
+   "category": "Helicopter Specific"
+  },
+  {
+   "name": "ENG TURBINE TEMPERATURE",
+   "unit": "Celsius",
+   "settable": false,
+   "category": "Helicopter Specific"
+  },
+  {
+   "name": "ENG TORQUE PERCENT:1",
+   "unit": "Percent scalar 16K (Ft/lbs * 16384)",
+   "settable": false,
+   "category": "Helicopter Specific"
+  },
+  {
+   "name": "ENG FUEL PRESSURE",
+   "unit": "PSI",
+   "settable": false,
+   "category": "Helicopter Specific"
+  },
+  {
+   "name": "ENG ELECTRICAL LOAD",
+   "unit": "Percent",
+   "settable": false,
+   "category": "Helicopter Specific"
+  },
+  {
+   "name": "ENG TRANSMISSION PRESSURE",
+   "unit": "PSI",
+   "settable": false,
+   "category": "Helicopter Specific"
+  },
+  {
+   "name": "ENG TRANSMISSION TEMPERATURE",
+   "unit": "Celsius",
+   "settable": false,
+   "category": "Helicopter Specific"
+  },
+  {
+   "name": "ENG ROTOR RPM:1",
+   "unit": "Percent scalar 16K (Max rpm * 16384)",
+   "settable": false,
+   "category": "Helicopter Specific"
+  },
+  {
+   "name": "COLLECTIVE POSITION",
+   "unit": "Percent over 100",
+   "settable": false,
+   "category": "Helicopter Specific"
+  },
+  {
+   "name": "NUM SLING CABLES",
+   "unit": "Number",
+   "settable": false,
+   "category": "Slings and Hoists"
+  },
+  {
+   "name": "PAYLOAD STATION NUM SIMOBJECTS:1",
+   "unit": "Number",
+   "settable": false,
+   "category": "Slings and Hoists"
+  },
+  {
+   "name": "SLING OBJECT ATTACHED:1",
+   "unit": "Bool/String",
+   "settable": false,
+   "category": "Slings and Hoists"
+  },
+  {
+   "name": "SLING CABLE BROKEN:1",
+   "unit": "Bool",
+   "settable": false,
+   "category": "Slings and Hoists"
+  },
+  {
+   "name": "SLING CABLE EXTENDED LENGTH:1",
+   "unit": "Feet",
+   "settable": true,
+   "category": "Slings and Hoists"
+  },
+  {
+   "name": "SLING ACTIVE PAYLOAD STATION:1",
+   "unit": "Number",
+   "settable": true,
+   "category": "Slings and Hoists"
+  },
+  {
+   "name": "SLING HOIST PERCENT DEPLOYED:1",
+   "unit": "Percent over 100",
+   "settable": false,
+   "category": "Slings and Hoists"
+  },
+  {
+   "name": "IS ATTACHED TO SLING",
+   "unit": "Bool",
+   "settable": false,
+   "category": "Slings and Hoists"
+  },
+  {
+   "name": "SMOKE ENABLE",
+   "unit": "Bool",
+   "settable": true,
+   "category": "Aircraft Miscellaneous Systems"
+  },
+  {
+   "name": "SMOKESYSTEM AVAILABLE",
+   "unit": "Bool",
+   "settable": false,
+   "category": "Aircraft Miscellaneous Systems"
+  },
+  {
+   "name": "PITOT HEAT",
+   "unit": "Bool",
+   "settable": false,
+   "category": "Aircraft Miscellaneous Systems"
+  },
+  {
+   "name": "FOLDING WING LEFT PERCENT",
+   "unit": "Percent Over 100",
+   "settable": true,
+   "category": "Aircraft Miscellaneous Systems"
+  },
+  {
+   "name": "FOLDING WING RIGHT PERCENT",
+   "unit": "Percent Over 100",
+   "settable": true,
+   "category": "Aircraft Miscellaneous Systems"
+  },
+  {
+   "name": "CANOPY OPEN",
+   "unit": "Percent Over 100",
+   "settable": true,
+   "category": "Aircraft Miscellaneous Systems"
+  },
+  {
+   "name": "TAILHOOK POSITION",
+   "unit": "Percent Over 100",
+   "settable": true,
+   "category": "Aircraft Miscellaneous Systems"
+  },
+  {
+   "name": "EXIT OPEN:1",
+   "unit": "Percent Over 100",
+   "settable": true,
+   "category": "Aircraft Miscellaneous Systems"
+  },
+  {
+   "name": "STALL HORN AVAILABLE",
+   "unit": "Bool",
+   "settable": false,
+   "category": "Aircraft Miscellaneous Systems"
+  },
+  {
+   "name": "ENGINE MIXURE AVAILABLE",
+   "unit": "Bool",
+   "settable": false,
+   "category": "Aircraft Miscellaneous Systems"
+  },
+  {
+   "name": "CARB HEAT AVAILABLE",
+   "unit": "Bool",
+   "settable": false,
+   "category": "Aircraft Miscellaneous Systems"
+  },
+  {
+   "name": "SPOILER AVAILABLE",
+   "unit": "Bool",
+   "settable": false,
+   "category": "Aircraft Miscellaneous Systems"
+  },
+  {
+   "name": "IS TAIL DRAGGER",
+   "unit": "Bool",
+   "settable": false,
+   "category": "Aircraft Miscellaneous Systems"
+  },
+  {
+   "name": "STROBES AVAILABLE",
+   "unit": "Bool",
+   "settable": false,
+   "category": "Aircraft Miscellaneous Systems"
+  },
+  {
+   "name": "TOE BRAKES AVAILABLE",
+   "unit": "Bool",
+   "settable": false,
+   "category": "Aircraft Miscellaneous Systems"
+  },
+  {
+   "name": "PUSHBACK STATE",
+   "unit": "Enum",
+   "settable": true,
+   "category": "Aircraft Miscellaneous Systems"
+  },
+  {
+   "name": "ELECTRICAL MASTER BATTERY",
+   "unit": "Bool",
+   "settable": true,
+   "category": "Aircraft Miscellaneous Systems"
+  },
+  {
+   "name": "ELECTRICAL TOTAL LOAD AMPS",
+   "unit": "Amperes",
+   "settable": true,
+   "category": "Aircraft Miscellaneous Systems"
+  },
+  {
+   "name": "ELECTRICAL BATTERY LOAD",
+   "unit": "Amperes",
+   "settable": true,
+   "category": "Aircraft Miscellaneous Systems"
+  },
+  {
+   "name": "ELECTRICAL BATTERY VOLTAGE",
+   "unit": "Volts",
+   "settable": true,
+   "category": "Aircraft Miscellaneous Systems"
+  },
+  {
+   "name": "ELECTRICAL MAIN BUS VOLTAGE",
+   "unit": "Volts",
+   "settable": true,
+   "category": "Aircraft Miscellaneous Systems"
+  },
+  {
+   "name": "ELECTRICAL MAIN BUS AMPS",
+   "unit": "Amperes",
+   "settable": true,
+   "category": "Aircraft Miscellaneous Systems"
+  },
+  {
+   "name": "ELECTRICAL AVIONICS BUS VOLTAGE",
+   "unit": "Volts",
+   "settable": true,
+   "category": "Aircraft Miscellaneous Systems"
+  },
+  {
+   "name": "ELECTRICAL AVIONICS BUS AMPS",
+   "unit": "Amperes",
+   "settable": true,
+   "category": "Aircraft Miscellaneous Systems"
+  },
+  {
+   "name": "ELECTRICAL HOT BATTERY BUS VOLTAGE",
+   "unit": "Volts",
+   "settable": true,
+   "category": "Aircraft Miscellaneous Systems"
+  },
+  {
+   "name": "ELECTRICAL HOT BATTERY BUS AMPS",
+   "unit": "Amperes",
+   "settable": true,
+   "category": "Aircraft Miscellaneous Systems"
+  },
+  {
+   "name": "ELECTRICAL BATTERY BUS VOLTAGE",
+   "unit": "Volts",
+   "settable": true,
+   "category": "Aircraft Miscellaneous Systems"
+  },
+  {
+   "name": "ELECTRICAL BATTERY BUS AMPS",
+   "unit": "Amperes",
+   "settable": true,
+   "category": "Aircraft Miscellaneous Systems"
+  },
+  {
+   "name": "ELECTRICAL GENALT BUS VOLTAGE:1",
+   "unit": "Volts",
+   "settable": true,
+   "category": "Aircraft Miscellaneous Systems"
+  },
+  {
+   "name": "ELECTRICAL GENALT BUS AMPS:1",
+   "unit": "Amperes",
+   "settable": true,
+   "category": "Aircraft Miscellaneous Systems"
+  },
+  {
+   "name": "CIRCUIT GENERAL PANEL ON",
+   "unit": "Bool",
+   "settable": false,
+   "category": "Aircraft Miscellaneous Systems"
+  },
+  {
+   "name": "CIRCUIT FLAP MOTOR ON",
+   "unit": "Bool",
+   "settable": false,
+   "category": "Aircraft Miscellaneous Systems"
+  },
+  {
+   "name": "CIRCUIT GEAR MOTOR ON",
+   "unit": "Bool",
+   "settable": false,
+   "category": "Aircraft Miscellaneous Systems"
+  },
+  {
+   "name": "CIRCUIT AUTOPILOT ON",
+   "unit": "Bool",
+   "settable": false,
+   "category": "Aircraft Miscellaneous Systems"
+  },
+  {
+   "name": "CIRCUIT AVIONICS ON",
+   "unit": "Bool",
+   "settable": false,
+   "category": "Aircraft Miscellaneous Systems"
+  },
+  {
+   "name": "CIRCUIT PITOT HEAT ON",
+   "unit": "Bool",
+   "settable": false,
+   "category": "Aircraft Miscellaneous Systems"
+  },
+  {
+   "name": "CIRCUIT PROP SYNC ON",
+   "unit": "Bool",
+   "settable": false,
+   "category": "Aircraft Miscellaneous Systems"
+  },
+  {
+   "name": "CIRCUIT AUTO FEATHER ON",
+   "unit": "Bool",
+   "settable": false,
+   "category": "Aircraft Miscellaneous Systems"
+  },
+  {
+   "name": "CIRCUIT AUTO BRAKES ON",
+   "unit": "Bool",
+   "settable": false,
+   "category": "Aircraft Miscellaneous Systems"
+  },
+  {
+   "name": "CIRCUIT STANDY VACUUM ON",
+   "unit": "Bool",
+   "settable": false,
+   "category": "Aircraft Miscellaneous Systems"
+  },
+  {
+   "name": "CIRCUIT MARKER BEACON ON",
+   "unit": "Bool",
+   "settable": false,
+   "category": "Aircraft Miscellaneous Systems"
+  },
+  {
+   "name": "CIRCUIT GEAR WARNING ON",
+   "unit": "Bool",
+   "settable": false,
+   "category": "Aircraft Miscellaneous Systems"
+  },
+  {
+   "name": "CIRCUIT HYDRAULIC PUMP ON",
+   "unit": "Bool",
+   "settable": false,
+   "category": "Aircraft Miscellaneous Systems"
+  },
+  {
+   "name": "HYDRAULIC PRESSURE:1",
+   "unit": "Pound force per square foot",
+   "settable": false,
+   "category": "Aircraft Miscellaneous Systems"
+  },
+  {
+   "name": "HYDRAULIC RESERVOIR PERCENT:1",
+   "unit": "Percent Over 100",
+   "settable": true,
+   "category": "Aircraft Miscellaneous Systems"
+  },
+  {
+   "name": "HYDRAULIC SYSTEM INTEGRITY",
+   "unit": "Percent Over 100",
+   "settable": false,
+   "category": "Aircraft Miscellaneous Systems"
+  },
+  {
+   "name": "STRUCTURAL DEICE SWITCH",
+   "unit": "Bool",
+   "settable": false,
+   "category": "Aircraft Miscellaneous Systems"
+  },
+  {
+   "name": "APPLY HEAT TO SYSTEMS",
+   "unit": "Bool",
+   "settable": true,
+   "category": "Aircraft Miscellaneous Systems"
+  },
+  {
+   "name": "DROPPABLE OBJECTS TYPE:1",
+   "unit": "String",
+   "settable": true,
+   "category": "Aircraft Miscellaneous Systems"
+  },
+  {
+   "name": "DROPPABLE OBJECTS COUNT:1",
+   "unit": "Number",
+   "settable": false,
+   "category": "Aircraft Miscellaneous Systems"
+  },
+  {
+   "name": "TOTAL WEIGHT",
+   "unit": "Pounds",
+   "settable": false,
+   "category": "Aircraft Miscellaneous"
+  },
+  {
+   "name": "MAX GROSS WEIGHT",
+   "unit": "Pounds",
+   "settable": false,
+   "category": "Aircraft Miscellaneous"
+  },
+  {
+   "name": "EMPTY WEIGHT",
+   "unit": "Pounds",
+   "settable": false,
+   "category": "Aircraft Miscellaneous"
+  },
+  {
+   "name": "IS USER SIM",
+   "unit": "Bool",
+   "settable": false,
+   "category": "Aircraft Miscellaneous"
+  },
+  {
+   "name": "SIM DISABLED",
+   "unit": "Bool",
+   "settable": true,
+   "category": "Aircraft Miscellaneous"
+  },
+  {
+   "name": "G FORCE",
+   "unit": "GForce",
+   "settable": true,
+   "category": "Aircraft Miscellaneous"
+  },
+  {
+   "name": "ATC HEAVY",
+   "unit": "Bool",
+   "settable": true,
+   "category": "Aircraft Miscellaneous"
+  },
+  {
+   "name": "AUTO COORDINATION",
+   "unit": "Bool",
+   "settable": true,
+   "category": "Aircraft Miscellaneous"
+  },
+  {
+   "name": "REALISM",
+   "unit": "Number",
+   "settable": true,
+   "category": "Aircraft Miscellaneous"
+  },
+  {
+   "name": "TRUE AIRSPEED SELECTED",
+   "unit": "Bool",
+   "settable": true,
+   "category": "Aircraft Miscellaneous"
+  },
+  {
+   "name": "DESIGN SPEED VS0",
+   "unit": "Feet per second",
+   "settable": false,
+   "category": "Aircraft Miscellaneous"
+  },
+  {
+   "name": "DESIGN SPEED VS1",
+   "unit": "Feet per second",
+   "settable": false,
+   "category": "Aircraft Miscellaneous"
+  },
+  {
+   "name": "DESIGN SPEED VC",
+   "unit": "Feet per second",
+   "settable": false,
+   "category": "Aircraft Miscellaneous"
+  },
+  {
+   "name": "MIN DRAG VELOCITY",
+   "unit": "Feet per second",
+   "settable": false,
+   "category": "Aircraft Miscellaneous"
+  },
+  {
+   "name": "ESTIMATED CRUISE SPEED",
+   "unit": "Feet per second",
+   "settable": false,
+   "category": "Aircraft Miscellaneous"
+  },
+  {
+   "name": "CG PERCENT",
+   "unit": "Percent over 100",
+   "settable": false,
+   "category": "Aircraft Miscellaneous"
+  },
+  {
+   "name": "CG PERCENT LATERAL",
+   "unit": "Percent over 100",
+   "settable": false,
+   "category": "Aircraft Miscellaneous"
+  },
+  {
+   "name": "IS SLEW ACTIVE",
+   "unit": "Bool",
+   "settable": true,
+   "category": "Aircraft Miscellaneous"
+  },
+  {
+   "name": "IS SLEW ALLOWED",
+   "unit": "Bool",
+   "settable": true,
+   "category": "Aircraft Miscellaneous"
+  },
+  {
+   "name": "ATC SUGGESTED MIN RWY TAKEOFF",
+   "unit": "Feet",
+   "settable": false,
+   "category": "Aircraft Miscellaneous"
+  },
+  {
+   "name": "ATC SUGGESTED MIN RWY LANDING",
+   "unit": "Feet",
+   "settable": false,
+   "category": "Aircraft Miscellaneous"
+  },
+  {
+   "name": "PAYLOAD STATION WEIGHT:1",
+   "unit": "Pounds",
+   "settable": true,
+   "category": "Aircraft Miscellaneous"
+  },
+  {
+   "name": "PAYLOAD STATION COUNT",
+   "unit": "Number",
+   "settable": false,
+   "category": "Aircraft Miscellaneous"
+  },
+  {
+   "name": "USER INPUT ENABLED",
+   "unit": "Bool",
+   "settable": true,
+   "category": "Aircraft Miscellaneous"
+  },
+  {
+   "name": "TYPICAL DESCENT RATE",
+   "unit": "Feet per minute",
+   "settable": false,
+   "category": "Aircraft Miscellaneous"
+  },
+  {
+   "name": "VISUAL MODEL RADIUS",
+   "unit": "Meters",
+   "settable": false,
+   "category": "Aircraft Miscellaneous"
+  },
+  {
+   "name": "SIGMA SQRT",
+   "unit": "Number",
+   "settable": false,
+   "category": "Aircraft Miscellaneous"
+  },
+  {
+   "name": "DYNAMIC PRESSURE",
+   "unit": "foot pounds",
+   "settable": false,
+   "category": "Aircraft Miscellaneous"
+  },
+  {
+   "name": "TOTAL VELOCITY",
+   "unit": "Feet per second",
+   "settable": false,
+   "category": "Aircraft Miscellaneous"
+  },
+  {
+   "name": "AIRSPEED SELECT INDICATED OR TRUE",
+   "unit": "Knots",
+   "settable": false,
+   "category": "Aircraft Miscellaneous"
+  },
+  {
+   "name": "VARIOMETER RATE",
+   "unit": "Feet per second",
+   "settable": false,
+   "category": "Aircraft Miscellaneous"
+  },
+  {
+   "name": "VARIOMETER SWITCH",
+   "unit": "Bool",
+   "settable": false,
+   "category": "Aircraft Miscellaneous"
+  },
+  {
+   "name": "PRESSURE ALTITUDE",
+   "unit": "Meters",
+   "settable": false,
+   "category": "Aircraft Miscellaneous"
+  },
+  {
+   "name": "MAGNETIC COMPASS",
+   "unit": "Degrees",
+   "settable": false,
+   "category": "Aircraft Miscellaneous"
+  },
+  {
+   "name": "TURN INDICATOR RATE",
+   "unit": "Radians per second",
+   "settable": false,
+   "category": "Aircraft Miscellaneous"
+  },
+  {
+   "name": "TURN INDICATOR SWITCH",
+   "unit": "Bool",
+   "settable": false,
+   "category": "Aircraft Miscellaneous"
+  },
+  {
+   "name": "YOKE Y INDICATOR",
+   "unit": "Position",
+   "settable": false,
+   "category": "Aircraft Miscellaneous"
+  },
+  {
+   "name": "YOKE X INDICATOR",
+   "unit": "Position",
+   "settable": false,
+   "category": "Aircraft Miscellaneous"
+  },
+  {
+   "name": "RUDDER PEDAL INDICATOR",
+   "unit": "Position",
+   "settable": false,
+   "category": "Aircraft Miscellaneous"
+  },
+  {
+   "name": "BRAKE DEPENDENT HYDRAULIC PRESSURE",
+   "unit": "foot pounds",
+   "settable": false,
+   "category": "Aircraft Miscellaneous"
+  },
+  {
+   "name": "PANEL ANTI ICE SWITCH",
+   "unit": "Bool",
+   "settable": false,
+   "category": "Aircraft Miscellaneous"
+  },
+  {
+   "name": "WING AREA",
+   "unit": "Square feet",
+   "settable": false,
+   "category": "Aircraft Miscellaneous"
+  },
+  {
+   "name": "WING SPAN",
+   "unit": "Feet",
+   "settable": false,
+   "category": "Aircraft Miscellaneous"
+  },
+  {
+   "name": "BETA DOT",
+   "unit": "Radians per second",
+   "settable": false,
+   "category": "Aircraft Miscellaneous"
+  },
+  {
+   "name": "LINEAR CL ALPHA",
+   "unit": "Per radian",
+   "settable": false,
+   "category": "Aircraft Miscellaneous"
+  },
+  {
+   "name": "STALL ALPHA",
+   "unit": "Radians",
+   "settable": false,
+   "category": "Aircraft Miscellaneous"
+  },
+  {
+   "name": "ZERO LIFT ALPHA",
+   "unit": "Radians",
+   "settable": false,
+   "category": "Aircraft Miscellaneous"
+  },
+  {
+   "name": "CG AFT LIMIT",
+   "unit": "Percent over 100",
+   "settable": false,
+   "category": "Aircraft Miscellaneous"
+  },
+  {
+   "name": "CG FWD LIMIT",
+   "unit": "Percent over 100",
+   "settable": false,
+   "category": "Aircraft Miscellaneous"
+  },
+  {
+   "name": "CG MAX MACH",
+   "unit": "Machs",
+   "settable": false,
+   "category": "Aircraft Miscellaneous"
+  },
+  {
+   "name": "CG MIN MACH",
+   "unit": "Machs",
+   "settable": false,
+   "category": "Aircraft Miscellaneous"
+  },
+  {
+   "name": "PAYLOAD STATION NAME",
+   "unit": "String",
+   "settable": false,
+   "category": "Aircraft Miscellaneous"
+  },
+  {
+   "name": "ELEVON DEFLECTION",
+   "unit": "Radians",
+   "settable": false,
+   "category": "Aircraft Miscellaneous"
+  },
+  {
+   "name": "EXIT TYPE",
+   "unit": "Enum",
+   "settable": false,
+   "category": "Aircraft Miscellaneous"
+  },
+  {
+   "name": "EXIT POSX",
+   "unit": "Feet",
+   "settable": false,
+   "category": "Aircraft Miscellaneous"
+  },
+  {
+   "name": "EXIT POSY",
+   "unit": "Feet",
+   "settable": false,
+   "category": "Aircraft Miscellaneous"
+  },
+  {
+   "name": "EXIT POSZ",
+   "unit": "Feet",
+   "settable": false,
+   "category": "Aircraft Miscellaneous"
+  },
+  {
+   "name": "DECISION HEIGHT",
+   "unit": "Feet",
+   "settable": false,
+   "category": "Aircraft Miscellaneous"
+  },
+  {
+   "name": "DECISION ALTITUDE MSL",
+   "unit": "Feet",
+   "settable": false,
+   "category": "Aircraft Miscellaneous"
+  },
+  {
+   "name": "EMPTY WEIGHT PITCH MOI",
+   "unit": "slug feet squared",
+   "settable": false,
+   "category": "Aircraft Miscellaneous"
+  },
+  {
+   "name": "EMPTY WEIGHT ROLL MOI",
+   "unit": "slug feet squared",
+   "settable": false,
+   "category": "Aircraft Miscellaneous"
+  },
+  {
+   "name": "EMPTY WEIGHT YAW MOI",
+   "unit": "slug feet squared",
+   "settable": false,
+   "category": "Aircraft Miscellaneous"
+  },
+  {
+   "name": "EMPTY WEIGHT CROSS COUPLED MOI",
+   "unit": "slug feet squared",
+   "settable": false,
+   "category": "Aircraft Miscellaneous"
+  },
+  {
+   "name": "TOTAL WEIGHT PITCH MOI",
+   "unit": "slug feet squared",
+   "settable": false,
+   "category": "Aircraft Miscellaneous"
+  },
+  {
+   "name": "TOTAL WEIGHT ROLL MOI",
+   "unit": "slug feet squared",
+   "settable": false,
+   "category": "Aircraft Miscellaneous"
+  },
+  {
+   "name": "TOTAL WEIGHT YAW MOI",
+   "unit": "slug feet squared",
+   "settable": false,
+   "category": "Aircraft Miscellaneous"
+  },
+  {
+   "name": "TOTAL WEIGHT CROSS COUPLED MOI",
+   "unit": "slug feet squared",
+   "settable": false,
+   "category": "Aircraft Miscellaneous"
+  },
+  {
+   "name": "WATER BALLAST VALVE",
+   "unit": "Bool",
+   "settable": false,
+   "category": "Aircraft Miscellaneous"
+  },
+  {
+   "name": "MAX RATED ENGINE RPM",
+   "unit": "Rpm",
+   "settable": false,
+   "category": "Aircraft Miscellaneous"
+  },
+  {
+   "name": "FULL THROTTLE THRUST TO WEIGHT RATIO",
+   "unit": "Number",
+   "settable": false,
+   "category": "Aircraft Miscellaneous"
+  },
+  {
+   "name": "PROP AUTO CRUISE ACTIVE",
+   "unit": "Bool",
+   "settable": false,
+   "category": "Aircraft Miscellaneous"
+  },
+  {
+   "name": "PROP ROTATION ANGLE",
+   "unit": "Radians",
+   "settable": false,
+   "category": "Aircraft Miscellaneous"
+  },
+  {
+   "name": "PROP BETA MAX",
+   "unit": "Radians",
+   "settable": false,
+   "category": "Aircraft Miscellaneous"
+  },
+  {
+   "name": "PROP BETA MIN",
+   "unit": "Radians",
+   "settable": false,
+   "category": "Aircraft Miscellaneous"
+  },
+  {
+   "name": "PROP BETA MIN REVERSE",
+   "unit": "Radians",
+   "settable": false,
+   "category": "Aircraft Miscellaneous"
+  },
+  {
+   "name": "FUEL SELECTED TRANSFER MODE",
+   "unit": "Enum",
+   "settable": false,
+   "category": "Aircraft Miscellaneous"
+  },
+  {
+   "name": "DROPPABLE OBJECTS UI NAME",
+   "unit": "String",
+   "settable": false,
+   "category": "Aircraft Miscellaneous"
+  },
+  {
+   "name": "MANUAL FUEL PUMP HANDLE",
+   "unit": "Percent over 100",
+   "settable": false,
+   "category": "Aircraft Miscellaneous"
+  },
+  {
+   "name": "BLEED AIR SOURCE CONTROL",
+   "unit": "Enum",
+   "settable": false,
+   "category": "Aircraft Miscellaneous"
+  },
+  {
+   "name": "ELECTRICAL OLD CHARGING AMPS",
+   "unit": "Amps",
+   "settable": false,
+   "category": "Aircraft Miscellaneous"
+  },
+  {
+   "name": "HYDRAULIC SWITCH",
+   "unit": "Bool",
+   "settable": false,
+   "category": "Aircraft Miscellaneous"
+  },
+  {
+   "name": "CONCORDE VISOR POSITION PERCENT",
+   "unit": "Percent over 100",
+   "settable": false,
+   "category": "Aircraft Miscellaneous"
+  },
+  {
+   "name": "CONCORDE NOSE ANGLE",
+   "unit": "Radians",
+   "settable": false,
+   "category": "Aircraft Miscellaneous"
+  },
+  {
+   "name": "REALISM CRASH WITH OTHERS",
+   "unit": "Bool",
+   "settable": false,
+   "category": "Aircraft Miscellaneous"
+  },
+  {
+   "name": "REALISM CRASH DETECTION",
+   "unit": "Bool",
+   "settable": false,
+   "category": "Aircraft Miscellaneous"
+  },
+  {
+   "name": "MANUAL INSTRUMENT LIGHTS",
+   "unit": "Bool",
+   "settable": false,
+   "category": "Aircraft Miscellaneous"
+  },
+  {
+   "name": "PITOT ICE PCT",
+   "unit": "Percent over 100",
+   "settable": false,
+   "category": "Aircraft Miscellaneous"
+  },
+  {
+   "name": "SEMIBODY LOADFACTOR Y",
+   "unit": "Number",
+   "settable": false,
+   "category": "Aircraft Miscellaneous"
+  },
+  {
+   "name": "SEMIBODY LOADFACTOR YDOT",
+   "unit": "Per second",
+   "settable": false,
+   "category": "Aircraft Miscellaneous"
+  },
+  {
+   "name": "RAD INS SWITCH",
+   "unit": "Bool",
+   "settable": false,
+   "category": "Aircraft Miscellaneous"
+  },
+  {
+   "name": "SIMULATED RADIUS",
+   "unit": "Feet",
+   "settable": false,
+   "category": "Aircraft Miscellaneous"
+  },
+  {
+   "name": "STRUCTURAL ICE PCT",
+   "unit": "Percent over 100",
+   "settable": false,
+   "category": "Aircraft Miscellaneous"
+  },
+  {
+   "name": "ARTIFICIAL GROUND ELEVATION",
+   "unit": "Feet",
+   "settable": false,
+   "category": "Aircraft Miscellaneous"
+  },
+  {
+   "name": "SURFACE INFO VALID",
+   "unit": "Bool",
+   "settable": false,
+   "category": "Aircraft Miscellaneous"
+  },
+  {
+   "name": "SURFACE CONDITION",
+   "unit": "Enum",
+   "settable": false,
+   "category": "Aircraft Miscellaneous"
+  },
+  {
+   "name": "PUSHBACK ANGLE",
+   "unit": "Radians",
+   "settable": false,
+   "category": "Aircraft Miscellaneous"
+  },
+  {
+   "name": "PUSHBACK CONTACTX",
+   "unit": "Feet",
+   "settable": false,
+   "category": "Aircraft Miscellaneous"
+  },
+  {
+   "name": "PUSHBACK CONTACTY",
+   "unit": "Feet",
+   "settable": false,
+   "category": "Aircraft Miscellaneous"
+  },
+  {
+   "name": "PUSHBACK CONTACTZ",
+   "unit": "Feet",
+   "settable": false,
+   "category": "Aircraft Miscellaneous"
+  },
+  {
+   "name": "PUSHBACK WAIT",
+   "unit": "Bool",
+   "settable": false,
+   "category": "Aircraft Miscellaneous"
+  },
+  {
+   "name": "YAW STRING ANGLE",
+   "unit": "Radians",
+   "settable": false,
+   "category": "Aircraft Miscellaneous"
+  },
+  {
+   "name": "YAW STRING PCT EXTENDED",
+   "unit": "Percent over 100",
+   "settable": false,
+   "category": "Aircraft Miscellaneous"
+  },
+  {
+   "name": "INDUCTOR COMPASS PERCENT DEVIATION",
+   "unit": "Percent over 100",
+   "settable": false,
+   "category": "Aircraft Miscellaneous"
+  },
+  {
+   "name": "INDUCTOR COMPASS HEADING REF",
+   "unit": "Radians",
+   "settable": false,
+   "category": "Aircraft Miscellaneous"
+  },
+  {
+   "name": "ANEMOMETER PCT RPM",
+   "unit": "Percent over 100",
+   "settable": false,
+   "category": "Aircraft Miscellaneous"
+  },
+  {
+   "name": "ROTOR ROTATION ANGLE",
+   "unit": "Radians",
+   "settable": false,
+   "category": "Aircraft Miscellaneous"
+  },
+  {
+   "name": "DISK PITCH ANGLE",
+   "unit": "Radians",
+   "settable": false,
+   "category": "Aircraft Miscellaneous"
+  },
+  {
+   "name": "DISK BANK ANGLE",
+   "unit": "Radians",
+   "settable": false,
+   "category": "Aircraft Miscellaneous"
+  },
+  {
+   "name": "DISK PITCH PCT",
+   "unit": "Percent over 100",
+   "settable": false,
+   "category": "Aircraft Miscellaneous"
+  },
+  {
+   "name": "DISK BANK PCT",
+   "unit": "Percent over 100",
+   "settable": false,
+   "category": "Aircraft Miscellaneous"
+  },
+  {
+   "name": "DISK CONING PCT",
+   "unit": "Percent over 100",
+   "settable": false,
+   "category": "Aircraft Miscellaneous"
+  },
+  {
+   "name": "NAV VOR LLAF64",
+   "unit": "SIMCONNECT_DATA_LATLONALT",
+   "settable": false,
+   "category": "Aircraft Miscellaneous"
+  },
+  {
+   "name": "NAV GS LLAF64",
+   "unit": "SIMCONNECT_DATA_LATLONALT",
+   "settable": false,
+   "category": "Aircraft Miscellaneous"
+  },
+  {
+   "name": "STATIC CG TO GROUND",
+   "unit": "Feet",
+   "settable": false,
+   "category": "Aircraft Miscellaneous"
+  },
+  {
+   "name": "STATIC PITCH",
+   "unit": "Radians",
+   "settable": false,
+   "category": "Aircraft Miscellaneous"
+  },
+  {
+   "name": "CRASH SEQUENCE",
+   "unit": "Enum",
+   "settable": false,
+   "category": "Aircraft Miscellaneous"
+  },
+  {
+   "name": "CRASH FLAG",
+   "unit": "Enum",
+   "settable": false,
+   "category": "Aircraft Miscellaneous"
+  },
+  {
+   "name": "TOW RELEASE HANDLE",
+   "unit": "Percent over 100",
+   "settable": false,
+   "category": "Aircraft Miscellaneous"
+  },
+  {
+   "name": "TOW CONNECTION",
+   "unit": "Bool",
+   "settable": false,
+   "category": "Aircraft Miscellaneous"
+  },
+  {
+   "name": "APU PCT RPM",
+   "unit": "Percent over 100",
+   "settable": false,
+   "category": "Aircraft Miscellaneous"
+  },
+  {
+   "name": "APU PCT STARTER",
+   "unit": "Percent over 100",
+   "settable": false,
+   "category": "Aircraft Miscellaneous"
+  },
+  {
+   "name": "APU VOLTS",
+   "unit": "Volts",
+   "settable": false,
+   "category": "Aircraft Miscellaneous"
+  },
+  {
+   "name": "APU GENERATOR SWITCH",
+   "unit": "Bool",
+   "settable": false,
+   "category": "Aircraft Miscellaneous"
+  },
+  {
+   "name": "APU GENERATOR ACTIVE",
+   "unit": "Bool",
+   "settable": false,
+   "category": "Aircraft Miscellaneous"
+  },
+  {
+   "name": "APU ON FIRE DETECTED",
+   "unit": "Bool",
+   "settable": false,
+   "category": "Aircraft Miscellaneous"
+  },
+  {
+   "name": "PRESSURIZATION CABIN ALTITUDE",
+   "unit": "Feet",
+   "settable": false,
+   "category": "Aircraft Miscellaneous"
+  },
+  {
+   "name": "PRESSURIZATION CABIN ALTITUDE GOAL",
+   "unit": "Feet",
+   "settable": false,
+   "category": "Aircraft Miscellaneous"
+  },
+  {
+   "name": "PRESSURIZATION CABIN ALTITUDE RATE",
+   "unit": "Feet per second",
+   "settable": false,
+   "category": "Aircraft Miscellaneous"
+  },
+  {
+   "name": "PRESSURIZATION PRESSURE DIFFERENTIAL",
+   "unit": "foot pounds",
+   "settable": false,
+   "category": "Aircraft Miscellaneous"
+  },
+  {
+   "name": "PRESSURIZATION DUMP SWITCH",
+   "unit": "Bool",
+   "settable": false,
+   "category": "Aircraft Miscellaneous"
+  },
+  {
+   "name": "FIRE BOTTLE SWITCH",
+   "unit": "Bool",
+   "settable": false,
+   "category": "Aircraft Miscellaneous"
+  },
+  {
+   "name": "FIRE BOTTLE DISCHARGED",
+   "unit": "Bool",
+   "settable": false,
+   "category": "Aircraft Miscellaneous"
+  },
+  {
+   "name": "CABIN NO SMOKING ALERT SWITCH",
+   "unit": "Bool",
+   "settable": true,
+   "category": "Aircraft Miscellaneous"
+  },
+  {
+   "name": "CABIN SEATBELTS ALERT SWITCH",
+   "unit": "Bool",
+   "settable": true,
+   "category": "Aircraft Miscellaneous"
+  },
+  {
+   "name": "GPWS WARNING",
+   "unit": "Bool",
+   "settable": false,
+   "category": "Aircraft Miscellaneous"
+  },
+  {
+   "name": "GPWS SYSTEM ACTIVE",
+   "unit": "Bool",
+   "settable": true,
+   "category": "Aircraft Miscellaneous"
+  },
+  {
+   "name": "IS ALTITUDE FREEZE ON",
+   "unit": "Bool",
+   "settable": false,
+   "category": "Aircraft Miscellaneous"
+  },
+  {
+   "name": "IS ATTITUDE FREEZE ON",
+   "unit": "Bool",
+   "settable": false,
+   "category": "Aircraft Miscellaneous"
+  },
+  {
+   "name": "SLING HOOK IN PICKUP MODE:1",
+   "unit": "Bool",
+   "settable": false,
+   "category": "Aircraft Miscellaneous"
+  },
+  {
+   "name": "AI TRAFFIC STATE",
+   "unit": "String",
+   "settable": false,
+   "category": "Aircraft Miscellaneous"
+  },
+  {
+   "name": "AI TRAFFIC ASSIGNED PARKING",
+   "unit": "String",
+   "settable": false,
+   "category": "Aircraft Miscellaneous"
+  },
+  {
+   "name": "RECIP ENG FUEL TANKS USED:1",
+   "unit": "Mask",
+   "settable": true,
+   "category": "Aircraft Miscellaneous"
+  },
+  {
+   "name": "TURB ENG TANKS USED:1",
+   "unit": "Mask",
+   "settable": false,
+   "category": "Aircraft Miscellaneous"
+  },
+  {
+   "name": "ENG TURBINE TEMPERATURE:1",
+   "unit": "Celsius",
+   "settable": false,
+   "category": "Aircraft Miscellaneous"
+  },
+  {
+   "name": "ENG ELECTRICAL LOAD:1",
+   "unit": "Percent",
+   "settable": false,
+   "category": "Aircraft Miscellaneous"
+  },
+  {
+   "name": "ENG TRANSMISSION PRESSURE:1",
+   "unit": "PSI",
+   "settable": false,
+   "category": "Aircraft Miscellaneous"
+  },
+  {
+   "name": "ENG TRANSMISSION TEMPERATURE:1",
+   "unit": "Celsius",
+   "settable": false,
+   "category": "Aircraft Miscellaneous"
+  },
+  {
+   "name": "SURFACE TYPE",
+   "unit": "Enum",
+   "settable": false,
+   "category": "Aircraft Miscellaneous"
+  },
+  {
+   "name": "COM STATUS:1",
+   "unit": "Enum",
+   "settable": false,
+   "category": "Aircraft Miscellaneous"
+  },
+  {
+   "name": "NAV TOFROM:1",
+   "unit": "Enum",
+   "settable": false,
+   "category": "Aircraft Miscellaneous"
+  },
+  {
+   "name": "GPS APPROACH MODE",
+   "unit": "Enum",
+   "settable": false,
+   "category": "Aircraft Miscellaneous"
+  },
+  {
+   "name": "GPS APPROACH WP TYPE",
+   "unit": "Enum",
+   "settable": false,
+   "category": "Aircraft Miscellaneous"
+  },
+  {
+   "name": "GPS APPROACH SEGMENT TYPE",
+   "unit": "Enum",
+   "settable": false,
+   "category": "Aircraft Miscellaneous"
+  },
+  {
+   "name": "GPS APPROACH APPROACH TYPE",
+   "unit": "Enum",
+   "settable": false,
+   "category": "Aircraft Miscellaneous"
+  },
+  {
+   "name": "AMBIENT PRECIP STATE",
+   "unit": "Mask",
+   "settable": false,
+   "category": "Aircraft Miscellaneous"
+  },
+  {
+   "name": "CATEGORY",
+   "unit": "String",
+   "settable": false,
+   "category": "Aircraft Miscellaneous"
+  },
+  {
+   "name": "CONCORDE VISOR NOSE HANDLE",
+   "unit": "Enum",
+   "settable": false,
+   "category": "Aircraft Miscellaneous"
+  },
+  {
+   "name": "IS LATITUDE LONGITUDE FREEZE ON",
+   "unit": "Bool",
+   "settable": false,
+   "category": "Aircraft Miscellaneous"
+  },
+  {
+   "name": "TIME OF DAY",
+   "unit": "Enum",
+   "settable": false,
+   "category": "Aircraft Miscellaneous"
+  },
+  {
+   "name": "SIMULATION RATE",
+   "unit": "Number",
+   "settable": false,
+   "category": "Aircraft Miscellaneous"
+  },
+  {
+   "name": "UNITS OF MEASURE",
+   "unit": "Enum",
+   "settable": false,
+   "category": "Aircraft Miscellaneous"
+  },
+  {
+   "name": "ATC TYPE",
+   "unit": "String",
+   "settable": false,
+   "category": "Aircraft String"
+  },
+  {
+   "name": "ATC MODEL",
+   "unit": "String",
+   "settable": false,
+   "category": "Aircraft String"
+  },
+  {
+   "name": "ATC ID",
+   "unit": "String",
+   "settable": true,
+   "category": "Aircraft String"
+  },
+  {
+   "name": "ATC AIRLINE",
+   "unit": "String",
+   "settable": true,
+   "category": "Aircraft String"
+  },
+  {
+   "name": "ATC FLIGHT NUMBER",
+   "unit": "String",
+   "settable": true,
+   "category": "Aircraft String"
+  },
+  {
+   "name": "TITLE",
+   "unit": "String",
+   "settable": false,
+   "category": "Aircraft String"
+  },
+  {
+   "name": "HSI STATION IDENT",
+   "unit": "String",
+   "settable": false,
+   "category": "Aircraft String"
+  },
+  {
+   "name": "GPS APPROACH AIRPORT ID",
+   "unit": "String",
+   "settable": false,
+   "category": "Aircraft String"
+  },
+  {
+   "name": "GPS APPROACH APPROACH ID",
+   "unit": "String",
+   "settable": false,
+   "category": "Aircraft String"
+  },
+  {
+   "name": "GPS APPROACH TRANSITION ID",
+   "unit": "String",
+   "settable": false,
+   "category": "Aircraft String"
+  },
+  {
+   "name": "AI DESIRED SPEED",
+   "unit": "Knots",
+   "settable": true,
+   "category": "AI Controlled Aircraft"
+  },
+  {
+   "name": "AI WAYPOINT LIST",
+   "unit": "SIMCONNECT_DATA_WAYPOINT",
+   "settable": true,
+   "category": "AI Controlled Aircraft"
+  },
+  {
+   "name": "AI CURRENT WAYPOINT",
+   "unit": "Number",
+   "settable": true,
+   "category": "AI Controlled Aircraft"
+  },
+  {
+   "name": "AI DESIRED HEADING",
+   "unit": "Degrees",
+   "settable": true,
+   "category": "AI Controlled Aircraft"
+  },
+  {
+   "name": "AI GROUNDTURNTIME",
+   "unit": "Seconds",
+   "settable": true,
+   "category": "AI Controlled Aircraft"
+  },
+  {
+   "name": "AI GROUNDCRUISESPEED",
+   "unit": "Knots",
+   "settable": true,
+   "category": "AI Controlled Aircraft"
+  },
+  {
+   "name": "AI GROUNDTURNSPEED",
+   "unit": "Knots",
+   "settable": true,
+   "category": "AI Controlled Aircraft"
+  },
+  {
+   "name": "AI TRAFFIC ISIFR",
+   "unit": "Boolean",
+   "settable": false,
+   "category": "AI Controlled Aircraft"
+  },
+  {
+   "name": "AI TRAFFIC CURRENT AIRPORT",
+   "unit": "String",
+   "settable": false,
+   "category": "AI Controlled Aircraft"
+  },
+  {
+   "name": "AI TRAFFIC ASSIGNED RUNWAY",
+   "unit": "String",
+   "settable": false,
+   "category": "AI Controlled Aircraft"
+  },
+  {
+   "name": "AI TRAFFIC FROMAIRPORT",
+   "unit": "String",
+   "settable": false,
+   "category": "AI Controlled Aircraft"
+  },
+  {
+   "name": "AI TRAFFIC TOAIRPORT",
+   "unit": "String",
+   "settable": false,
+   "category": "AI Controlled Aircraft"
+  },
+  {
+   "name": "AI TRAFFIC ETD",
+   "unit": "Seconds",
+   "settable": false,
+   "category": "AI Controlled Aircraft"
+  },
+  {
+   "name": "AI TRAFFIC ETA",
+   "unit": "Seconds",
+   "settable": false,
+   "category": "AI Controlled Aircraft"
+  },
+  {
+   "name": "LAUNCHBAR POSITION",
+   "unit": "Percent over 100",
+   "settable": false,
+   "category": "Carrier Operations"
+  },
+  {
+   "name": "LAUNCHBAR SWITCH",
+   "unit": "Bool",
+   "settable": false,
+   "category": "Carrier Operations"
+  },
+  {
+   "name": "LAUNCHBAR HELD EXTENDED",
+   "unit": "Bool",
+   "settable": false,
+   "category": "Carrier Operations"
+  },
+  {
+   "name": "NUMBER OF CATAPULTS",
+   "unit": "Number",
+   "settable": false,
+   "category": "Carrier Operations"
+  },
+  {
+   "name": "CATAPULT STROKE POSITION:1",
+   "unit": "Number",
+   "settable": false,
+   "category": "Carrier Operations"
+  },
+  {
+   "name": "HOLDBACK BAR INSTALLED",
+   "unit": "Bool",
+   "settable": false,
+   "category": "Carrier Operations"
+  },
+  {
+   "name": "BLAST SHIELD POSITION:1",
+   "unit": "Percent over 100",
+   "settable": false,
+   "category": "Carrier Operations"
+  },
+  {
+   "name": "CABLE CAUGHT BY TAILHOOK",
+   "unit": "Number",
+   "settable": false,
+   "category": "Carrier Operations"
+  },
+  {
+   "name": "TAILHOOK HANDLE",
+   "unit": "Bool",
+   "settable": false,
+   "category": "Carrier Operations"
+  },
+  {
+   "name": "SURFACE RELATIVE GROUND SPEED",
+   "unit": "Feet per second",
+   "settable": false,
+   "category": "Carrier Operations"
+  },
+  {
+   "name": "RECIP ENG DETONATING:1",
+   "unit": "Bool",
+   "settable": false,
+   "category": "Racing"
+  },
+  {
+   "name": "RECIP ENG CYLINDER HEALTH:1",
+   "unit": "Percent over 100",
+   "settable": false,
+   "category": "Racing"
+  },
+  {
+   "name": "RECIP ENG NUM CYLINDERS",
+   "unit": "Number",
+   "settable": false,
+   "category": "Racing"
+  },
+  {
+   "name": "RECIP ENG NUM CYLINDERS FAILED",
+   "unit": "Number",
+   "settable": false,
+   "category": "Racing"
+  },
+  {
+   "name": "RECIP ENG ANTIDETONATION TANK VALVE:1",
+   "unit": "Bool",
+   "settable": true,
+   "category": "Racing"
+  },
+  {
+   "name": "RECIP ENG ANTIDETONATION TANK QUANTITY:1",
+   "unit": "Gallons",
+   "settable": true,
+   "category": "Racing"
+  },
+  {
+   "name": "RECIP ENG ANTIDETONATION TANK MAX QUANTITY:1",
+   "unit": "Gallons",
+   "settable": false,
+   "category": "Racing"
+  },
+  {
+   "name": "RECIP ENG NITROUS TANK VALVE:1",
+   "unit": "Bool",
+   "settable": true,
+   "category": "Racing"
+  },
+  {
+   "name": "RECIP ENG NITROUS TANK QUANTITY:1",
+   "unit": "Gallons",
+   "settable": true,
+   "category": "Racing"
+  },
+  {
+   "name": "RECIP ENG NITROUS TANK MAX QUANTITY:1",
+   "unit": "Gallons",
+   "settable": false,
+   "category": "Racing"
+  },
+  {
+   "name": "ABSOLUTE TIME",
+   "unit": "Seconds",
+   "settable": false,
+   "category": "Environment"
+  },
+  {
+   "name": "ZULU TIME",
+   "unit": "Seconds",
+   "settable": false,
+   "category": "Environment"
+  },
+  {
+   "name": "ZULU DAY OF WEEK",
+   "unit": "Number",
+   "settable": false,
+   "category": "Environment"
+  },
+  {
+   "name": "ZULU DAY OF MONTH",
+   "unit": "Number",
+   "settable": false,
+   "category": "Environment"
+  },
+  {
+   "name": "ZULU MONTH OF YEAR",
+   "unit": "Number",
+   "settable": false,
+   "category": "Environment"
+  },
+  {
+   "name": "ZULU DAY OF YEAR",
+   "unit": "Number",
+   "settable": false,
+   "category": "Environment"
+  },
+  {
+   "name": "ZULU YEAR",
+   "unit": "Number",
+   "settable": false,
+   "category": "Environment"
+  },
+  {
+   "name": "LOCAL TIME",
+   "unit": "Seconds",
+   "settable": false,
+   "category": "Environment"
+  },
+  {
+   "name": "LOCAL DAY OF WEEK",
+   "unit": "Number",
+   "settable": false,
+   "category": "Environment"
+  },
+  {
+   "name": "LOCAL DAY OF MONTH",
+   "unit": "Number",
+   "settable": false,
+   "category": "Environment"
+  },
+  {
+   "name": "LOCAL MONTH OF YEAR",
+   "unit": "Number",
+   "settable": false,
+   "category": "Environment"
+  },
+  {
+   "name": "LOCAL DAY OF YEAR",
+   "unit": "Number",
+   "settable": false,
+   "category": "Environment"
+  },
+  {
+   "name": "LOCAL YEAR",
+   "unit": "Number",
+   "settable": false,
+   "category": "Environment"
+  },
+  {
+   "name": "TIME ZONE OFFSET",
+   "unit": "Seconds",
+   "settable": false,
+   "category": "Environment"
+  }
+ ],
+ "events": [
+  {
+   "name": "THROTTLE_FULL",
+   "category": "Engine"
+  },
+  {
+   "name": "THROTTLE_INCR",
+   "category": "Engine"
+  },
+  {
+   "name": "THROTTLE_INCR_SMALL",
+   "category": "Engine"
+  },
+  {
+   "name": "THROTTLE_DECR",
+   "category": "Engine"
+  },
+  {
+   "name": "THROTTLE_DECR_SMALL",
+   "category": "Engine"
+  },
+  {
+   "name": "THROTTLE_CUT",
+   "category": "Engine"
+  },
+  {
+   "name": "INCREASE_THROTTLE",
+   "category": "Engine"
+  },
+  {
+   "name": "DECREASE_THROTTLE",
+   "category": "Engine"
+  },
+  {
+   "name": "THROTTLE_SET",
+   "category": "Engine"
+  },
+  {
+   "name": "AXIS_THROTTLE_SET",
+   "category": "Engine"
+  },
+  {
+   "name": "THROTTLE1_SET",
+   "category": "Engine"
+  },
+  {
+   "name": "THROTTLE2_SET",
+   "category": "Engine"
+  },
+  {
+   "name": "THROTTLE3_SET",
+   "category": "Engine"
+  },
+  {
+   "name": "THROTTLE4_SET",
+   "category": "Engine"
+  },
+  {
+   "name": "THROTTLE1_FULL",
+   "category": "Engine"
+  },
+  {
+   "name": "THROTTLE1_INCR",
+   "category": "Engine"
+  },
+  {
+   "name": "THROTTLE1_INCR_SMALL",
+   "category": "Engine"
+  },
+  {
+   "name": "THROTTLE1_DECR",
+   "category": "Engine"
+  },
+  {
+   "name": "THROTTLE1_CUT",
+   "category": "Engine"
+  },
+  {
+   "name": "THROTTLE2_FULL",
+   "category": "Engine"
+  },
+  {
+   "name": "THROTTLE2_INCR",
+   "category": "Engine"
+  },
+  {
+   "name": "THROTTLE2_INCR_SMALL",
+   "category": "Engine"
+  },
+  {
+   "name": "THROTTLE2_DECR",
+   "category": "Engine"
+  },
+  {
+   "name": "THROTTLE2_CUT",
+   "category": "Engine"
+  },
+  {
+   "name": "THROTTLE3_FULL",
+   "category": "Engine"
+  },
+  {
+   "name": "THROTTLE3_INCR",
+   "category": "Engine"
+  },
+  {
+   "name": "THROTTLE3_INCR_SMALL",
+   "category": "Engine"
+  },
+  {
+   "name": "THROTTLE3_DECR",
+   "category": "Engine"
+  },
+  {
+   "name": "THROTTLE3_CUT",
+   "category": "Engine"
+  },
+  {
+   "name": "THROTTLE4_FULL",
+   "category": "Engine"
+  },
+  {
+   "name": "THROTTLE4_INCR",
+   "category": "Engine"
+  },
+  {
+   "name": "THROTTLE4_INCR_SMALL",
+   "category": "Engine"
+  },
+  {
+   "name": "THROTTLE4_DECR",
+   "category": "Engine"
+  },
+  {
+   "name": "THROTTLE4_CUT",
+   "category": "Engine"
+  },
+  {
+   "name": "THROTTLE_10",
+   "category": "Engine"
+  },
+  {
+   "name": "THROTTLE_20",
+   "category": "Engine"
+  },
+  {
+   "name": "THROTTLE_30",
+   "category": "Engine"
+  },
+  {
+   "name": "THROTTLE_40",
+   "category": "Engine"
+  },
+  {
+   "name": "THROTTLE_50",
+   "category": "Engine"
+  },
+  {
+   "name": "THROTTLE_60",
+   "category": "Engine"
+  },
+  {
+   "name": "THROTTLE_70",
+   "category": "Engine"
+  },
+  {
+   "name": "THROTTLE_80",
+   "category": "Engine"
+  },
+  {
+   "name": "THROTTLE_90",
+   "category": "Engine"
+  },
+  {
+   "name": "AXIS_THROTTLE1_SET",
+   "category": "Engine"
+  },
+  {
+   "name": "AXIS_THROTTLE2_SET",
+   "category": "Engine"
+  },
+  {
+   "name": "AXIS_THROTTLE3_SET",
+   "category": "Engine"
+  },
+  {
+   "name": "AXIS_THROTTLE4_SET",
+   "category": "Engine"
+  },
+  {
+   "name": "THROTTLE1_DECR_SMALL",
+   "category": "Engine"
+  },
+  {
+   "name": "THROTTLE2_DECR_SMALL",
+   "category": "Engine"
+  },
+  {
+   "name": "THROTTLE3_DECR_SMALL",
+   "category": "Engine"
+  },
+  {
+   "name": "THROTTLE4_DECR_SMALL",
+   "category": "Engine"
+  },
+  {
+   "name": "PROP_PITCH_DECR_SMALL",
+   "category": "Engine"
+  },
+  {
+   "name": "PROP_PITCH1_DECR_SMALL",
+   "category": "Engine"
+  },
+  {
+   "name": "PROP_PITCH2_DECR_SMALL",
+   "category": "Engine"
+  },
+  {
+   "name": "PROP_PITCH3_DECR_SMALL",
+   "category": "Engine"
+  },
+  {
+   "name": "PROP_PITCH4_DECR_SMALL",
+   "category": "Engine"
+  },
+  {
+   "name": "MIXTURE1_RICH",
+   "category": "Engine"
+  },
+  {
+   "name": "MIXTURE1_INCR",
+   "category": "Engine"
+  },
+  {
+   "name": "MIXTURE1_INCR_SMALL",
+   "category": "Engine"
+  },
+  {
+   "name": "MIXTURE1_DECR",
+   "category": "Engine"
+  },
+  {
+   "name": "MIXTURE1_LEAN",
+   "category": "Engine"
+  },
+  {
+   "name": "MIXTURE2_RICH",
+   "category": "Engine"
+  },
+  {
+   "name": "MIXTURE2_INCR",
+   "category": "Engine"
+  },
+  {
+   "name": "MIXTURE2_INCR_SMALL",
+   "category": "Engine"
+  },
+  {
+   "name": "MIXTURE2_DECR",
+   "category": "Engine"
+  },
+  {
+   "name": "MIXTURE2_LEAN",
+   "category": "Engine"
+  },
+  {
+   "name": "MIXTURE3_RICH",
+   "category": "Engine"
+  },
+  {
+   "name": "MIXTURE3_INCR",
+   "category": "Engine"
+  },
+  {
+   "name": "MIXTURE3_INCR_SMALL",
+   "category": "Engine"
+  },
+  {
+   "name": "MIXTURE3_DECR",
+   "category": "Engine"
+  },
+  {
+   "name": "MIXTURE3_LEAN",
+   "category": "Engine"
+  },
+  {
+   "name": "MIXTURE4_RICH",
+   "category": "Engine"
+  },
+  {
+   "name": "MIXTURE4_INCR",
+   "category": "Engine"
+  },
+  {
+   "name": "MIXTURE4_INCR_SMALL",
+   "category": "Engine"
+  },
+  {
+   "name": "MIXTURE4_DECR",
+   "category": "Engine"
+  },
+  {
+   "name": "MIXTURE4_LEAN",
+   "category": "Engine"
+  },
+  {
+   "name": "MIXTURE_SET",
+   "category": "Engine"
+  },
+  {
+   "name": "MIXTURE_RICH",
+   "category": "Engine"
+  },
+  {
+   "name": "MIXTURE_INCR",
+   "category": "Engine"
+  },
+  {
+   "name": "MIXTURE_INCR_SMALL",
+   "category": "Engine"
+  },
+  {
+   "name": "MIXTURE_DECR",
+   "category": "Engine"
+  },
+  {
+   "name": "MIXTURE_LEAN",
+   "category": "Engine"
+  },
+  {
+   "name": "MIXTURE1_SET",
+   "category": "Engine"
+  },
+  {
+   "name": "MIXTURE2_SET",
+   "category": "Engine"
+  },
+  {
+   "name": "MIXTURE3_SET",
+   "category": "Engine"
+  },
+  {
+   "name": "MIXTURE4_SET",
+   "category": "Engine"
+  },
+  {
+   "name": "AXIS_MIXTURE_SET",
+   "category": "Engine"
+  },
+  {
+   "name": "AXIS_MIXTURE1_SET",
+   "category": "Engine"
+  },
+  {
+   "name": "AXIS_MIXTURE2_SET",
+   "category": "Engine"
+  },
+  {
+   "name": "AXIS_MIXTURE3_SET",
+   "category": "Engine"
+  },
+  {
+   "name": "AXIS_MIXTURE4_SET",
+   "category": "Engine"
+  },
+  {
+   "name": "MIXTURE_SET_BEST",
+   "category": "Engine"
+  },
+  {
+   "name": "MIXTURE_DECR_SMALL",
+   "category": "Engine"
+  },
+  {
+   "name": "MIXTURE1_DECR_SMALL",
+   "category": "Engine"
+  },
+  {
+   "name": "MIXTURE2_DECR_SMALL",
+   "category": "Engine"
+  },
+  {
+   "name": "MIXTURE3_DECR_SMALL",
+   "category": "Engine"
+  },
+  {
+   "name": "MIXTURE4_DECR_SMALL",
+   "category": "Engine"
+  },
+  {
+   "name": "PROP_PITCH_SET",
+   "category": "Engine"
+  },
+  {
+   "name": "PROP_PITCH_LO",
+   "category": "Engine"
+  },
+  {
+   "name": "PROP_PITCH_INCR",
+   "category": "Engine"
+  },
+  {
+   "name": "PROP_PITCH_INCR_SMALL",
+   "category": "Engine"
+  },
+  {
+   "name": "PROP_PITCH_DECR",
+   "category": "Engine"
+  },
+  {
+   "name": "PROP_PITCH_HI",
+   "category": "Engine"
+  },
+  {
+   "name": "PROP_PITCH1_SET",
+   "category": "Engine"
+  },
+  {
+   "name": "PROP_PITCH2_SET",
+   "category": "Engine"
+  },
+  {
+   "name": "PROP_PITCH3_SET",
+   "category": "Engine"
+  },
+  {
+   "name": "PROP_PITCH4_SET",
+   "category": "Engine"
+  },
+  {
+   "name": "PROP_PITCH1_LO",
+   "category": "Engine"
+  },
+  {
+   "name": "PROP_PITCH1_INCR",
+   "category": "Engine"
+  },
+  {
+   "name": "PROP_PITCH1_INCR_SMALL",
+   "category": "Engine"
+  },
+  {
+   "name": "PROP_PITCH1_DECR",
+   "category": "Engine"
+  },
+  {
+   "name": "PROP_PITCH1_HI",
+   "category": "Engine"
+  },
+  {
+   "name": "PROP_PITCH2_LO",
+   "category": "Engine"
+  },
+  {
+   "name": "PROP_PITCH2_INCR",
+   "category": "Engine"
+  },
+  {
+   "name": "PROP_PITCH2_INCR_SMALL",
+   "category": "Engine"
+  },
+  {
+   "name": "PROP_PITCH2_DECR",
+   "category": "Engine"
+  },
+  {
+   "name": "PROP_PITCH2_HI",
+   "category": "Engine"
+  },
+  {
+   "name": "PROP_PITCH3_LO",
+   "category": "Engine"
+  },
+  {
+   "name": "PROP_PITCH3_INCR",
+   "category": "Engine"
+  },
+  {
+   "name": "PROP_PITCH3_INCR_SMALL",
+   "category": "Engine"
+  },
+  {
+   "name": "PROP_PITCH3_DECR",
+   "category": "Engine"
+  },
+  {
+   "name": "PROP_PITCH3_HI",
+   "category": "Engine"
+  },
+  {
+   "name": "PROP_PITCH4_LO",
+   "category": "Engine"
+  },
+  {
+   "name": "PROP_PITCH4_INCR",
+   "category": "Engine"
+  },
+  {
+   "name": "PROP_PITCH4_INCR_SMALL",
+   "category": "Engine"
+  },
+  {
+   "name": "PROP_PITCH4_DECR",
+   "category": "Engine"
+  },
+  {
+   "name": "PROP_PITCH4_HI",
+   "category": "Engine"
+  },
+  {
+   "name": "AXIS_PROPELLER_SET",
+   "category": "Engine"
+  },
+  {
+   "name": "AXIS_PROPELLER1_SET",
+   "category": "Engine"
+  },
+  {
+   "name": "AXIS_PROPELLER2_SET",
+   "category": "Engine"
+  },
+  {
+   "name": "AXIS_PROPELLER3_SET",
+   "category": "Engine"
+  },
+  {
+   "name": "AXIS_PROPELLER4_SET",
+   "category": "Engine"
+  },
+  {
+   "name": "JET_STARTER",
+   "category": "Engine"
+  },
+  {
+   "name": "MAGNETO_SET",
+   "category": "Engine"
+  },
+  {
+   "name": "TOGGLE_STARTER1",
+   "category": "Engine"
+  },
+  {
+   "name": "TOGGLE_STARTER2",
+   "category": "Engine"
+  },
+  {
+   "name": "TOGGLE_STARTER3",
+   "category": "Engine"
+  },
+  {
+   "name": "TOGGLE_STARTER4",
+   "category": "Engine"
+  },
+  {
+   "name": "TOGGLE_ALL_STARTERS",
+   "category": "Engine"
+  },
+  {
+   "name": "ENGINE_AUTO_START",
+   "category": "Engine"
+  },
+  {
+   "name": "ENGINE_AUTO_SHUTDOWN",
+   "category": "Engine"
+  },
+  {
+   "name": "MAGNETO",
+   "category": "Engine"
+  },
+  {
+   "name": "MAGNETO_DECR",
+   "category": "Engine"
+  },
+  {
+   "name": "MAGNETO_INCR",
+   "category": "Engine"
+  },
+  {
+   "name": "MAGNETO1_OFF",
+   "category": "Engine"
+  },
+  {
+   "name": "MAGNETO1_RIGHT",
+   "category": "Engine"
+  },
+  {
+   "name": "MAGNETO1_LEFT",
+   "category": "Engine"
+  },
+  {
+   "name": "MAGNETO1_BOTH",
+   "category": "Engine"
+  },
+  {
+   "name": "MAGNETO1_START",
+   "category": "Engine"
+  },
+  {
+   "name": "MAGNETO2_OFF",
+   "category": "Engine"
+  },
+  {
+   "name": "MAGNETO2_RIGHT",
+   "category": "Engine"
+  },
+  {
+   "name": "MAGNETO2_LEFT",
+   "category": "Engine"
+  },
+  {
+   "name": "MAGNETO2_BOTH",
+   "category": "Engine"
+  },
+  {
+   "name": "MAGNETO2_START",
+   "category": "Engine"
+  },
+  {
+   "name": "MAGNETO3_OFF",
+   "category": "Engine"
+  },
+  {
+   "name": "MAGNETO3_RIGHT",
+   "category": "Engine"
+  },
+  {
+   "name": "MAGNETO3_LEFT",
+   "category": "Engine"
+  },
+  {
+   "name": "MAGNETO3_BOTH",
+   "category": "Engine"
+  },
+  {
+   "name": "MAGNETO3_START",
+   "category": "Engine"
+  },
+  {
+   "name": "MAGNETO4_OFF",
+   "category": "Engine"
+  },
+  {
+   "name": "MAGNETO4_RIGHT",
+   "category": "Engine"
+  },
+  {
+   "name": "MAGNETO4_LEFT",
+   "category": "Engine"
+  },
+  {
+   "name": "MAGNETO4_BOTH",
+   "category": "Engine"
+  },
+  {
+   "name": "MAGNETO4_START",
+   "category": "Engine"
+  },
+  {
+   "name": "MAGNETO_OFF",
+   "category": "Engine"
+  },
+  {
+   "name": "MAGNETO_RIGHT",
+   "category": "Engine"
+  },
+  {
+   "name": "MAGNETO_LEFT",
+   "category": "Engine"
+  },
+  {
+   "name": "MAGNETO_BOTH",
+   "category": "Engine"
+  },
+  {
+   "name": "MAGNETO_START",
+   "category": "Engine"
+  },
+  {
+   "name": "MAGNETO1_DECR",
+   "category": "Engine"
+  },
+  {
+   "name": "MAGNETO1_INCR",
+   "category": "Engine"
+  },
+  {
+   "name": "MAGNETO2_DECR",
+   "category": "Engine"
+  },
+  {
+   "name": "MAGNETO2_INCR",
+   "category": "Engine"
+  },
+  {
+   "name": "MAGNETO3_DECR",
+   "category": "Engine"
+  },
+  {
+   "name": "MAGNETO3_INCR",
+   "category": "Engine"
+  },
+  {
+   "name": "MAGNETO4_DECR",
+   "category": "Engine"
+  },
+  {
+   "name": "MAGNETO4_INCR",
+   "category": "Engine"
+  },
+  {
+   "name": "Not supported",
+   "category": "Engine"
+  },
+  {
+   "name": "MAGNETO1_SET",
+   "category": "Engine"
+  },
+  {
+   "name": "MAGNETO2_SET",
+   "category": "Engine"
+  },
+  {
+   "name": "MAGNETO3_SET",
+   "category": "Engine"
+  },
+  {
+   "name": "MAGNETO4_SET",
+   "category": "Engine"
+  },
+  {
+   "name": "ANTI_ICE_ON",
+   "category": "Engine"
+  },
+  {
+   "name": "ANTI_ICE_OFF",
+   "category": "Engine"
+  },
+  {
+   "name": "ANTI_ICE_SET",
+   "category": "Engine"
+  },
+  {
+   "name": "ANTI_ICE_TOGGLE",
+   "category": "Engine"
+  },
+  {
+   "name": "ANTI_ICE_TOGGLE_ENG1",
+   "category": "Engine"
+  },
+  {
+   "name": "ANTI_ICE_TOGGLE_ENG2",
+   "category": "Engine"
+  },
+  {
+   "name": "ANTI_ICE_TOGGLE_ENG3",
+   "category": "Engine"
+  },
+  {
+   "name": "ANTI_ICE_TOGGLE_ENG4",
+   "category": "Engine"
+  },
+  {
+   "name": "ANTI_ICE_SET_ENG1",
+   "category": "Engine"
+  },
+  {
+   "name": "ANTI_ICE_SET_ENG2",
+   "category": "Engine"
+  },
+  {
+   "name": "ANTI_ICE_SET_ENG3",
+   "category": "Engine"
+  },
+  {
+   "name": "ANTI_ICE_SET_ENG4",
+   "category": "Engine"
+  },
+  {
+   "name": "TOGGLE_FUEL_VALVE_ALL",
+   "category": "Engine"
+  },
+  {
+   "name": "TOGGLE_FUEL_VALVE_ENG1",
+   "category": "Engine"
+  },
+  {
+   "name": "TOGGLE_FUEL_VALVE_ENG2",
+   "category": "Engine"
+  },
+  {
+   "name": "TOGGLE_FUEL_VALVE_ENG3",
+   "category": "Engine"
+  },
+  {
+   "name": "TOGGLE_FUEL_VALVE_ENG4",
+   "category": "Engine"
+  },
+  {
+   "name": "COWLFLAP1_SET",
+   "category": "Engine"
+  },
+  {
+   "name": "COWLFLAP2_SET",
+   "category": "Engine"
+  },
+  {
+   "name": "COWLFLAP3_SET",
+   "category": "Engine"
+  },
+  {
+   "name": "COWLFLAP4_SET",
+   "category": "Engine"
+  },
+  {
+   "name": "INC_COWL_FLAPS",
+   "category": "Engine"
+  },
+  {
+   "name": "DEC_COWL_FLAPS",
+   "category": "Engine"
+  },
+  {
+   "name": "INC_COWL_FLAPS1",
+   "category": "Engine"
+  },
+  {
+   "name": "DEC_COWL_FLAPS1",
+   "category": "Engine"
+  },
+  {
+   "name": "INC_COWL_FLAPS2",
+   "category": "Engine"
+  },
+  {
+   "name": "DEC_COWL_FLAPS2",
+   "category": "Engine"
+  },
+  {
+   "name": "INC_COWL_FLAPS3",
+   "category": "Engine"
+  },
+  {
+   "name": "DEC_COWL_FLAPS3",
+   "category": "Engine"
+  },
+  {
+   "name": "INC_COWL_FLAPS4",
+   "category": "Engine"
+  },
+  {
+   "name": "DEC_COWL_FLAPS4",
+   "category": "Engine"
+  },
+  {
+   "name": "FUEL_PUMP",
+   "category": "Engine"
+  },
+  {
+   "name": "TOGGLE_ELECT_FUEL_PUMP",
+   "category": "Engine"
+  },
+  {
+   "name": "TOGGLE_ELECT_FUEL_PUMP1",
+   "category": "Engine"
+  },
+  {
+   "name": "TOGGLE_ELECT_FUEL_PUMP2",
+   "category": "Engine"
+  },
+  {
+   "name": "TOGGLE_ELECT_FUEL_PUMP3",
+   "category": "Engine"
+  },
+  {
+   "name": "TOGGLE_ELECT_FUEL_PUMP4",
+   "category": "Engine"
+  },
+  {
+   "name": "ENGINE_PRIMER",
+   "category": "Engine"
+  },
+  {
+   "name": "TOGGLE_PRIMER",
+   "category": "Engine"
+  },
+  {
+   "name": "TOGGLE_PRIMER1",
+   "category": "Engine"
+  },
+  {
+   "name": "TOGGLE_PRIMER2",
+   "category": "Engine"
+  },
+  {
+   "name": "TOGGLE_PRIMER3",
+   "category": "Engine"
+  },
+  {
+   "name": "TOGGLE_PRIMER4",
+   "category": "Engine"
+  },
+  {
+   "name": "TOGGLE_FEATHER_SWITCHES",
+   "category": "Engine"
+  },
+  {
+   "name": "TOGGLE_FEATHER_SWITCH_1",
+   "category": "Engine"
+  },
+  {
+   "name": "TOGGLE_FEATHER_SWITCH_2",
+   "category": "Engine"
+  },
+  {
+   "name": "TOGGLE_FEATHER_SWITCH_3",
+   "category": "Engine"
+  },
+  {
+   "name": "TOGGLE_FEATHER_SWITCH_4",
+   "category": "Engine"
+  },
+  {
+   "name": "TOGGLE_PROPELLER_SYNC",
+   "category": "Engine"
+  },
+  {
+   "name": "TOGGLE_AUTOFEATHER_ARM",
+   "category": "Engine"
+  },
+  {
+   "name": "TOGGLE_AFTERBURNER",
+   "category": "Engine"
+  },
+  {
+   "name": "TOGGLE_AFTERBURNER1",
+   "category": "Engine"
+  },
+  {
+   "name": "TOGGLE_AFTERBURNER2",
+   "category": "Engine"
+  },
+  {
+   "name": "TOGGLE_AFTERBURNER3",
+   "category": "Engine"
+  },
+  {
+   "name": "TOGGLE_AFTERBURNER4",
+   "category": "Engine"
+  },
+  {
+   "name": "ENGINE",
+   "category": "Engine"
+  },
+  {
+   "name": "SPOILERS_TOGGLE",
+   "category": "Flight Controls"
+  },
+  {
+   "name": "FLAPS_UP",
+   "category": "Flight Controls"
+  },
+  {
+   "name": "FLAPS_1",
+   "category": "Flight Controls"
+  },
+  {
+   "name": "FLAPS_2",
+   "category": "Flight Controls"
+  },
+  {
+   "name": "FLAPS_3",
+   "category": "Flight Controls"
+  },
+  {
+   "name": "FLAPS_DOWN",
+   "category": "Flight Controls"
+  },
+  {
+   "name": "ELEV_TRIM_DN",
+   "category": "Flight Controls"
+  },
+  {
+   "name": "ELEV_DOWN",
+   "category": "Flight Controls"
+  },
+  {
+   "name": "AILERONS_LEFT",
+   "category": "Flight Controls"
+  },
+  {
+   "name": "CENTER_AILER_RUDDER",
+   "category": "Flight Controls"
+  },
+  {
+   "name": "AILERONS_RIGHT",
+   "category": "Flight Controls"
+  },
+  {
+   "name": "ELEV_TRIM_UP",
+   "category": "Flight Controls"
+  },
+  {
+   "name": "ELEV_UP",
+   "category": "Flight Controls"
+  },
+  {
+   "name": "Unsupported",
+   "category": "Flight Controls"
+  },
+  {
+   "name": "RUDDER_LEFT",
+   "category": "Flight Controls"
+  },
+  {
+   "name": "RUDDER_CENTER",
+   "category": "Flight Controls"
+  },
+  {
+   "name": "RUDDER_RIGHT",
+   "category": "Flight Controls"
+  },
+  {
+   "name": "ELEVATOR_SET",
+   "category": "Flight Controls"
+  },
+  {
+   "name": "AILERON_SET",
+   "category": "Flight Controls"
+  },
+  {
+   "name": "RUDDER_SET",
+   "category": "Flight Controls"
+  },
+  {
+   "name": "FLAPS_INCR",
+   "category": "Flight Controls"
+  },
+  {
+   "name": "FLAPS_DECR",
+   "category": "Flight Controls"
+  },
+  {
+   "name": "AXIS_ELEVATOR_SET",
+   "category": "Flight Controls"
+  },
+  {
+   "name": "AXIS_AILERONS_SET",
+   "category": "Flight Controls"
+  },
+  {
+   "name": "AXIS_RUDDER_SET",
+   "category": "Flight Controls"
+  },
+  {
+   "name": "AXIS_ELEV_TRIM_SET",
+   "category": "Flight Controls"
+  },
+  {
+   "name": "SPOILERS_SET",
+   "category": "Flight Controls"
+  },
+  {
+   "name": "SPOILERS_ARM_TOGGLE",
+   "category": "Flight Controls"
+  },
+  {
+   "name": "SPOILERS_ON",
+   "category": "Flight Controls"
+  },
+  {
+   "name": "SPOILERS_OFF",
+   "category": "Flight Controls"
+  },
+  {
+   "name": "SPOILERS_ARM_ON",
+   "category": "Flight Controls"
+  },
+  {
+   "name": "SPOILERS_ARM_OFF",
+   "category": "Flight Controls"
+  },
+  {
+   "name": "SPOILERS_ARM_SET",
+   "category": "Flight Controls"
+  },
+  {
+   "name": "AILERON_TRIM_LEFT",
+   "category": "Flight Controls"
+  },
+  {
+   "name": "AILERON_TRIM_RIGHT",
+   "category": "Flight Controls"
+  },
+  {
+   "name": "RUDDER_TRIM_LEFT",
+   "category": "Flight Controls"
+  },
+  {
+   "name": "RUDDER_TRIM_RIGHT",
+   "category": "Flight Controls"
+  },
+  {
+   "name": "AXIS_SPOILER_SET",
+   "category": "Flight Controls"
+  },
+  {
+   "name": "FLAPS_SET",
+   "category": "Flight Controls"
+  },
+  {
+   "name": "ELEVATOR_TRIM_SET",
+   "category": "Flight Controls"
+  },
+  {
+   "name": "AXIS_FLAPS_SET",
+   "category": "Flight Controls"
+  },
+  {
+   "name": "AP_MASTER",
+   "category": "Autopilot"
+  },
+  {
+   "name": "AUTOPILOT_OFF",
+   "category": "Autopilot"
+  },
+  {
+   "name": "AUTOPILOT_ON",
+   "category": "Autopilot"
+  },
+  {
+   "name": "YAW_DAMPER_TOGGLE",
+   "category": "Autopilot"
+  },
+  {
+   "name": "AP_PANEL_HEADING_HOLD",
+   "category": "Autopilot"
+  },
+  {
+   "name": "AP_PANEL_ALTITUDE_HOLD",
+   "category": "Autopilot"
+  },
+  {
+   "name": "AP_ATT_HOLD_ON",
+   "category": "Autopilot"
+  },
+  {
+   "name": "AP_LOC_HOLD_ON",
+   "category": "Autopilot"
+  },
+  {
+   "name": "AP_APR_HOLD_ON",
+   "category": "Autopilot"
+  },
+  {
+   "name": "AP_HDG_HOLD_ON",
+   "category": "Autopilot"
+  },
+  {
+   "name": "AP_ALT_HOLD_ON",
+   "category": "Autopilot"
+  },
+  {
+   "name": "AP_WING_LEVELER_ON",
+   "category": "Autopilot"
+  },
+  {
+   "name": "AP_BC_HOLD_ON",
+   "category": "Autopilot"
+  },
+  {
+   "name": "AP_NAV1_HOLD_ON",
+   "category": "Autopilot"
+  },
+  {
+   "name": "AP_ATT_HOLD_OFF",
+   "category": "Autopilot"
+  },
+  {
+   "name": "AP_LOC_HOLD_OFF",
+   "category": "Autopilot"
+  },
+  {
+   "name": "AP_APR_HOLD_OFF",
+   "category": "Autopilot"
+  },
+  {
+   "name": "AP_HDG_HOLD_OFF",
+   "category": "Autopilot"
+  },
+  {
+   "name": "AP_ALT_HOLD_OFF",
+   "category": "Autopilot"
+  },
+  {
+   "name": "AP_WING_LEVELER_OFF",
+   "category": "Autopilot"
+  },
+  {
+   "name": "AP_BC_HOLD_OFF",
+   "category": "Autopilot"
+  },
+  {
+   "name": "AP_NAV1_HOLD_OFF",
+   "category": "Autopilot"
+  },
+  {
+   "name": "AP_AIRSPEED_HOLD",
+   "category": "Autopilot"
+  },
+  {
+   "name": "AUTO_THROTTLE_ARM",
+   "category": "Autopilot"
+  },
+  {
+   "name": "AUTO_THROTTLE_TO_GA",
+   "category": "Autopilot"
+  },
+  {
+   "name": "HEADING_BUG_INC",
+   "category": "Autopilot"
+  },
+  {
+   "name": "HEADING_BUG_DEC",
+   "category": "Autopilot"
+  },
+  {
+   "name": "HEADING_BUG_SET",
+   "category": "Autopilot"
+  },
+  {
+   "name": "AP_PANEL_SPEED_HOLD",
+   "category": "Autopilot"
+  },
+  {
+   "name": "AP_ALT_VAR_INC",
+   "category": "Autopilot"
+  },
+  {
+   "name": "AP_ALT_VAR_DEC",
+   "category": "Autopilot"
+  },
+  {
+   "name": "AP_VS_VAR_INC",
+   "category": "Autopilot"
+  },
+  {
+   "name": "AP_VS_VAR_DEC",
+   "category": "Autopilot"
+  },
+  {
+   "name": "AP_SPD_VAR_INC",
+   "category": "Autopilot"
+  },
+  {
+   "name": "AP_SPD_VAR_DEC",
+   "category": "Autopilot"
+  },
+  {
+   "name": "AP_PANEL_MACH_HOLD",
+   "category": "Autopilot"
+  },
+  {
+   "name": "AP_MACH_VAR_INC",
+   "category": "Autopilot"
+  },
+  {
+   "name": "AP_MACH_VAR_DEC",
+   "category": "Autopilot"
+  },
+  {
+   "name": "AP_MACH_HOLD",
+   "category": "Autopilot"
+  },
+  {
+   "name": "AP_ALT_VAR_SET_METRIC",
+   "category": "Autopilot"
+  },
+  {
+   "name": "AP_VS_VAR_SET_ENGLISH",
+   "category": "Autopilot"
+  },
+  {
+   "name": "AP_SPD_VAR_SET",
+   "category": "Autopilot"
+  },
+  {
+   "name": "AP_MACH_VAR_SET",
+   "category": "Autopilot"
+  },
+  {
+   "name": "YAW_DAMPER_ON",
+   "category": "Autopilot"
+  },
+  {
+   "name": "YAW_DAMPER_OFF",
+   "category": "Autopilot"
+  },
+  {
+   "name": "YAW_DAMPER_SET",
+   "category": "Autopilot"
+  },
+  {
+   "name": "AP_AIRSPEED_ON",
+   "category": "Autopilot"
+  },
+  {
+   "name": "AP_AIRSPEED_OFF",
+   "category": "Autopilot"
+  },
+  {
+   "name": "AP_AIRSPEED_SET",
+   "category": "Autopilot"
+  },
+  {
+   "name": "AP_MACH_ON",
+   "category": "Autopilot"
+  },
+  {
+   "name": "AP_MACH_OFF",
+   "category": "Autopilot"
+  },
+  {
+   "name": "AP_MACH_SET",
+   "category": "Autopilot"
+  },
+  {
+   "name": "AP_PANEL_ALTITUDE_ON",
+   "category": "Autopilot"
+  },
+  {
+   "name": "AP_PANEL_ALTITUDE_OFF",
+   "category": "Autopilot"
+  },
+  {
+   "name": "AP_PANEL_ALTITUDE_SET",
+   "category": "Autopilot"
+  },
+  {
+   "name": "AP_PANEL_HEADING_ON",
+   "category": "Autopilot"
+  },
+  {
+   "name": "AP_PANEL_HEADING_OFF",
+   "category": "Autopilot"
+  },
+  {
+   "name": "AP_PANEL_HEADING_SET",
+   "category": "Autopilot"
+  },
+  {
+   "name": "AP_PANEL_MACH_ON",
+   "category": "Autopilot"
+  },
+  {
+   "name": "AP_PANEL_MACH_OFF",
+   "category": "Autopilot"
+  },
+  {
+   "name": "AP_PANEL_MACH_SET",
+   "category": "Autopilot"
+  },
+  {
+   "name": "AP_PANEL_SPEED_ON",
+   "category": "Autopilot"
+  },
+  {
+   "name": "AP_PANEL_SPEED_OFF",
+   "category": "Autopilot"
+  },
+  {
+   "name": "AP_PANEL_SPEED_SET",
+   "category": "Autopilot"
+  },
+  {
+   "name": "AP_ALT_VAR_SET_ENGLISH",
+   "category": "Autopilot"
+  },
+  {
+   "name": "AP_VS_VAR_SET_METRIC",
+   "category": "Autopilot"
+  },
+  {
+   "name": "TOGGLE_FLIGHT_DIRECTOR",
+   "category": "Autopilot"
+  },
+  {
+   "name": "SYNC_FLIGHT_DIRECTOR_PITCH",
+   "category": "Autopilot"
+  },
+  {
+   "name": "INCREASE_AUTOBRAKE_CONTROL",
+   "category": "Autopilot"
+  },
+  {
+   "name": "DECREASE_AUTOBRAKE_CONTROL",
+   "category": "Autopilot"
+  },
+  {
+   "name": "AP_PANEL_SPEED_HOLD_TOGGLE",
+   "category": "Autopilot"
+  },
+  {
+   "name": "AP_PANEL_MACH_HOLD_TOGGLE",
+   "category": "Autopilot"
+  },
+  {
+   "name": "AP_NAV_SELECT_SET",
+   "category": "Autopilot"
+  },
+  {
+   "name": "HEADING_BUG_SELECT",
+   "category": "Autopilot"
+  },
+  {
+   "name": "ALTITUDE_BUG_SELECT",
+   "category": "Autopilot"
+  },
+  {
+   "name": "VSI_BUG_SELECT",
+   "category": "Autopilot"
+  },
+  {
+   "name": "AIRSPEED_BUG_SELECT",
+   "category": "Autopilot"
+  },
+  {
+   "name": "AP_PITCH_REF_INC_UP",
+   "category": "Autopilot"
+  },
+  {
+   "name": "AP_PITCH_REF_INC_DN",
+   "category": "Autopilot"
+  },
+  {
+   "name": "AP_PITCH_REF_SELECT",
+   "category": "Autopilot"
+  },
+  {
+   "name": "AP_ATT_HOLD",
+   "category": "Autopilot"
+  },
+  {
+   "name": "AP_LOC_HOLD",
+   "category": "Autopilot"
+  },
+  {
+   "name": "AP_APR_HOLD",
+   "category": "Autopilot"
+  },
+  {
+   "name": "AP_HDG_HOLD",
+   "category": "Autopilot"
+  },
+  {
+   "name": "AP_ALT_HOLD",
+   "category": "Autopilot"
+  },
+  {
+   "name": "AP_WING_LEVELER",
+   "category": "Autopilot"
+  },
+  {
+   "name": "AP_BC_HOLD",
+   "category": "Autopilot"
+  },
+  {
+   "name": "AP_NAV1_HOLD",
+   "category": "Autopilot"
+  },
+  {
+   "name": "AP_MAX_BANK_INC",
+   "category": "Autopilot"
+  },
+  {
+   "name": "AP_MAX_BANK_DEC",
+   "category": "Autopilot"
+  },
+  {
+   "name": "AP_N1_HOLD",
+   "category": "Autopilot"
+  },
+  {
+   "name": "AP_N1_REF_INC",
+   "category": "Autopilot"
+  },
+  {
+   "name": "AP_N1_REF_DEC",
+   "category": "Autopilot"
+  },
+  {
+   "name": "AP_N1_REF_SET",
+   "category": "Autopilot"
+  },
+  {
+   "name": "FLY_BY_WIRE_ELAC_TOGGLE",
+   "category": "Autopilot"
+  },
+  {
+   "name": "FLY_BY_WIRE_FAC_TOGGLE",
+   "category": "Autopilot"
+  },
+  {
+   "name": "FLY_BY_WIRE_SEC_TOGGLE",
+   "category": "Autopilot"
+  },
+  {
+   "name": "AP_VS_HOLD",
+   "category": "Autopilot"
+  },
+  {
+   "name": "FLIGHT_LEVEL_CHANGE",
+   "category": "Autopilot"
+  },
+  {
+   "name": "FUEL_SELECTOR_OFF",
+   "category": "Fuel System"
+  },
+  {
+   "name": "FUEL_SELECTOR_ALL",
+   "category": "Fuel System"
+  },
+  {
+   "name": "FUEL_SELECTOR_LEFT",
+   "category": "Fuel System"
+  },
+  {
+   "name": "FUEL_SELECTOR_RIGHT",
+   "category": "Fuel System"
+  },
+  {
+   "name": "FUEL_SELECTOR_LEFT_AUX",
+   "category": "Fuel System"
+  },
+  {
+   "name": "FUEL_SELECTOR_RIGHT_AUX",
+   "category": "Fuel System"
+  },
+  {
+   "name": "FUEL_SELECTOR_CENTER",
+   "category": "Fuel System"
+  },
+  {
+   "name": "FUEL_SELECTOR_SET",
+   "category": "Fuel System"
+  },
+  {
+   "name": "FUEL_SELECTOR_2_OFF",
+   "category": "Fuel System"
+  },
+  {
+   "name": "FUEL_SELECTOR_2_ALL",
+   "category": "Fuel System"
+  },
+  {
+   "name": "FUEL_SELECTOR_2_LEFT",
+   "category": "Fuel System"
+  },
+  {
+   "name": "FUEL_SELECTOR_2_RIGHT",
+   "category": "Fuel System"
+  },
+  {
+   "name": "FUEL_SELECTOR_2_LEFT_AUX",
+   "category": "Fuel System"
+  },
+  {
+   "name": "FUEL_SELECTOR_2_RIGHT_AUX",
+   "category": "Fuel System"
+  },
+  {
+   "name": "FUEL_SELECTOR_2_CENTER",
+   "category": "Fuel System"
+  },
+  {
+   "name": "FUEL_SELECTOR_2_SET",
+   "category": "Fuel System"
+  },
+  {
+   "name": "FUEL_SELECTOR_3_OFF",
+   "category": "Fuel System"
+  },
+  {
+   "name": "FUEL_SELECTOR_3_ALL",
+   "category": "Fuel System"
+  },
+  {
+   "name": "FUEL_SELECTOR_3_LEFT",
+   "category": "Fuel System"
+  },
+  {
+   "name": "FUEL_SELECTOR_3_RIGHT",
+   "category": "Fuel System"
+  },
+  {
+   "name": "FUEL_SELECTOR_3_LEFT_AUX",
+   "category": "Fuel System"
+  },
+  {
+   "name": "FUEL_SELECTOR_3_RIGHT_AUX",
+   "category": "Fuel System"
+  },
+  {
+   "name": "FUEL_SELECTOR_3_CENTER",
+   "category": "Fuel System"
+  },
+  {
+   "name": "FUEL_SELECTOR_3_SET",
+   "category": "Fuel System"
+  },
+  {
+   "name": "FUEL_SELECTOR_4_OFF",
+   "category": "Fuel System"
+  },
+  {
+   "name": "FUEL_SELECTOR_4_ALL",
+   "category": "Fuel System"
+  },
+  {
+   "name": "FUEL_SELECTOR_4_LEFT",
+   "category": "Fuel System"
+  },
+  {
+   "name": "FUEL_SELECTOR_4_RIGHT",
+   "category": "Fuel System"
+  },
+  {
+   "name": "FUEL_SELECTOR_4_LEFT_AUX",
+   "category": "Fuel System"
+  },
+  {
+   "name": "FUEL_SELECTOR_4_RIGHT_AUX",
+   "category": "Fuel System"
+  },
+  {
+   "name": "FUEL_SELECTOR_4_CENTER",
+   "category": "Fuel System"
+  },
+  {
+   "name": "FUEL_SELECTOR_4_SET",
+   "category": "Fuel System"
+  },
+  {
+   "name": "CROSS_FEED_OPEN",
+   "category": "Fuel System"
+  },
+  {
+   "name": "CROSS_FEED_TOGGLE",
+   "category": "Fuel System"
+  },
+  {
+   "name": "CROSS_FEED_OFF",
+   "category": "Fuel System"
+  },
+  {
+   "name": "FUEL_DUMP_SWITCH_SET",
+   "category": "Fuel System"
+  },
+  {
+   "name": "ANTIDETONATION_TANK_VALVE_TOGGLE",
+   "category": "Fuel System"
+  },
+  {
+   "name": "NITROUS_TANK_VALVE_TOGGLE",
+   "category": "Fuel System"
+  },
+  {
+   "name": "REPAIR_AND_REFUEL",
+   "category": "Fuel System"
+  },
+  {
+   "name": "FUEL_DUMP_TOGGLE",
+   "category": "Fuel System"
+  },
+  {
+   "name": "REQUEST_FUEL_KEY",
+   "category": "Fuel System"
+  },
+  {
+   "name": "FUEL_SELECTOR_LEFT_MAIN",
+   "category": "Fuel Selection Keys"
+  },
+  {
+   "name": "FUEL_SELECTOR_2_LEFT_MAIN",
+   "category": "Fuel Selection Keys"
+  },
+  {
+   "name": "FUEL_SELECTOR_3_LEFT_MAIN",
+   "category": "Fuel Selection Keys"
+  },
+  {
+   "name": "FUEL_SELECTOR_4_LEFT_MAIN",
+   "category": "Fuel Selection Keys"
+  },
+  {
+   "name": "FUEL_SELECTOR_RIGHT_MAIN",
+   "category": "Fuel Selection Keys"
+  },
+  {
+   "name": "FUEL_SELECTOR_2_RIGHT_MAIN",
+   "category": "Fuel Selection Keys"
+  },
+  {
+   "name": "FUEL_SELECTOR_3_RIGHT_MAIN",
+   "category": "Fuel Selection Keys"
+  },
+  {
+   "name": "FUEL_SELECTOR_4_RIGHT_MAIN",
+   "category": "Fuel Selection Keys"
+  },
+  {
+   "name": "XPNDR",
+   "category": "Avionics"
+  },
+  {
+   "name": "ADF",
+   "category": "Avionics"
+  },
+  {
+   "name": "DME",
+   "category": "Avionics"
+  },
+  {
+   "name": "COM_RADIO",
+   "category": "Avionics"
+  },
+  {
+   "name": "VOR_OBS",
+   "category": "Avionics"
+  },
+  {
+   "name": "NAV_RADIO",
+   "category": "Avionics"
+  },
+  {
+   "name": "COM_RADIO_WHOLE_DEC",
+   "category": "Avionics"
+  },
+  {
+   "name": "COM_RADIO_WHOLE_INC",
+   "category": "Avionics"
+  },
+  {
+   "name": "COM_RADIO_FRACT_DEC",
+   "category": "Avionics"
+  },
+  {
+   "name": "COM_RADIO_FRACT_INC",
+   "category": "Avionics"
+  },
+  {
+   "name": "NAV1_RADIO_WHOLE_DEC",
+   "category": "Avionics"
+  },
+  {
+   "name": "NAV1_RADIO_WHOLE_INC",
+   "category": "Avionics"
+  },
+  {
+   "name": "NAV1_RADIO_FRACT_DEC",
+   "category": "Avionics"
+  },
+  {
+   "name": "NAV1_RADIO_FRACT_INC",
+   "category": "Avionics"
+  },
+  {
+   "name": "NAV2_RADIO_WHOLE_DEC",
+   "category": "Avionics"
+  },
+  {
+   "name": "NAV2_RADIO_WHOLE_INC",
+   "category": "Avionics"
+  },
+  {
+   "name": "NAV2_RADIO_FRACT_DEC",
+   "category": "Avionics"
+  },
+  {
+   "name": "NAV2_RADIO_FRACT_INC",
+   "category": "Avionics"
+  },
+  {
+   "name": "ADF_100_INC",
+   "category": "Avionics"
+  },
+  {
+   "name": "ADF_10_INC",
+   "category": "Avionics"
+  },
+  {
+   "name": "ADF_1_INC",
+   "category": "Avionics"
+  },
+  {
+   "name": "XPNDR_1000_INC",
+   "category": "Avionics"
+  },
+  {
+   "name": "XPNDR_100_INC",
+   "category": "Avionics"
+  },
+  {
+   "name": "XPNDR_10_INC",
+   "category": "Avionics"
+  },
+  {
+   "name": "XPNDR_1_INC",
+   "category": "Avionics"
+  },
+  {
+   "name": "VOR1_OBI_DEC",
+   "category": "Avionics"
+  },
+  {
+   "name": "VOR1_OBI_INC",
+   "category": "Avionics"
+  },
+  {
+   "name": "VOR2_OBI_DEC",
+   "category": "Avionics"
+  },
+  {
+   "name": "VOR2_OBI_INC",
+   "category": "Avionics"
+  },
+  {
+   "name": "ADF_100_DEC",
+   "category": "Avionics"
+  },
+  {
+   "name": "ADF_10_DEC",
+   "category": "Avionics"
+  },
+  {
+   "name": "ADF_1_DEC",
+   "category": "Avionics"
+  },
+  {
+   "name": "COM_RADIO_SET",
+   "category": "Avionics"
+  },
+  {
+   "name": "NAV1_RADIO_SET",
+   "category": "Avionics"
+  },
+  {
+   "name": "NAV2_RADIO_SET",
+   "category": "Avionics"
+  },
+  {
+   "name": "ADF_SET",
+   "category": "Avionics"
+  },
+  {
+   "name": "XPNDR_SET",
+   "category": "Avionics"
+  },
+  {
+   "name": "VOR1_SET",
+   "category": "Avionics"
+  },
+  {
+   "name": "VOR2_SET",
+   "category": "Avionics"
+  },
+  {
+   "name": "DME1_TOGGLE",
+   "category": "Avionics"
+  },
+  {
+   "name": "DME2_TOGGLE",
+   "category": "Avionics"
+  },
+  {
+   "name": "RADIO_VOR1_IDENT_DISABLE",
+   "category": "Avionics"
+  },
+  {
+   "name": "RADIO_VOR2_IDENT_DISABLE",
+   "category": "Avionics"
+  },
+  {
+   "name": "RADIO_DME1_IDENT_DISABLE",
+   "category": "Avionics"
+  },
+  {
+   "name": "RADIO_DME2_IDENT_DISABLE",
+   "category": "Avionics"
+  },
+  {
+   "name": "RADIO_ADF_IDENT_DISABLE",
+   "category": "Avionics"
+  },
+  {
+   "name": "RADIO_VOR1_IDENT_ENABLE",
+   "category": "Avionics"
+  },
+  {
+   "name": "RADIO_VOR2_IDENT_ENABLE",
+   "category": "Avionics"
+  },
+  {
+   "name": "RADIO_DME1_IDENT_ENABLE",
+   "category": "Avionics"
+  },
+  {
+   "name": "RADIO_DME2_IDENT_ENABLE",
+   "category": "Avionics"
+  },
+  {
+   "name": "RADIO_ADF_IDENT_ENABLE",
+   "category": "Avionics"
+  },
+  {
+   "name": "RADIO_VOR1_IDENT_TOGGLE",
+   "category": "Avionics"
+  },
+  {
+   "name": "RADIO_VOR2_IDENT_TOGGLE",
+   "category": "Avionics"
+  },
+  {
+   "name": "RADIO_DME1_IDENT_TOGGLE",
+   "category": "Avionics"
+  },
+  {
+   "name": "RADIO_DME2_IDENT_TOGGLE",
+   "category": "Avionics"
+  },
+  {
+   "name": "RADIO_ADF_IDENT_TOGGLE",
+   "category": "Avionics"
+  },
+  {
+   "name": "RADIO_VOR1_IDENT_SET",
+   "category": "Avionics"
+  },
+  {
+   "name": "RADIO_VOR2_IDENT_SET",
+   "category": "Avionics"
+  },
+  {
+   "name": "RADIO_DME1_IDENT_SET",
+   "category": "Avionics"
+  },
+  {
+   "name": "RADIO_DME2_IDENT_SET",
+   "category": "Avionics"
+  },
+  {
+   "name": "RADIO_ADF_IDENT_SET",
+   "category": "Avionics"
+  },
+  {
+   "name": "ADF_CARD_INC",
+   "category": "Avionics"
+  },
+  {
+   "name": "ADF_CARD_DEC",
+   "category": "Avionics"
+  },
+  {
+   "name": "ADF_CARD_SET",
+   "category": "Avionics"
+  },
+  {
+   "name": "TOGGLE_DME",
+   "category": "Avionics"
+  },
+  {
+   "name": "AVIONICS_MASTER_SET",
+   "category": "Avionics"
+  },
+  {
+   "name": "TOGGLE_AVIONICS_MASTER",
+   "category": "Avionics"
+  },
+  {
+   "name": "COM_STBY_RADIO_SET",
+   "category": "Avionics"
+  },
+  {
+   "name": "COM_STBY_RADIO_SWAP",
+   "category": "Avionics"
+  },
+  {
+   "name": "COM_RADIO_FRACT_DEC_CARRY",
+   "category": "Avionics"
+  },
+  {
+   "name": "COM_RADIO_FRACT_INC_CARRY",
+   "category": "Avionics"
+  },
+  {
+   "name": "COM2_RADIO_WHOLE_DEC",
+   "category": "Avionics"
+  },
+  {
+   "name": "COM2_RADIO_WHOLE_INC",
+   "category": "Avionics"
+  },
+  {
+   "name": "COM2_RADIO_FRACT_DEC",
+   "category": "Avionics"
+  },
+  {
+   "name": "COM2_RADIO_FRACT_DEC_CARRY",
+   "category": "Avionics"
+  },
+  {
+   "name": "COM2_RADIO_FRACT_INC",
+   "category": "Avionics"
+  },
+  {
+   "name": "COM2_RADIO_FRACT_INC_CARRY",
+   "category": "Avionics"
+  },
+  {
+   "name": "COM2_RADIO_SET",
+   "category": "Avionics"
+  },
+  {
+   "name": "COM2_STBY_RADIO_SET",
+   "category": "Avionics"
+  },
+  {
+   "name": "COM2_RADIO_SWAP",
+   "category": "Avionics"
+  },
+  {
+   "name": "NAV1_RADIO_FRACT_DEC_CARRY",
+   "category": "Avionics"
+  },
+  {
+   "name": "NAV1_RADIO_FRACT_INC_CARRY",
+   "category": "Avionics"
+  },
+  {
+   "name": "NAV1_STBY_SET",
+   "category": "Avionics"
+  },
+  {
+   "name": "NAV1_RADIO_SWAP",
+   "category": "Avionics"
+  },
+  {
+   "name": "NAV2_RADIO_FRACT_DEC_CARRY",
+   "category": "Avionics"
+  },
+  {
+   "name": "NAV2_RADIO_FRACT_INC_CARRY",
+   "category": "Avionics"
+  },
+  {
+   "name": "NAV2_STBY_SET",
+   "category": "Avionics"
+  },
+  {
+   "name": "NAV2_RADIO_SWAP",
+   "category": "Avionics"
+  },
+  {
+   "name": "ADF1_RADIO_TENTHS_DEC",
+   "category": "Avionics"
+  },
+  {
+   "name": "ADF1_RADIO_TENTHS_INC",
+   "category": "Avionics"
+  },
+  {
+   "name": "XPNDR_1000_DEC",
+   "category": "Avionics"
+  },
+  {
+   "name": "XPNDR_100_DEC",
+   "category": "Avionics"
+  },
+  {
+   "name": "XPNDR_10_DEC",
+   "category": "Avionics"
+  },
+  {
+   "name": "XPNDR_1_DEC",
+   "category": "Avionics"
+  },
+  {
+   "name": "XPNDR_DEC_CARRY",
+   "category": "Avionics"
+  },
+  {
+   "name": "XPNDR_INC_CARRY",
+   "category": "Avionics"
+  },
+  {
+   "name": "ADF_FRACT_DEC_CARRY",
+   "category": "Avionics"
+  },
+  {
+   "name": "ADF_FRACT_INC_CARRY",
+   "category": "Avionics"
+  },
+  {
+   "name": "COM1_TRANSMIT_SELECT",
+   "category": "Avionics"
+  },
+  {
+   "name": "COM2_TRANSMIT_SELECT",
+   "category": "Avionics"
+  },
+  {
+   "name": "COM_RECEIVE_ALL_TOGGLE",
+   "category": "Avionics"
+  },
+  {
+   "name": "COM_RECEIVE_ALL_SET",
+   "category": "Avionics"
+  },
+  {
+   "name": "MARKER_SOUND_TOGGLE",
+   "category": "Avionics"
+  },
+  {
+   "name": "ADF_COMPLETE_SET",
+   "category": "Avionics"
+  },
+  {
+   "name": "ADF1_WHOLE_INC",
+   "category": "Avionics"
+  },
+  {
+   "name": "ADF1_WHOLE_DEC",
+   "category": "Avionics"
+  },
+  {
+   "name": "ADF2_100_INC",
+   "category": "Avionics"
+  },
+  {
+   "name": "ADF2_10_INC",
+   "category": "Avionics"
+  },
+  {
+   "name": "ADF2_1_INC",
+   "category": "Avionics"
+  },
+  {
+   "name": "ADF2_RADIO_TENTHS_INC",
+   "category": "Avionics"
+  },
+  {
+   "name": "ADF2_100_DEC",
+   "category": "Avionics"
+  },
+  {
+   "name": "ADF2_10_DEC",
+   "category": "Avionics"
+  },
+  {
+   "name": "ADF2_1_DEC",
+   "category": "Avionics"
+  },
+  {
+   "name": "ADF2_RADIO_TENTHS_DEC",
+   "category": "Avionics"
+  },
+  {
+   "name": "ADF2_WHOLE_INC",
+   "category": "Avionics"
+  },
+  {
+   "name": "ADF2_WHOLE_DEC",
+   "category": "Avionics"
+  },
+  {
+   "name": "ADF2_FRACT_DEC_CARRY",
+   "category": "Avionics"
+  },
+  {
+   "name": "ADF2_FRACT_INC_CARRY",
+   "category": "Avionics"
+  },
+  {
+   "name": "ADF2_COMPLETE_SET",
+   "category": "Avionics"
+  },
+  {
+   "name": "RADIO_ADF2_IDENT_DISABLE",
+   "category": "Avionics"
+  },
+  {
+   "name": "RADIO_ADF2_IDENT_ENABLE",
+   "category": "Avionics"
+  },
+  {
+   "name": "RADIO_ADF2_IDENT_TOGGLE",
+   "category": "Avionics"
+  },
+  {
+   "name": "RADIO_ADF2_IDENT_SET",
+   "category": "Avionics"
+  },
+  {
+   "name": "FREQUENCY_SWAP",
+   "category": "Avionics"
+  },
+  {
+   "name": "TOGGLE_GPS_DRIVES_NAV1",
+   "category": "Avionics"
+  },
+  {
+   "name": "GPS_POWER_BUTTON",
+   "category": "Avionics"
+  },
+  {
+   "name": "GPS_NEAREST_BUTTON",
+   "category": "Avionics"
+  },
+  {
+   "name": "GPS_OBS_BUTTON",
+   "category": "Avionics"
+  },
+  {
+   "name": "GPS_MSG_BUTTON",
+   "category": "Avionics"
+  },
+  {
+   "name": "GPS_MSG_BUTTON_DOWN",
+   "category": "Avionics"
+  },
+  {
+   "name": "GPS_MSG_BUTTON_UP",
+   "category": "Avionics"
+  },
+  {
+   "name": "GPS_FLIGHTPLAN_BUTTON",
+   "category": "Avionics"
+  },
+  {
+   "name": "GPS_TERRAIN_BUTTON",
+   "category": "Avionics"
+  },
+  {
+   "name": "GPS_PROCEDURE_BUTTON",
+   "category": "Avionics"
+  },
+  {
+   "name": "GPS_ZOOMIN_BUTTON",
+   "category": "Avionics"
+  },
+  {
+   "name": "GPS_ZOOMOUT_BUTTON",
+   "category": "Avionics"
+  },
+  {
+   "name": "GPS_DIRECTTO_BUTTON",
+   "category": "Avionics"
+  },
+  {
+   "name": "GPS_MENU_BUTTON",
+   "category": "Avionics"
+  },
+  {
+   "name": "GPS_CLEAR_BUTTON",
+   "category": "Avionics"
+  },
+  {
+   "name": "GPS_CLEAR_ALL_BUTTON",
+   "category": "Avionics"
+  },
+  {
+   "name": "GPS_CLEAR_BUTTON_DOWN",
+   "category": "Avionics"
+  },
+  {
+   "name": "GPS_CLEAR_BUTTON_UP",
+   "category": "Avionics"
+  },
+  {
+   "name": "GPS_ENTER_BUTTON",
+   "category": "Avionics"
+  },
+  {
+   "name": "GPS_CURSOR_BUTTON",
+   "category": "Avionics"
+  },
+  {
+   "name": "GPS_GROUP_KNOB_INC",
+   "category": "Avionics"
+  },
+  {
+   "name": "GPS_GROUP_KNOB_DEC",
+   "category": "Avionics"
+  },
+  {
+   "name": "GPS_PAGE_KNOB_INC",
+   "category": "Avionics"
+  },
+  {
+   "name": "GPS_PAGE_KNOB_DEC",
+   "category": "Avionics"
+  },
+  {
+   "name": "DME_SELECT",
+   "category": "Avionics"
+  },
+  {
+   "name": "RADIO_SELECTED_DME_IDENT_ENABLE",
+   "category": "Avionics"
+  },
+  {
+   "name": "RADIO_SELECTED_DME_IDENT_DISABLE",
+   "category": "Avionics"
+  },
+  {
+   "name": "RADIO_SELECTED_DME_IDENT_SET",
+   "category": "Avionics"
+  },
+  {
+   "name": "RADIO_SELECTED_DME_IDENT_TOGGLE",
+   "category": "Avionics"
+  },
+  {
+   "name": "EGT",
+   "category": "Instruments"
+  },
+  {
+   "name": "EGT_INC",
+   "category": "Instruments"
+  },
+  {
+   "name": "EGT_DEC",
+   "category": "Instruments"
+  },
+  {
+   "name": "EGT_SET",
+   "category": "Instruments"
+  },
+  {
+   "name": "BAROMETRIC",
+   "category": "Instruments"
+  },
+  {
+   "name": "GYRO_DRIFT_INC",
+   "category": "Instruments"
+  },
+  {
+   "name": "GYRO_DRIFT_DEC",
+   "category": "Instruments"
+  },
+  {
+   "name": "KOHLSMAN_INC",
+   "category": "Instruments"
+  },
+  {
+   "name": "KOHLSMAN_DEC",
+   "category": "Instruments"
+  },
+  {
+   "name": "KOHLSMAN_SET",
+   "category": "Instruments"
+  },
+  {
+   "name": "TRUE_AIRSPEED_CAL_INC",
+   "category": "Instruments"
+  },
+  {
+   "name": "TRUE_AIRSPEED_CAL_DEC",
+   "category": "Instruments"
+  },
+  {
+   "name": "TRUE_AIRSPEED_CAL_SET",
+   "category": "Instruments"
+  },
+  {
+   "name": "EGT1_INC",
+   "category": "Instruments"
+  },
+  {
+   "name": "EGT1_DEC",
+   "category": "Instruments"
+  },
+  {
+   "name": "EGT1_SET",
+   "category": "Instruments"
+  },
+  {
+   "name": "EGT2_INC",
+   "category": "Instruments"
+  },
+  {
+   "name": "EGT2_DEC",
+   "category": "Instruments"
+  },
+  {
+   "name": "EGT2_SET",
+   "category": "Instruments"
+  },
+  {
+   "name": "EGT3_INC",
+   "category": "Instruments"
+  },
+  {
+   "name": "EGT3_DEC",
+   "category": "Instruments"
+  },
+  {
+   "name": "EGT3_SET",
+   "category": "Instruments"
+  },
+  {
+   "name": "EGT4_INC",
+   "category": "Instruments"
+  },
+  {
+   "name": "EGT4_DEC",
+   "category": "Instruments"
+  },
+  {
+   "name": "EGT4_SET",
+   "category": "Instruments"
+  },
+  {
+   "name": "ATTITUDE_BARS_POSITION_UP",
+   "category": "Instruments"
+  },
+  {
+   "name": "ATTITUDE_BARS_POSITION_DOWN",
+   "category": "Instruments"
+  },
+  {
+   "name": "ATTITUDE_CAGE_BUTTON",
+   "category": "Instruments"
+  },
+  {
+   "name": "RESET_G_FORCE_INDICATOR",
+   "category": "Instruments"
+  },
+  {
+   "name": "RESET_MAX_RPM_INDICATOR",
+   "category": "Instruments"
+  },
+  {
+   "name": "HEADING_GYRO_SET",
+   "category": "Instruments"
+  },
+  {
+   "name": "GYRO_DRIFT_SET",
+   "category": "Instruments"
+  },
+  {
+   "name": "STROBES_TOGGLE",
+   "category": "Lights"
+  },
+  {
+   "name": "ALL_LIGHTS_TOGGLE",
+   "category": "Lights"
+  },
+  {
+   "name": "PANEL_LIGHTS_TOGGLE",
+   "category": "Lights"
+  },
+  {
+   "name": "LANDING_LIGHTS_TOGGLE",
+   "category": "Lights"
+  },
+  {
+   "name": "LANDING_LIGHT_UP",
+   "category": "Lights"
+  },
+  {
+   "name": "LANDING_LIGHT_DOWN",
+   "category": "Lights"
+  },
+  {
+   "name": "LANDING_LIGHT_LEFT",
+   "category": "Lights"
+  },
+  {
+   "name": "LANDING_LIGHT_RIGHT",
+   "category": "Lights"
+  },
+  {
+   "name": "LANDING_LIGHT_HOME",
+   "category": "Lights"
+  },
+  {
+   "name": "STROBES_ON",
+   "category": "Lights"
+  },
+  {
+   "name": "STROBES_OFF",
+   "category": "Lights"
+  },
+  {
+   "name": "STROBES_SET",
+   "category": "Lights"
+  },
+  {
+   "name": "PANEL_LIGHTS_ON",
+   "category": "Lights"
+  },
+  {
+   "name": "PANEL_LIGHTS_OFF",
+   "category": "Lights"
+  },
+  {
+   "name": "PANEL_LIGHTS_SET",
+   "category": "Lights"
+  },
+  {
+   "name": "LANDING_LIGHTS_ON",
+   "category": "Lights"
+  },
+  {
+   "name": "LANDING_LIGHTS_OFF",
+   "category": "Lights"
+  },
+  {
+   "name": "LANDING_LIGHTS_SET",
+   "category": "Lights"
+  },
+  {
+   "name": "TOGGLE_BEACON_LIGHTS",
+   "category": "Lights"
+  },
+  {
+   "name": "TOGGLE_TAXI_LIGHTS",
+   "category": "Lights"
+  },
+  {
+   "name": "TOGGLE_LOGO_LIGHTS",
+   "category": "Lights"
+  },
+  {
+   "name": "TOGGLE_RECOGNITION_LIGHTS",
+   "category": "Lights"
+  },
+  {
+   "name": "TOGGLE_WING_LIGHTS",
+   "category": "Lights"
+  },
+  {
+   "name": "TOGGLE_NAV_LIGHTS",
+   "category": "Lights"
+  },
+  {
+   "name": "TOGGLE_CABIN_LIGHTS",
+   "category": "Lights"
+  },
+  {
+   "name": "TOGGLE_VACUUM_FAILURE",
+   "category": "Failures"
+  },
+  {
+   "name": "TOGGLE_ELECTRICAL_FAILURE",
+   "category": "Failures"
+  },
+  {
+   "name": "TOGGLE_PITOT_BLOCKAGE",
+   "category": "Failures"
+  },
+  {
+   "name": "TOGGLE_STATIC_PORT_BLOCKAGE",
+   "category": "Failures"
+  },
+  {
+   "name": "TOGGLE_HYDRAULIC_FAILURE",
+   "category": "Failures"
+  },
+  {
+   "name": "TOGGLE_TOTAL_BRAKE_FAILURE",
+   "category": "Failures"
+  },
+  {
+   "name": "TOGGLE_LEFT_BRAKE_FAILURE",
+   "category": "Failures"
+  },
+  {
+   "name": "TOGGLE_RIGHT_BRAKE_FAILURE",
+   "category": "Failures"
+  },
+  {
+   "name": "TOGGLE_ENGINE1_FAILURE",
+   "category": "Failures"
+  },
+  {
+   "name": "TOGGLE_ENGINE2_FAILURE",
+   "category": "Failures"
+  },
+  {
+   "name": "TOGGLE_ENGINE3_FAILURE",
+   "category": "Failures"
+  },
+  {
+   "name": "TOGGLE_ENGINE4_FAILURE",
+   "category": "Failures"
+  },
+  {
+   "name": "SMOKE_TOGGLE",
+   "category": "Miscellaneous Systems"
+  },
+  {
+   "name": "GEAR_TOGGLE",
+   "category": "Miscellaneous Systems"
+  },
+  {
+   "name": "BRAKES",
+   "category": "Miscellaneous Systems"
+  },
+  {
+   "name": "GEAR_SET",
+   "category": "Miscellaneous Systems"
+  },
+  {
+   "name": "BRAKES_LEFT",
+   "category": "Miscellaneous Systems"
+  },
+  {
+   "name": "BRAKES_RIGHT",
+   "category": "Miscellaneous Systems"
+  },
+  {
+   "name": "PARKING_BRAKES",
+   "category": "Miscellaneous Systems"
+  },
+  {
+   "name": "GEAR_PUMP",
+   "category": "Miscellaneous Systems"
+  },
+  {
+   "name": "PITOT_HEAT_TOGGLE",
+   "category": "Miscellaneous Systems"
+  },
+  {
+   "name": "SMOKE_ON",
+   "category": "Miscellaneous Systems"
+  },
+  {
+   "name": "SMOKE_OFF",
+   "category": "Miscellaneous Systems"
+  },
+  {
+   "name": "SMOKE_SET",
+   "category": "Miscellaneous Systems"
+  },
+  {
+   "name": "PITOT_HEAT_ON",
+   "category": "Miscellaneous Systems"
+  },
+  {
+   "name": "PITOT_HEAT_OFF",
+   "category": "Miscellaneous Systems"
+  },
+  {
+   "name": "PITOT_HEAT_SET",
+   "category": "Miscellaneous Systems"
+  },
+  {
+   "name": "GEAR_UP",
+   "category": "Miscellaneous Systems"
+  },
+  {
+   "name": "GEAR_DOWN",
+   "category": "Miscellaneous Systems"
+  },
+  {
+   "name": "TOGGLE_MASTER_BATTERY",
+   "category": "Miscellaneous Systems"
+  },
+  {
+   "name": "TOGGLE_MASTER_ALTERNATOR",
+   "category": "Miscellaneous Systems"
+  },
+  {
+   "name": "TOGGLE_ELECTRIC_VACUUM_PUMP",
+   "category": "Miscellaneous Systems"
+  },
+  {
+   "name": "TOGGLE_ALTERNATE_STATIC",
+   "category": "Miscellaneous Systems"
+  },
+  {
+   "name": "DECREASE_DECISION_HEIGHT",
+   "category": "Miscellaneous Systems"
+  },
+  {
+   "name": "INCREASE_DECISION_HEIGHT",
+   "category": "Miscellaneous Systems"
+  },
+  {
+   "name": "TOGGLE_STRUCTURAL_DEICE",
+   "category": "Miscellaneous Systems"
+  },
+  {
+   "name": "TOGGLE_PROPELLER_DEICE",
+   "category": "Miscellaneous Systems"
+  },
+  {
+   "name": "TOGGLE_ALTERNATOR1",
+   "category": "Miscellaneous Systems"
+  },
+  {
+   "name": "TOGGLE_ALTERNATOR2",
+   "category": "Miscellaneous Systems"
+  },
+  {
+   "name": "TOGGLE_ALTERNATOR3",
+   "category": "Miscellaneous Systems"
+  },
+  {
+   "name": "TOGGLE_ALTERNATOR4",
+   "category": "Miscellaneous Systems"
+  },
+  {
+   "name": "TOGGLE_MASTER_BATTERY_ALTERNATOR",
+   "category": "Miscellaneous Systems"
+  },
+  {
+   "name": "AXIS_LEFT_BRAKE_SET",
+   "category": "Miscellaneous Systems"
+  },
+  {
+   "name": "AXIS_RIGHT_BRAKE_SET",
+   "category": "Miscellaneous Systems"
+  },
+  {
+   "name": "TOGGLE_AIRCRAFT_EXIT",
+   "category": "Miscellaneous Systems"
+  },
+  {
+   "name": "TOGGLE_WING_FOLD",
+   "category": "Miscellaneous Systems"
+  },
+  {
+   "name": "SET_WING_FOLD",
+   "category": "Miscellaneous Systems"
+  },
+  {
+   "name": "TOGGLE_TAIL_HOOK_HANDLE",
+   "category": "Miscellaneous Systems"
+  },
+  {
+   "name": "SET_TAIL_HOOK_HANDLE",
+   "category": "Miscellaneous Systems"
+  },
+  {
+   "name": "TOGGLE_WATER_RUDDER",
+   "category": "Miscellaneous Systems"
+  },
+  {
+   "name": "TOGGLE_PUSHBACK",
+   "category": "Miscellaneous Systems"
+  },
+  {
+   "name": "KEY_TUG_HEADING",
+   "category": "Miscellaneous Systems"
+  },
+  {
+   "name": "KEY_TUG_SPEED",
+   "category": "Miscellaneous Systems"
+  },
+  {
+   "name": "TUG_DISABLE",
+   "category": "Miscellaneous Systems"
+  },
+  {
+   "name": "TOGGLE_MASTER_IGNITION_SWITCH",
+   "category": "Miscellaneous Systems"
+  },
+  {
+   "name": "TOGGLE_TAILWHEEL_LOCK",
+   "category": "Miscellaneous Systems"
+  },
+  {
+   "name": "ADD_FUEL_QUANTITY",
+   "category": "Miscellaneous Systems"
+  },
+  {
+   "name": "TOW_PLANE_RELEASE",
+   "category": "Miscellaneous Systems"
+  },
+  {
+   "name": "TOW_PLANE_REQUEST",
+   "category": "Miscellaneous Systems"
+  },
+  {
+   "name": "RELEASE_DROPPABLE_OBJECTS",
+   "category": "Miscellaneous Systems"
+  },
+  {
+   "name": "RETRACT_FLOAT_SWITCH_DEC",
+   "category": "Miscellaneous Systems"
+  },
+  {
+   "name": "RETRACT_FLOAT_SWITCH_INC",
+   "category": "Miscellaneous Systems"
+  },
+  {
+   "name": "TOGGLE_WATER_BALLAST_VALVE",
+   "category": "Miscellaneous Systems"
+  },
+  {
+   "name": "TOGGLE_VARIOMETER_SWITCH",
+   "category": "Miscellaneous Systems"
+  },
+  {
+   "name": "TOGGLE_TURN_INDICATOR_SWITCH",
+   "category": "Miscellaneous Systems"
+  },
+  {
+   "name": "APU_STARTER",
+   "category": "Miscellaneous Systems"
+  },
+  {
+   "name": "APU_OFF_SWITCH",
+   "category": "Miscellaneous Systems"
+  },
+  {
+   "name": "APU_GENERATOR_SWITCH_TOGGLE",
+   "category": "Miscellaneous Systems"
+  },
+  {
+   "name": "APU_GENERATOR_SWITCH_SET",
+   "category": "Miscellaneous Systems"
+  },
+  {
+   "name": "EXTINGUISH_ENGINE_FIRE",
+   "category": "Miscellaneous Systems"
+  },
+  {
+   "name": "HYDRAULIC_SWITCH_TOGGLE",
+   "category": "Miscellaneous Systems"
+  },
+  {
+   "name": "BLEED_AIR_SOURCE_CONTROL_INC",
+   "category": "Miscellaneous Systems"
+  },
+  {
+   "name": "BLEED_AIR_SOURCE_CONTROL_DEC",
+   "category": "Miscellaneous Systems"
+  },
+  {
+   "name": "BLEED_AIR_SOURCE_CONTROL_SET",
+   "category": "Miscellaneous Systems"
+  },
+  {
+   "name": "TURBINE_IGNITION_SWITCH_TOGGLE",
+   "category": "Miscellaneous Systems"
+  },
+  {
+   "name": "CABIN_NO_SMOKING_ALERT_SWITCH_TOGGLE",
+   "category": "Miscellaneous Systems"
+  },
+  {
+   "name": "CABIN_SEATBELTS_ALERT_SWITCH_TOGGLE",
+   "category": "Miscellaneous Systems"
+  },
+  {
+   "name": "ANTISKID_BRAKES_TOGGLE",
+   "category": "Miscellaneous Systems"
+  },
+  {
+   "name": "GPWS_SWITCH_TOGGLE",
+   "category": "Miscellaneous Systems"
+  },
+  {
+   "name": "MANUAL_FUEL_PRESSURE_PUMP",
+   "category": "Miscellaneous Systems"
+  },
+  {
+   "name": "STEERING_INC",
+   "category": "Nose wheel steering"
+  },
+  {
+   "name": "STEERING_DEC",
+   "category": "Nose wheel steering"
+  },
+  {
+   "name": "STEERING_SET",
+   "category": "Nose wheel steering"
+  },
+  {
+   "name": "KEY_PRESSURIZATION_PRESSURE_ALT_INC",
+   "category": "Cabin pressurization"
+  },
+  {
+   "name": "KEY_PRESSURIZATION_PRESSURE_ALT_DEC",
+   "category": "Cabin pressurization"
+  },
+  {
+   "name": "PRESSURIZATION_CLIMB_RATE_INC",
+   "category": "Cabin pressurization"
+  },
+  {
+   "name": "PRESSURIZATION_CLIMB_RATE_DEC",
+   "category": "Cabin pressurization"
+  },
+  {
+   "name": "PRESSURIZATION_PRESSURE_DUMP_SWTICH",
+   "category": "Cabin pressurization"
+  },
+  {
+   "name": "TAKEOFF_ASSIST_ARM_TOGGLE",
+   "category": "Catapult Launches"
+  },
+  {
+   "name": "TAKEOFF_ASSIST_ARM_SET",
+   "category": "Catapult Launches"
+  },
+  {
+   "name": "TAKEOFF_ASSIST_FIRE",
+   "category": "Catapult Launches"
+  },
+  {
+   "name": "TOGGLE_LAUNCH_BAR_SWITCH",
+   "category": "Catapult Launches"
+  },
+  {
+   "name": "SET_LAUNCH_BAR_SWITCH",
+   "category": "Catapult Launches"
+  },
+  {
+   "name": "ROTOR_BRAKE",
+   "category": "Helicopter Specific Systems"
+  },
+  {
+   "name": "ROTOR_CLUTCH_SWITCH_TOGGLE",
+   "category": "Helicopter Specific Systems"
+  },
+  {
+   "name": "ROTOR_CLUTCH_SWITCH_SET",
+   "category": "Helicopter Specific Systems"
+  },
+  {
+   "name": "ROTOR_GOV_SWITCH_TOGGLE",
+   "category": "Helicopter Specific Systems"
+  },
+  {
+   "name": "ROTOR_GOV_SWITCH_SET",
+   "category": "Helicopter Specific Systems"
+  },
+  {
+   "name": "ROTOR_LATERAL_TRIM_INC",
+   "category": "Helicopter Specific Systems"
+  },
+  {
+   "name": "ROTOR_LATERAL_TRIM_DEC",
+   "category": "Helicopter Specific Systems"
+  },
+  {
+   "name": "ROTOR_LATERAL_TRIM_SET",
+   "category": "Helicopter Specific Systems"
+  },
+  {
+   "name": "SLING_PICKUP_RELEASE",
+   "category": "Slings and Hoists"
+  },
+  {
+   "name": "HOIST_SWITCH_EXTEND",
+   "category": "Slings and Hoists"
+  },
+  {
+   "name": "HOIST_SWITCH_RETRACT",
+   "category": "Slings and Hoists"
+  },
+  {
+   "name": "HOIST_SWITCH_SET",
+   "category": "Slings and Hoists"
+  },
+  {
+   "name": "HOIST_DEPLOY_TOGGLE",
+   "category": "Slings and Hoists"
+  },
+  {
+   "name": "HOIST_DEPLOY_SET",
+   "category": "Slings and Hoists"
+  },
+  {
+   "name": "SLEW_TOGGLE",
+   "category": "Slew System"
+  },
+  {
+   "name": "SLEW_OFF",
+   "category": "Slew System"
+  },
+  {
+   "name": "SLEW_ON",
+   "category": "Slew System"
+  },
+  {
+   "name": "SLEW_SET",
+   "category": "Slew System"
+  },
+  {
+   "name": "SLEW_RESET",
+   "category": "Slew System"
+  },
+  {
+   "name": "SLEW_ALTIT_UP_FAST",
+   "category": "Slew System"
+  },
+  {
+   "name": "SLEW_ALTIT_UP_SLOW",
+   "category": "Slew System"
+  },
+  {
+   "name": "SLEW_ALTIT_FREEZE",
+   "category": "Slew System"
+  },
+  {
+   "name": "SLEW_ALTIT_DN_SLOW",
+   "category": "Slew System"
+  },
+  {
+   "name": "SLEW_ALTIT_DN_FAST",
+   "category": "Slew System"
+  },
+  {
+   "name": "SLEW_ALTIT_PLUS",
+   "category": "Slew System"
+  },
+  {
+   "name": "SLEW_ALTIT_MINUS",
+   "category": "Slew System"
+  },
+  {
+   "name": "SLEW_PITCH_DN_FAST",
+   "category": "Slew System"
+  },
+  {
+   "name": "SLEW_PITCH_DN_SLOW",
+   "category": "Slew System"
+  },
+  {
+   "name": "SLEW_PITCH_FREEZE",
+   "category": "Slew System"
+  },
+  {
+   "name": "SLEW_PITCH_UP_SLOW",
+   "category": "Slew System"
+  },
+  {
+   "name": "SLEW_PITCH_UP_FAST",
+   "category": "Slew System"
+  },
+  {
+   "name": "SLEW_PITCH_PLUS",
+   "category": "Slew System"
+  },
+  {
+   "name": "SLEW_PITCH_MINUS",
+   "category": "Slew System"
+  },
+  {
+   "name": "SLEW_BANK_MINUS",
+   "category": "Slew System"
+  },
+  {
+   "name": "SLEW_AHEAD_PLUS",
+   "category": "Slew System"
+  },
+  {
+   "name": "SLEW_BANK_PLUS",
+   "category": "Slew System"
+  },
+  {
+   "name": "SLEW_LEFT",
+   "category": "Slew System"
+  },
+  {
+   "name": "SLEW_FREEZE",
+   "category": "Slew System"
+  },
+  {
+   "name": "SLEW_RIGHT",
+   "category": "Slew System"
+  },
+  {
+   "name": "SLEW_HEADING_MINUS",
+   "category": "Slew System"
+  },
+  {
+   "name": "SLEW_AHEAD_MINUS",
+   "category": "Slew System"
+  },
+  {
+   "name": "SLEW_HEADING_PLUS",
+   "category": "Slew System"
+  },
+  {
+   "name": "AXIS_SLEW_AHEAD_SET",
+   "category": "Slew System"
+  },
+  {
+   "name": "AXIS_SLEW_SIDEWAYS_SET",
+   "category": "Slew System"
+  },
+  {
+   "name": "AXIS_SLEW_HEADING_SET",
+   "category": "Slew System"
+  },
+  {
+   "name": "AXIS_SLEW_ALT_SET",
+   "category": "Slew System"
+  },
+  {
+   "name": "AXIS_SLEW_BANK_SET",
+   "category": "Slew System"
+  },
+  {
+   "name": "AXIS_SLEW_PITCH_SET",
+   "category": "Slew System"
+  },
+  {
+   "name": "VIEW_MODE",
+   "category": "View System"
+  },
+  {
+   "name": "VIEW_WINDOW_TO_FRONT",
+   "category": "View System"
+  },
+  {
+   "name": "VIEW_RESET",
+   "category": "View System"
+  },
+  {
+   "name": "VIEW_ALWAYS_PAN_UP",
+   "category": "View System"
+  },
+  {
+   "name": "VIEW_ALWAYS_PAN_DOWN",
+   "category": "View System"
+  },
+  {
+   "name": "NEXT_SUB_VIEW",
+   "category": "View System"
+  },
+  {
+   "name": "PREV_SUB_VIEW",
+   "category": "View System"
+  },
+  {
+   "name": "VIEW_TRACK_PAN_TOGGLE",
+   "category": "View System"
+  },
+  {
+   "name": "VIEW_PREVIOUS_TOGGLE",
+   "category": "View System"
+  },
+  {
+   "name": "VIEW_CAMERA_SELECT_START",
+   "category": "View System"
+  },
+  {
+   "name": "PANEL_HUD_NEXT",
+   "category": "View System"
+  },
+  {
+   "name": "PANEL_HUD_PREVIOUS",
+   "category": "View System"
+  },
+  {
+   "name": "ZOOM_IN",
+   "category": "View System"
+  },
+  {
+   "name": "ZOOM_OUT",
+   "category": "View System"
+  },
+  {
+   "name": "MAP_ZOOM_FINE_IN",
+   "category": "View System"
+  },
+  {
+   "name": "PAN_LEFT",
+   "category": "View System"
+  },
+  {
+   "name": "PAN_RIGHT",
+   "category": "View System"
+  },
+  {
+   "name": "MAP_ZOOM_FINE_OUT",
+   "category": "View System"
+  },
+  {
+   "name": "VIEW_FORWARD",
+   "category": "View System"
+  },
+  {
+   "name": "VIEW_FORWARD_RIGHT",
+   "category": "View System"
+  },
+  {
+   "name": "VIEW_RIGHT",
+   "category": "View System"
+  },
+  {
+   "name": "VIEW_REAR_RIGHT",
+   "category": "View System"
+  },
+  {
+   "name": "VIEW_REAR",
+   "category": "View System"
+  },
+  {
+   "name": "VIEW_REAR_LEFT",
+   "category": "View System"
+  },
+  {
+   "name": "VIEW_LEFT",
+   "category": "View System"
+  },
+  {
+   "name": "VIEW_FORWARD_LEFT",
+   "category": "View System"
+  },
+  {
+   "name": "VIEW_DOWN",
+   "category": "View System"
+  },
+  {
+   "name": "ZOOM_MINUS",
+   "category": "View System"
+  },
+  {
+   "name": "ZOOM_PLUS",
+   "category": "View System"
+  },
+  {
+   "name": "PAN_UP",
+   "category": "View System"
+  },
+  {
+   "name": "PAN_DOWN",
+   "category": "View System"
+  },
+  {
+   "name": "VIEW_MODE_REV",
+   "category": "View System"
+  },
+  {
+   "name": "ZOOM_IN_FINE",
+   "category": "View System"
+  },
+  {
+   "name": "ZOOM_OUT_FINE",
+   "category": "View System"
+  },
+  {
+   "name": "CLOSE_VIEW",
+   "category": "View System"
+  },
+  {
+   "name": "NEW_VIEW",
+   "category": "View System"
+  },
+  {
+   "name": "NEXT_VIEW",
+   "category": "View System"
+  },
+  {
+   "name": "PREV_VIEW",
+   "category": "View System"
+  },
+  {
+   "name": "PAN_LEFT_UP",
+   "category": "View System"
+  },
+  {
+   "name": "PAN_LEFT_DOWN",
+   "category": "View System"
+  },
+  {
+   "name": "PAN_RIGHT_UP",
+   "category": "View System"
+  },
+  {
+   "name": "PAN_RIGHT_DOWN",
+   "category": "View System"
+  },
+  {
+   "name": "PAN_TILT_LEFT",
+   "category": "View System"
+  },
+  {
+   "name": "PAN_TILT_RIGHT",
+   "category": "View System"
+  },
+  {
+   "name": "PAN_RESET",
+   "category": "View System"
+  },
+  {
+   "name": "VIEW_FORWARD_UP",
+   "category": "View System"
+  },
+  {
+   "name": "VIEW_FORWARD_RIGHT_UP",
+   "category": "View System"
+  },
+  {
+   "name": "VIEW_RIGHT_UP",
+   "category": "View System"
+  },
+  {
+   "name": "VIEW_REAR_RIGHT_UP",
+   "category": "View System"
+  },
+  {
+   "name": "VIEW_REAR_UP",
+   "category": "View System"
+  },
+  {
+   "name": "VIEW_REAR_LEFT_UP",
+   "category": "View System"
+  },
+  {
+   "name": "VIEW_LEFT_UP",
+   "category": "View System"
+  },
+  {
+   "name": "VIEW_FORWARD_LEFT_UP",
+   "category": "View System"
+  },
+  {
+   "name": "VIEW_UP",
+   "category": "View System"
+  },
+  {
+   "name": "PAN_RESET_COCKPIT",
+   "category": "View System"
+  },
+  {
+   "name": "KEY_CHASE_VIEW_NEXT",
+   "category": "View System"
+  },
+  {
+   "name": "KEY_CHASE_VIEW_PREV",
+   "category": "View System"
+  },
+  {
+   "name": "CHASE_VIEW_TOGGLE",
+   "category": "View System"
+  },
+  {
+   "name": "EYEPOINT_UP",
+   "category": "View System"
+  },
+  {
+   "name": "EYEPOINT_DOWN",
+   "category": "View System"
+  },
+  {
+   "name": "EYEPOINT_RIGHT",
+   "category": "View System"
+  },
+  {
+   "name": "EYEPOINT_LEFT",
+   "category": "View System"
+  },
+  {
+   "name": "EYEPOINT_FORWARD",
+   "category": "View System"
+  },
+  {
+   "name": "EYEPOINT_BACK",
+   "category": "View System"
+  },
+  {
+   "name": "EYEPOINT_RESET",
+   "category": "View System"
+  },
+  {
+   "name": "NEW_MAP",
+   "category": "View System"
+  },
+  {
+   "name": "VIEW_COCKPIT_FORWARD",
+   "category": "View System"
+  },
+  {
+   "name": "VIEW_VIRTUAL_COCKPIT_FORWARD",
+   "category": "View System"
+  },
+  {
+   "name": "VIEW_PANEL_ALPHA_SET",
+   "category": "View System"
+  },
+  {
+   "name": "VIEW_PANEL_ALPHA_SELECT",
+   "category": "View System"
+  },
+  {
+   "name": "VIEW_PANEL_ALPHA_INC",
+   "category": "View System"
+  },
+  {
+   "name": "VIEW_PANEL_ALPHA_DEC",
+   "category": "View System"
+  },
+  {
+   "name": "VIEW_LINKING_SET",
+   "category": "View System"
+  },
+  {
+   "name": "VIEW_LINKING_TOGGLE",
+   "category": "View System"
+  },
+  {
+   "name": "VIEW_CHASE_DISTANCE_ADD",
+   "category": "View System"
+  },
+  {
+   "name": "VIEW_CHASE_DISTANCE_SUB",
+   "category": "View System"
+  },
+  {
+   "name": "PAUSE_TOGGLE",
+   "category": "Miscellaneous Events"
+  },
+  {
+   "name": "PAUSE_ON",
+   "category": "Miscellaneous Events"
+  },
+  {
+   "name": "PAUSE_OFF",
+   "category": "Miscellaneous Events"
+  },
+  {
+   "name": "PAUSE_SET",
+   "category": "Miscellaneous Events"
+  },
+  {
+   "name": "DEMO_STOP",
+   "category": "Miscellaneous Events"
+  },
+  {
+   "name": "SELECT_1",
+   "category": "Miscellaneous Events"
+  },
+  {
+   "name": "SELECT_2",
+   "category": "Miscellaneous Events"
+  },
+  {
+   "name": "SELECT_3",
+   "category": "Miscellaneous Events"
+  },
+  {
+   "name": "SELECT_4",
+   "category": "Miscellaneous Events"
+  },
+  {
+   "name": "MINUS",
+   "category": "Miscellaneous Events"
+  },
+  {
+   "name": "PLUS",
+   "category": "Miscellaneous Events"
+  },
+  {
+   "name": "ZOOM_1X",
+   "category": "Miscellaneous Events"
+  },
+  {
+   "name": "SOUND_TOGGLE",
+   "category": "Miscellaneous Events"
+  },
+  {
+   "name": "SIM_RATE",
+   "category": "Miscellaneous Events"
+  },
+  {
+   "name": "JOYSTICK_CALIBRATE",
+   "category": "Miscellaneous Events"
+  },
+  {
+   "name": "SITUATION_SAVE",
+   "category": "Miscellaneous Events"
+  },
+  {
+   "name": "SITUATION_RESET",
+   "category": "Miscellaneous Events"
+  },
+  {
+   "name": "SOUND_SET",
+   "category": "Miscellaneous Events"
+  },
+  {
+   "name": "EXIT",
+   "category": "Miscellaneous Events"
+  },
+  {
+   "name": "ABORT",
+   "category": "Miscellaneous Events"
+  },
+  {
+   "name": "READOUTS_SLEW",
+   "category": "Miscellaneous Events"
+  },
+  {
+   "name": "READOUTS_FLIGHT",
+   "category": "Miscellaneous Events"
+  },
+  {
+   "name": "MINUS_SHIFT",
+   "category": "Miscellaneous Events"
+  },
+  {
+   "name": "PLUS_SHIFT",
+   "category": "Miscellaneous Events"
+  },
+  {
+   "name": "SIM_RATE_INCR",
+   "category": "Miscellaneous Events"
+  },
+  {
+   "name": "SIM_RATE_DECR",
+   "category": "Miscellaneous Events"
+  },
+  {
+   "name": "KNEEBOARD_VIEW",
+   "category": "Miscellaneous Events"
+  },
+  {
+   "name": "PANEL_1",
+   "category": "Miscellaneous Events"
+  },
+  {
+   "name": "PANEL_2",
+   "category": "Miscellaneous Events"
+  },
+  {
+   "name": "PANEL_3",
+   "category": "Miscellaneous Events"
+  },
+  {
+   "name": "PANEL_4",
+   "category": "Miscellaneous Events"
+  },
+  {
+   "name": "PANEL_5",
+   "category": "Miscellaneous Events"
+  },
+  {
+   "name": "PANEL_6",
+   "category": "Miscellaneous Events"
+  },
+  {
+   "name": "PANEL_7",
+   "category": "Miscellaneous Events"
+  },
+  {
+   "name": "PANEL_8",
+   "category": "Miscellaneous Events"
+  },
+  {
+   "name": "PANEL_9",
+   "category": "Miscellaneous Events"
+  },
+  {
+   "name": "SOUND_ON",
+   "category": "Miscellaneous Events"
+  },
+  {
+   "name": "SOUND_OFF",
+   "category": "Miscellaneous Events"
+  },
+  {
+   "name": "INVOKE_HELP",
+   "category": "Miscellaneous Events"
+  },
+  {
+   "name": "TOGGLE_AIRCRAFT_LABELS",
+   "category": "Miscellaneous Events"
+  },
+  {
+   "name": "FLIGHT_MAP",
+   "category": "Miscellaneous Events"
+  },
+  {
+   "name": "RELOAD_PANELS",
+   "category": "Miscellaneous Events"
+  },
+  {
+   "name": "PANEL_ID_TOGGLE",
+   "category": "Miscellaneous Events"
+  },
+  {
+   "name": "PANEL_ID_OPEN",
+   "category": "Miscellaneous Events"
+  },
+  {
+   "name": "PANEL_ID_CLOSE",
+   "category": "Miscellaneous Events"
+  },
+  {
+   "name": "RELOAD_USER_AIRCRAFT",
+   "category": "Miscellaneous Events"
+  },
+  {
+   "name": "SIM_RESET",
+   "category": "Miscellaneous Events"
+  },
+  {
+   "name": "VIRTUAL_COPILOT_TOGGLE",
+   "category": "Miscellaneous Events"
+  },
+  {
+   "name": "VIRTUAL_COPILOT_SET",
+   "category": "Miscellaneous Events"
+  },
+  {
+   "name": "VIRTUAL_COPILOT_ACTION",
+   "category": "Miscellaneous Events"
+  },
+  {
+   "name": "REFRESH_SCENERY",
+   "category": "Miscellaneous Events"
+  },
+  {
+   "name": "CLOCK_HOURS_DEC",
+   "category": "Miscellaneous Events"
+  },
+  {
+   "name": "CLOCK_HOURS_INC",
+   "category": "Miscellaneous Events"
+  },
+  {
+   "name": "CLOCK_MINUTES_DEC",
+   "category": "Miscellaneous Events"
+  },
+  {
+   "name": "CLOCK_MINUTES_INC",
+   "category": "Miscellaneous Events"
+  },
+  {
+   "name": "CLOCK_SECONDS_ZERO",
+   "category": "Miscellaneous Events"
+  },
+  {
+   "name": "CLOCK_HOURS_SET",
+   "category": "Miscellaneous Events"
+  },
+  {
+   "name": "CLOCK_MINUTES_SET",
+   "category": "Miscellaneous Events"
+  },
+  {
+   "name": "ZULU_HOURS_SET",
+   "category": "Miscellaneous Events"
+  },
+  {
+   "name": "ZULU_MINUTES_SET",
+   "category": "Miscellaneous Events"
+  },
+  {
+   "name": "ZULU_DAY_SET",
+   "category": "Miscellaneous Events"
+  },
+  {
+   "name": "ZULU_YEAR_SET",
+   "category": "Miscellaneous Events"
+  },
+  {
+   "name": "GAUGE_KEYSTROKE",
+   "category": "Miscellaneous Events"
+  },
+  {
+   "name": "SIMUI_WINDOW_HIDESHOW",
+   "category": "Miscellaneous Events"
+  },
+  {
+   "name": "VIEW_WINDOW_TITLES_TOGGLE",
+   "category": "Miscellaneous Events"
+  },
+  {
+   "name": "AXIS_PAN_PITCH",
+   "category": "Miscellaneous Events"
+  },
+  {
+   "name": "AXIS_PAN_HEADING",
+   "category": "Miscellaneous Events"
+  },
+  {
+   "name": "AXIS_PAN_TILT",
+   "category": "Miscellaneous Events"
+  },
+  {
+   "name": "VIEW_AXIS_INDICATOR_CYCLE",
+   "category": "Miscellaneous Events"
+  },
+  {
+   "name": "VIEW_MAP_ORIENTATION_CYCLE",
+   "category": "Miscellaneous Events"
+  },
+  {
+   "name": "TOGGLE_JETWAY",
+   "category": "Miscellaneous Events"
+  },
+  {
+   "name": "VIDEO_RECORD_TOGGLE",
+   "category": "Miscellaneous Events"
+  },
+  {
+   "name": "TOGGLE_AIRPORT_NAME_DISPLAY",
+   "category": "Miscellaneous Events"
+  },
+  {
+   "name": "CAPTURE_SCREENSHOT",
+   "category": "Miscellaneous Events"
+  },
+  {
+   "name": "MOUSE_LOOK_TOGGLE",
+   "category": "Miscellaneous Events"
+  },
+  {
+   "name": "YAXIS_INVERT_TOGGLE",
+   "category": "Miscellaneous Events"
+  },
+  {
+   "name": "AUTORUDDER_TOGGLE",
+   "category": "Miscellaneous Events"
+  },
+  {
+   "name": "FREEZE_LATITUDE_LONGITUDE_TOGGLE",
+   "category": "Freezing position"
+  },
+  {
+   "name": "FREEZE_LATITUDE_LONGITUDE_SET",
+   "category": "Freezing position"
+  },
+  {
+   "name": "FREEZE_ALTITUDE_TOGGLE",
+   "category": "Freezing position"
+  },
+  {
+   "name": "FREEZE_ALTITUDE_SET",
+   "category": "Freezing position"
+  },
+  {
+   "name": "FREEZE_ATTITUDE_TOGGLE",
+   "category": "Freezing position"
+  },
+  {
+   "name": "FREEZE_ATTITUDE_SET",
+   "category": "Freezing position"
+  },
+  {
+   "name": "POINT_OF_INTEREST_TOGGLE_POINTER",
+   "category": "Mission Keys"
+  },
+  {
+   "name": "POINT_OF_INTEREST_CYCLE_PREVIOUS",
+   "category": "Mission Keys"
+  },
+  {
+   "name": "POINT_OF_INTEREST_CYCLE_NEXT",
+   "category": "Mission Keys"
+  },
+  {
+   "name": "ATC",
+   "category": "ATC"
+  },
+  {
+   "name": "ATC_MENU_1",
+   "category": "ATC"
+  },
+  {
+   "name": "ATC_MENU_2",
+   "category": "ATC"
+  },
+  {
+   "name": "ATC_MENU_3",
+   "category": "ATC"
+  },
+  {
+   "name": "ATC_MENU_4",
+   "category": "ATC"
+  },
+  {
+   "name": "ATC_MENU_5",
+   "category": "ATC"
+  },
+  {
+   "name": "ATC_MENU_6",
+   "category": "ATC"
+  },
+  {
+   "name": "ATC_MENU_7",
+   "category": "ATC"
+  },
+  {
+   "name": "ATC_MENU_8",
+   "category": "ATC"
+  },
+  {
+   "name": "ATC_MENU_9",
+   "category": "ATC"
+  },
+  {
+   "name": "ATC_MENU_0",
+   "category": "ATC"
+  },
+  {
+   "name": "MP_TRANSFER_CONTROL",
+   "category": "Multiplayer"
+  },
+  {
+   "name": "MP_PLAYER_CYCLE",
+   "category": "Multiplayer"
+  },
+  {
+   "name": "MP_PLAYER_FOLLOW",
+   "category": "Multiplayer"
+  },
+  {
+   "name": "MP_CHAT",
+   "category": "Multiplayer"
+  },
+  {
+   "name": "MP_ACTIVATE_CHAT",
+   "category": "Multiplayer"
+  },
+  {
+   "name": "MP_VOICE_CAPTURE_START",
+   "category": "Multiplayer"
+  },
+  {
+   "name": "MP_VOICE_CAPTURE_STOP",
+   "category": "Multiplayer"
+  },
+  {
+   "name": "MP_BROADCAST_VOICE_CAPTURE_START",
+   "category": "Multiplayer"
+  },
+  {
+   "name": "MP_BROADCAST_VOICE_CAPTURE_STOP",
+   "category": "Multiplayer"
+  },
+  {
+   "name": "TOGGLE_RACERESULTS_WINDOW",
+   "category": "Multiplayer"
+  },
+  {
+   "name": "G1000_PFD_FLIGHTPLAN_BUTTON",
+   "category": "G1000 PFD"
+  },
+  {
+   "name": "G1000_PFD_PROCEDURE_BUTTON",
+   "category": "G1000 PFD"
+  },
+  {
+   "name": "G1000_PFD_ZOOMIN_BUTTON",
+   "category": "G1000 PFD"
+  },
+  {
+   "name": "G1000_PFD_ZOOMOUT_BUTTON",
+   "category": "G1000 PFD"
+  },
+  {
+   "name": "G1000_PFD_DIRECTTO_BUTTON",
+   "category": "G1000 PFD"
+  },
+  {
+   "name": "G1000_PFD_MENU_BUTTON",
+   "category": "G1000 PFD"
+  },
+  {
+   "name": "G1000_PFD_CLEAR_BUTTON",
+   "category": "G1000 PFD"
+  },
+  {
+   "name": "G1000_PFD_ENTER_BUTTON",
+   "category": "G1000 PFD"
+  },
+  {
+   "name": "G1000_PFD_CURSOR_BUTTON",
+   "category": "G1000 PFD"
+  },
+  {
+   "name": "G1000_PFD_GROUP_KNOB_INC",
+   "category": "G1000 PFD"
+  },
+  {
+   "name": "G1000_PFD_GROUP_KNOB_DEC",
+   "category": "G1000 PFD"
+  },
+  {
+   "name": "G1000_PFD_PAGE_KNOB_INC",
+   "category": "G1000 PFD"
+  },
+  {
+   "name": "G1000_PFD_PAGE_KNOB_DEC",
+   "category": "G1000 PFD"
+  },
+  {
+   "name": "G1000_MFD_FLIGHTPLAN_BUTTON",
+   "category": "G1000 MFD"
+  },
+  {
+   "name": "G1000_MFD_PROCEDURE_BUTTON",
+   "category": "G1000 MFD"
+  },
+  {
+   "name": "G1000_MFD_ZOOMIN_BUTTON",
+   "category": "G1000 MFD"
+  },
+  {
+   "name": "G1000_MFD_ZOOMOUT_BUTTON",
+   "category": "G1000 MFD"
+  },
+  {
+   "name": "G1000_MFD_DIRECTTO_BUTTON",
+   "category": "G1000 MFD"
+  },
+  {
+   "name": "G1000_MFD_MENU_BUTTON",
+   "category": "G1000 MFD"
+  },
+  {
+   "name": "G1000_MFD_CLEAR_BUTTON",
+   "category": "G1000 MFD"
+  },
+  {
+   "name": "G1000_MFD_ENTER_BUTTON",
+   "category": "G1000 MFD"
+  },
+  {
+   "name": "G1000_MFD_CURSOR_BUTTON",
+   "category": "G1000 MFD"
+  },
+  {
+   "name": "G1000_MFD_GROUP_KNOB_INC",
+   "category": "G1000 MFD"
+  },
+  {
+   "name": "G1000_MFD_GROUP_KNOB_DEC",
+   "category": "G1000 MFD"
+  },
+  {
+   "name": "G1000_MFD_PAGE_KNOB_INC",
+   "category": "G1000 MFD"
+  },
+  {
+   "name": "G1000_MFD_PAGE_KNOB_DEC",
+   "category": "G1000 MFD"
+  }
+ ]
+}

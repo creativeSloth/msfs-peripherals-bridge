@@ -31,3 +31,14 @@ def devices_file(root: Path | None = None) -> Path:
 
 def calibration_file(root: Path | None = None) -> Path:
     return (root or project_root()) / "config" / "calibration.yaml"
+
+
+def gui_settings_file() -> Path:
+    """Per-user GUI state (e.g. the Statistik var selection), outside the repo.
+
+    Honours ``$XDG_CONFIG_HOME`` and falls back to ``~/.config``; the file is
+    user-specific and must not be committed with the checkout.
+    """
+    base = os.environ.get("XDG_CONFIG_HOME")
+    root = Path(base).expanduser() if base else Path.home() / ".config"
+    return root / "msfs-peripherals-bridge" / "gui-settings.json"
