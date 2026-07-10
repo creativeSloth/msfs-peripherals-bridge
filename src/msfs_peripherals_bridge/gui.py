@@ -516,7 +516,6 @@ class _PanelWindow:
         self._mv = (0, 0)
         self._rsz = (0, 0, 0, 0)
         self._after: str | None = None
-        self._visible = True
 
         st = load_panel_state()
         self.cols, self.rows = st["cols"], st["rows"]
@@ -583,28 +582,6 @@ class _PanelWindow:
             return bool(self.win.winfo_exists())
         except self._tk.TclError:
             return False
-
-    def show(self) -> None:
-        self._visible = True
-        with contextlib.suppress(self._tk.TclError):
-            self.win.deiconify()
-            self.win.lift()
-        if self._after is None:
-            self._tick()
-        self._on_change()
-
-    def hide(self) -> None:
-        self._visible = False
-        if self._after is not None:
-            with contextlib.suppress(self._tk.TclError):
-                self.win.after_cancel(self._after)
-            self._after = None
-        with contextlib.suppress(self._tk.TclError):
-            self.win.withdraw()
-        self._on_change()
-
-    def visible(self) -> bool:
-        return self._visible and self.alive()
 
     def __contains__(self, key) -> bool:
         return key in self.tiles
@@ -779,9 +756,6 @@ class _PanelWindow:
         self._save()
 
     def _tick(self) -> None:
-        if not self._visible:
-            self._after = None
-            return
         vals = self.monitor.values()
         for t in self.tiles.values():
             if t["value"] is None:
@@ -795,7 +769,8 @@ class _PanelWindow:
             save_panel_state({
                 "cols": self.cols, "rows": self.rows,
                 "geometry": self.win.winfo_geometry(),
-                "visible": self._visible,
+                # The "visible" flag is owned by run() (show/hide); preserve it.
+                "visible": load_panel_state()["visible"],
                 "tiles": [{"kind": t["kind"], "name": t["name"], "unit": t["unit"],
                            "col": t["col"], "row": t["row"]} for t in self.tiles.values()],
             })
@@ -840,15 +815,9 @@ def run() -> None:
     win.columnconfigure(0, weight=1)
     win.rowconfigure(1, weight=1)  # the notebook grows
 
-    # Menu bar with the Panel on/off toggle (the panel is a borderless window,
-    # so this checkbutton is how it is shown/hidden).
+    # On/off state of the (borderless) Panel window, mirrored by the toolbar
+    # toggle button below. The panel is created when on and destroyed when off.
     panel_on = tk.BooleanVar(value=False)
-    menubar = tk.Menu(win)
-    view_menu = tk.Menu(menubar, tearoff=0)
-    view_menu.add_checkbutton(label="Panel anzeigen", variable=panel_on,
-                              command=lambda: _toggle_panel())
-    menubar.add_cascade(label="Ansicht", menu=view_menu)
-    win.config(menu=menubar)
 
     profile_var = tk.StringVar(value=default_profile)
     mapper = {"ctl": None}  # rebuilt on start so a profile change takes effect
@@ -962,7 +931,7 @@ def run() -> None:
             if (w := _wire_name(tree.set(iid, "kind"), tree.set(iid, "name"))) is not None
         ]
         pw = panel_ref["win"]
-        if pw is not None and pw.visible():
+        if pw is not None and pw.alive():
             wires += pw.wires()
         monitor.set_names(list(dict.fromkeys(wires)))
 
@@ -998,6 +967,11 @@ def run() -> None:
             w = _wire_name(kind, tree.set(iid, "name"))
             tree.set(iid, "value", _fmt_value(vals[w]) if w in vals else "—")
 
+    def _persist_visible(value: bool):
+        st = load_panel_state()
+        st["visible"] = value
+        save_panel_state(st)
+
     def _panel_closed():
         panel_ref["win"] = None
         panel_on.set(False)
@@ -1008,20 +982,22 @@ def run() -> None:
         if pw is None or not pw.alive():
             pw = _PanelWindow(win, monitor, on_change=_resubscribe, on_close=_panel_closed)
             panel_ref["win"] = pw
-        else:
-            pw.show()
         panel_on.set(True)
+        _persist_visible(True)
         _resubscribe()
         return pw
 
+    def _hide_panel():
+        pw = panel_ref["win"]
+        if pw is not None and pw.alive():
+            pw.destroy()  # borderless: destroy is the reliable "close" on any WM
+        panel_ref["win"] = None
+        panel_on.set(False)
+        _persist_visible(False)
+        _resubscribe()
+
     def _toggle_panel():
-        if panel_on.get():
-            _show_panel()
-        else:
-            pw = panel_ref["win"]
-            if pw is not None and pw.alive():
-                pw.hide()
-            _resubscribe()
+        _show_panel() if panel_on.get() else _hide_panel()
 
     def _transfer_to_panel():
         pw = _show_panel()
@@ -1056,14 +1032,18 @@ def run() -> None:
                        command=lambda: _open_var_picker(win, catalog, add_var))
     b_rm = ttk.Button(sbtn, text="Entfernen", command=remove_selected)
     b_panel = ttk.Button(sbtn, text="→ Ins Panel", command=lambda: _transfer_to_panel())
+    # Toolbutton-styled checkbutton: pressed (on) while the panel is visible.
+    b_toggle = ttk.Checkbutton(sbtn, text="Panel", style="Toolbutton",
+                               variable=panel_on, command=lambda: _toggle_panel())
     b_add.pack(side="left")
     b_rm.pack(side="left", padx=6)
     b_panel.pack(side="left")
+    b_toggle.pack(side="left", padx=6)
     mon_state = ttk.Label(sbtn, text="", foreground="#666")
     mon_state.pack(side="right")
     _attach_tooltip(b_add, "Popup: nach Typ (A:/K:/L:) filtern + Namen suchen")
-    _attach_tooltip(b_panel, "Ausgewählte (oder alle) Wert-Zeilen als Kacheln ins Panel "
-                             "(an/aus: Menü „Ansicht“)")
+    _attach_tooltip(b_panel, "Ausgewählte (oder alle) Wert-Zeilen als Kacheln ins Panel legen")
+    _attach_tooltip(b_toggle, "Panel-Fenster an/aus (gedrückt = sichtbar)")
 
     # --- bottom status bar (small lamps) ----------------------------------- #
     ttk.Separator(win, orient="horizontal").grid(row=2, column=0, sticky="ew", pady=(8, 0))

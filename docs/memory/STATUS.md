@@ -29,13 +29,18 @@
 - **Politur (User-Feedback nach Sicht, „Einrasten super"):** (a) Kacheln **kompakter** (2-Zeilen-
   Layout, Value 18→13, Unit inline) → ~halbe Höhe schrumpfbar; (b) Fenster **rahmenlos**
   (`overrideredirect`) — kein Titel/X: oben Zieh-Balken (bewegt via `_move_*`) + Spinboxen, Ecke
-  unten rechts = Größe (`_resize_*`), minsize 160x80; (c) **Toggle im Menü „Ansicht" → „Panel
-  anzeigen"** (`panel_on` BooleanVar) blendet an/aus (`show`/`hide`, withdraw/deiconify), `visible`
-  persistiert → Panel öffnet beim Start wieder, wenn zuletzt an. Persistenz `panel`{cols,rows,
-  geometry,visible,tiles[{kind,name,unit,col,row}]}.
-- **⏳ User MUSS visuell prüfen (riskant: overrideredirect ist WM-abhängig!):** erscheint das
-  rahmenlose Fenster überhaupt? Zieh-Balken bewegt? Ecke resized? Toggle an/aus? Spinboxen klickbar
-  (Fokus auf override-Fenstern zickt manchmal)? Kachel-Kompaktheit ok?
+  unten rechts = Größe (`_resize_*`), minsize 160x80.
+- **Close-Fix (User: „kann Panel nicht mehr schließen"):** `withdraw` auf overrideredirect-Fenstern
+  zickte → **an/aus = ERZEUGEN/ZERSTÖREN** des Fensters (zuverlässig auf jedem WM). Gesteuert über
+  **Toggle-Button in der Statistik-Leiste** (`ttk.Checkbutton style=Toolbutton "Panel"`, gedrückt =
+  sichtbar; Menü „Ansicht" entfernt). „→ Ins Panel" öffnet nur noch (schließt nicht). run()-Helfer
+  `_show_panel`/`_hide_panel`/`_toggle_panel`/`_persist_visible`; `visible`-Flag in `panel`
+  persistiert → Panel öffnet beim Start wieder, wenn zuletzt an. `_PanelWindow` hat kein
+  `show/hide/visible` mehr; Subscription = Statistik ∪ (Panel wenn `alive()`).
+- **⏳ User MUSS visuell prüfen (riskant: overrideredirect ist WM-abhängig!):** erscheint/verschwindet
+  das Fenster über den „Panel"-Button? Zieh-Balken bewegt? Ecke resized? Spinboxen klickbar (Fokus
+  auf override-Fenstern zickt manchmal)? Kachel-Kompaktheit ok? Falls override-Fenster gar nicht
+  geht → Plan B „Titelleiste behalten, X blendet aus".
 
 **Danach offen:** Mapper-Tab (Stufe A Geräte-Viewer → B Editor+**ruamel.yaml**-Writer, Entscheidung
 gesetzt). Community-Release (Prefix-Auswahl/Installer/Auto-Geräte-Erkennung) = weit hinten.
