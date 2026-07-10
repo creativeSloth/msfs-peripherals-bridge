@@ -8,6 +8,35 @@
 > (Battery-Gating + die 🆕-Threads). **172 Tests grün, ruff clean, 4 Profile valide.**
 > Ältere „UNCOMMITTED"-Marker weiter unten sind historisch (Code steht/committet).
 
+## 🚧 IN ARBEIT (2026-07-10) — GUI Statistik-Politur + volle Var-Liste + Kachel-Panel
+**Branch `feat/gui-var-monitor`. 194 Tests grün, ruff clean, py_compile ok.** Alles Offline-Code
+(kein Sim nötig); GUI VISUELL UNGEPRÜFT (kein Display/Xvfb in der Session) — User muss sichten.
+
+**Committet (cf0a161) — Statistik-Politur:**
+- Spalten `Typ · Variable · Wert · Einheit` (Wert vor Einheit getauscht).
+- **Auswahl persistent** über Sessions: `config.gui_settings_file()`
+  (`~/.config/msfs-peripherals-bridge/gui-settings.json`), Speichern bei Add/Remove, Restore beim Start.
+- **Volle SDK-Var-Liste** statt kuratiert: `tools/gen_simconnect_catalog.py` parst Python-SimConnect
+  (MIT) → `src/.../data/simconnect_catalog.json` = **850 A:** (Einheit+settable) + **987 K:** Events
+  (je Kategorie). `gui_catalog.py` lädt daraus; L: (692) weiter aus simvars-reference.md. Picker ~2529.
+  `:index`→`:1` normalisiert. Tests test_gui_catalog.py.
+
+**NOCH NICHT committet — Kachel-Panel (User: „mach erst das Panel", dann Redesign-Wunsch):**
+- Panel ist jetzt ein **loslösbares, größenveränderbares Fenster** (`_PanelWindow`, `tk.Toplevel`),
+  Öffnen per „Panel öffnen"/„→ Ins Panel" in der Statistik (kein Tab mehr).
+- **Raster** (Canvas): Kacheln **rasten in Zellen ein**, Drop auf besetzte Zelle **tauscht** die
+  Positionen. Rastergröße per Spinboxen **Spalten x Zeilen, max 20x20** (`PANEL_MAX`). Rechtsklick
+  entfernt. Live-Werte über denselben `_ValueMonitor` (Subscription = Statistik ∪ offenes Panel).
+- **Persistenz** auf ganze Settings-Datei umgestellt (`load_/save_gui_settings`): `statistik_vars`
+  UND `panel` {cols,rows,geometry,tiles[{kind,name,unit,col,row}]} teilen sich die Datei. Reine
+  Grid-Logik (`_panel_first_free/_cell_from_point/_fit_tiles`) unit-getestet (test_panel_grid.py),
+  Persistenz test_gui_settings.py.
+- **⏳ User muss visuell prüfen:** Fenster-Resize, Einrasten, Tausch, 20x20-Grenze, Persistenz.
+
+**Danach offen:** Mapper-Tab (Stufe A Geräte-Viewer → B Editor+**ruamel.yaml**-Writer, Entscheidung
+gesetzt). Community-Release (Prefix-Auswahl/Installer/Auto-Geräte-Erkennung) = weit hinten.
+Details in Auto-Memory `project-process-gui`.
+
 ## 🚧 IN ARBEIT (2026-07-09 spät) — GUI-Live-Monitor + Bridge MULTI-CLIENT
 **Branch `feat/gui-var-monitor`** (von `main` nach dem Merge). **174 Tests grün, ruff clean,
 py_compile ok.** Geändert: `src/.../gui.py`, `bridge/bridge.py`.

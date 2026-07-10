@@ -5,7 +5,9 @@ testable headless.
 """
 
 from msfs_peripherals_bridge.gui import (
+    load_panel_state,
     load_statistik_selection,
+    save_panel_state,
     save_statistik_selection,
 )
 
@@ -51,3 +53,46 @@ def test_non_dict_entries_are_skipped(tmp_path):
         encoding="utf-8",
     )
     assert load_statistik_selection(path=p) == [{"kind": "A:", "name": "OK", "unit": "u"}]
+
+
+def test_panel_state_round_trip(tmp_path):
+    p = tmp_path / "s.json"
+    state = {
+        "cols": 6, "rows": 5, "geometry": "560x360+100+80",
+        "tiles": [
+            {"kind": "A:", "name": "PLANE ALTITUDE", "unit": "Feet", "col": 0, "row": 0},
+            {"kind": "L:", "name": "AUTOPILOT_alt", "unit": "number", "col": 2, "row": 1},
+        ],
+    }
+    save_panel_state(state, path=p)
+    assert load_panel_state(path=p) == state
+
+
+def test_panel_state_defaults(tmp_path):
+    assert load_panel_state(path=tmp_path / "nope.json") == {
+        "cols": 4, "rows": 3, "geometry": "", "tiles": []
+    }
+
+
+def test_panel_state_clamps_bad_grid(tmp_path):
+    p = tmp_path / "s.json"
+    p.write_text(
+        '{"panel": {"cols": 99, "rows": 0, "tiles": [{"kind": "A:", "name": "X"}]}}',
+        encoding="utf-8",
+    )
+    st = load_panel_state(path=p)
+    assert st["cols"] == 4 and st["rows"] == 3  # out-of-range -> defaults
+    assert st["tiles"] == [{"kind": "A:", "name": "X", "unit": "", "col": 0, "row": 0}]
+
+
+def test_statistik_and_panel_coexist(tmp_path):
+    # Saving one section must not clobber the other in the shared settings file.
+    p = tmp_path / "s.json"
+    save_statistik_selection([{"kind": "A:", "name": "V", "unit": "u"}], path=p)
+    save_panel_state(
+        {"cols": 4, "rows": 3, "geometry": "",
+         "tiles": [{"kind": "A:", "name": "V", "unit": "u", "col": 0, "row": 0}]},
+        path=p,
+    )
+    assert load_statistik_selection(path=p) == [{"kind": "A:", "name": "V", "unit": "u"}]
+    assert load_panel_state(path=p)["tiles"][0]["name"] == "V"

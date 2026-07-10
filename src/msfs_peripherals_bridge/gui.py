@@ -34,22 +34,32 @@ from .config import gui_settings_file, profiles_dir, project_root
 
 BRIDGE_PORT = 7842
 _POLL_MS = 1000  # status refresh cadence
+PANEL_MAX = 20  # max grid dimension (cols/rows) for the detachable value panel
 
 
 # --------------------------------------------------------------------------- #
 # persisted GUI state (Statistik var selection)
 # --------------------------------------------------------------------------- #
-def load_statistik_selection(path: Path | None = None) -> list[dict[str, str]]:
-    """Restore the saved Statistik var list as ``{kind, name, unit}`` dicts.
-
-    Best-effort: a missing or malformed file yields an empty selection.
-    """
+def load_gui_settings(path: Path | None = None) -> dict:
+    """Read the whole GUI settings dict; missing/malformed yields ``{}``."""
     p = path or gui_settings_file()
     try:
         data = json.loads(p.read_text(encoding="utf-8"))
     except (OSError, json.JSONDecodeError, ValueError):
-        return []
-    items = data.get("statistik_vars") if isinstance(data, dict) else None
+        return {}
+    return data if isinstance(data, dict) else {}
+
+
+def save_gui_settings(data: dict, path: Path | None = None) -> None:
+    """Write the whole GUI settings dict; failures are non-fatal (best-effort)."""
+    p = path or gui_settings_file()
+    with contextlib.suppress(OSError):
+        p.parent.mkdir(parents=True, exist_ok=True)
+        p.write_text(json.dumps(data, indent=2), encoding="utf-8")
+
+
+def _clean_vars(items: object) -> list[dict[str, str]]:
+    """Keep only well-formed ``{kind, name, unit}`` entries (unit defaults to "")."""
     out: list[dict[str, str]] = []
     if isinstance(items, list):
         for it in items:
@@ -63,12 +73,101 @@ def load_statistik_selection(path: Path | None = None) -> list[dict[str, str]]:
     return out
 
 
+def load_statistik_selection(path: Path | None = None) -> list[dict[str, str]]:
+    """Restore the saved Statistik var list as ``{kind, name, unit}`` dicts."""
+    return _clean_vars(load_gui_settings(path).get("statistik_vars"))
+
+
 def save_statistik_selection(vars_: list[dict[str, str]], path: Path | None = None) -> None:
-    """Persist the Statistik var list; failures are non-fatal (best-effort)."""
-    p = path or gui_settings_file()
-    with contextlib.suppress(OSError):
-        p.parent.mkdir(parents=True, exist_ok=True)
-        p.write_text(json.dumps({"statistik_vars": vars_}, indent=2), encoding="utf-8")
+    """Persist the Statistik var list, preserving the rest of the settings file."""
+    data = load_gui_settings(path)
+    data["statistik_vars"] = vars_
+    save_gui_settings(data, path)
+
+
+def load_panel_state(path: Path | None = None) -> dict:
+    """Restore the panel: grid size, window geometry and tiles {kind,name,unit,col,row}."""
+    st = load_gui_settings(path).get("panel")
+    st = st if isinstance(st, dict) else {}
+    raw = st.get("tiles")
+    raw = raw if isinstance(raw, list) else []
+    tiles: list[dict] = []
+    for v in _clean_vars(raw):
+        src = next(
+            (it for it in raw if it.get("name") == v["name"] and it.get("kind") == v["kind"]),
+            {},
+        )
+        col, row = src.get("col"), src.get("row")
+        tiles.append({
+            **v,
+            "col": col if isinstance(col, int) and not isinstance(col, bool) else 0,
+            "row": row if isinstance(row, int) and not isinstance(row, bool) else 0,
+        })
+    cols, rows = st.get("cols"), st.get("rows")
+    geom = st.get("geometry")
+    return {
+        "cols": cols if isinstance(cols, int) and 1 <= cols <= PANEL_MAX else 4,
+        "rows": rows if isinstance(rows, int) and 1 <= rows <= PANEL_MAX else 3,
+        "geometry": geom if isinstance(geom, str) else "",
+        "tiles": tiles,
+    }
+
+
+def save_panel_state(state: dict, path: Path | None = None) -> None:
+    """Persist the panel state, preserving the rest of the settings file."""
+    data = load_gui_settings(path)
+    data["panel"] = state
+    save_gui_settings(data, path)
+
+
+def _wire_name(kind: str, name: str) -> str | None:
+    """The name to subscribe to: A: bare, L: prefixed, K: events carry no value."""
+    if kind == "L:":
+        return "L:" + name
+    if kind == "A:":
+        return name
+    return None
+
+
+# --- pure grid helpers (unit-tested without a display) --------------------- #
+def _panel_first_free(occupied, cols, rows):
+    """First free (col, row) scanning row-major, or None if the grid is full."""
+    for r in range(rows):
+        for c in range(cols):
+            if (c, r) not in occupied:
+                return (c, r)
+    return None
+
+
+def _panel_cell_from_point(px, py, cols, rows, cellw, cellh):
+    """Clamp a pixel point to a grid (col, row)."""
+    col = min(cols - 1, max(0, int(px // cellw))) if cellw > 0 else 0
+    row = min(rows - 1, max(0, int(py // cellh))) if cellh > 0 else 0
+    return (col, row)
+
+
+def _panel_fit_tiles(tiles, cols, rows):
+    """Keep in-range unique tiles; relocate the rest to free cells (mutates col/row).
+
+    Returns the tiles that did not fit (grid smaller than the tile count).
+    """
+    occupied: set = set()
+    overflow: list = []
+    for t in tiles:
+        cell = (t.get("col", 0), t.get("row", 0))
+        if 0 <= cell[0] < cols and 0 <= cell[1] < rows and cell not in occupied:
+            occupied.add(cell)
+        else:
+            overflow.append(t)
+    dropped: list = []
+    for t in overflow:
+        cell = _panel_first_free(occupied, cols, rows)
+        if cell is None:
+            dropped.append(t)
+        else:
+            t["col"], t["row"] = cell
+            occupied.add(cell)
+    return dropped
 
 
 # --------------------------------------------------------------------------- #
@@ -394,12 +493,263 @@ def _open_var_picker(parent, catalog, on_add) -> None:
     refresh()
 
 
+class _PanelWindow:
+    """Detachable, resizable window: a grid of live value tiles.
+
+    Tiles snap to grid cells; dropping one on an occupied cell swaps the two.
+    The grid size (up to ``PANEL_MAX``x``PANEL_MAX``) is set via the toolbar. The
+    grid dimensions, window geometry and tile placement persist across sessions.
+    Values come from the shared ``_ValueMonitor`` (the caller unions our
+    subscription with the Statistik list via ``on_change``).
+    """
+
+    def __init__(self, master, monitor, on_change, on_close) -> None:
+        import tkinter as tk
+        from tkinter import ttk
+
+        self._tk = tk
+        self.monitor = monitor
+        self._on_change = on_change
+        self._on_close = on_close
+        self.tiles: dict[str, dict] = {}
+        self._drag: dict = {"key": None, "dx": 0.0, "dy": 0.0}
+        self._after: str | None = None
+
+        st = load_panel_state()
+        self.cols, self.rows = st["cols"], st["rows"]
+
+        self.win = tk.Toplevel(master)
+        self.win.title("Panel — Live-Werte")
+        self.win.minsize(240, 160)
+        if st["geometry"]:
+            with contextlib.suppress(tk.TclError):
+                self.win.geometry(st["geometry"])
+        self.win.protocol("WM_DELETE_WINDOW", self._close)
+
+        bar = ttk.Frame(self.win, padding=(8, 6))
+        bar.pack(side="top", fill="x")
+        ttk.Label(bar, text="Raster:").pack(side="left")
+        self._cols_var = tk.IntVar(value=self.cols)
+        self._rows_var = tk.IntVar(value=self.rows)
+        for var in (self._cols_var, self._rows_var):
+            sp = tk.Spinbox(bar, from_=1, to=PANEL_MAX, width=3, textvariable=var,
+                            command=self._grid_changed)
+            sp.pack(side="left", padx=(4, 0))
+            sp.bind("<Return>", lambda _e: self._grid_changed())
+            sp.bind("<FocusOut>", lambda _e: self._grid_changed())
+            if var is self._cols_var:
+                ttk.Label(bar, text="x").pack(side="left", padx=2)
+        ttk.Label(bar, foreground="#888",
+                  text="  Spalten x Zeilen · Kacheln ziehen (einrasten & tauschen) · "
+                       "Rechtsklick entfernt").pack(side="left", padx=6)
+
+        self.canvas = tk.Canvas(self.win, highlightthickness=0, background="#cfd8dc")
+        self.canvas.pack(side="top", fill="both", expand=True)
+        self.canvas.bind("<Configure>", lambda _e: self._relayout())
+
+        for t in st["tiles"]:
+            key = f"{t['kind']}\t{t['name']}"
+            self.tiles.setdefault(key, {**t, "item": None, "value": None})
+        _panel_fit_tiles(list(self.tiles.values()), self.cols, self.rows)
+        for key, t in self.tiles.items():
+            self._create_item(key, t)
+        self._relayout()
+        self._tick()
+
+    # --- API used by run() ------------------------------------------------- #
+    def alive(self) -> bool:
+        try:
+            return bool(self.win.winfo_exists())
+        except self._tk.TclError:
+            return False
+
+    def focus(self) -> None:
+        self.win.deiconify()
+        self.win.lift()
+        self.win.focus_force()
+
+    def __contains__(self, key) -> bool:
+        return key in self.tiles
+
+    def wires(self) -> list[str]:
+        return [w for t in self.tiles.values()
+                if (w := _wire_name(t["kind"], t["name"])) is not None]
+
+    def add(self, kind: str, name: str, unit: str) -> bool:
+        """Place a new tile in the first free cell; False if duplicate or grid full."""
+        key = f"{kind}\t{name}"
+        if key in self.tiles:
+            return False
+        occupied = {(t["col"], t["row"]) for t in self.tiles.values()}
+        cell = _panel_first_free(occupied, self.cols, self.rows)
+        if cell is None:
+            return False
+        t = {"kind": kind, "name": name, "unit": unit,
+             "col": cell[0], "row": cell[1], "item": None, "value": None}
+        self.tiles[key] = t
+        self._create_item(key, t)
+        self._place(t)
+        self._save()
+        return True
+
+    def destroy(self) -> None:
+        self._close()
+
+    # --- internals --------------------------------------------------------- #
+    def _create_item(self, key, t) -> None:
+        tk = self._tk
+        fr = tk.Frame(self.canvas, bd=1, relief="raised", background="#ffffff",
+                      cursor="fleur")
+        tk.Label(fr, text=f"{t['kind']} {t['name']}", font=("TkDefaultFont", 8),
+                 foreground="#607d8b", background="#ffffff").pack(anchor="w", padx=6, pady=(4, 0))
+        val = tk.Label(fr, text="—", font=("TkDefaultFont", 18, "bold"), background="#ffffff")
+        val.pack(anchor="w", padx=6)
+        tk.Label(fr, text=t["unit"], font=("TkDefaultFont", 8), foreground="#90a4ae",
+                 background="#ffffff").pack(anchor="w", padx=6, pady=(0, 4))
+        t["item"] = self.canvas.create_window(0, 0, window=fr, anchor="nw")
+        t["value"] = val
+        for wgt in (fr, *fr.winfo_children()):
+            wgt.bind("<ButtonPress-1>", lambda e, k=key: self._drag_start(e, k))
+            wgt.bind("<B1-Motion>", lambda e, k=key: self._drag_move(e, k))
+            wgt.bind("<ButtonRelease-1>", lambda e, k=key: self._drag_end(e, k))
+            wgt.bind("<Button-3>", lambda e, k=key: self._menu(e, k))
+
+    def _cell_size(self):
+        cw = max(1, self.canvas.winfo_width())
+        ch = max(1, self.canvas.winfo_height())
+        return cw / self.cols, ch / self.rows
+
+    def _canvas_xy(self, ev):
+        return (self.canvas.canvasx(ev.x_root - self.canvas.winfo_rootx()),
+                self.canvas.canvasy(ev.y_root - self.canvas.winfo_rooty()))
+
+    def _place(self, t) -> None:
+        if t["item"] is None:
+            return
+        cellw, cellh = self._cell_size()
+        pad = 3
+        self.canvas.coords(t["item"], t["col"] * cellw + pad, t["row"] * cellh + pad)
+        self.canvas.itemconfigure(t["item"], width=max(1, int(cellw - 2 * pad)),
+                                  height=max(1, int(cellh - 2 * pad)))
+
+    def _draw_grid(self) -> None:
+        self.canvas.delete("gridline")
+        cw, ch = self.canvas.winfo_width(), self.canvas.winfo_height()
+        cellw, cellh = self._cell_size()
+        for c in range(1, self.cols):
+            self.canvas.create_line(c * cellw, 0, c * cellw, ch, fill="#b0bec5", tags="gridline")
+        for r in range(1, self.rows):
+            self.canvas.create_line(0, r * cellh, cw, r * cellh, fill="#b0bec5", tags="gridline")
+        self.canvas.tag_lower("gridline")
+
+    def _relayout(self) -> None:
+        self._draw_grid()
+        for t in self.tiles.values():
+            self._place(t)
+
+    def _drag_start(self, ev, key) -> None:
+        t = self.tiles.get(key)
+        if t is None or t["item"] is None:
+            return
+        self.canvas.lift(t["item"])
+        cx, cy = self._canvas_xy(ev)
+        ix, iy = self.canvas.coords(t["item"])
+        self._drag.update(key=key, dx=cx - ix, dy=cy - iy)
+
+    def _drag_move(self, ev, key) -> None:
+        if self._drag["key"] != key:
+            return
+        cx, cy = self._canvas_xy(ev)
+        self.canvas.coords(self.tiles[key]["item"], cx - self._drag["dx"], cy - self._drag["dy"])
+
+    def _drag_end(self, ev, key) -> None:
+        if self._drag["key"] != key:
+            return
+        self._drag["key"] = None
+        t = self.tiles[key]
+        cellw, cellh = self._cell_size()
+        cx, cy = self._canvas_xy(ev)
+        col, row = _panel_cell_from_point(
+            cx - self._drag["dx"] + cellw / 2, cy - self._drag["dy"] + cellh / 2,
+            self.cols, self.rows, cellw, cellh,
+        )
+        other = next((o for o in self.tiles.values()
+                      if o is not t and o["col"] == col and o["row"] == row), None)
+        if other is not None:  # swap
+            other["col"], other["row"] = t["col"], t["row"]
+            self._place(other)
+        t["col"], t["row"] = col, row
+        self._place(t)
+        self._save()
+
+    def _menu(self, ev, key) -> None:
+        menu = self._tk.Menu(self.canvas, tearoff=0)
+        menu.add_command(label="Kachel entfernen", command=lambda: self._remove(key))
+        menu.tk_popup(ev.x_root, ev.y_root)
+
+    def _remove(self, key) -> None:
+        t = self.tiles.pop(key, None)
+        if t is not None:
+            if t["item"] is not None:
+                self.canvas.delete(t["item"])
+            self._on_change()
+            self._save()
+
+    def _safe_int(self, var, fallback: int) -> int:
+        try:
+            return int(var.get())
+        except (ValueError, self._tk.TclError):
+            return fallback
+
+    def _grid_changed(self) -> None:
+        cols = max(1, min(PANEL_MAX, self._safe_int(self._cols_var, self.cols)))
+        rows = max(1, min(PANEL_MAX, self._safe_int(self._rows_var, self.rows)))
+        if cols * rows < len(self.tiles):  # too small to hold all tiles -> revert
+            self._cols_var.set(self.cols)
+            self._rows_var.set(self.rows)
+            return
+        self.cols, self.rows = cols, rows
+        self._cols_var.set(cols)
+        self._rows_var.set(rows)
+        _panel_fit_tiles(list(self.tiles.values()), self.cols, self.rows)
+        self._relayout()
+        self._save()
+
+    def _tick(self) -> None:
+        vals = self.monitor.values()
+        for t in self.tiles.values():
+            if t["value"] is None:
+                continue
+            w = _wire_name(t["kind"], t["name"])
+            t["value"].configure(text=_fmt_value(vals[w]) if w in vals else "—")
+        self._after = self.win.after(_POLL_MS, self._tick)
+
+    def _save(self) -> None:
+        with contextlib.suppress(self._tk.TclError):
+            save_panel_state({
+                "cols": self.cols, "rows": self.rows,
+                "geometry": self.win.winfo_geometry(),
+                "tiles": [{"kind": t["kind"], "name": t["name"], "unit": t["unit"],
+                           "col": t["col"], "row": t["row"]} for t in self.tiles.values()],
+            })
+
+    def _close(self) -> None:
+        if self._after is not None:
+            with contextlib.suppress(self._tk.TclError):
+                self.win.after_cancel(self._after)
+            self._after = None
+        self._save()
+        with contextlib.suppress(self._tk.TclError):
+            self.win.destroy()
+        self._on_close()
+
+
 # --------------------------------------------------------------------------- #
 # main window
 # --------------------------------------------------------------------------- #
 def run() -> None:
     import tkinter as tk
-    from tkinter import ttk
+    from tkinter import messagebox, ttk
 
     from . import gui_catalog
 
@@ -525,19 +875,19 @@ def run() -> None:
     tsb.grid(row=1, column=3, sticky="ns", pady=6)
     tree.config(yscrollcommand=tsb.set)
 
-    def _wire(kind: str, name: str) -> str | None:
-        """The name to subscribe to: A: bare, L: prefixed, K: events carry no value."""
-        if kind == "L:":
-            return "L:" + name
-        if kind == "A:":
-            return name
-        return None
+    # The detachable Panel window (opened on demand) shares this monitor; the
+    # subscription is the union of the Statistik list and the open panel's tiles.
+    panel_ref: dict = {"win": None}
 
-    def _sync_monitor():
-        monitor.set_names([
+    def _resubscribe():
+        wires = [
             w for iid in tree.get_children("")
-            if (w := _wire(tree.set(iid, "kind"), tree.set(iid, "name"))) is not None
-        ])
+            if (w := _wire_name(tree.set(iid, "kind"), tree.set(iid, "name"))) is not None
+        ]
+        pw = panel_ref["win"]
+        if pw is not None and pw.alive():
+            wires += pw.wires()
+        monitor.set_names(list(dict.fromkeys(wires)))
 
     def _persist_selection():
         save_statistik_selection([
@@ -551,14 +901,14 @@ def run() -> None:
         if tree.exists(key):
             return
         tree.insert("", "end", iid=key, values=(v.kind, v.name, "—", v.unit))
-        _sync_monitor()
+        _resubscribe()
         if persist:
             _persist_selection()
 
     def remove_selected():
         for iid in tree.selection():
             tree.delete(iid)
-        _sync_monitor()
+        _resubscribe()
         _persist_selection()
 
     def update_values():
@@ -568,8 +918,40 @@ def run() -> None:
             if kind == "K:":
                 tree.set(iid, "value", "(Event)")
                 continue
-            w = _wire(kind, tree.set(iid, "name"))
+            w = _wire_name(kind, tree.set(iid, "name"))
             tree.set(iid, "value", _fmt_value(vals[w]) if w in vals else "—")
+
+    def _panel_closed():
+        panel_ref["win"] = None
+        _resubscribe()
+
+    def _open_panel():
+        pw = panel_ref["win"]
+        if pw is not None and pw.alive():
+            pw.focus()
+            return pw
+        pw = _PanelWindow(win, monitor, on_change=_resubscribe, on_close=_panel_closed)
+        panel_ref["win"] = pw
+        _resubscribe()
+        return pw
+
+    def _transfer_to_panel():
+        pw = _open_panel()
+        full = False
+        for iid in tree.selection() or tree.get_children(""):
+            kind = tree.set(iid, "kind")
+            if kind == "K:":  # events carry no value -> not a tile
+                continue
+            if f"{kind}\t{tree.set(iid, 'name')}" in pw:
+                continue
+            if not pw.add(kind, tree.set(iid, "name"), tree.set(iid, "unit")):
+                full = True
+        _resubscribe()
+        if full:
+            messagebox.showinfo(
+                "Panel voll", "Das Raster ist voll — vergrößere es (Spalten x Zeilen).",
+                parent=pw.win,
+            )
 
     # Restore the var selection saved from the last session (before wiring buttons).
     for _saved in load_statistik_selection():
@@ -586,11 +968,17 @@ def run() -> None:
     b_add = ttk.Button(sbtn, text="Variable hinzufügen …",
                        command=lambda: _open_var_picker(win, catalog, add_var))
     b_rm = ttk.Button(sbtn, text="Entfernen", command=remove_selected)
+    b_panel = ttk.Button(sbtn, text="→ Ins Panel", command=lambda: _transfer_to_panel())
+    b_popout = ttk.Button(sbtn, text="Panel öffnen", command=lambda: _open_panel())
     b_add.pack(side="left")
     b_rm.pack(side="left", padx=6)
+    b_panel.pack(side="left")
+    b_popout.pack(side="left", padx=6)
     mon_state = ttk.Label(sbtn, text="", foreground="#666")
     mon_state.pack(side="right")
     _attach_tooltip(b_add, "Popup: nach Typ (A:/K:/L:) filtern + Namen suchen")
+    _attach_tooltip(b_panel, "Ausgewählte (oder alle) Wert-Zeilen als Kacheln ins Panel legen")
+    _attach_tooltip(b_popout, "Loslösbares, größenveränderbares Panel-Fenster öffnen")
 
     # --- bottom status bar (small lamps) ----------------------------------- #
     ttk.Separator(win, orient="horizontal").grid(row=2, column=0, sticky="ew", pady=(8, 0))
@@ -620,8 +1008,11 @@ def run() -> None:
         win.after(_POLL_MS, refresh)
 
     def _on_close():
-        # Stop the monitor thread and don't orphan the mapper this GUI started;
-        # leave the bridge up (it is meant to persist so a mapper can reattach).
+        # Close the detached panel, stop the monitor thread, and don't orphan the
+        # mapper this GUI started; leave the bridge up (it persists for reattach).
+        pw = panel_ref["win"]
+        if pw is not None and pw.alive():
+            pw.destroy()
         monitor.stop()
         stop_mapper()
         win.destroy()
