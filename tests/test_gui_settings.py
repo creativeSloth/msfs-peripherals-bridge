@@ -58,7 +58,7 @@ def test_non_dict_entries_are_skipped(tmp_path):
 def test_panel_state_round_trip(tmp_path):
     p = tmp_path / "s.json"
     state = {
-        "cols": 6, "rows": 5, "geometry": "560x360+100+80",
+        "cols": 6, "rows": 5, "geometry": "560x360+100+80", "visible": True,
         "tiles": [
             {"kind": "A:", "name": "PLANE ALTITUDE", "unit": "Feet", "col": 0, "row": 0},
             {"kind": "L:", "name": "AUTOPILOT_alt", "unit": "number", "col": 2, "row": 1},
@@ -70,7 +70,7 @@ def test_panel_state_round_trip(tmp_path):
 
 def test_panel_state_defaults(tmp_path):
     assert load_panel_state(path=tmp_path / "nope.json") == {
-        "cols": 4, "rows": 3, "geometry": "", "tiles": []
+        "cols": 4, "rows": 3, "geometry": "", "visible": False, "tiles": []
     }
 
 

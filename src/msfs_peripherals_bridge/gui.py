@@ -104,11 +104,12 @@ def load_panel_state(path: Path | None = None) -> dict:
             "row": row if isinstance(row, int) and not isinstance(row, bool) else 0,
         })
     cols, rows = st.get("cols"), st.get("rows")
-    geom = st.get("geometry")
+    geom, vis = st.get("geometry"), st.get("visible")
     return {
         "cols": cols if isinstance(cols, int) and 1 <= cols <= PANEL_MAX else 4,
         "rows": rows if isinstance(rows, int) and 1 <= rows <= PANEL_MAX else 3,
         "geometry": geom if isinstance(geom, str) else "",
+        "visible": vis if isinstance(vis, bool) else False,
         "tiles": tiles,
     }
 
@@ -505,7 +506,6 @@ class _PanelWindow:
 
     def __init__(self, master, monitor, on_change, on_close) -> None:
         import tkinter as tk
-        from tkinter import ttk
 
         self._tk = tk
         self.monitor = monitor
@@ -513,22 +513,29 @@ class _PanelWindow:
         self._on_close = on_close
         self.tiles: dict[str, dict] = {}
         self._drag: dict = {"key": None, "dx": 0.0, "dy": 0.0}
+        self._mv = (0, 0)
+        self._rsz = (0, 0, 0, 0)
         self._after: str | None = None
+        self._visible = True
 
         st = load_panel_state()
         self.cols, self.rows = st["cols"], st["rows"]
 
         self.win = tk.Toplevel(master)
-        self.win.title("Panel — Live-Werte")
-        self.win.minsize(240, 160)
-        if st["geometry"]:
-            with contextlib.suppress(tk.TclError):
-                self.win.geometry(st["geometry"])
-        self.win.protocol("WM_DELETE_WINDOW", self._close)
+        self.win.overrideredirect(True)  # borderless: no title bar / close button
+        self.win.minsize(160, 80)
+        with contextlib.suppress(tk.TclError):
+            self.win.geometry(st["geometry"] or "440x260+140+140")
 
-        bar = ttk.Frame(self.win, padding=(8, 6))
+        # The top strip is the grid toolbar AND the drag handle for moving the
+        # (border-less) window; the spinboxes stay clickable, the rest drags.
+        bar = tk.Frame(self.win, background="#37474f")
         bar.pack(side="top", fill="x")
-        ttk.Label(bar, text="Raster:").pack(side="left")
+        handle = tk.Label(bar, text="::", background="#37474f", foreground="#b0bec5",
+                          font=("TkDefaultFont", 10, "bold"), cursor="fleur")
+        handle.pack(side="left", padx=(6, 4))
+        tk.Label(bar, text="Raster", background="#37474f",
+                 foreground="#eceff1").pack(side="left")
         self._cols_var = tk.IntVar(value=self.cols)
         self._rows_var = tk.IntVar(value=self.rows)
         for var in (self._cols_var, self._rows_var):
@@ -538,14 +545,27 @@ class _PanelWindow:
             sp.bind("<Return>", lambda _e: self._grid_changed())
             sp.bind("<FocusOut>", lambda _e: self._grid_changed())
             if var is self._cols_var:
-                ttk.Label(bar, text="x").pack(side="left", padx=2)
-        ttk.Label(bar, foreground="#888",
-                  text="  Spalten x Zeilen · Kacheln ziehen (einrasten & tauschen) · "
-                       "Rechtsklick entfernt").pack(side="left", padx=6)
+                tk.Label(bar, text="x", background="#37474f",
+                         foreground="#eceff1").pack(side="left", padx=2)
+        hint = tk.Label(bar, background="#37474f", foreground="#90a4ae",
+                        text="  ziehen = bewegen · Kacheln einrasten/tauschen · Rechtsklick = weg")
+        hint.pack(side="left", padx=6)
+        for wgt in (bar, handle, hint):
+            wgt.bind("<ButtonPress-1>", self._move_start)
+            wgt.bind("<B1-Motion>", self._move_drag)
+            wgt.bind("<ButtonRelease-1>", self._move_end)
 
         self.canvas = tk.Canvas(self.win, highlightthickness=0, background="#cfd8dc")
         self.canvas.pack(side="top", fill="both", expand=True)
         self.canvas.bind("<Configure>", lambda _e: self._relayout())
+
+        # Resize grip pinned to the bottom-right corner (overlays the canvas).
+        grip = tk.Label(self.win, text="/", background="#cfd8dc", foreground="#546e7a",
+                        font=("TkDefaultFont", 12, "bold"), cursor="bottom_right_corner")
+        grip.place(relx=1.0, rely=1.0, anchor="se")
+        grip.bind("<ButtonPress-1>", self._resize_start)
+        grip.bind("<B1-Motion>", self._resize_move)
+        grip.bind("<ButtonRelease-1>", self._resize_end)
 
         for t in st["tiles"]:
             key = f"{t['kind']}\t{t['name']}"
@@ -553,6 +573,7 @@ class _PanelWindow:
         _panel_fit_tiles(list(self.tiles.values()), self.cols, self.rows)
         for key, t in self.tiles.items():
             self._create_item(key, t)
+        self.win.lift()
         self._relayout()
         self._tick()
 
@@ -563,10 +584,27 @@ class _PanelWindow:
         except self._tk.TclError:
             return False
 
-    def focus(self) -> None:
-        self.win.deiconify()
-        self.win.lift()
-        self.win.focus_force()
+    def show(self) -> None:
+        self._visible = True
+        with contextlib.suppress(self._tk.TclError):
+            self.win.deiconify()
+            self.win.lift()
+        if self._after is None:
+            self._tick()
+        self._on_change()
+
+    def hide(self) -> None:
+        self._visible = False
+        if self._after is not None:
+            with contextlib.suppress(self._tk.TclError):
+                self.win.after_cancel(self._after)
+            self._after = None
+        with contextlib.suppress(self._tk.TclError):
+            self.win.withdraw()
+        self._on_change()
+
+    def visible(self) -> bool:
+        return self._visible and self.alive()
 
     def __contains__(self, key) -> bool:
         return key in self.tiles
@@ -595,20 +633,45 @@ class _PanelWindow:
     def destroy(self) -> None:
         self._close()
 
+    # --- window move / resize (no WM decorations) -------------------------- #
+    def _move_start(self, ev) -> None:
+        self._mv = (ev.x_root - self.win.winfo_x(), ev.y_root - self.win.winfo_y())
+
+    def _move_drag(self, ev) -> None:
+        self.win.geometry(f"+{ev.x_root - self._mv[0]}+{ev.y_root - self._mv[1]}")
+
+    def _move_end(self, _ev) -> None:
+        self._save()
+
+    def _resize_start(self, ev) -> None:
+        self._rsz = (ev.x_root, ev.y_root, self.win.winfo_width(), self.win.winfo_height())
+
+    def _resize_move(self, ev) -> None:
+        x0, y0, w0, h0 = self._rsz
+        self.win.geometry(f"{max(160, w0 + ev.x_root - x0)}x{max(80, h0 + ev.y_root - y0)}")
+
+    def _resize_end(self, _ev) -> None:
+        self._relayout()
+        self._save()
+
     # --- internals --------------------------------------------------------- #
     def _create_item(self, key, t) -> None:
+        # Compact two-line layout (name; value + unit) so a tile can shrink to
+        # roughly half the old height before its text is clipped.
         tk = self._tk
         fr = tk.Frame(self.canvas, bd=1, relief="raised", background="#ffffff",
                       cursor="fleur")
         tk.Label(fr, text=f"{t['kind']} {t['name']}", font=("TkDefaultFont", 8),
-                 foreground="#607d8b", background="#ffffff").pack(anchor="w", padx=6, pady=(4, 0))
-        val = tk.Label(fr, text="—", font=("TkDefaultFont", 18, "bold"), background="#ffffff")
-        val.pack(anchor="w", padx=6)
-        tk.Label(fr, text=t["unit"], font=("TkDefaultFont", 8), foreground="#90a4ae",
-                 background="#ffffff").pack(anchor="w", padx=6, pady=(0, 4))
+                 foreground="#607d8b", background="#ffffff").pack(anchor="w", padx=5, pady=(1, 0))
+        row = tk.Frame(fr, background="#ffffff")
+        row.pack(anchor="w", padx=5, pady=(0, 1))
+        val = tk.Label(row, text="—", font=("TkDefaultFont", 13, "bold"), background="#ffffff")
+        val.pack(side="left")
+        tk.Label(row, text=t["unit"], font=("TkDefaultFont", 8), foreground="#90a4ae",
+                 background="#ffffff").pack(side="left", padx=(4, 0), pady=(3, 0))
         t["item"] = self.canvas.create_window(0, 0, window=fr, anchor="nw")
         t["value"] = val
-        for wgt in (fr, *fr.winfo_children()):
+        for wgt in (fr, *fr.winfo_children(), *row.winfo_children()):
             wgt.bind("<ButtonPress-1>", lambda e, k=key: self._drag_start(e, k))
             wgt.bind("<B1-Motion>", lambda e, k=key: self._drag_move(e, k))
             wgt.bind("<ButtonRelease-1>", lambda e, k=key: self._drag_end(e, k))
@@ -716,6 +779,9 @@ class _PanelWindow:
         self._save()
 
     def _tick(self) -> None:
+        if not self._visible:
+            self._after = None
+            return
         vals = self.monitor.values()
         for t in self.tiles.values():
             if t["value"] is None:
@@ -729,6 +795,7 @@ class _PanelWindow:
             save_panel_state({
                 "cols": self.cols, "rows": self.rows,
                 "geometry": self.win.winfo_geometry(),
+                "visible": self._visible,
                 "tiles": [{"kind": t["kind"], "name": t["name"], "unit": t["unit"],
                            "col": t["col"], "row": t["row"]} for t in self.tiles.values()],
             })
@@ -772,6 +839,16 @@ def run() -> None:
     win.minsize(480, 400)
     win.columnconfigure(0, weight=1)
     win.rowconfigure(1, weight=1)  # the notebook grows
+
+    # Menu bar with the Panel on/off toggle (the panel is a borderless window,
+    # so this checkbutton is how it is shown/hidden).
+    panel_on = tk.BooleanVar(value=False)
+    menubar = tk.Menu(win)
+    view_menu = tk.Menu(menubar, tearoff=0)
+    view_menu.add_checkbutton(label="Panel anzeigen", variable=panel_on,
+                              command=lambda: _toggle_panel())
+    menubar.add_cascade(label="Ansicht", menu=view_menu)
+    win.config(menu=menubar)
 
     profile_var = tk.StringVar(value=default_profile)
     mapper = {"ctl": None}  # rebuilt on start so a profile change takes effect
@@ -885,7 +962,7 @@ def run() -> None:
             if (w := _wire_name(tree.set(iid, "kind"), tree.set(iid, "name"))) is not None
         ]
         pw = panel_ref["win"]
-        if pw is not None and pw.alive():
+        if pw is not None and pw.visible():
             wires += pw.wires()
         monitor.set_names(list(dict.fromkeys(wires)))
 
@@ -923,20 +1000,31 @@ def run() -> None:
 
     def _panel_closed():
         panel_ref["win"] = None
+        panel_on.set(False)
         _resubscribe()
 
-    def _open_panel():
+    def _show_panel():
         pw = panel_ref["win"]
-        if pw is not None and pw.alive():
-            pw.focus()
-            return pw
-        pw = _PanelWindow(win, monitor, on_change=_resubscribe, on_close=_panel_closed)
-        panel_ref["win"] = pw
+        if pw is None or not pw.alive():
+            pw = _PanelWindow(win, monitor, on_change=_resubscribe, on_close=_panel_closed)
+            panel_ref["win"] = pw
+        else:
+            pw.show()
+        panel_on.set(True)
         _resubscribe()
         return pw
 
+    def _toggle_panel():
+        if panel_on.get():
+            _show_panel()
+        else:
+            pw = panel_ref["win"]
+            if pw is not None and pw.alive():
+                pw.hide()
+            _resubscribe()
+
     def _transfer_to_panel():
-        pw = _open_panel()
+        pw = _show_panel()
         full = False
         for iid in tree.selection() or tree.get_children(""):
             kind = tree.set(iid, "kind")
@@ -950,7 +1038,6 @@ def run() -> None:
         if full:
             messagebox.showinfo(
                 "Panel voll", "Das Raster ist voll — vergrößere es (Spalten x Zeilen).",
-                parent=pw.win,
             )
 
     # Restore the var selection saved from the last session (before wiring buttons).
@@ -969,16 +1056,14 @@ def run() -> None:
                        command=lambda: _open_var_picker(win, catalog, add_var))
     b_rm = ttk.Button(sbtn, text="Entfernen", command=remove_selected)
     b_panel = ttk.Button(sbtn, text="→ Ins Panel", command=lambda: _transfer_to_panel())
-    b_popout = ttk.Button(sbtn, text="Panel öffnen", command=lambda: _open_panel())
     b_add.pack(side="left")
     b_rm.pack(side="left", padx=6)
     b_panel.pack(side="left")
-    b_popout.pack(side="left", padx=6)
     mon_state = ttk.Label(sbtn, text="", foreground="#666")
     mon_state.pack(side="right")
     _attach_tooltip(b_add, "Popup: nach Typ (A:/K:/L:) filtern + Namen suchen")
-    _attach_tooltip(b_panel, "Ausgewählte (oder alle) Wert-Zeilen als Kacheln ins Panel legen")
-    _attach_tooltip(b_popout, "Loslösbares, größenveränderbares Panel-Fenster öffnen")
+    _attach_tooltip(b_panel, "Ausgewählte (oder alle) Wert-Zeilen als Kacheln ins Panel "
+                             "(an/aus: Menü „Ansicht“)")
 
     # --- bottom status bar (small lamps) ----------------------------------- #
     ttk.Separator(win, orient="horizontal").grid(row=2, column=0, sticky="ew", pady=(8, 0))
@@ -1016,6 +1101,10 @@ def run() -> None:
         monitor.stop()
         stop_mapper()
         win.destroy()
+
+    # Reopen the panel if it was visible last session.
+    if load_panel_state()["visible"]:
+        _show_panel()
 
     win.protocol("WM_DELETE_WINDOW", _on_close)
     refresh()

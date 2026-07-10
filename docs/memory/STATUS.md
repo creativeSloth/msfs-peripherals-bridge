@@ -21,17 +21,21 @@
   (je Kategorie). `gui_catalog.py` lädt daraus; L: (692) weiter aus simvars-reference.md. Picker ~2529.
   `:index`→`:1` normalisiert. Tests test_gui_catalog.py.
 
-**NOCH NICHT committet — Kachel-Panel (User: „mach erst das Panel", dann Redesign-Wunsch):**
-- Panel ist jetzt ein **loslösbares, größenveränderbares Fenster** (`_PanelWindow`, `tk.Toplevel`),
-  Öffnen per „Panel öffnen"/„→ Ins Panel" in der Statistik (kein Tab mehr).
-- **Raster** (Canvas): Kacheln **rasten in Zellen ein**, Drop auf besetzte Zelle **tauscht** die
-  Positionen. Rastergröße per Spinboxen **Spalten x Zeilen, max 20x20** (`PANEL_MAX`). Rechtsklick
-  entfernt. Live-Werte über denselben `_ValueMonitor` (Subscription = Statistik ∪ offenes Panel).
-- **Persistenz** auf ganze Settings-Datei umgestellt (`load_/save_gui_settings`): `statistik_vars`
-  UND `panel` {cols,rows,geometry,tiles[{kind,name,unit,col,row}]} teilen sich die Datei. Reine
-  Grid-Logik (`_panel_first_free/_cell_from_point/_fit_tiles`) unit-getestet (test_panel_grid.py),
-  Persistenz test_gui_settings.py.
-- **⏳ User muss visuell prüfen:** Fenster-Resize, Einrasten, Tausch, 20x20-Grenze, Persistenz.
+**Kachel-Panel (committet fff3f45 = Grid-Basis; Politur fc-neu):** `_PanelWindow`.
+- **Grid-Basis (fff3f45):** loslösbares Fenster, Kacheln **rasten in Zellen ein**, Drop auf besetzte
+  Zelle **tauscht**. Rastergröße Spinboxen **Spalten x Zeilen, max 20x20** (`PANEL_MAX`). Rechtsklick
+  entfernt. Live über denselben `_ValueMonitor` (Subscription = Statistik ∪ **sichtbares** Panel).
+  Reine Grid-Logik `_panel_first_free/_cell_from_point/_fit_tiles` unit-getestet (test_panel_grid.py).
+- **Politur (User-Feedback nach Sicht, „Einrasten super"):** (a) Kacheln **kompakter** (2-Zeilen-
+  Layout, Value 18→13, Unit inline) → ~halbe Höhe schrumpfbar; (b) Fenster **rahmenlos**
+  (`overrideredirect`) — kein Titel/X: oben Zieh-Balken (bewegt via `_move_*`) + Spinboxen, Ecke
+  unten rechts = Größe (`_resize_*`), minsize 160x80; (c) **Toggle im Menü „Ansicht" → „Panel
+  anzeigen"** (`panel_on` BooleanVar) blendet an/aus (`show`/`hide`, withdraw/deiconify), `visible`
+  persistiert → Panel öffnet beim Start wieder, wenn zuletzt an. Persistenz `panel`{cols,rows,
+  geometry,visible,tiles[{kind,name,unit,col,row}]}.
+- **⏳ User MUSS visuell prüfen (riskant: overrideredirect ist WM-abhängig!):** erscheint das
+  rahmenlose Fenster überhaupt? Zieh-Balken bewegt? Ecke resized? Toggle an/aus? Spinboxen klickbar
+  (Fokus auf override-Fenstern zickt manchmal)? Kachel-Kompaktheit ok?
 
 **Danach offen:** Mapper-Tab (Stufe A Geräte-Viewer → B Editor+**ruamel.yaml**-Writer, Entscheidung
 gesetzt). Community-Release (Prefix-Auswahl/Installer/Auto-Geräte-Erkennung) = weit hinten.
