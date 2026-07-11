@@ -1,10 +1,25 @@
+import queue
+
 from msfs_peripherals_bridge.devices.base import DeviceEvent
 from msfs_peripherals_bridge.models import SourceKind
-from msfs_peripherals_bridge.runtime import _SWITCH_DEBOUNCE_S, _bounced
+from msfs_peripherals_bridge.runtime import (
+    _SWITCH_DEBOUNCE_S,
+    _bounced,
+    _coalesce_axes,
+    _drain,
+)
 
 
 def _press(code: int = 7, value: int = 1, device: str = "multi_panel") -> DeviceEvent:
     return DeviceEvent(device_id=device, kind=SourceKind.SWITCH, code=code, value=value)
+
+
+def _axis(code: int, value: int, device: str = "yoke") -> DeviceEvent:
+    return DeviceEvent(device_id=device, kind=SourceKind.AXIS, code=code, value=value)
+
+
+def _button(code: int = 289, value: int = 1, device: str = "yoke") -> DeviceEvent:
+    return DeviceEvent(device_id=device, kind=SourceKind.BUTTON, code=code, value=value)
 
 
 def test_first_press_is_never_bounced():
@@ -46,3 +61,47 @@ def test_distinct_buttons_are_debounced_independently():
     assert _bounced(_press(code=8), last, now=0.0) is False
     # A different button pressed right after is its own key -> not suppressed.
     assert _bounced(_press(code=13), last, now=0.01) is False
+
+
+def test_drain_returns_first_plus_everything_buffered():
+    q: queue.Queue[DeviceEvent] = queue.Queue()
+    a, b, c = _axis(0, 1), _axis(0, 2), _axis(1, 3)
+    q.put(b)
+    q.put(c)
+    assert _drain(q, a) == [a, b, c]
+    assert q.empty()  # fully drained
+
+
+def test_drain_of_a_lone_event_is_just_that_event():
+    q: queue.Queue[DeviceEvent] = queue.Queue()
+    a = _axis(0, 5)
+    assert _drain(q, a) == [a]
+
+
+def test_coalesce_keeps_only_the_newest_sample_per_axis():
+    batch = [_axis(0, 1), _axis(0, 2), _axis(0, 3)]
+    assert _coalesce_axes(batch) == [_axis(0, 3)]
+
+
+def test_coalesce_keeps_axes_independent_by_device_and_code():
+    a1, a2 = _axis(0, 1), _axis(0, 2)  # yoke aileron, superseded then latest
+    e1 = _axis(1, 7)  # yoke elevator, different code
+    rud = _axis(5, 4, device="pedals")  # different device, same-ish code space
+    out = _coalesce_axes([a1, e1, a2, rud])
+    # a1 dropped (superseded by a2); the surviving latest of each axis, in order.
+    assert out == [e1, a2, rud]
+
+
+def test_coalesce_never_drops_buttons_or_switches():
+    btn = _button(code=289)
+    sw = _press(code=7)
+    batch = [_axis(0, 1), btn, _axis(0, 2), sw, _axis(0, 3)]
+    # Every non-axis edge survives, in order; only the latest axis sample remains.
+    assert _coalesce_axes(batch) == [btn, sw, _axis(0, 3)]
+
+
+def test_coalesce_preserves_a_button_pressed_after_the_last_axis_move():
+    # Order matters: a press that lands after the final axis sample must stay after
+    # it, so a "move then click" isn't reordered into "click then move".
+    batch = [_axis(0, 1), _axis(0, 2), _button(code=290)]
+    assert _coalesce_axes(batch) == [_axis(0, 2), _button(code=290)]

@@ -72,19 +72,62 @@ def run(
     last_press: dict[tuple[str, int], float] = {}
     while not stop.is_set():
         try:
-            event = events.get(timeout=0.5)
+            first = events.get(timeout=0.5)
         except queue.Empty:
             continue
-        # The Multi Panel's selector/encoder are owned by its controller (display
-        # + value state); everything else goes through the stateless engine.
-        if outputs is not None and outputs.handles(event.device_id, event.code):
-            commands = outputs.handle_input(event.device_id, event.code, event.value)
-        else:
-            if _bounced(event, last_press):
-                continue
-            commands = engine.resolve(event)
-        for command in commands:
-            dispatcher.send(command)
+        # A moving yoke/rudder floods evdev with hundreds of ABS samples a second,
+        # and each one becomes a synchronous *_SET sent over the socket to a single
+        # serialised SimConnect DLL — so the sim can't keep up, the queue backs up,
+        # and the axis arrives lagged and stuttering. Drain the whole backlog this
+        # pass and drop superseded axis samples, sending only the newest position
+        # per axis. Buttons and switch edges are never dropped (see _coalesce_axes).
+        for event in _coalesce_axes(_drain(events, first)):
+            # The Multi Panel's selector/encoder are owned by its controller (display
+            # + value state); everything else goes through the stateless engine.
+            if outputs is not None and outputs.handles(event.device_id, event.code):
+                commands = outputs.handle_input(event.device_id, event.code, event.value)
+            else:
+                if _bounced(event, last_press):
+                    continue
+                commands = engine.resolve(event)
+            for command in commands:
+                dispatcher.send(command)
+
+
+def _drain(events: queue.Queue[DeviceEvent], first: DeviceEvent) -> list[DeviceEvent]:
+    """``first`` plus every event already buffered on the queue.
+
+    Lets one loop pass see the whole backlog at once so :func:`_coalesce_axes`
+    can collapse a burst of axis samples instead of the loop handling (and
+    sending) each one individually.
+    """
+    batch = [first]
+    while True:
+        try:
+            batch.append(events.get_nowait())
+        except queue.Empty:
+            return batch
+
+
+def _coalesce_axes(batch: list[DeviceEvent]) -> list[DeviceEvent]:
+    """Keep only the newest sample per (device, axis); pass everything else through.
+
+    A yoke/rudder emits far more axis samples than the sim can consume, and every
+    intermediate position is superseded the instant the next arrives — forwarding
+    them all just backs the pipeline up and makes the axis stutter. Collapsing a
+    batch to the last reading per axis sends the current position and drops the
+    stale ones. Non-axis events (buttons, switch edges, encoder detents) are never
+    dropped and keep their order: each edge means something a later one can't undo.
+    """
+    last_index: dict[tuple[str, int], int] = {}
+    for i, event in enumerate(batch):
+        if event.kind is SourceKind.AXIS:
+            last_index[(event.device_id, event.code)] = i
+    return [
+        event
+        for i, event in enumerate(batch)
+        if event.kind is not SourceKind.AXIS or last_index[(event.device_id, event.code)] == i
+    ]
 
 
 def _bounced(

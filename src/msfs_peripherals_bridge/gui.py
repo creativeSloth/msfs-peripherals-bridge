@@ -925,11 +925,27 @@ def run() -> None:
     # subscription is the union of the Statistik list and the open panel's tiles.
     panel_ref: dict = {"win": None}
 
+    def _statistik_shown() -> bool:
+        """True only while the Statistik tab is actually on screen (its tab is up
+        and the window isn't minimized). Every subscribed var is a live SimConnect
+        read on the shared bridge that competes with the mapper's real-time axis
+        writes, so we poll the Statistik list only when the user can see it — not
+        while flying with the window in the background."""
+        try:
+            return str(nb.select()) == str(stab) and win.state() != "iconic"
+        except tk.TclError:
+            return False
+
     def _resubscribe():
-        wires = [
-            w for iid in tree.get_children("")
-            if (w := _wire_name(tree.set(iid, "kind"), tree.set(iid, "name"))) is not None
-        ]
+        # Subscribe only to what's visible: the Statistik list while its tab is
+        # shown, plus the detached panel's tiles while it's open. Anything else
+        # would keep the bridge reading vars nobody is looking at.
+        wires = []
+        if _statistik_shown():
+            wires += [
+                w for iid in tree.get_children("")
+                if (w := _wire_name(tree.set(iid, "kind"), tree.set(iid, "name"))) is not None
+            ]
         pw = panel_ref["win"]
         if pw is not None and pw.alive():
             wires += pw.wires()
@@ -1044,6 +1060,8 @@ def run() -> None:
     _attach_tooltip(b_add, "Popup: nach Typ (A:/K:/L:) filtern + Namen suchen")
     _attach_tooltip(b_panel, "Ausgewählte (oder alle) Wert-Zeilen als Kacheln ins Panel legen")
     _attach_tooltip(b_toggle, "Panel-Fenster an/aus (gedrückt = sichtbar)")
+    # Switching to/from the Statistik tab immediately starts/stops its live reads.
+    nb.bind("<<NotebookTabChanged>>", lambda _e: _resubscribe())
 
     # --- bottom status bar (small lamps) ----------------------------------- #
     ttk.Separator(win, orient="horizontal").grid(row=2, column=0, sticky="ew", pady=(8, 0))
@@ -1068,6 +1086,10 @@ def run() -> None:
         bridge_up = _port_listening(BRIDGE_PORT)
         _set_lamp("Bridge", bridge_up)
         _set_lamp("Mapper", mapper["ctl"] is not None and mapper["ctl"].is_running())
+        # Re-evaluate the live subscription each tick: cheap (set_names is a no-op
+        # when unchanged) and self-correcting, so minimizing/restoring or hiding the
+        # Statistik tab drops/re-adds its reads without needing extra event wiring.
+        _resubscribe()
         update_values()
         mon_state.config(text="● live" if bridge_up else "Bridge aus")
         win.after(_POLL_MS, refresh)

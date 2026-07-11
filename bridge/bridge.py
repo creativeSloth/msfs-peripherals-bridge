@@ -30,7 +30,7 @@ import os
 import socket
 import threading
 import time
-from collections.abc import Callable
+from collections.abc import Callable, Iterator
 
 # Python-SimConnect bundles SimConnect.dll, so no MSFS SDK is needed. The
 # import only works under Windows/Wine where that DLL can load.
@@ -158,6 +158,69 @@ class _ReadingSimConnect(SimConnect):
         return super().my_dispatch_proc(pData, cbData, pContext)
 
 
+class _PriorityLock:
+    """Mutual exclusion over the DLL that lets writers preempt readers.
+
+    SimConnect.dll must be touched by one thread at a time, so reads and writes
+    are mutually exclusive. But the mapper's real-time control *writes* (events,
+    SimVar sets) must not be starved by a client's continuous background *reads*
+    (the per-session poll loop). With one client that was harmless — the mapper
+    was the only one polling — but once a second client (the GUI value monitor)
+    polls concurrently, its steady stream of SimVar reads kept grabbing the lock
+    between the yoke/rudder writes, so the axes arrived choppy.
+
+    A waiting writer is therefore served before any waiting reader, and readers
+    take turns (``_read_turnstile``) so at most one is ever queued on the mutex
+    ahead of a writer. A control write thus waits at most one in-flight read (a
+    few ms) instead of a whole poll cycle. The write side is reentrant
+    (``set_simvar`` nests ``_mf_exec``); both sides are exclusive. Readers may be
+    deferred while writes keep coming — correct here: fresh control beats a
+    slightly stale telemetry/LED read, and coalesced axis writes leave gaps.
+    """
+
+    def __init__(self) -> None:
+        self._mutex = threading.RLock()  # the actual DLL guard (writer-reentrant)
+        self._gate = threading.Condition(threading.Lock())
+        self._writers_waiting = 0
+        self._read_turnstile = threading.Lock()
+        self._read_owner: int | None = None  # thread inside read(), for reentrancy
+
+    @contextlib.contextmanager
+    def write(self) -> Iterator[None]:
+        # Reentrant via the RLock mutex (set_simvar nests _mf_exec); the counter
+        # simply stays >0 across the nesting, which keeps readers deferred.
+        with self._gate:
+            self._writers_waiting += 1
+        try:
+            with self._mutex:
+                yield
+        finally:
+            with self._gate:
+                self._writers_waiting -= 1
+                if self._writers_waiting == 0:
+                    self._gate.notify_all()
+
+    @contextlib.contextmanager
+    def read(self) -> Iterator[None]:
+        me = threading.get_ident()
+        if self._read_owner == me:
+            # Reentrant read (read_var falls back to read_simvar); this thread
+            # already holds the mutex, so pass straight through — re-taking the
+            # non-reentrant turnstile here would self-deadlock.
+            yield
+            return
+        with self._read_turnstile:  # one reader queues on the mutex at a time
+            with self._gate:
+                while self._writers_waiting:
+                    self._gate.wait()
+            with self._mutex:
+                self._read_owner = me
+                try:
+                    yield
+                finally:
+                    self._read_owner = None
+
+
 class SimConnectBridge:
     """Thin façade over Python-SimConnect for the three protocol verbs."""
 
@@ -167,13 +230,15 @@ class SimConnectBridge:
         self.sc.on_client_data = self._on_client_data
         # _time=0 disables the request cache so polled values are always fresh.
         self.requests = AircraftRequests(self.sc, _time=0)
-        # SimConnect.dll is NOT safe to call from two threads at once. Two of our
-        # threads do: the session's poll loop reads SimVars while the dispatch
-        # loop fires events / sets vars. Under a burst (e.g. pulling the yoke =
+        # SimConnect.dll is NOT safe to call from two threads at once. Several of
+        # our threads do: each session's poll loop reads SimVars while dispatch
+        # loops fire events / set vars. Under a burst (e.g. pulling the yoke =
         # a stream of ELEVATOR_SET, plus gear/flaps) an overlapping read+write
         # access-violates the DLL (writing 0x10) and drops the link. Serialise
-        # every DLL touch through this reentrant lock so calls never overlap.
-        self._lock = threading.RLock()
+        # every DLL touch through this lock so calls never overlap — and let the
+        # real-time control *writes* preempt background poll *reads* so a second
+        # client's polling can't make the axes stutter (see _PriorityLock).
+        self._lock = _PriorityLock()
         self._events: dict[str, Event] = {}
         # Cache explicit-unit Request objects by (name, unit): building one
         # registers a SimConnect data definition, so we must not leak one per
@@ -220,7 +285,7 @@ class SimConnectBridge:
 
     def send_event(self, name: str, data: int) -> None:
         """Map (once) and transmit a SimConnect client event by name."""
-        with self._lock:
+        with self._lock.write():
             self._check_alive()
             try:
                 event = self._events.get(name)
@@ -234,7 +299,7 @@ class SimConnectBridge:
                 self._mark_lost(exc)
 
     def set_simvar(self, name: str, value: float) -> None:
-        with self._lock:
+        with self._lock.write():
             self._check_alive()
             prefix = name.split(":", 1)[0].upper() if ":" in name else ""
             if prefix in _LOCAL_PREFIXES:
@@ -297,7 +362,7 @@ class SimConnectBridge:
 
     def _mf_exec(self, code: str) -> None:
         """Run RPN/calculator code in the sim via MobiFlight (fire-and-forget)."""
-        with self._lock:
+        with self._lock.write():
             self._check_alive()
             if self._mf_command("MF.SimVars.Set." + code):
                 log.info("MobiFlight exec: %s", code)
@@ -378,7 +443,7 @@ class SimConnectBridge:
         MobiFlight channel isn't available), so the LEDs stay dark rather than
         guess — same contract as read_simvar.
         """
-        with self._lock:
+        with self._lock.read():
             self._check_alive()
             if name not in self._lvar_index:
                 self._register_lvar(name)
@@ -445,7 +510,7 @@ class SimConnectBridge:
         if the channel isn't available or nothing arrived in time. One-shot
         discovery helper — safe to call while the value stream is also running.
         """
-        with self._lock:
+        with self._lock.read():
             self._check_alive()
             if not self._ensure_response_area():
                 return []
@@ -484,7 +549,7 @@ class SimConnectBridge:
         predefined list) and the unit is honoured. Falls back to the predefined
         ``read_simvar`` path if this build of the library lacks ``Request``.
         """
-        with self._lock:
+        with self._lock.read():
             self._check_alive()
             if Request is None:
                 return self.read_simvar(name)
@@ -532,7 +597,7 @@ class SimConnectBridge:
         with spaces (``AUTOPILOT HEADING LOCK DIR``). Try the name as given,
         then the normalised form, so either spelling works.
         """
-        with self._lock:
+        with self._lock.read():
             self._check_alive()
             value = None
             for candidate in (name, name.strip().upper().replace(" ", "_")):
@@ -552,7 +617,7 @@ class SimConnectBridge:
             return value
 
     def close(self) -> None:
-        with self._lock, contextlib.suppress(Exception):
+        with self._lock.write(), contextlib.suppress(Exception):
             self.sc.exit()
 
 
