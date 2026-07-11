@@ -47,11 +47,15 @@ ADF-Encoder tunt die echte Frequenz, DME-Push kippt den Cockpit-Schalter. Nur no
    lesen = Anzeige folgt Cockpit; schreiben (0↔1) = **Cockpit-Schalter springt sichtbar mit** (User
    bestätigt). **TODO Code:** `DmeBank.source_var` = `L:RIGHT_MISC_dme_nav`; render liest ihn für den
    Index, Push schreibt `1−current`, subscriben; lokalen `_UnitState.dme_source` raus.
-3. **CRS-Quellen-Anzeige (NAV1/2) am Multi-Panel:** Software rendert die „1"/„2" korrekt als
-   **linkeste CRS-Ziffer** (mit echtem Profil reproduziert: `[1,␣,␣,9,0]`), aber User sieht sie
-   **definitiv nicht** (bestätigt „keine Zahl links neben dem Kurs") → linkeste Top-Ziffer dunkel/
-   übersehen. **Offen:** Ziffer an den Kurs rücken ODER (User-Idee) im rechten Radio-Display im
-   ADF-Mode zeigen (braucht controllerübergreifenden Zustand). Verwandt: DME-Wahl↔CRS-OBS-Kopplung.
+3. **CRS-Quellen-Anzeige (NAV1/2) am Multi-Panel — ⛔ GEPARKT (2026-07-11, User „bin müde,
+   parke wie den Cabin-Dimmer").** Hardware-Grenze bestätigt: die **linkeste Top-Ziffer ist
+   tot** (dunkel/Halb-Ziffer — Software sendet `[1,␣,␣,9,0]`, kommt nicht an) UND die **zweite
+   Display-Zeile ist am Panel physisch verdeckt**. Beide Wege (Ziffer links / andere Zeile)
+   scheitern an der HW. **De-facto-Indikator, den der User akzeptiert:** die **Gradzahl selbst
+   wechselt** beim 291-Umschalten zwischen NAV1-OBS und NAV2-OBS („kurswert switcht sauber") →
+   reicht ihm, um zu sehen welchen OBS er dreht. CRS-Render bleibt auf dem committeten Stand
+   (Index in Zelle 0 = unsichtbar, aber harmlos). Falls je gewünscht: Punkt-Indikator am Kurs
+   (DOT auf einer Ziffer = NAV2) wäre der einzige HW-taugliche Weg — nicht gebaut.
 - **Methoden-Merker:** Frisch-Read pro Verbindung (Persistent-Read staled!); unbekannte JF-Var per
   727-LVar-Diff finden; JF nutzt Instrumenten-Namen (KR85/KR62/KMA20/RIGHT_MISC), nicht generische.
 
