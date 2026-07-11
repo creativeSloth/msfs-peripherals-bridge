@@ -412,26 +412,45 @@ class DmeBank(BaseModel):
     sources: list[DmeSource] = Field(
         ..., min_length=1, description="DME sources the push cycles through (NAV1, NAV2)."
     )
+    source_var: str | None = Field(
+        None,
+        description=(
+            "Optional LVar holding the DME NAV source (0-based index into sources). "
+            "When set, the shown source follows this var (so a cockpit NAV1/NAV2 "
+            "switch drives the panel) and the push writes it (so the panel drives the "
+            "cockpit) — fully bidirectional. None = local-only cycle. JF Arrow: "
+            "L:RIGHT_MISC_dme_nav (0=NAV1, 1=NAV2)."
+        ),
+    )
 
 
 class AdfBank(BaseModel):
-    """ADF selector position — set the kHz frequency a digit-pair at a time.
+    """ADF (KR-85) selector position — set the kHz frequency a digit-pair at a time.
 
-    The 4-digit kHz frequency is edited with the two encoders + the push: the push
-    toggles a two-digit cursor between the high pair (1000s, 100s) and the low pair
-    (10s, 1s); the outer knob steps the active pair's left digit, the inner its
-    right (each 0-9, wrapping), and the whole value is clamped to
-    ``[min_khz, max_khz]`` so no out-of-range frequency can be dialled. Two dots in
-    the display mark the active pair. The value is read/written on ``freq`` — the
-    STANDBY var, which reads cleanly (ACTIVE reads garbage on the JF Arrow);
-    ``scale`` converts the SimVar to kHz (measured 2026-07-08: reads Hz, so 0.001).
+    The JF Arrow ADF is a **KR-85** whose frequency lives in three cockpit-knob
+    LVars, NOT the standard ADF SimVars (those are decoupled junk on this gauge —
+    writing them changes a parallel value the gauge ignores, measured in-sim
+    2026-07-11). The frequency is::
+
+        F_kHz = (dig1 + 1) * 100 + dig2 * 10 + dig3
+
+    where ``dig1`` is the hundreds group (0..16 -> 100..1700), ``dig2`` the tens and
+    ``dig3`` the ones. The two encoders + push edit the 4-digit kHz value (push
+    toggles a two-digit cursor between the high pair 1000s/100s and the low pair
+    10s/1s; outer knob steps the pair's left digit, inner its right, each wrapping,
+    the whole value clamped to ``[min_khz, max_khz]``). On every change the three
+    counters are written so the real gauge follows; the display reads them back, so
+    turning the cockpit knobs is mirrored too. Two dots mark the active pair.
     """
 
     kind: Literal["adf"] = "adf"
     code: int = Field(..., ge=0, description="Selector bit code for this position.")
     label: str = Field("ADF", description="Human label (logging only).")
-    freq: str = Field("ADF STANDBY FREQUENCY:1", description="Freq SimVar (reads Hz).")
-    scale: float = Field(0.001, description="Multiply the SimVar to get kHz (Hz->kHz).")
+    dig1_var: str = Field(
+        "L:KR85_dig1_counter", description="Hundreds-group counter (0..16); = F//100 - 1."
+    )
+    dig2_var: str = Field("L:KR85_dig2_counter", description="Tens-digit counter (0..9).")
+    dig3_var: str = Field("L:KR85_dig3_counter", description="Ones-digit counter (0..9).")
     min_khz: int = Field(190, ge=0, description="Lowest dialable kHz (clamp floor).")
     max_khz: int = Field(1799, ge=0, description="Highest dialable kHz (clamp ceiling).")
 
@@ -535,12 +554,14 @@ class RadioPanelOutput(BaseModel):
                 if isinstance(bank, DmeBank):
                     for src in bank.sources:
                         names += [src.distance, src.speed]
+                    if bank.source_var is not None:
+                        names.append(bank.source_var)
                 elif isinstance(bank, XpdrBank):
                     names.append(bank.code_var)
                     if bank.baro_var is not None:
                         names.append(bank.baro_var)
                 elif isinstance(bank, AdfBank):
-                    names.append(bank.freq)
+                    names += [bank.dig1_var, bank.dig2_var, bank.dig3_var]
                 else:  # freq (COM/NAV) — active + standby
                     names += [bank.active, bank.standby]
         if self.power is not None:

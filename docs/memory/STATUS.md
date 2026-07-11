@@ -28,22 +28,29 @@ ruff+py_compile grün, 200 Tests grün; Offline-Stub-Test (`resolve_smoke.py` im
 7/7 PASS); **live:** getrennte Req-IDs (COM 9/10, NAV 20/21 …) UND getrennte korrekte Werte
 (COM1 123.815 ≠ COM2 135.235, NAV1 114.6 ≠ NAV2 111.0 — vorher beide identisch).
 
-**🚧 OFFENE THREADS (interaktive In-Sim-Session, MSFS lief):**
-1. **ADF-Eingabe wirkungslos** (User bestätigt): `radio_panel.py:242` schreibt `ADF STANDBY
-   FREQUENCY:1` per `SetSimVar`/SetData → JF-Gauge ignoriert Direktschreib (nur Local-Echo).
-   Fix = auf Event **`ADF_COMPLETE_SET`** (BCD) auf `ADF ACTIVE FREQUENCY:1` umstellen (steht schon
-   in simvars-reference.md:240). **In-sim: BCD-Kodierung + active-vs-standby proben.**
-2. **DME-Bezug ↔ Cockpit bidirektional:** Cockpit hat echten NAV1/NAV2-DME-Schalter (echte Var).
-   Radio-DME-Index soll die Var **lesen (Anzeige folgt Cockpit) + schreiben (Push kippt Cockpit)**
-   statt lokalem `_UnitState.dme_source`. **In-sim: Var finden** (Kandidat `L:KMA20_dme`,
-   `GENERIC_Momentary_DME1/2_AUDIO_SWITCH`) + prüfen ob schreibbar (sonst Radio→Cockpit via H:-Event).
+**🚧 OFFENE THREADS — Mechaniken IN-SIM GEKNACKT (2026-07-11), nur noch CODE-Verdrahtung:**
+1. **ADF — GELÖST via KR-85-LVars (nicht „ADF"-benannt!).** Der JF-Arrow-ADF ist ein **KR-85**;
+   die Frequenz liegt in **`L:KR85_dig1_counter/dig2_counter/dig3_counter`** (gefunden per
+   727-LVar-**Vorher/Nachher-Diff**, während User die 3 Cockpit-Knöpfe drehte — mein „adf"-Grep
+   fand sie nie). **Schreibbar + Gauge folgt visuell bestätigt** (Write dig3=5 → Anzeige 0247→245).
+   **Formel: `F_kHz = (dig1+1)·100 + dig2·10 + dig3`**; Setzen: `dig1=F//100−1, dig2=(F//10)%10,
+   dig3=F%10` (in-sim mit 468 verifiziert). Bereich 190–1799 → dig1 0–16, dig2/dig3 0–9. Andere KR85:
+   `left_knob/mode_knob/right_inner_knob/right_outer_knob/vol_knob`, `RADIO_ANIM_KR85`.
+   ⚠️ Die Standard-A:-SimVars `ADF ACTIVE/STANDBY FREQUENCY:1` + alle ADF-Events/SetData sind
+   **entkoppelter Schrott** (Beweis: mein Write fror ACTIVE auf 1200 ein, Gauge zeigte 1516) → NICHT nutzen.
+   **TODO Code:** `AdfBank` von `ADF STANDBY FREQUENCY:1`+SetSimVar auf die 3 KR85-Counter umbauen
+   (KR85 ist Direkt-Tune, KEIN Standby/Swap; 3 Ziffern). simvars-reference.md ADF-Zeile korrigieren.
+2. **DME-Bezug — GELÖST via `L:RIGHT_MISC_dme_nav`** (0=NAV1, 1=NAV2). **Bidirektional bestätigt:**
+   lesen = Anzeige folgt Cockpit; schreiben (0↔1) = **Cockpit-Schalter springt sichtbar mit** (User
+   bestätigt). **TODO Code:** `DmeBank.source_var` = `L:RIGHT_MISC_dme_nav`; render liest ihn für den
+   Index, Push schreibt `1−current`, subscriben; lokalen `_UnitState.dme_source` raus.
 3. **CRS-Quellen-Anzeige (NAV1/2) am Multi-Panel:** Software rendert die „1"/„2" korrekt als
-   **linkeste Ziffer** der CRS-Zeile (mit echtem Profil reproduziert: `[1,␣,␣,9,0]`), aber User
-   sieht sie nicht → entweder linkeste Top-Ziffer dunkel ODER 2 Leerstellen vom Kurs übersehen.
-   **Offen:** User-Beobachtung; ggf. Ziffer an den Kurs rücken ODER (User-Idee) im rechten
-   Radio-Display im ADF-Mode zeigen (braucht controllerübergreifenden Zustand wie DME-Sync).
-   Verwandt: User wollte urspr. DME-Wahl ↔ CRS-OBS koppeln.
-- **Live-Proben-Durchgang für 1+2 zusammen** ist vom User freigegeben (2026-07-11).
+   **linkeste CRS-Ziffer** (mit echtem Profil reproduziert: `[1,␣,␣,9,0]`), aber User sieht sie
+   **definitiv nicht** (bestätigt „keine Zahl links neben dem Kurs") → linkeste Top-Ziffer dunkel/
+   übersehen. **Offen:** Ziffer an den Kurs rücken ODER (User-Idee) im rechten Radio-Display im
+   ADF-Mode zeigen (braucht controllerübergreifenden Zustand). Verwandt: DME-Wahl↔CRS-OBS-Kopplung.
+- **Methoden-Merker:** Frisch-Read pro Verbindung (Persistent-Read staled!); unbekannte JF-Var per
+  727-LVar-Diff finden; JF nutzt Instrumenten-Namen (KR85/KR62/KMA20/RIGHT_MISC), nicht generische.
 
 ## 🆕 IN ARBEIT (2026-07-11) — Yoke-Stutter: A:-Reads von Pull auf PUSH (Thread-Opt, Option 1)
 **Branch `feat/gui-var-monitor`. Nur `bridge/bridge.py` geändert (+123/−6), UNCOMMITTED.

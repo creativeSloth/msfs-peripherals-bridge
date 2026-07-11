@@ -466,17 +466,20 @@ outputs:
                 swap_event: NAV2_RADIO_SWAP,
                 whole_inc: NAV2_RADIO_WHOLE_INC, whole_dec: NAV2_RADIO_WHOLE_DEC,
                 fract_inc: NAV2_RADIO_FRACT_INC, fract_dec: NAV2_RADIO_FRACT_DEC }
-            # ADF (code 4): 4-digit kHz freq, edited a digit-pair at a time. Push
-            # toggles the cursor between the high pair (1000s,100s) and low pair
+            # ADF (code 4): KR-85 4-digit kHz freq, edited a digit-pair at a time.
+            # Push toggles the cursor between the high pair (1000s,100s) and low pair
             # (10s,1s); outer knob = the pair's left digit, inner = its right (0-9,
-            # clamped to 190..1799). Reads/writes ADF STANDBY FREQUENCY:1 (the clean
-            # one; ACTIVE reads garbage on the JF), scaled Hz->kHz (0.001, measured).
+            # clamped to 190..1799). Reads/writes the KR-85 knob counters
+            # L:KR85_dig1/2/3_counter (F = (dig1+1)*100 + dig2*10 + dig3, in-sim
+            # 2026-07-11) — the standard ADF SimVars are decoupled junk on the JF.
             - { kind: adf, code: 4 }
-            # DME position (display only): distance on top, "<nav> <GS>" below; the
-            # ACT/STBY push cycles NAV1<->NAV2. Codes 4/5/6 = ADF/DME/XPDR (measured).
+            # DME (code 5): distance on top, "<nav> <GS>" below; ACT/STBY push cycles
+            # NAV1<->NAV2. source_var = the cockpit DME NAV switch (bidirectional: the
+            # display follows the cockpit switch, the push flips it). 4/5/6 = ADF/DME/XPDR.
             - kind: dme
               code: 5
               label: DME
+              source_var: "L:RIGHT_MISC_dme_nav"
               sources:
                 - { label: "1", distance: "NAV DME:1", speed: "NAV DMESPEED:1" }
                 - { label: "2", distance: "NAV DME:2", speed: "NAV DMESPEED:2" }
@@ -510,12 +513,13 @@ outputs:
                 swap_event: NAV2_RADIO_SWAP,
                 whole_inc: NAV2_RADIO_WHOLE_INC, whole_dec: NAV2_RADIO_WHOLE_DEC,
                 fract_inc: NAV2_RADIO_FRACT_INC, fract_dec: NAV2_RADIO_FRACT_DEC }
-            # DME position (display only), lower unit — codes 11/12/13 = ADF/DME/XPDR.
+            # DME (code 12), lower unit — bidirectional NAV source via source_var.
             - kind: dme
               code: 12
               label: DME
+              source_var: "L:RIGHT_MISC_dme_nav"
               sources:
                 - { label: "1", distance: "NAV DME:1", speed: "NAV DMESPEED:1" }
                 - { label: "2", distance: "NAV DME:2", speed: "NAV DMESPEED:2" }
-            - { kind: adf, code: 11 }   # ADF digit-pair freq edit (see upper unit)
+            - { kind: adf, code: 11 }   # ADF (KR-85) digit-pair freq edit (see upper unit)
             - { kind: xpdr, code: 13, baro_var: "KOHLSMAN SETTING HG" }  # squawk + QNH
