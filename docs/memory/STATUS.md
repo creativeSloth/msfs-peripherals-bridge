@@ -8,6 +8,43 @@
 > (Battery-Gating + die 🆕-Threads). **172 Tests grün, ruff clean, 4 Profile valide.**
 > Ältere „UNCOMMITTED"-Marker weiter unten sind historisch (Code steht/committet).
 
+## 🆕 SESSION 2026-07-11 (spät) — Streaming IN-SIM VERIFIZIERT + Index-Kollisions-Regression GEFIXT
+**Branch `feat/gui-var-monitor`.** Der Streaming-Push aus dem Abschnitt unten wurde committet
+(`e258e8a`) und **diese Session in-sim bestätigt:** Yoke glatt + Multi-Panel-Werte gut (User),
+ADF- + Barometer-Displays gut, `Streaming SimVar …`-Zeilen im Log, keine AV/Reconnect-Flut.
+`POLL_INTERVAL`-→-0.1-Schritt (10 Hz) ist noch **offen** (kann jetzt gemacht werden, s. u.).
+
+**🔴 REGRESSION gefunden + behoben (committet):** Streaming ließ **COM2/NAV2 die COM1/NAV1-Werte
+anzeigen** (User: „radio com1/2 + nav1/2 werden nicht korrekt angezeigt, im Sim aber richtig
+eingestellt"). Ursache: python-simconnect löst **jeden Index** einer SimVar (`COM ACTIVE
+FREQUENCY:1/:2`, alle `NAV …:1/:2`) auf **ein geteiltes Request-Objekt** auf (`find()` setzt nur
+den Index um). Der alte Pull-Read setzte den Index pro Read neu → korrekt; der neue **stehende
+Stream** registriert ihn nur einmal → `:1` und `:2` teilten sich Request-ID + `outData` → beide
+lasen den zuletzt registrierten Index. Deshalb liefen ADF (`:1` only) + Baro (kein Index) sauber,
+nur die Mehrfach-Index-Paare kaputt. **Fix (`bridge/bridge.py` `_resolve_request`):** indexierte
+Vars bekommen eine **eigene dedizierte `Request`** (eigene Req-/Def-ID, kanonische Einheit aus dem
+Predefined-Eintrag); nicht-indexierte unverändert. Neuer Cache `_stream_var_requests`. **Belege:**
+ruff+py_compile grün, 200 Tests grün; Offline-Stub-Test (`resolve_smoke.py` im Session-Scratchpad,
+7/7 PASS); **live:** getrennte Req-IDs (COM 9/10, NAV 20/21 …) UND getrennte korrekte Werte
+(COM1 123.815 ≠ COM2 135.235, NAV1 114.6 ≠ NAV2 111.0 — vorher beide identisch).
+
+**🚧 OFFENE THREADS (interaktive In-Sim-Session, MSFS lief):**
+1. **ADF-Eingabe wirkungslos** (User bestätigt): `radio_panel.py:242` schreibt `ADF STANDBY
+   FREQUENCY:1` per `SetSimVar`/SetData → JF-Gauge ignoriert Direktschreib (nur Local-Echo).
+   Fix = auf Event **`ADF_COMPLETE_SET`** (BCD) auf `ADF ACTIVE FREQUENCY:1` umstellen (steht schon
+   in simvars-reference.md:240). **In-sim: BCD-Kodierung + active-vs-standby proben.**
+2. **DME-Bezug ↔ Cockpit bidirektional:** Cockpit hat echten NAV1/NAV2-DME-Schalter (echte Var).
+   Radio-DME-Index soll die Var **lesen (Anzeige folgt Cockpit) + schreiben (Push kippt Cockpit)**
+   statt lokalem `_UnitState.dme_source`. **In-sim: Var finden** (Kandidat `L:KMA20_dme`,
+   `GENERIC_Momentary_DME1/2_AUDIO_SWITCH`) + prüfen ob schreibbar (sonst Radio→Cockpit via H:-Event).
+3. **CRS-Quellen-Anzeige (NAV1/2) am Multi-Panel:** Software rendert die „1"/„2" korrekt als
+   **linkeste Ziffer** der CRS-Zeile (mit echtem Profil reproduziert: `[1,␣,␣,9,0]`), aber User
+   sieht sie nicht → entweder linkeste Top-Ziffer dunkel ODER 2 Leerstellen vom Kurs übersehen.
+   **Offen:** User-Beobachtung; ggf. Ziffer an den Kurs rücken ODER (User-Idee) im rechten
+   Radio-Display im ADF-Mode zeigen (braucht controllerübergreifenden Zustand wie DME-Sync).
+   Verwandt: User wollte urspr. DME-Wahl ↔ CRS-OBS koppeln.
+- **Live-Proben-Durchgang für 1+2 zusammen** ist vom User freigegeben (2026-07-11).
+
 ## 🆕 IN ARBEIT (2026-07-11) — Yoke-Stutter: A:-Reads von Pull auf PUSH (Thread-Opt, Option 1)
 **Branch `feat/gui-var-monitor`. Nur `bridge/bridge.py` geändert (+123/−6), UNCOMMITTED.
 200 Tests grün, ruff clean, py_compile ok.** Offline-Stub-Smoke-Test grün (5 Checks:

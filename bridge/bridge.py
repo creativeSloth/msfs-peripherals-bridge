@@ -292,6 +292,11 @@ class SimConnectBridge:
         # single-reference read, so steady-state reads take no lock and never stall a
         # control write.
         self._stream_reqs: dict[str, object] = {}
+        # Dedicated per-name Request objects for *indexed* streamed vars. Indexed
+        # SimVars (COM ACTIVE FREQUENCY:1 / :2) all resolve to one shared predefined
+        # Request in python-simconnect, so each index needs its own object to stream
+        # independently (see _resolve_request). Keyed by full name (with index).
+        self._stream_var_requests: dict[str, object] = {}
         # Lazily-mapped MobiFlight command channel (see _ensure_mobiflight).
         self._mf_ready = False
         # MobiFlight LVar READ channel state. Registration (DLL calls) happens on
@@ -616,17 +621,44 @@ class SimConnectBridge:
         return value
 
     def _resolve_request(self, name: str, unit: str) -> object | None:
-        """The Request a streamed read should feed into: the predefined list's
-        canonical-unit entry first (matching :meth:`read_simvar`, both spellings tried),
-        else an explicit-unit Request built like :meth:`read_var`. Returns None if this
-        lib build lacks ``Request`` so the caller stays on the pull path.
+        """The Request a streamed read should feed into.
+
+        Non-indexed predefined vars map to a unique Request, reused directly (the pull
+        fallback reads the very same object, so the two stay in sync). Indexed vars are
+        the catch: python-simconnect resolves *every* index of ``COM ACTIVE FREQUENCY``
+        to one shared Request (``find`` merely re-sets its index), which is fine for the
+        pull path — it re-sets the index and re-reads on each call — but wrong for a
+        *standing* stream: ``:1`` and ``:2`` would share one request/definition id and
+        push into one ``outData``, so both would read the index registered last. Give
+        every index its OWN dedicated Request. Returns None if this lib build lacks
+        ``Request`` so the caller stays on the pull path.
         """
-        for candidate in (name, name.strip().upper().replace(" ", "_")):
-            found = self.requests.find(candidate)
-            if found is not None:
-                return found
+        indexed = ":" in name and name.rsplit(":", 1)[1].isdigit()
+        if not indexed:
+            for candidate in (name, name.strip().upper().replace(" ", "_")):
+                found = self.requests.find(candidate)
+                if found is not None:
+                    return found
         if Request is None:
             return None
+        if indexed:
+            req = self._stream_var_requests.get(name)
+            if req is None:
+                # Recover the predefined canonical unit so the streamed value matches
+                # read_simvar's pull (find() has substituted the concrete index into
+                # definitions[0]); fall back to the caller's unit for unknown names.
+                deff = (name.encode("ascii"), (unit or "number").encode("ascii"))
+                for candidate in (name, name.strip().upper().replace(" ", "_")):
+                    found = self.requests.find(candidate)
+                    if found is not None:
+                        deff = (
+                            bytes(found.definitions[0][0]),
+                            bytes(found.definitions[0][1]),
+                        )
+                        break
+                req = Request(deff, self.sc, _time=0)
+                self._stream_var_requests[name] = req
+            return req
         key = (name, unit or "number")
         req = self._var_requests.get(key)
         if req is None:
