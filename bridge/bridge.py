@@ -53,6 +53,16 @@ try:
 except ImportError:  # pragma: no cover - depends on the installed lib version
     SIMCONNECT_RECV_CLIENT_DATA = None
 
+try:
+    # The reply struct the sim pushes periodic SimVar data on (RECV_ID_SIMOBJECT_DATA).
+    # Subscribed A: vars are registered as standing per-second requests so their values
+    # arrive here (pushed onto the dispatch thread) instead of being pulled under the
+    # DLL lock — see _start_stream. Absent on old lib builds, in which case reads simply
+    # stay on the on-demand pull path (no crash, just the old contention).
+    from SimConnect.Enum import SIMCONNECT_RECV_SIMOBJECT_DATA
+except ImportError:  # pragma: no cover - depends on the installed lib version
+    SIMCONNECT_RECV_SIMOBJECT_DATA = None
+
 log = logging.getLogger("bridge")
 
 
@@ -115,6 +125,27 @@ _MF_RESPONSE_REQ_ID = 0x4D4A0001  # far from _MF_LVAR_REQ_BASE (0x4D480000+idx)
 _MF_LVARS_LIST_START = "MF.LVars.List.Start"
 _MF_LVARS_LIST_END = "MF.LVars.List.End"
 
+# Streamed SimVar READ channel. The stock read is a synchronous
+# RequestDataOnSimObjectType + spin-wait (SimConnect.get_data) that holds the DLL lock
+# across the whole Wine round-trip, so a polling client stalls the mapper's real-time
+# axis writes. Instead we register each subscribed A: var *once* as a standing periodic
+# RequestDataOnSimObject: the sim then pushes its value onto the library's dispatch
+# thread (filling Request.outData), and the poll read becomes a lock-free attribute
+# read that never competes with a write for the lock. Per SIM_FRAME + change-driven:
+# the sim re-pushes a var only when it actually changes, within a frame of the change,
+# so the cache stays as fresh as the old on-demand read — the poll loop's forward to
+# the client keeps the same ~1 s latency, and an off-cycle read_now (the Radio Panel's
+# post-tune echo) still sees the just-changed value. A once-per-second cadence
+# (PERIOD_SECOND=4, flag=0) would instead add a second stage of up to 1 s and hand
+# read_now a stale value, so the displays/LEDs would lag — hence per-frame. The first
+# value (before any change) is covered by the warm-up pull fallback, so change-driven
+# needing an actual change to emit is fine. Change-driven keeps traffic low: the Arrow's
+# output vars are mostly discrete (gear, AP master, frequencies) and stay silent when idle.
+_RECV_ID_SIMOBJECT_DATA = 8  # SIMCONNECT_RECV_ID_SIMOBJECT_DATA
+_SIMOBJECT_ID_USER = 0  # SIMCONNECT_OBJECT_ID_USER
+_STREAM_PERIOD = 3  # SIMCONNECT_PERIOD_SIM_FRAME — push when it changes, within a frame
+_STREAM_FLAG = 1  # SIMCONNECT_DATA_REQUEST_FLAG_CHANGED — only on change (warm-up pull covers t0)
+
 
 class _ReadingSimConnect(SimConnect):
     """SimConnect that also delivers ``RECV_ID_CLIENT_DATA`` to a callback.
@@ -138,7 +169,18 @@ class _ReadingSimConnect(SimConnect):
         super().__init__(*args, **kwargs)
 
     def my_dispatch_proc(self, pData, cbData, pContext):
-        if pData.contents.dwID == _RECV_ID_CLIENT_DATA and SIMCONNECT_RECV_CLIENT_DATA is not None:
+        dwID = pData.contents.dwID
+        if dwID == _RECV_ID_SIMOBJECT_DATA and SIMCONNECT_RECV_SIMOBJECT_DATA is not None:
+            # A streamed SimVar push (a standing periodic RequestDataOnSimObject we set
+            # up). The base proc fills Request.outData only for the one-shot BYTYPE
+            # reply; route the periodic reply through the very same handler so the value
+            # lands in the matching Request.outData, turning the poll read into a
+            # lock-free attribute read. Runs on the dispatch thread and must not call
+            # back into the DLL — handle_simobject_event only does dict/ctypes work.
+            obj = ctypes.cast(pData, ctypes.POINTER(SIMCONNECT_RECV_SIMOBJECT_DATA)).contents
+            self.handle_simobject_event(obj)
+            return None
+        if dwID == _RECV_ID_CLIENT_DATA and SIMCONNECT_RECV_CLIENT_DATA is not None:
             recv = ctypes.cast(
                 pData, ctypes.POINTER(SIMCONNECT_RECV_CLIENT_DATA)
             ).contents
@@ -244,6 +286,12 @@ class SimConnectBridge:
         # registers a SimConnect data definition, so we must not leak one per
         # button press.
         self._var_requests: dict[tuple[str, str], object] = {}
+        # Streamed SimVar reads: subscribed-name -> the Request whose .outData the sim
+        # now pushes into (see _start_stream / read_subscribed). Shared across client
+        # poll threads; setup is guarded by the write lock, and .outData is an atomic
+        # single-reference read, so steady-state reads take no lock and never stall a
+        # control write.
+        self._stream_reqs: dict[str, object] = {}
         # Lazily-mapped MobiFlight command channel (see _ensure_mobiflight).
         self._mf_ready = False
         # MobiFlight LVar READ channel state. Registration (DLL calls) happens on
@@ -528,19 +576,94 @@ class SimConnectBridge:
     def read_subscribed(self, name: str, unit: str = "number") -> object | None:
         """Read a subscribed var: L:/H:/B: via the MobiFlight stream, else SimConnect.
 
-        For plain SimVars the predefined ``read_simvar`` list is tried first (it
-        keeps each var's canonical unit, so the mapper's known vars are unchanged).
-        Anything it can't resolve — indexed simvars like ``LIGHT POTENTIOMETER:2``
-        or ``NAV OBS:2`` — falls back to the explicit-unit ``read_var`` path, which
-        builds a Request for any name/unit.
+        Plain SimVars are served from a standing per-frame, change-driven push (see
+        :meth:`_start_stream`): the first read for a name sets the stream up (under the
+        write lock), and every later read is a lock-free ``Request.outData`` access that
+        no longer competes with the mapper's real-time axis writes for the DLL lock.
+        Until the first value has been pushed — or if streaming isn't delivering on this
+        Wine build — it falls back to the old synchronous pull, so a value is always
+        returned and the change is only that steady-state reads stop taking the lock.
         """
         prefix = name.split(":", 1)[0].upper() if ":" in name else ""
         if prefix in _LOCAL_PREFIXES:
             return self.read_lvar(name)
+        req = self._stream_reqs.get(name)
+        if req is None:
+            with self._lock.write():
+                self._check_alive()
+                req = self._stream_reqs.get(name)  # another poll thread may have set it up
+                if req is None:
+                    req = self._start_stream(name, unit)
+                    if req is not None:
+                        self._stream_reqs[name] = req
+            if req is None:
+                return self._read_pull(name, unit)  # streaming unavailable for this var
+        out = req.outData
+        if out is None:
+            return self._read_pull(name, unit)  # no push yet (warming up) or not delivering
+        if isinstance(out, bytes):
+            return out.decode("utf-8", "replace").rstrip("\x00")
+        return out
+
+    def _read_pull(self, name: str, unit: str) -> object | None:
+        """The old on-demand read: predefined canonical-unit list first, then an
+        explicit-unit Request. Used as the streaming fallback (warm-up / undelivered);
+        it targets the *same* Request object the stream feeds, so the two stay in sync.
+        """
         value = self.read_simvar(name)
         if value is None:
             value = self.read_var(name, unit)
         return value
+
+    def _resolve_request(self, name: str, unit: str) -> object | None:
+        """The Request a streamed read should feed into: the predefined list's
+        canonical-unit entry first (matching :meth:`read_simvar`, both spellings tried),
+        else an explicit-unit Request built like :meth:`read_var`. Returns None if this
+        lib build lacks ``Request`` so the caller stays on the pull path.
+        """
+        for candidate in (name, name.strip().upper().replace(" ", "_")):
+            found = self.requests.find(candidate)
+            if found is not None:
+                return found
+        if Request is None:
+            return None
+        key = (name, unit or "number")
+        req = self._var_requests.get(key)
+        if req is None:
+            deff = (name.encode("ascii"), (unit or "number").encode("ascii"))
+            req = Request(deff, self.sc, _time=0)
+            self._var_requests[key] = req
+        return req
+
+    def _start_stream(self, name: str, unit: str) -> object | None:
+        """Register ``name`` as a standing periodic push and return its Request.
+
+        Caller holds the write lock. Defines the data (a quick ``AddToDataDefinition``,
+        no spin-wait) and starts a repeating ``RequestDataOnSimObject`` so the sim pushes
+        the value onto the dispatch thread from now on. Returns None (caller falls back
+        to a pull) if the var can't be defined — an unresolved ``:index`` placeholder or
+        a name SimConnect rejects.
+        """
+        req = self._resolve_request(name, unit)
+        if req is None or not req._deff_test():
+            return None
+        try:
+            hr = self.sc.dll.RequestDataOnSimObject(
+                self.sc.hSimConnect,
+                req.DATA_REQUEST_ID.value,
+                req.DATA_DEFINITION_ID.value,
+                _SIMOBJECT_ID_USER,
+                _STREAM_PERIOD,
+                _STREAM_FLAG,
+                0, 0, 0,
+            )
+        except OSError as exc:
+            self._mark_lost(exc)  # raises SimDisconnected
+        if hr != 0:
+            log.error("stream setup failed (0x%08X) for %s [%s]", hr & 0xFFFFFFFF, name, unit)
+            return None
+        log.info("Streaming SimVar %s [%s] (req %d)", name, unit, req.DATA_REQUEST_ID.value)
+        return req
 
     def read_var(self, name: str, unit: str) -> object | None:
         """Read a SimVar with an explicit unit (e.g. heading in 'degrees').

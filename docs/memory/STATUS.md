@@ -8,6 +8,62 @@
 > (Battery-Gating + die 🆕-Threads). **172 Tests grün, ruff clean, 4 Profile valide.**
 > Ältere „UNCOMMITTED"-Marker weiter unten sind historisch (Code steht/committet).
 
+## 🆕 IN ARBEIT (2026-07-11) — Yoke-Stutter: A:-Reads von Pull auf PUSH (Thread-Opt, Option 1)
+**Branch `feat/gui-var-monitor`. Nur `bridge/bridge.py` geändert (+123/−6), UNCOMMITTED.
+200 Tests grün, ruff clean, py_compile ok.** Offline-Stub-Smoke-Test grün (5 Checks:
+Setup, Warm-up-Fallback, lock-freier Cache-Hit, Stream-Reuse, korrekte periodische Args,
+L:-Routing, `:index`-Var) — liegt im Session-Scratchpad `stream_smoke.py` (bridge.py ist
+auf Linux nicht importierbar → nicht in der Suite; Test stubbt das `SimConnect`-Paket).
+
+**Warum:** Rest-Stutter seit Multi-Client kam von der **Read-Seite**: A:-Var-Polls
+(`requests.get()` = `RequestDataOnSimObjectType` + Spin-Wait in `get_data`) hielten den
+`_PriorityLock` über den **ganzen Wine-Roundtrip** → der nächste Achsen-`*_SET` wartete
+dahinter. L:-Reads waren schon billig (MobiFlight-Async-Callback → Dict-Lookup). User will
+**Yoke-Auflösung/Rate NICHT** anfassen → Nebenläufigkeit optimieren statt Datenrate.
+
+**Was gebaut (Option 1 = Pull→Push, EINE Connection):** jede abonnierte A:-Var wird
+**einmal** als stehende periodische `RequestDataOnSimObject` registriert (`_start_stream`);
+der Sim **pusht** den Wert auf den Dispatch-Thread → Basis-`handle_simobject_event` füllt
+`Request.outData`. Dafür fängt `_ReadingSimConnect.my_dispatch_proc` jetzt `dwID==8`
+(`SIMCONNECT_RECV_ID_SIMOBJECT_DATA`) ab (Basis behandelt nur BYTYPE) und routet es durch
+dieselbe Methode. **Poll-Read = lock-freier `outData`-Zugriff** (`read_subscribed` neu),
+konkurriert nie mehr mit Writes um den DLL-Lock. `_resolve_request` erhält die **kanonische
+Einheit** (predefined `AircraftRequests.find` zuerst, beide Schreibweisen) → identisches
+Verhalten wie alt. **Fallback eingebaut:** solange `outData is None` (Warm-up) ODER falls
+Streaming unter Wine nicht liefert → alter Pull (`_read_pull`, greift auf DASSELBE Request-
+Objekt zu) → **kein Funktionsverlust möglich**, nur weniger Contention sobald der Stream läuft.
+Lifecycle sauber: `_stream_reqs` lebt auf der `SimConnectBridge` (frisch pro Sim-Connection,
+beim Reconnect neu). **Periode = `SIM_FRAME`(3) + `CHANGED`(1)** (`_STREAM_PERIOD/_STREAM_FLAG`):
+Cache ist frame-frisch → Output-Latenz bleibt Poll-gebunden (~1s wie vorher, KEINE Regression)
+und `read_now` (Radio-Echo nach Tuning) liest wieder frisch. **Warum nicht `PERIOD_SECOND`:**
+das hätte ein zweites 1s-Stadium addiert (Push-Takt + Poll) → alle A:-Displays/LEDs bis ~2s
+langsamer, und `read_now` bekäme einen bis 1s alten Cache (Radio-Echo würde ruckeln). Fast alle
+piper_arrow-Displays/LEDs sind A:-Vars (Gear-LEDs, AP-Ref-Werte ALT/VS/IAS/HDG/CRS, AP-Master-
+LED, Battery-Gates, ganzes Radio-Display COM/NAV/DME/XPDR/ADF/Baro) → sie alle liefen sonst
+langsamer. L:-Vars (`L:AUTOPILOT_MODE`, `L:JF_PA28_AP_alt/_vs` = Mode/Hold-LEDs) unberührt
+(MobiFlight). t0-Wert deckt der Warm-up-Pull ab, also ist change-driven ok. Change-driven hält
+die Dispatch-Last klein (Arrow-Output-Vars meist diskret + still im Idle).
+
+**🔴 NÄCHSTE SESSION = IN-SIM VERIFIZIEREN (das ist der Spike-Zweck, offline nicht prüfbar):**
+1. **Bridge MUSS neu starten** (lädt neues `bridge.py`): `msfs-bridge piper_arrow` (oder nur
+   `setsid bash bridge/run-bridge.sh &` + Mapper). MSFS an, JF Arrow.
+2. **Fliegen + GUI-Panel/Statistik offen** (das war die Stutter-Quelle): laggt das Yoke noch?
+   Erwartung: glatt, weil die Panel-Reads jetzt lock-frei aus dem Push-Cache kommen.
+3. **`bridge/bridge.log` prüfen:** `Streaming SimVar <name> …`-Zeilen erscheinen (Setup ok);
+   Panel-Werte + LEDs updaten weiter (≤~1s, wie vorher); **keine** AV/`SimConnect lost`/
+   Reconnect-Flut. Wenn Werte **blank bleiben** → Push liefert nicht unter Wine → Fallback
+   hält's funktional, aber Contention bleibt → **auf Option 2 (2. SimConnect-Connection nur
+   für Reads) schwenken.** Wenn Werte da UND Yoke glatt → committen.
+4. **DANACH (User-Entscheidung „erst verifizieren, dann 10 Hz", 2026-07-11): `POLL_INTERVAL`
+   in `bridge/bridge.py` von `1.0` auf `0.1` setzen → ~10 Hz an Displays/LEDs.** Das ist JETZT
+   sicher, weil der Poll-Read lock-frei aus dem Cache liest (10 Hz = 10× billige Cache-Reads,
+   NICHT 10× lock-haltende Pulls). **Zwingend erst NACH dem Streaming-Verify:** liefert
+   Streaming unter Wine nicht, bleibt alles im `_read_pull`-Fallback (lock-haltend) — ein
+   10-Hz-Poll würde den Lock dann 10× härter hämmern und die Achsen SCHLIMMER stottern lassen.
+   User will ~10 Hz (nicht 60); reicht völlig. (Cache selbst ist via SIM_FRAME schon frame-frisch.)
+5. Optional: Suppress-unchanged/Deadband (Write-Seite, vom User zurückgestellt — Auflösung/Rate
+   des Yokes NICHT anfassen), Stub-Smoke-Test als Repo-Test aufnehmen.
+
 ## 🚧 IN ARBEIT (2026-07-10) — GUI Statistik-Politur + volle Var-Liste + Kachel-Panel
 **Branch `feat/gui-var-monitor`. 194 Tests grün, ruff clean, py_compile ok.** Alles Offline-Code
 (kein Sim nötig); GUI VISUELL UNGEPRÜFT (kein Display/Xvfb in der Session) — User muss sichten.
