@@ -28,8 +28,11 @@ ruff+py_compile grün, 200 Tests grün; Offline-Stub-Test (`resolve_smoke.py` im
 7/7 PASS); **live:** getrennte Req-IDs (COM 9/10, NAV 20/21 …) UND getrennte korrekte Werte
 (COM1 123.815 ≠ COM2 135.235, NAV1 114.6 ≠ NAV2 111.0 — vorher beide identisch).
 
-**🚧 OFFENE THREADS — Mechaniken IN-SIM GEKNACKT (2026-07-11), nur noch CODE-Verdrahtung:**
-1. **ADF — GELÖST via KR-85-LVars (nicht „ADF"-benannt!).** Der JF-Arrow-ADF ist ein **KR-85**;
+**✅ 1+2 FERTIG (Code + committet `b16699a` + am Panel in-sim verifiziert 2026-07-11):
+ADF-Encoder tunt die echte Frequenz, DME-Push kippt den Cockpit-Schalter. Nur noch ③ (CRS-Anzeige) offen.**
+
+**🚧 THREADS — Mechaniken IN-SIM GEKNACKT (2026-07-11):**
+1. **✅ ADF — GELÖST via KR-85-LVars (nicht „ADF"-benannt!), VERDRAHTET+VERIFIZIERT.** Der JF-Arrow-ADF ist ein **KR-85**;
    die Frequenz liegt in **`L:KR85_dig1_counter/dig2_counter/dig3_counter`** (gefunden per
    727-LVar-**Vorher/Nachher-Diff**, während User die 3 Cockpit-Knöpfe drehte — mein „adf"-Grep
    fand sie nie). **Schreibbar + Gauge folgt visuell bestätigt** (Write dig3=5 → Anzeige 0247→245).
