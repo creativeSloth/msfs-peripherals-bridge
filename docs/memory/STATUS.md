@@ -1,12 +1,47 @@
 # STATUS — Resume-Anker
 
 > Kurzer Einstiegspunkt: was läuft, was offen ist, wie es weitergeht.
-> Stand: **2026-07-09** (ALT/VS-Mode-Input IN-SIM GEFUNDEN + verdrahtet, Sticky-Wert-Fix
-> für ALT/VS, Barometer geklärt (2 Höhenmesser) — s. 🆕-Abschnitt ganz oben).
-> Multi-Panel ist auf **`main`** gemerged.
-> Aktueller Branch: **`refactor/light-dimmers`**. Diese Session: **ALLES UNCOMMITTED**
-> (Battery-Gating + die 🆕-Threads). **172 Tests grün, ruff clean, 4 Profile valide.**
+> Stand: **2026-07-13** (Mapper-Tab **Stufe A** = Geräte-Viewer gebaut, s. 🆕 ganz oben).
+> Multi-Panel ist auf **`main`** gemerged. **`feat/gui-var-monitor` liegt 12 Commits vor
+> `main` und ist verifiziert (Streaming/Index-Fix/Multi-Client/ADF/DME in-sim), aber NOCH
+> NICHT nach main gemergt** (offene Enden: 10-Hz-Poll, Panel-Sichtprüfung).
+> Aktueller Branch: **`feat/mapper-tab`** (von `feat/gui-var-monitor` abgezweigt, weil der
+> Mapper die dortige GUI-Basis braucht). **212 Tests grün, ruff clean, 4 Profile valide.**
 > Ältere „UNCOMMITTED"-Marker weiter unten sind historisch (Code steht/committet).
+
+## 🆕 SESSION 2026-07-13 — Mapper-Tab Stufe A (Geräte-Viewer) GEBAUT
+**Branch `feat/mapper-tab`** (neu, von `feat/gui-var-monitor`). **212 Tests grün, ruff clean,
+4 Profile valide, py_compile ok.** Reiner Offline-Code; **GUI visuell UNGEPRÜFT** (kein Fenster
+ungefragt auf den Live-Desktop `:0` geworfen — User sichtet selbst).
+
+**Was gebaut (Stufe A = Nur-Lese-Übersicht, wie im Stufenplan A→B→C):**
+- **Neues reines Logik-Modul `src/.../gui_mapper.py`** (dependency-frei, tkinter-los, testbar):
+  `build_device_rows(catalog, profile, present)` → 1 Zeile je Katalog-Gerät (Transport, Present-
+  Tri-State True/False/None, #bindings, #outputs); `describe_source/action/transform/binding` +
+  `describe_output` (Typ + `len(simvars())`); `device_bindings/device_outputs`. Present-Tri-State:
+  None = Erkennung n/a → Status „?", sonst „verbunden"/„nicht erkannt".
+- **`gui.py` neuer „Mapper"-Tab:** links Geräte-Treeview (Gerät·Bus·Status·Bind·Out), rechts
+  Detail-Treeview (Bindings mit Control/Aktion/Shaping + Outputs-Zusammenfassung) für das
+  gewählte Gerät. Modul-Helfer `_discover_present(catalog)` = evdev+hidraw discovery, beide
+  `contextlib.suppress`-geschützt (python-evdev optional) → None wenn gar nichts scannen konnte.
+  **Discovery ist LAZY** (erst beim ersten Anzeigen des Tabs, `_on_tab_changed`) → Startup bleibt
+  schnell. „Geräte neu erkennen"-Button = force rescan. Profil-Wechsel (`profile_var.trace_add`)
+  lädt die Zeilen neu (ohne Rediscovery). Tab-Wechsel-Bind vereinigt (Statistik-`_resubscribe`
+  + Mapper-Reload).
+- **Tests `tests/test_gui_mapper.py` (12):** Zeilen-Reihenfolge/Zählung, Present-Tri-State,
+  jede Action-Formatierung, Sequence-Summary, Transform (inkl. Expo-Kurve faltet Stärke ein —
+  kein doppeltes „expo, expo=0.25"), Output-Summary. Plus Real-Profil-Smoke (piper_arrow):
+  yoke 7 binds, switch_panel 17+gear_leds, multi 11+„13 SimVars", radio 0+„37 SimVars".
+
+**🔴 NÄCHSTE SESSION:**
+1. **GUI visuell sichten** (`uv run python -m msfs_peripherals_bridge.gui` → Tab „Mapper"):
+   Geräte-Liste + Detail lesbar? Status stimmt (Panels angesteckt → „verbunden")? „Neu erkennen"
+   aktualisiert? Profil-Dropdown-Wechsel lädt die Liste um?
+2. **Stufe B = Editor + `ruamel.yaml`-Writer** (Entscheidung steht): Bindings/Outputs im Tab
+   editierbar machen + kommentar-erhaltend zurückschreiben. Var-Auswahl über den bestehenden
+   `_open_var_picker`. Danach Stufe C (Sonderfunktionen: Bedingungen/CRS/Heading-Bug/virtuelle LVars).
+3. **Separat (nicht Mapper):** `feat/gui-var-monitor` offene Enden abnehmen (10-Hz-Poll,
+   Panel-overrideredirect-Sicht) → dann diese ganze Kette (gui-var-monitor + mapper-tab) nach main.
 
 ## 🆕 SESSION 2026-07-11 (spät) — Streaming IN-SIM VERIFIZIERT + Index-Kollisions-Regression GEFIXT
 **Branch `feat/gui-var-monitor`.** Der Streaming-Push aus dem Abschnitt unten wurde committet

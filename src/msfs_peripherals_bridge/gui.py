@@ -8,6 +8,9 @@ with tabs, and a small status bar with lamps pinned to the bottom edge.
   actual command they run.
 * **Statistik** tab — assemble a live value list: pick variables from a searchable,
   type-filterable catalog (popup) and read their current values (snapshot).
+* **Mapper** tab — read-only device viewer (Stufe A): every catalog device with its
+  live-connected status and, per device, the bindings/outputs the selected profile
+  assigns it. Discovery is lazy (first time the tab is shown). The editor is Stufe B.
 
 Launch:  uv run python -m msfs_peripherals_bridge.gui   (or the `msfs-gui` script)
 
@@ -240,6 +243,29 @@ def _port_listening(port: int) -> bool:
 
 def _msfs_running() -> bool:
     return any("FlightSimulator.exe" in cmd for _, cmd in _iter_proc_cmdlines())
+
+
+def _discover_present(catalog) -> set[str] | None:
+    """Device ids detected as attached now, or ``None`` if discovery can't run.
+
+    Runs both hidraw (Saitek panels) and evdev (axis hardware) discovery, each
+    guarded: python-evdev is optional and Linux-only, so its absence just means
+    those devices read as unknown rather than crashing the viewer. Returns
+    ``None`` only when neither reader could even attempt a scan.
+    """
+    present: set[str] = set()
+    ran = False
+    with contextlib.suppress(Exception):
+        from .devices import hidraw_reader
+
+        present |= set(hidraw_reader.discover(catalog))
+        ran = True
+    with contextlib.suppress(Exception):
+        from .devices import evdev_reader
+
+        present |= set(evdev_reader.discover(catalog))
+        ran = True
+    return present if ran else None
 
 
 class ProcessController:
@@ -1060,8 +1086,129 @@ def run() -> None:
     _attach_tooltip(b_add, "Popup: nach Typ (A:/K:/L:) filtern + Namen suchen")
     _attach_tooltip(b_panel, "Ausgewählte (oder alle) Wert-Zeilen als Kacheln ins Panel legen")
     _attach_tooltip(b_toggle, "Panel-Fenster an/aus (gedrückt = sichtbar)")
-    # Switching to/from the Statistik tab immediately starts/stops its live reads.
-    nb.bind("<<NotebookTabChanged>>", lambda _e: _resubscribe())
+    # ===== Mapper tab (Stufe A: read-only device viewer) =================== #
+    from . import gui_mapper
+    from .mapping.loader import load_device_catalog, load_profile
+
+    mtab = ttk.Frame(nb, padding=10)
+    nb.add(mtab, text="Mapper")
+    mtab.rowconfigure(1, weight=1)
+    mtab.columnconfigure(0, weight=1)  # device list
+    mtab.columnconfigure(1, weight=2)  # detail
+
+    mhdr = ttk.Frame(mtab)
+    mhdr.grid(row=0, column=0, columnspan=3, sticky="ew")
+    ttk.Label(mhdr, text="Geräte im Profil — was ist worauf gemappt:").pack(side="left")
+    m_state = ttk.Label(mhdr, text="", foreground="#666")
+    m_state.pack(side="right")
+
+    # left: one row per catalog device (bus, connected?, #bindings, #outputs)
+    dev_tree = ttk.Treeview(mtab, columns=("bus", "status", "b", "o"),
+                            show="tree headings", height=9, selectmode="browse")
+    dev_tree.heading("#0", text="Gerät")
+    dev_tree.column("#0", width=170, anchor="w")
+    for col, head, w in (("bus", "Bus", 58), ("status", "Status", 96),
+                         ("b", "Bind", 42), ("o", "Out", 38)):
+        dev_tree.heading(col, text=head)
+        dev_tree.column(col, width=w, anchor="center")
+    dev_tree.grid(row=1, column=0, sticky="nsew", pady=6, padx=(0, 8))
+
+    # right: bindings + outputs of the selected device
+    detail = ttk.Treeview(mtab, columns=("source", "action", "shape"),
+                          show="tree headings", height=9)
+    detail.heading("#0", text="Name")
+    detail.column("#0", width=150, anchor="w")
+    for col, head, w in (("source", "Control", 96), ("action", "Aktion", 250),
+                         ("shape", "Shaping", 110)):
+        detail.heading(col, text=head)
+        detail.column(col, width=w, anchor="w")
+    detail.grid(row=1, column=1, sticky="nsew", pady=6)
+    dsb = ttk.Scrollbar(mtab, orient="vertical", command=detail.yview)
+    dsb.grid(row=1, column=2, sticky="ns", pady=6)
+    detail.configure(yscrollcommand=dsb.set)
+
+    # discovery is lazy (only when the tab is first shown) so startup stays fast.
+    mstate: dict[str, object] = {"present": None, "discovered": False, "profile": None}
+
+    def _current_profile():
+        try:
+            return load_profile(profiles_dir() / f"{profile_var.get()}.yaml")
+        except Exception:
+            return None
+
+    def _device_catalog():
+        try:
+            from . import config as _config
+
+            return load_device_catalog(_config.devices_file())
+        except Exception:
+            return None
+
+    def _mapper_show_detail(*_):
+        detail.delete(*detail.get_children())
+        prof = mstate["profile"]
+        sel = dev_tree.selection()
+        if prof is None or not sel:
+            return
+        dev_id = sel[0]
+        binds = gui_mapper.device_bindings(prof, dev_id)
+        bnode = detail.insert("", "end", text=f"Bindings ({len(binds)})", open=True)
+        for br in binds:
+            detail.insert(bnode, "end", text=br.name,
+                          values=(br.source, br.action, br.transform))
+        outs = gui_mapper.device_outputs(prof, dev_id)
+        if outs:
+            onode = detail.insert("", "end", text=f"Outputs ({len(outs)})", open=True)
+            for summary in outs:
+                detail.insert(onode, "end", text=summary)
+
+    def _mapper_reload(rediscover: bool = False):
+        prof = _current_profile()
+        cat = _device_catalog()
+        dev_tree.delete(*dev_tree.get_children())
+        if prof is None or cat is None:
+            mstate["profile"] = None
+            _mapper_show_detail()
+            m_state.config(text="Profil oder Geräte-Katalog nicht lesbar")
+            return
+        if rediscover:
+            mstate["present"] = _discover_present(cat)
+            mstate["discovered"] = True
+        rows = gui_mapper.build_device_rows(cat, prof, mstate["present"])
+        mstate["profile"] = prof
+        for r in rows:
+            dev_tree.insert("", "end", iid=r.id, text=r.name,
+                            values=(r.transport, r.status, r.bindings, r.outputs))
+        if rows:
+            dev_tree.selection_set(rows[0].id)
+            dev_tree.focus(rows[0].id)
+        _mapper_show_detail()
+        if mstate["present"] is None:
+            m_state.config(text=f"{len(rows)} Geräte · Erkennung n/a · Profil „{prof.name}“")
+        else:
+            n = sum(1 for r in rows if r.present)
+            m_state.config(text=f"{n}/{len(rows)} verbunden · Profil „{prof.name}“")
+
+    dev_tree.bind("<<TreeviewSelect>>", _mapper_show_detail)
+    profile_var.trace_add("write", lambda *_: _mapper_reload(rediscover=False))
+
+    mbtn = ttk.Frame(mtab)
+    mbtn.grid(row=2, column=0, columnspan=3, sticky="ew", pady=(6, 0))
+    b_rescan = ttk.Button(mbtn, text="Geräte neu erkennen",
+                          command=lambda: _mapper_reload(rediscover=True))
+    b_rescan.pack(side="left")
+    ttk.Label(mbtn, text="Nur-Lese-Übersicht (Stufe A) — Editor folgt.",
+              foreground="#666").pack(side="left", padx=8)
+    _attach_tooltip(b_rescan, "evdev + hidraw discovery — welche Geräte hängen jetzt dran")
+
+    # Switching tabs: the Statistik tab starts/stops its live reads; the Mapper
+    # tab discovers devices the first time it is shown (lazy, keeps startup fast).
+    def _on_tab_changed(_e=None):
+        _resubscribe()
+        if str(nb.select()) == str(mtab):
+            _mapper_reload(rediscover=not mstate["discovered"])
+
+    nb.bind("<<NotebookTabChanged>>", _on_tab_changed)
 
     # --- bottom status bar (small lamps) ----------------------------------- #
     ttk.Separator(win, orient="horizontal").grid(row=2, column=0, sticky="ew", pady=(8, 0))
