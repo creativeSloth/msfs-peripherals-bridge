@@ -8,9 +8,11 @@ with tabs, and a small status bar with lamps pinned to the bottom edge.
   actual command they run.
 * **Statistik** tab — assemble a live value list: pick variables from a searchable,
   type-filterable catalog (popup) and read their current values (snapshot).
-* **Mapper** tab — read-only device viewer (Stufe A): every catalog device with its
-  live-connected status and, per device, the bindings/outputs the selected profile
-  assigns it. Discovery is lazy (first time the tab is shown). The editor is Stufe B.
+* **Mapper** tab — device viewer + inline binding editor: every catalog device with
+  its live-connected status and, per device, the bindings/outputs the selected profile
+  assigns it. Select a binding to edit it in the panel below (name/source/action/
+  transform); Übernehmen writes back through the comment-preserving profile_writer.
+  Discovery is lazy (first time the tab is shown).
 
 Launch:  uv run python -m msfs_peripherals_bridge.gui   (or the `msfs-gui` script)
 
@@ -837,7 +839,7 @@ def run() -> None:
 
     win = tk.Tk()
     win.title("MSFS Peripherals Bridge — Control")
-    win.minsize(480, 400)
+    win.minsize(620, 460)
     win.columnconfigure(0, weight=1)
     win.rowconfigure(1, weight=1)  # the notebook grows
 
@@ -1086,8 +1088,8 @@ def run() -> None:
     _attach_tooltip(b_add, "Popup: nach Typ (A:/K:/L:) filtern + Namen suchen")
     _attach_tooltip(b_panel, "Ausgewählte (oder alle) Wert-Zeilen als Kacheln ins Panel legen")
     _attach_tooltip(b_toggle, "Panel-Fenster an/aus (gedrückt = sichtbar)")
-    # ===== Mapper tab (Stufe A: read-only device viewer) =================== #
-    from . import gui_mapper
+    # ===== Mapper tab (device viewer + inline binding editor) ============== #
+    from . import gui_mapper, profile_writer
     from .mapping.loader import load_device_catalog, load_profile
 
     mtab = ttk.Frame(nb, padding=10)
@@ -1104,7 +1106,7 @@ def run() -> None:
 
     # left: one row per catalog device (bus, connected?, #bindings, #outputs)
     dev_tree = ttk.Treeview(mtab, columns=("bus", "status", "b", "o"),
-                            show="tree headings", height=9, selectmode="browse")
+                            show="tree headings", height=7, selectmode="browse")
     dev_tree.heading("#0", text="Gerät")
     dev_tree.column("#0", width=170, anchor="w")
     for col, head, w in (("bus", "Bus", 58), ("status", "Status", 96),
@@ -1115,7 +1117,7 @@ def run() -> None:
 
     # right: bindings + outputs of the selected device
     detail = ttk.Treeview(mtab, columns=("source", "action", "shape"),
-                          show="tree headings", height=9)
+                          show="tree headings", height=7)
     detail.heading("#0", text="Name")
     detail.column("#0", width=150, anchor="w")
     for col, head, w in (("source", "Control", 96), ("action", "Aktion", 250),
@@ -1144,31 +1146,297 @@ def run() -> None:
         except Exception:
             return None
 
-    def _mapper_show_detail(*_):
+    def _sel(tree):
+        s = tree.selection()
+        return s[0] if s else None
+
+    # rescan button + inline editor (built below), then the render/edit helpers.
+    mbtn = ttk.Frame(mtab)
+    mbtn.grid(row=2, column=0, columnspan=3, sticky="ew", pady=(6, 0))
+    b_rescan = ttk.Button(mbtn, text="Geräte neu erkennen",
+                          command=lambda: _mapper_reload(rediscover=True))
+    b_rescan.pack(side="left")
+    ttk.Label(mbtn, text="Binding wählen zum Bearbeiten · Achsen zeigen Transform.",
+              foreground="#666").pack(side="left", padx=8)
+    _attach_tooltip(b_rescan, "evdev + hidraw discovery — welche Geräte hängen jetzt dran")
+
+    # --- inline editor panel ---------------------------------------------- #
+    ed = ttk.LabelFrame(mtab, text="Binding bearbeiten", padding=8)
+    ed.grid(row=3, column=0, columnspan=3, sticky="ew", pady=(8, 0))
+    ed.columnconfigure(1, weight=1)
+    ed.columnconfigure(2, weight=1)
+    etgt: dict = {"device": None, "index": None, "original_action": None}
+    ev = {
+        "name": tk.StringVar(), "kind": tk.StringVar(), "code": tk.StringVar(),
+        "raw_min": tk.StringVar(), "raw_max": tk.StringVar(),  # carried, not shown
+        "action_type": tk.StringVar(),
+        "ev_event": tk.StringVar(), "ev_value": tk.StringVar(),
+        "sv_simvar": tk.StringVar(), "sv_unit": tk.StringVar(), "sv_invert": tk.BooleanVar(),
+        "efv_read": tk.StringVar(), "efv_event": tk.StringVar(), "efv_unit": tk.StringVar(),
+        "rpn_code": tk.StringVar(),
+        "tf_deadzone": tk.StringVar(), "tf_curve": tk.StringVar(), "tf_expo": tk.StringVar(),
+        "tf_invert": tk.BooleanVar(), "tf_out_min": tk.StringVar(), "tf_out_max": tk.StringVar(),
+    }
+
+    def _pick_into(var):
+        def on_pick(v):  # v is a gui_catalog.CatalogVar
+            var.set((v.kind + v.name) if v.kind in ("L:", "V:") else v.name)
+        extra = gui_catalog.local_var_catalog(mstate["profile"].local_vars) \
+            if mstate["profile"] is not None else []
+        _open_var_picker(win, catalog + extra, on_pick)
+
+    # row 0: name
+    ttk.Label(ed, text="Name").grid(row=0, column=0, sticky="w", padx=(0, 6), pady=2)
+    ttk.Entry(ed, textvariable=ev["name"]).grid(row=0, column=1, columnspan=2, sticky="ew", pady=2)
+
+    # row 1: source (kind + code + learn)
+    ttk.Label(ed, text="Quelle").grid(row=1, column=0, sticky="w", padx=(0, 6), pady=2)
+    kind_cb = ttk.Combobox(ed, textvariable=ev["kind"], values=list(gui_mapper.SOURCE_KINDS),
+                           state="readonly", width=8)
+    kind_cb.grid(row=1, column=1, sticky="w", pady=2)
+    srcfr = ttk.Frame(ed)
+    srcfr.grid(row=1, column=2, sticky="w")
+    ttk.Label(srcfr, text="Code").pack(side="left", padx=(0, 4))
+    ttk.Entry(srcfr, textvariable=ev["code"], width=8).pack(side="left")
+    b_learn = ttk.Button(srcfr, text="Lernen", state="disabled")
+    b_learn.pack(side="left", padx=6)
+    _attach_tooltip(b_learn, "Hardware-Capture (Knopf drücken → Code) — folgt")
+
+    # row 2: action type + type-specific fields (only the active one shown)
+    ttk.Label(ed, text="Aktion").grid(row=2, column=0, sticky="w", padx=(0, 6), pady=2)
+    type_cb = ttk.Combobox(ed, textvariable=ev["action_type"], values=list(gui_mapper.ACTION_TYPES),
+                           state="readonly", width=14)
+    type_cb.grid(row=2, column=1, sticky="w", pady=2)
+    afh = ttk.Frame(ed)
+    afh.grid(row=2, column=2, sticky="ew", pady=2)
+    af: dict = {}
+    fe = ttk.Frame(afh)
+    ttk.Label(fe, text="Event").pack(side="left")
+    ttk.Entry(fe, textvariable=ev["ev_event"], width=22).pack(side="left", padx=4)
+    ttk.Button(fe, text="…", width=2, command=lambda: _pick_into(ev["ev_event"])).pack(side="left")
+    ttk.Label(fe, text="Wert").pack(side="left", padx=(8, 0))
+    ttk.Entry(fe, textvariable=ev["ev_value"], width=6).pack(side="left", padx=4)
+    af["event"] = fe
+    fs = ttk.Frame(afh)
+    ttk.Label(fs, text="SimVar").pack(side="left")
+    ttk.Entry(fs, textvariable=ev["sv_simvar"], width=22).pack(side="left", padx=4)
+    ttk.Button(fs, text="…", width=2, command=lambda: _pick_into(ev["sv_simvar"])).pack(side="left")
+    ttk.Label(fs, text="Unit").pack(side="left", padx=(8, 0))
+    ttk.Entry(fs, textvariable=ev["sv_unit"], width=8).pack(side="left", padx=4)
+    ttk.Checkbutton(fs, text="invert", variable=ev["sv_invert"]).pack(side="left", padx=6)
+    af["simvar"] = fs
+    ff = ttk.Frame(afh)
+    ttk.Label(ff, text="Read").pack(side="left")
+    ttk.Entry(ff, textvariable=ev["efv_read"], width=18).pack(side="left", padx=4)
+    ttk.Button(ff, text="…", width=2, command=lambda: _pick_into(ev["efv_read"])).pack(side="left")
+    ttk.Label(ff, text="Event").pack(side="left", padx=(8, 0))
+    ttk.Entry(ff, textvariable=ev["efv_event"], width=16).pack(side="left", padx=4)
+    ttk.Button(ff, text="…", width=2, command=lambda: _pick_into(ev["efv_event"])).pack(side="left")
+    af["event_from_var"] = ff
+    fr = ttk.Frame(afh)
+    ttk.Label(fr, text="RPN").pack(side="left")
+    ttk.Entry(fr, textvariable=ev["rpn_code"], width=44).pack(side="left", padx=4)
+    af["rpn"] = fr
+    fq = ttk.Frame(afh)
+    ttk.Label(fq, text="Sequence — inline (noch) nicht editierbar; bleibt beim Speichern erhalten.",
+              foreground="#a15").pack(side="left")
+    af["sequence"] = fq
+
+    # row 3: transform (axis only)
+    tffr = ttk.Frame(ed)
+    tffr.grid(row=3, column=0, columnspan=3, sticky="w", pady=2)
+    ttk.Label(tffr, text="Transform").pack(side="left", padx=(0, 6))
+    ttk.Label(tffr, text="dz").pack(side="left")
+    ttk.Entry(tffr, textvariable=ev["tf_deadzone"], width=5).pack(side="left", padx=(2, 8))
+    ttk.Label(tffr, text="Kurve").pack(side="left")
+    ttk.Combobox(tffr, textvariable=ev["tf_curve"], values=list(gui_mapper.CURVES),
+                 state="readonly", width=8).pack(side="left", padx=(2, 8))
+    ttk.Label(tffr, text="expo").pack(side="left")
+    ttk.Entry(tffr, textvariable=ev["tf_expo"], width=5).pack(side="left", padx=(2, 8))
+    ttk.Checkbutton(tffr, text="invert", variable=ev["tf_invert"]).pack(side="left", padx=(0, 8))
+    ttk.Label(tffr, text="out").pack(side="left")
+    ttk.Entry(tffr, textvariable=ev["tf_out_min"], width=7).pack(side="left", padx=2)
+    ttk.Label(tffr, text="…").pack(side="left")
+    ttk.Entry(tffr, textvariable=ev["tf_out_max"], width=7).pack(side="left", padx=2)
+
+    # row 4: actions + feedback
+    edbtn = ttk.Frame(ed)
+    edbtn.grid(row=4, column=0, columnspan=3, sticky="ew", pady=(6, 0))
+    ttk.Button(edbtn, text="Übernehmen", command=lambda: _ed_apply()).pack(side="left")
+    ttk.Button(edbtn, text="Zurücksetzen", command=lambda: _ed_reset()).pack(side="left", padx=6)
+    ttk.Button(edbtn, text="+ Neu", command=lambda: _ed_add()).pack(side="left")
+    ttk.Button(edbtn, text="Duplizieren", command=lambda: _ed_duplicate()).pack(side="left", padx=6)
+    ttk.Button(edbtn, text="Entfernen", command=lambda: _ed_remove()).pack(side="left")
+    ed_status = ttk.Label(edbtn, text="", foreground="#666")
+    ed_status.pack(side="left", padx=10)
+
+    def _ed_status(msg, error=False):
+        ed_status.config(text=msg, foreground="#c62828" if error else "#2e7d32" if msg else "#666")
+
+    def _ed_show_fields(*_):
+        for frame in af.values():
+            frame.pack_forget()
+        af.get(ev["action_type"].get(), af["event"]).pack(side="left", fill="x")
+        if ev["kind"].get() == "axis":
+            tffr.grid()
+        else:
+            tffr.grid_remove()
+
+    def _ed_set_form(form):
+        for key, var in ev.items():
+            if key in form:
+                var.set(form[key])
+        _ed_show_fields()
+
+    def _seq_original(binding):
+        if binding.action.type != "sequence":
+            return None
+        d = binding.action.model_dump(exclude_defaults=True)
+        d["type"] = "sequence"  # excluded as a default, but the union needs it
+        return d
+
+    def _ed_clear():
+        etgt.update(device=None, index=None, original_action=None)
+        for var in ev.values():
+            var.set(False if isinstance(var, tk.BooleanVar) else "")
+        ev["action_type"].set("event")
+        ev["kind"].set("button")
+        _ed_show_fields()
+        ed.config(text="Binding bearbeiten")
+        _ed_status("Wähle links ein Gerät und ein Binding.")
+
+    def _ed_load(device_id, index):
+        prof = mstate["profile"]
+        binds = prof.bindings.get(device_id, []) if prof else []
+        if not (0 <= index < len(binds)):
+            _ed_clear()
+            return
+        binding = binds[index]
+        etgt.update(device=device_id, index=index, original_action=_seq_original(binding))
+        _ed_set_form(gui_mapper.binding_to_form(binding))
+        ed.config(text=f"Binding bearbeiten — {device_id} #{index}: {binding.name}")
+
+    def _ed_reset():
+        if etgt["device"] is not None:
+            _ed_load(etgt["device"], etgt["index"])
+
+    def _ed_save(mutate):
+        """Load the profile doc, apply mutate, validate, dump. Error str or None."""
+        path = profiles_dir() / f"{profile_var.get()}.yaml"
+        try:
+            data = profile_writer.load(path)
+            mutate(data)
+            profile_writer.validate(data)
+            profile_writer.dump(data, path)
+            return None
+        except Exception as exc:  # show any failure inline instead of crashing
+            return str(exc)
+
+    def _reselect(device_id, index):
+        mstate["reselect"] = (device_id, index)
+        _mapper_reload(rediscover=False, keep_device=device_id)
+
+    def _ed_apply():
+        if etgt["device"] is None:
+            _ed_status("Kein Binding gewählt.", error=True)
+            return
+        try:
+            binding = gui_mapper.form_to_binding(
+                {k: var.get() for k, var in ev.items()}, etgt["original_action"]
+            )
+        except ValueError as exc:
+            _ed_status(str(exc), error=True)
+            return
+        dev, idx = etgt["device"], etgt["index"]
+        err = _ed_save(lambda d: profile_writer.apply_binding_edit(d, dev, idx, binding))
+        if err:
+            _ed_status(f"Nicht gespeichert: {err}", error=True)
+            return
+        _reselect(dev, idx)
+        _ed_status("Gespeichert ✓")
+
+    def _ed_add():
+        dev = _sel(dev_tree)
+        if dev is None:
+            _ed_status("Kein Gerät gewählt.", error=True)
+            return
+        prof = mstate["profile"]
+        idx = len(prof.bindings.get(dev, [])) if prof else 0
+        new = gui_mapper.form_to_binding(gui_mapper.blank_binding_form("button"))
+        err = _ed_save(lambda d: profile_writer.add_binding(d, dev, new))
+        if err:
+            _ed_status(f"Nicht angelegt: {err}", error=True)
+            return
+        _reselect(dev, idx)
+        _ed_status("Neues Binding angelegt ✓")
+
+    def _ed_duplicate():
+        if etgt["device"] is None:
+            _ed_status("Kein Binding gewählt.", error=True)
+            return
+        dev, idx = etgt["device"], etgt["index"]
+        binding = mstate["profile"].bindings[dev][idx]
+        dup = gui_mapper.form_to_binding(
+            gui_mapper.binding_to_form(binding), _seq_original(binding))
+        dup["name"] = binding.name + " (Kopie)"
+        err = _ed_save(lambda d: profile_writer.add_binding(d, dev, dup, index=idx + 1))
+        if err:
+            _ed_status(f"Nicht dupliziert: {err}", error=True)
+            return
+        _reselect(dev, idx + 1)
+        _ed_status("Dupliziert ✓")
+
+    def _ed_remove():
+        if etgt["device"] is None:
+            _ed_status("Kein Binding gewählt.", error=True)
+            return
+        dev, idx = etgt["device"], etgt["index"]
+        err = _ed_save(lambda d: profile_writer.remove_binding(d, dev, idx))
+        if err:
+            _ed_status(f"Nicht entfernt: {err}", error=True)
+            return
+        _reselect(dev, max(0, idx - 1))
+        _ed_status("Entfernt ✓")
+
+    def _ed_on_detail_select(*_):
+        sel = _sel(detail)
+        dev = _sel(dev_tree)
+        if sel and str(sel).startswith("bind:") and dev:
+            _ed_load(dev, int(str(sel).split(":")[1]))
+        else:
+            _ed_clear()
+
+    def _render_detail(device_id, reselect_index=None):
         detail.delete(*detail.get_children())
         prof = mstate["profile"]
-        sel = dev_tree.selection()
-        if prof is None or not sel:
+        if prof is None or not device_id:
+            _ed_clear()
             return
-        dev_id = sel[0]
-        binds = gui_mapper.device_bindings(prof, dev_id)
+        binds = gui_mapper.device_bindings(prof, device_id)
         bnode = detail.insert("", "end", text=f"Bindings ({len(binds)})", open=True)
-        for br in binds:
-            detail.insert(bnode, "end", text=br.name,
+        for i, br in enumerate(binds):
+            detail.insert(bnode, "end", iid=f"bind:{i}", text=br.name,
                           values=(br.source, br.action, br.transform))
-        outs = gui_mapper.device_outputs(prof, dev_id)
+        outs = gui_mapper.device_outputs(prof, device_id)
         if outs:
             onode = detail.insert("", "end", text=f"Outputs ({len(outs)})", open=True)
-            for summary in outs:
-                detail.insert(onode, "end", text=summary)
+            for i, summary in enumerate(outs):
+                detail.insert(onode, "end", iid=f"out:{i}", text=summary)
+        if reselect_index is not None and binds:
+            idx = min(reselect_index, len(binds) - 1)
+            detail.selection_set(f"bind:{idx}")
+            detail.see(f"bind:{idx}")
+            _ed_load(device_id, idx)
+        else:
+            _ed_clear()
 
-    def _mapper_reload(rediscover: bool = False):
+    def _mapper_reload(rediscover: bool = False, keep_device=None):
         prof = _current_profile()
         cat = _device_catalog()
         dev_tree.delete(*dev_tree.get_children())
         if prof is None or cat is None:
             mstate["profile"] = None
-            _mapper_show_detail()
+            _render_detail(None)
             m_state.config(text="Profil oder Geräte-Katalog nicht lesbar")
             return
         if rediscover:
@@ -1176,30 +1444,30 @@ def run() -> None:
             mstate["discovered"] = True
         rows = gui_mapper.build_device_rows(cat, prof, mstate["present"])
         mstate["profile"] = prof
+        ids = set()
         for r in rows:
             dev_tree.insert("", "end", iid=r.id, text=r.name,
                             values=(r.transport, r.status, r.bindings, r.outputs))
-        if rows:
-            dev_tree.selection_set(rows[0].id)
-            dev_tree.focus(rows[0].id)
-        _mapper_show_detail()
+            ids.add(r.id)
+        target = keep_device if keep_device in ids else (rows[0].id if rows else None)
+        if target:
+            dev_tree.selection_set(target)
+            dev_tree.focus(target)
+        reselect = mstate.pop("reselect", None)
+        ridx = reselect[1] if (reselect and reselect[0] == target) else None
+        _render_detail(target, ridx)
         if mstate["present"] is None:
             m_state.config(text=f"{len(rows)} Geräte · Erkennung n/a · Profil „{prof.name}“")
         else:
             n = sum(1 for r in rows if r.present)
             m_state.config(text=f"{n}/{len(rows)} verbunden · Profil „{prof.name}“")
 
-    dev_tree.bind("<<TreeviewSelect>>", _mapper_show_detail)
+    kind_cb.bind("<<ComboboxSelected>>", _ed_show_fields)
+    type_cb.bind("<<ComboboxSelected>>", _ed_show_fields)
+    dev_tree.bind("<<TreeviewSelect>>", lambda *_: _render_detail(_sel(dev_tree)))
+    detail.bind("<<TreeviewSelect>>", _ed_on_detail_select)
     profile_var.trace_add("write", lambda *_: _mapper_reload(rediscover=False))
-
-    mbtn = ttk.Frame(mtab)
-    mbtn.grid(row=2, column=0, columnspan=3, sticky="ew", pady=(6, 0))
-    b_rescan = ttk.Button(mbtn, text="Geräte neu erkennen",
-                          command=lambda: _mapper_reload(rediscover=True))
-    b_rescan.pack(side="left")
-    ttk.Label(mbtn, text="Nur-Lese-Übersicht (Stufe A) — Editor folgt.",
-              foreground="#666").pack(side="left", padx=8)
-    _attach_tooltip(b_rescan, "evdev + hidraw discovery — welche Geräte hängen jetzt dran")
+    _ed_clear()
 
     # Switching tabs: the Statistik tab starts/stops its live reads; the Mapper
     # tab discovers devices the first time it is shown (lazy, keeps startup fast).

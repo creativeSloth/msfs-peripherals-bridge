@@ -170,3 +170,185 @@ def device_bindings(profile: Profile, device_id: str) -> list[BindingRow]:
 def device_outputs(profile: Profile, device_id: str) -> list[str]:
     """All output summaries the profile assigns ``device_id``."""
     return [describe_output(o) for o in profile.outputs.get(device_id, [])]
+
+
+# --------------------------------------------------------------------------- #
+# editor form <-> binding dict (pure, testable — the tkinter widgets in gui.py
+# only shuttle values in and out of these two functions)
+# --------------------------------------------------------------------------- #
+SOURCE_KINDS = ("axis", "button", "switch", "hat")
+# Action types the inline editor can build. ``sequence`` is shown but not
+# constructed inline yet (its multi-step list needs its own editor) — an existing
+# sequence is preserved on save; you cannot turn another type into one here.
+ACTION_TYPES = ("event", "simvar", "event_from_var", "rpn", "sequence")
+CURVES = ("linear", "expo", "squared")
+
+
+def _fmt_num(x: float) -> str:
+    return f"{x:g}"
+
+
+def _parse_int(value: object, label: str) -> int:
+    try:
+        return int(str(value).strip())
+    except (TypeError, ValueError):
+        raise ValueError(f"{label} muss eine ganze Zahl sein.") from None
+
+
+def _parse_float(value: object, label: str, default: float) -> float:
+    s = str(value).strip() if value is not None else ""
+    if s == "":
+        return default
+    try:
+        return float(s)
+    except ValueError:
+        raise ValueError(f"{label} muss eine Zahl sein.") from None
+
+
+def binding_to_form(binding: Binding) -> dict:
+    """Flatten a :class:`Binding` into flat form values (str/bool) for the editor.
+
+    Only the fields relevant to the binding's actual action type carry real
+    values; the rest get sensible blanks so switching type in the UI starts clean.
+    """
+    s, a, t = binding.source, binding.action, binding.transform
+    form = {
+        "name": binding.name,
+        "kind": str(s.kind),
+        "code": str(s.code),
+        "raw_min": "" if s.raw_min is None else str(s.raw_min),
+        "raw_max": "" if s.raw_max is None else str(s.raw_max),
+        "is_axis": str(s.kind) == "axis",
+        "action_type": a.type,
+        # action fields start blank; the active type fills its own below
+        "ev_event": "", "ev_value": "",
+        "sv_simvar": "", "sv_unit": "number", "sv_invert": False,
+        "efv_read": "", "efv_event": "", "efv_unit": "number",
+        "rpn_code": "",
+        "tf_deadzone": _fmt_num(t.deadzone),
+        "tf_curve": str(t.curve),
+        "tf_expo": _fmt_num(t.expo),
+        "tf_invert": bool(t.invert),
+        "tf_out_min": _fmt_num(t.out_min),
+        "tf_out_max": _fmt_num(t.out_max),
+    }
+    if a.type == "event":
+        form["ev_event"] = a.event
+        form["ev_value"] = "" if a.value is None else str(a.value)
+    elif a.type == "simvar":
+        form["sv_simvar"], form["sv_unit"], form["sv_invert"] = a.simvar, a.unit, bool(a.invert)
+    elif a.type == "event_from_var":
+        form["efv_read"], form["efv_event"], form["efv_unit"] = a.read, a.event, a.unit
+    elif a.type == "rpn":
+        form["rpn_code"] = a.code
+    return form
+
+
+def _form_action(atype: str, form: dict, original_action: dict | None) -> dict:
+    if atype == "event":
+        ev = (form.get("ev_event") or "").strip()
+        if not ev:
+            raise ValueError("Event-Name fehlt.")
+        act: dict = {"type": "event", "event": ev}
+        val = (form.get("ev_value") or "").strip()
+        if val != "":
+            act["value"] = _parse_int(val, "Wert")
+        return act
+    if atype == "simvar":
+        sv = (form.get("sv_simvar") or "").strip()
+        if not sv:
+            raise ValueError("SimVar-Name fehlt.")
+        act = {"type": "simvar", "simvar": sv}
+        unit = (form.get("sv_unit") or "").strip()
+        if unit and unit != "number":
+            act["unit"] = unit
+        if form.get("sv_invert"):
+            act["invert"] = True
+        return act
+    if atype == "event_from_var":
+        read = (form.get("efv_read") or "").strip()
+        ev = (form.get("efv_event") or "").strip()
+        if not read or not ev:
+            raise ValueError("event_from_var braucht 'read' und 'event'.")
+        act = {"type": "event_from_var", "read": read, "event": ev}
+        unit = (form.get("efv_unit") or "").strip()
+        if unit and unit != "number":
+            act["unit"] = unit
+        return act
+    if atype == "rpn":
+        code = (form.get("rpn_code") or "").strip()
+        if not code:
+            raise ValueError("RPN-Ausdruck fehlt.")
+        return {"type": "rpn", "code": code}
+    if atype == "sequence":
+        if not original_action or original_action.get("type") != "sequence":
+            raise ValueError("Sequence kann inline (noch) nicht angelegt werden.")
+        return original_action
+    raise ValueError(f"Unbekannter Aktions-Typ: {atype}")
+
+
+def _form_transform(form: dict) -> dict:
+    tf: dict = {}
+    dz = _parse_float(form.get("tf_deadzone"), "Deadzone", 0.0)
+    if dz:
+        tf["deadzone"] = dz
+    curve = form.get("tf_curve") or "linear"
+    if curve != "linear":
+        tf["curve"] = curve
+    expo = _parse_float(form.get("tf_expo"), "Expo", 0.0)
+    if expo:
+        tf["expo"] = expo
+    if form.get("tf_invert"):
+        tf["invert"] = True
+    omin = _parse_float(form.get("tf_out_min"), "out_min", 0.0)
+    omax = _parse_float(form.get("tf_out_max"), "out_max", 1.0)
+    if omin != 0.0:
+        tf["out_min"] = omin
+    if omax != 1.0:
+        tf["out_max"] = omax
+    return tf
+
+
+def form_to_binding(form: dict, original_action: dict | None = None) -> dict:
+    """Build a binding dict (for ``profile_writer``) from flat form values.
+
+    Raises :class:`ValueError` with a German message on invalid input so the GUI
+    can show it inline. ``original_action`` is reused when the action type is
+    ``sequence`` (not editable inline yet). A transform is emitted only for axis
+    sources, and only for its non-default fields.
+    """
+    name = (form.get("name") or "").strip()
+    if not name:
+        raise ValueError("Name darf nicht leer sein.")
+    kind = form.get("kind")
+    if kind not in SOURCE_KINDS:
+        raise ValueError(f"Unbekannte Quell-Art: {kind}")
+    source: dict = {"kind": kind, "code": _parse_int(form.get("code"), "Code")}
+    if kind == "axis":
+        if str(form.get("raw_min", "")).strip() != "":
+            source["raw_min"] = _parse_int(form.get("raw_min"), "raw_min")
+        if str(form.get("raw_max", "")).strip() != "":
+            source["raw_max"] = _parse_int(form.get("raw_max"), "raw_max")
+
+    binding: dict = {
+        "name": name,
+        "source": source,
+        "action": _form_action(form.get("action_type"), form, original_action),
+    }
+    if kind == "axis":
+        tf = _form_transform(form)
+        if tf:
+            binding["transform"] = tf
+    return binding
+
+
+def blank_binding_form(kind: str = "button") -> dict:
+    """Flat form values for a brand-new binding (used by 'add')."""
+    return {
+        "name": "Neues Binding", "kind": kind, "code": "0", "raw_min": "", "raw_max": "",
+        "is_axis": kind == "axis", "action_type": "event",
+        "ev_event": "", "ev_value": "", "sv_simvar": "", "sv_unit": "number", "sv_invert": False,
+        "efv_read": "", "efv_event": "", "efv_unit": "number", "rpn_code": "",
+        "tf_deadzone": "0", "tf_curve": "linear", "tf_expo": "0", "tf_invert": False,
+        "tf_out_min": "0", "tf_out_max": "1",
+    }

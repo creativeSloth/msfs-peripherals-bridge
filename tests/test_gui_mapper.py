@@ -1,6 +1,10 @@
 """Pure logic for the GUI Mapper tab (Stufe A device viewer)."""
 
+import pytest
+
 from msfs_peripherals_bridge.gui_mapper import (
+    binding_to_form,
+    blank_binding_form,
     build_device_rows,
     describe_action,
     describe_binding,
@@ -9,8 +13,10 @@ from msfs_peripherals_bridge.gui_mapper import (
     describe_transform,
     device_bindings,
     device_outputs,
+    form_to_binding,
 )
 from msfs_peripherals_bridge.models import (
+    Binding,
     DeviceCatalog,
     EventAction,
     EventFromVarAction,
@@ -160,3 +166,81 @@ def test_device_bindings_and_outputs_accessors():
     assert device_outputs(PROFILE, "multi_panel") == ["gear_leds — 4 SimVars"]
     assert device_bindings(PROFILE, "unknown") == []  # device not in profile
     assert device_outputs(PROFILE, "yoke") == []  # no outputs on the yoke
+
+
+# --------------------------------------------------------------------------- #
+# editor form <-> binding
+# --------------------------------------------------------------------------- #
+def _binding(d: dict) -> Binding:
+    return Binding.model_validate(d)
+
+
+def test_binding_to_form_axis_event():
+    b = _binding({
+        "name": "Aileron",
+        "source": {"kind": "axis", "code": 0, "raw_min": 0, "raw_max": 4095},
+        "action": {"type": "event", "event": "AILERON_SET"},
+        "transform": {"curve": "expo", "expo": 0.25, "invert": True,
+                      "out_min": -16383, "out_max": 16383},
+    })
+    f = binding_to_form(b)
+    assert f["name"] == "Aileron"
+    assert (f["kind"], f["code"], f["is_axis"]) == ("axis", "0", True)
+    assert (f["raw_min"], f["raw_max"]) == ("0", "4095")
+    assert (f["action_type"], f["ev_event"]) == ("event", "AILERON_SET")
+    assert (f["tf_curve"], f["tf_expo"], f["tf_invert"]) == ("expo", "0.25", True)
+    assert (f["tf_out_min"], f["tf_out_max"]) == ("-16383", "16383")
+
+
+@pytest.mark.parametrize("binding_dict", [
+    {"name": "A", "source": {"kind": "axis", "code": 0, "raw_min": 0, "raw_max": 4095},
+     "action": {"type": "event", "event": "AILERON_SET"},
+     "transform": {"deadzone": 0.03, "curve": "expo", "expo": 0.25, "invert": True,
+                   "out_min": -16383, "out_max": 16383}},
+    {"name": "Gear", "source": {"kind": "button", "code": 288},
+     "action": {"type": "event", "event": "GEAR_TOGGLE", "value": 1}},
+    {"name": "Pump", "source": {"kind": "switch", "code": 3},
+     "action": {"type": "simvar", "simvar": "L:FuelPump", "invert": True}},
+    {"name": "HdgSync", "source": {"kind": "button", "code": 290},
+     "action": {"type": "event_from_var", "read": "PLANE HEADING DEGREES MAGNETIC",
+                "event": "HEADING_BUG_SET", "unit": "degrees"}},
+    {"name": "AltHold", "source": {"kind": "switch", "code": 11},
+     "action": {"type": "rpn", "code": "(L:X) ! (>L:X)"}},
+])
+def test_form_round_trip_preserves_binding(binding_dict):
+    # binding -> form -> binding must reparse to an equal model (no data loss).
+    original = _binding(binding_dict)
+    rebuilt = _binding(form_to_binding(binding_to_form(original)))
+    assert rebuilt == original
+
+
+def test_form_to_binding_preserves_sequence_via_original():
+    original_action = {"type": "sequence", "on_edge": [{"simvar": "L:HDG", "value": 1}]}
+    form = blank_binding_form("switch")
+    form["action_type"] = "sequence"
+    out = form_to_binding(form, original_action)
+    assert out["action"] is original_action  # unchanged, carried through
+
+
+def test_form_to_binding_rejects_bad_input():
+    good = blank_binding_form("button")
+    good["ev_event"] = "GEAR_TOGGLE"
+    assert form_to_binding(good)["action"]["event"] == "GEAR_TOGGLE"
+
+    with pytest.raises(ValueError, match="Name"):
+        form_to_binding({**good, "name": "   "})
+    with pytest.raises(ValueError, match="ganze Zahl"):
+        form_to_binding({**good, "code": "xyz"})
+    with pytest.raises(ValueError, match="Event"):
+        form_to_binding({**good, "ev_event": ""})
+    with pytest.raises(ValueError, match="Sequence"):
+        form_to_binding({**good, "action_type": "sequence"})  # no original -> reject
+
+
+def test_blank_form_builds_a_valid_button_binding():
+    form = blank_binding_form("button")
+    form["ev_event"] = "PARKING_BRAKES"
+    b = _binding(form_to_binding(form))
+    assert b.source.kind is SourceKind.BUTTON
+    assert b.action.event == "PARKING_BRAKES"
+    assert b.action.value == 1  # button event auto-gets value 1
