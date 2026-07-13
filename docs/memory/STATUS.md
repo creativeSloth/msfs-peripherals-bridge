@@ -43,21 +43,32 @@ ungefragt auf den Live-Desktop `:0` geworfen — User sichtet selbst).
   mit `V:`-Namen, Read via Subscribe. ⚠️ Falls User strikt mapper-privat (für andere Tools unsichtbar)
   will → nur die Runtime-Verdrahtung ändert sich, das Deklarations-Modell bleibt.
 
-**🆕 GEBAUT (Virtual-Var-Basis, committet):** `models.LocalVar` (name[A-Za-z0-9_], unit, initial,
-persist, description) + `Profile.local_vars` + Uniqueness-Validator; `gui_catalog.KIND_VIRTUAL="V:"`
-+ `local_var_catalog(local_vars)` speist deklarierte Vars in den Picker (settable). Tests
+**🆕 GEBAUT (Virtual-Var-Basis, committet 69a050b):** `models.LocalVar` (name[A-Za-z0-9_], unit,
+initial, persist, description) + `Profile.local_vars` + Uniqueness-Validator; `gui_catalog.KIND_VIRTUAL
+="V:"` + `local_var_catalog(local_vars)` speist deklarierte Vars in den Picker (settable). Tests
 `tests/test_local_vars.py` (6). **Storage-agnostisch** — Speicherort erst bei der Runtime-Verdrahtung.
+
+**🆕 GEBAUT (kommentar-erhaltender Writer, committet 24aa1a8):** `ruamel.yaml`-Dep + neues
+`src/.../profile_writer.py`. Round-Trip erhält Kommentare/Quotes/Flow-Style; `_PaddedEmitter` polstert
+Flow-**Map**-Klammern (`{ kind: axis }`) → **cessna_172/152/default byte-identisch**, piper_arrow
+**semantisch** identisch (nur die ~12 hand-umbrochenen Output-Bank-Flow-Maps kollabieren einmalig auf
+je 1 Zeile — Bindings/Kommentare byte-exakt; ruamel bewahrt keine manuellen Umbrüche IN Flow-Collections).
+Flow-**Sequenzen** bewusst NICHT gepolstert (sonst `[]`→`[  ]`). Edits: `_sync` (in-place, erhält
+Kommentare/Style, pruned entfernte Keys), `_node` (neue Nodes, Flow für all-scalar). API: `load/dumps/
+dump/validate/apply_binding_edit/add_binding/remove_binding/set_local_vars`. Tests `test_profile_writer.py`
+(16): byte+semantisch Round-Trip, Edits, Kommentar/Flow-Erhalt, local_vars, Validierungs-Guard.
 
 **🔴 NÄCHSTE SESSION:**
 1. **GUI visuell sichten** (`uv run python -m msfs_peripherals_bridge.gui` → Tab „Mapper"):
    Geräte-Liste + Detail lesbar? Status stimmt (Panels angesteckt → „verbunden")? „Neu erkennen"
    aktualisiert? Profil-Dropdown-Wechsel lädt die Liste um?
-2. **Stufe B = Editor + `ruamel.yaml`-Writer** (Inline-Panel, s. Entscheidung oben): `ruamel.yaml`
-   als Dep (noch NICHT installiert), Round-Trip-Writer (kommentar-erhaltend), Inline-Editorpanel im
-   Mapper-Tab, Speichern zurück ins Profil. Var-Auswahl über `_open_var_picker` (jetzt inkl. V:).
-3. **Virtual-Vars Runtime-Verdrahtung** (nach Stufe-B-Writer): Bridge-`V:`-Store + Protokoll
-   (set/subscribe erkennt `V:`-Präfix, serviert aus dem Hub) + Seeding aus `local_vars.initial` +
-   optional Persist-Snapshot. In-sim/mit Bridge zu verifizieren. simvars-reference.md §1 um V: ergänzen.
+2. **Stufe B Inline-Editorpanel** (Writer STEHT): Panel unter der Detail-Liste — Binding wählen →
+   Felder (Name, Quelle kind+code, Aktion-Typ + typ-Felder, Transform bei Achsen), „Übernehmen" ruft
+   `profile_writer.apply_binding_edit` + `validate` + `dump`, dann Mapper-Reload. Add/Remove/Duplizieren.
+   Var-Auswahl über `_open_var_picker` (jetzt inkl. V:). „Lernen" (HW-Capture) = eigener späterer Schritt.
+3. **Virtual-Vars Runtime-Verdrahtung** (nach dem Panel): Bridge-`V:`-Store + Protokoll (set/subscribe
+   erkennt `V:`-Präfix, serviert aus dem Hub) + Seeding aus `local_vars.initial` + optional Persist-
+   Snapshot. Mit Bridge zu verifizieren. simvars-reference.md §1 um V: ergänzen.
 4. Danach Stufe C (Sonderfunktionen: Bedingungen aus V:/Sim-Vars, CRS/Heading-Bug, Sequence-Editor).
 5. **Separat (nicht Mapper):** `feat/gui-var-monitor` offene Enden abnehmen (10-Hz-Poll,
    Panel-overrideredirect-Sicht) → dann diese ganze Kette (gui-var-monitor + mapper-tab) nach main.
