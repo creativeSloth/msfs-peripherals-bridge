@@ -22,8 +22,9 @@ from pathlib import Path
 KIND_SIMVAR = "A:"  # simulation variable (read, some writable)
 KIND_EVENT = "K:"  # key event (write / trigger)
 KIND_LVAR = "L:"  # add-on local var (read/write via WASM bridge)
+KIND_VIRTUAL = "V:"  # user-defined virtual var (sim-independent, bridge-held)
 
-KINDS = (KIND_SIMVAR, KIND_EVENT, KIND_LVAR)
+KINDS = (KIND_SIMVAR, KIND_EVENT, KIND_LVAR, KIND_VIRTUAL)
 
 # Bundled SimVar/Event catalog shipped inside the package (see module docstring).
 _BUNDLED_CATALOG = Path(__file__).resolve().parent / "data" / "simconnect_catalog.json"
@@ -113,6 +114,26 @@ def load_catalog(
                 cat.append(v)
                 seen.add((v.kind, v.name))
     return cat
+
+
+def local_var_catalog(local_vars) -> list[CatalogVar]:
+    """Turn a profile's declared virtual vars into ``V:`` picker entries.
+
+    ``local_vars`` is an iterable of :class:`~..models.LocalVar` (anything with
+    ``name``/``unit``/``description``). They are settable (you write them like a
+    SimVar). Merge the result into the base catalog whenever the profile changes,
+    so a user's own variables appear in the picker alongside A:/K:/L:.
+    """
+    out: list[CatalogVar] = []
+    for lv in local_vars:
+        out.append(CatalogVar(
+            name=lv.name,
+            kind=KIND_VIRTUAL,
+            unit=getattr(lv, "unit", "") or "",
+            category=(getattr(lv, "description", "") or "Virtuelle Variable"),
+            settable=True,
+        ))
+    return out
 
 
 def filter_catalog(

@@ -648,6 +648,35 @@ class DeviceCatalog(BaseModel):
         return next((d for d in self.devices if d.id == device_id), None)
 
 
+class LocalVar(BaseModel):
+    """A user-defined *virtual* variable — sim-independent, held by the bridge.
+
+    Declared per profile so it shows up in the GUI picker alongside A:/K:/L:, and
+    referenced everywhere as ``V:<name>``. It is set with a :class:`SimVarAction`
+    (a ``V:``-prefixed name) and read by subscribing to it, exactly like any other
+    variable — but its value lives in the bridge's value hub, never in the sim.
+    Use it for pure logic/UI state (mode flags, counters, latches) that must
+    survive across flights and stay independent of the aircraft.
+    """
+
+    name: str = Field(..., description="Bare name; referenced as 'V:<name>'.")
+    unit: str = "number"
+    initial: float = Field(0.0, description="Value seeded on connect.")
+    description: str = ""
+    # Snapshot to disk so the value also survives a bridge restart (not just a
+    # flight reload). Off by default — most virtual vars are session state.
+    persist: bool = Field(False, description="Persist across bridge restarts, not just flights.")
+
+    @field_validator("name")
+    @classmethod
+    def _plain_name(cls, value: str) -> str:
+        # No prefix in the declared name (it is added as V: at reference sites),
+        # and the same identifier charset as L:vars so it round-trips cleanly.
+        if not value or not all(c.isalnum() or c == "_" for c in value):
+            raise ValueError(f"LocalVar name '{value}' must be non-empty [A-Za-z0-9_].")
+        return value
+
+
 class Profile(BaseModel):
     """A per-aircraft mapping profile (one YAML file in ``profiles/``)."""
 
@@ -656,9 +685,19 @@ class Profile(BaseModel):
     # Title substrings used to auto-select this profile from the loaded
     # aircraft ('TITLE' SimVar reported by the sim). Case-insensitive.
     aircraft_match: list[str] = Field(default_factory=list)
+    # User-defined virtual variables (see LocalVar). Referenced as V:<name>.
+    local_vars: list[LocalVar] = Field(default_factory=list)
     # device id -> its bindings for this aircraft.
     bindings: dict[str, list[Binding]] = Field(default_factory=dict)
     # device id -> output declarations (e.g. switch-panel gear LEDs). The device
     # must support output (a hidraw panel); SimVar-driven, streamed back from the
     # bridge. Empty for most profiles.
     outputs: dict[str, list[Output]] = Field(default_factory=dict)
+
+    @model_validator(mode="after")
+    def _unique_local_vars(self) -> Profile:
+        names = [lv.name for lv in self.local_vars]
+        dupes = {n for n in names if names.count(n) > 1}
+        if dupes:
+            raise ValueError(f"Duplicate local_vars names: {', '.join(sorted(dupes))}.")
+        return self

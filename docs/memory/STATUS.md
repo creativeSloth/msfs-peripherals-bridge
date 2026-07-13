@@ -33,14 +33,33 @@ ungefragt auf den Live-Desktop `:0` geworfen — User sichtet selbst).
   kein doppeltes „expo, expo=0.25"), Output-Summary. Plus Real-Profil-Smoke (piper_arrow):
   yoke 7 binds, switch_panel 17+gear_leds, multi 11+„13 SimVars", radio 0+„37 SimVars".
 
+**🧩 USER-ENTSCHEIDUNGEN 2026-07-13 (für Stufe B/C):**
+- **Edit-UX = Inline-Editorpanel** (kein Popup/Kontextmenü): Binding wählen → Felder erscheinen
+  fest unter/neben der Detail-Liste (Name, Quelle kind+code + „Lernen", Aktions-Typ + typ-Felder,
+  Transform bei Achsen), „Übernehmen"/„Zurücksetzen". „Lernen" (HW-Capture) = eigener späterer Schritt.
+- **Lokale/eigene Variablen = mapper-interne Virtual-Vars** (User-Wahl: sim-unabhängig + persistent).
+  Umsetzung als neue Var-Art **`V:`**, Werte **im Bridge-Werte-Hub** (nie in der Sim) → damit „setzen/
+  auslesen wie jede andere Variable" für ALLE Clients gilt (inkl. GUI-Monitor). Set via `simvar`-Aktion
+  mit `V:`-Namen, Read via Subscribe. ⚠️ Falls User strikt mapper-privat (für andere Tools unsichtbar)
+  will → nur die Runtime-Verdrahtung ändert sich, das Deklarations-Modell bleibt.
+
+**🆕 GEBAUT (Virtual-Var-Basis, committet):** `models.LocalVar` (name[A-Za-z0-9_], unit, initial,
+persist, description) + `Profile.local_vars` + Uniqueness-Validator; `gui_catalog.KIND_VIRTUAL="V:"`
++ `local_var_catalog(local_vars)` speist deklarierte Vars in den Picker (settable). Tests
+`tests/test_local_vars.py` (6). **Storage-agnostisch** — Speicherort erst bei der Runtime-Verdrahtung.
+
 **🔴 NÄCHSTE SESSION:**
 1. **GUI visuell sichten** (`uv run python -m msfs_peripherals_bridge.gui` → Tab „Mapper"):
    Geräte-Liste + Detail lesbar? Status stimmt (Panels angesteckt → „verbunden")? „Neu erkennen"
    aktualisiert? Profil-Dropdown-Wechsel lädt die Liste um?
-2. **Stufe B = Editor + `ruamel.yaml`-Writer** (Entscheidung steht): Bindings/Outputs im Tab
-   editierbar machen + kommentar-erhaltend zurückschreiben. Var-Auswahl über den bestehenden
-   `_open_var_picker`. Danach Stufe C (Sonderfunktionen: Bedingungen/CRS/Heading-Bug/virtuelle LVars).
-3. **Separat (nicht Mapper):** `feat/gui-var-monitor` offene Enden abnehmen (10-Hz-Poll,
+2. **Stufe B = Editor + `ruamel.yaml`-Writer** (Inline-Panel, s. Entscheidung oben): `ruamel.yaml`
+   als Dep (noch NICHT installiert), Round-Trip-Writer (kommentar-erhaltend), Inline-Editorpanel im
+   Mapper-Tab, Speichern zurück ins Profil. Var-Auswahl über `_open_var_picker` (jetzt inkl. V:).
+3. **Virtual-Vars Runtime-Verdrahtung** (nach Stufe-B-Writer): Bridge-`V:`-Store + Protokoll
+   (set/subscribe erkennt `V:`-Präfix, serviert aus dem Hub) + Seeding aus `local_vars.initial` +
+   optional Persist-Snapshot. In-sim/mit Bridge zu verifizieren. simvars-reference.md §1 um V: ergänzen.
+4. Danach Stufe C (Sonderfunktionen: Bedingungen aus V:/Sim-Vars, CRS/Heading-Bug, Sequence-Editor).
+5. **Separat (nicht Mapper):** `feat/gui-var-monitor` offene Enden abnehmen (10-Hz-Poll,
    Panel-overrideredirect-Sicht) → dann diese ganze Kette (gui-var-monitor + mapper-tab) nach main.
 
 ## 🆕 SESSION 2026-07-11 (spät) — Streaming IN-SIM VERIFIZIERT + Index-Kollisions-Regression GEFIXT
