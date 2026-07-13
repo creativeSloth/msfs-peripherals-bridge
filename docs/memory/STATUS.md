@@ -1,13 +1,52 @@
 # STATUS — Resume-Anker
 
 > Kurzer Einstiegspunkt: was läuft, was offen ist, wie es weitergeht.
-> Stand: **2026-07-13** (Mapper-Tab **Stufe A** = Geräte-Viewer gebaut, s. 🆕 ganz oben).
-> Multi-Panel ist auf **`main`** gemerged. **`feat/gui-var-monitor` liegt 12 Commits vor
-> `main` und ist verifiziert (Streaming/Index-Fix/Multi-Client/ADF/DME in-sim), aber NOCH
-> NICHT nach main gemergt** (offene Enden: 10-Hz-Poll, Panel-Sichtprüfung).
-> Aktueller Branch: **`feat/mapper-tab`** (von `feat/gui-var-monitor` abgezweigt, weil der
-> Mapper die dortige GUI-Basis braucht). **212 Tests grün, ruff clean, 4 Profile valide.**
+> Stand: **2026-07-13** (Mapper-Tab **Stufe A Viewer + Stufe B Inline-Editor + ruamel-Writer +
+> Virtual-Var-Deklaration** gebaut & committet — s. 🆕 ganz oben). **Nächstes = GUI visuell sichten
+> + Test-Speichern.**
+> Multi-Panel ist auf **`main`** gemerged. **`feat/gui-var-monitor` liegt vor `main` und ist
+> verifiziert (Streaming/Index-Fix/Multi-Client/ADF/DME in-sim), aber NOCH NICHT nach main
+> gemergt** (offene Enden: 10-Hz-Poll, Panel-Sichtprüfung).
+> Aktueller Branch: **`feat/mapper-tab`** (von `feat/gui-var-monitor` abgezweigt, weil der Mapper
+> die dortige GUI-Basis braucht). **243 Tests grün, ruff clean, 4 Profile valide, py_compile ok.**
 > Ältere „UNCOMMITTED"-Marker weiter unten sind historisch (Code steht/committet).
+
+## 🆕 SESSION 2026-07-13 (fortges.) — Mapper Stufe B: Inline-Editor + ruamel-Writer
+**Branch `feat/mapper-tab`. Alles committet + getestet; GUI selbst VISUELL UNGEPRÜFT** (kein Fenster
+ungefragt auf Live-Desktop `:0`). Commits: `f533b3e` Stufe A · `69a050b` V:-Deklaration · `24aa1a8`
+Writer · `531dfef` Inline-Editor.
+
+**User-Entscheidungen umgesetzt:** Edit-UX = **Inline-Editorpanel** (kein Popup); lokale Vars =
+**mapper-interne Virtual-Vars** → als Art **`V:`** im Bridge-Hub geplant (Deklaration steht, Runtime offen).
+
+**Gebaut (Reihenfolge = so morgen prüfen):**
+1. **`profile_writer.py` (committet 24aa1a8)** — `ruamel.yaml`-Dep, kommentar-erhaltender Round-Trip.
+   `_PaddedEmitter` polstert `{ }`-Flow-Maps → cessna_172/152/default **byte-identisch**, piper_arrow
+   semantisch identisch (nur ~12 hand-umbrochene Output-Bänke kollabieren 1×). API: `load/dumps/dump/
+   validate/apply_binding_edit/add_binding/remove_binding/set_local_vars`. 16 Tests.
+2. **Inline-Editor (committet 531dfef)** in `gui.py` Mapper-Tab + reine Transforms in `gui_mapper.py`
+   (`binding_to_form/form_to_binding/blank_binding_form`, 9 Tests): Binding in der Detail-Liste wählen →
+   Panel unten (Name · Quelle kind+code · Aktion-Typ+Felder für event/simvar/event_from_var/rpn ·
+   Transform bei Achsen). **Übernehmen** = `form_to_binding` → `profile_writer` load/apply/**validate**/
+   dump (validate blockt kaputte Edits VOR dem Speichern). Auch **+Neu/Duplizieren/Entfernen**;
+   Var-Picker (`…`) füllt Event/SimVar-Felder inkl. deklarierter `V:`-Vars. `sequence` bleibt erhalten,
+   aber inline (noch) nicht editierbar; **„Lernen" (HW-Capture) = Stub** für später.
+   **E2E-Rauchtest (offline) grün:** Editier-Pipeline an echtem piper_arrow → Event geändert, Kommentar
+   + Flow-Style erhalten, re-parsed sauber.
+
+**🔴 MORGEN — HIER WEITER (Reihenfolge):**
+1. **GUI VISUELL SICHTEN** (das ist der offene Verify-Punkt, headless nicht prüfbar):
+   `uv run python -m msfs_peripherals_bridge.gui` → Tab „Mapper". Prüfen: Binding wählen → Panel füllt
+   sich? Aktions-Typ-Wechsel zeigt richtige Felder (event/simvar/…)? Transform nur bei Achsen sichtbar?
+   `…`-Picker setzt Namen? **Test-Speichern**: ein Binding ändern → Übernehmen → `git diff profiles/…`
+   = nur die eine Zeile geändert (+ ggf. 1× Output-Bank-Kollaps bei piper_arrow, harmlos)? +Neu/
+   Duplizieren/Entfernen? Fenster groß genug (minsize 620x460)? Overrideredirect/WM-Zicken? Falls
+   Event-Kaskaden (dev/detail `<<TreeviewSelect>>`) zicken → `_render_detail`/`_ed_on_detail_select`.
+2. **Virtual-Vars Runtime-Verdrahtung**: Bridge-`V:`-Store + Protokoll (set/subscribe erkennt `V:`,
+   serviert aus dem Hub) + Seeding aus `local_vars.initial` + optional Persist. Mit Bridge verifizieren.
+   Editor-UI für `local_vars` (deklarieren/löschen) fehlt noch — `profile_writer.set_local_vars` steht.
+3. Stufe C: Sequence-Editor, Bedingungen (V:/Sim), CRS/Heading-Bug; „Lernen" (HW-Capture).
+4. **Separat:** `feat/gui-var-monitor` Restpunkte abnehmen → Kette (gui-var-monitor + mapper-tab) → main.
 
 ## 🆕 SESSION 2026-07-13 — Mapper-Tab Stufe A (Geräte-Viewer) GEBAUT
 **Branch `feat/mapper-tab`** (neu, von `feat/gui-var-monitor`). **212 Tests grün, ruff clean,
