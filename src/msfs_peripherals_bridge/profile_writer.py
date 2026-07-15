@@ -157,6 +157,22 @@ def validate(data: CommentedMap) -> Profile:
     return Profile.model_validate(data)
 
 
+def new_profile(name: str, description: str = "") -> CommentedMap:
+    """Build a fresh, minimal-but-valid profile document.
+
+    Used by the GUI's "new profile" action: a bare skeleton (name, empty
+    aircraft-match and bindings) the user then fills in via the Mapper editor.
+    Passes :func:`validate` as-is and dumps in the profiles' compact style.
+    """
+    doc = CommentedMap()
+    doc["name"] = name
+    doc["description"] = description
+    doc["aircraft_match"] = _node([])
+    doc["bindings"] = CommentedMap()
+    doc.yaml_set_start_comment(f"{name} — neues Profil (im Mapper-Tab bearbeiten)\n")
+    return doc
+
+
 # --------------------------------------------------------------------------- #
 # binding edits
 # --------------------------------------------------------------------------- #

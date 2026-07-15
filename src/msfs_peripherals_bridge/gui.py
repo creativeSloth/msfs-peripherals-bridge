@@ -819,7 +819,7 @@ class _PanelWindow:
 # --------------------------------------------------------------------------- #
 def run() -> None:
     import tkinter as tk
-    from tkinter import messagebox, ttk
+    from tkinter import messagebox, simpledialog, ttk
 
     from . import gui_catalog
 
@@ -865,8 +865,67 @@ def run() -> None:
     prow = ttk.Frame(win, padding=(10, 10))
     prow.grid(row=0, column=0, sticky="ew")
     ttk.Label(prow, text="Profil:").pack(side="left")
-    ttk.Combobox(prow, textvariable=profile_var, values=profiles, state="readonly",
-                 width=22).pack(side="left", padx=6)
+    profile_cb = ttk.Combobox(prow, textvariable=profile_var, values=profiles,
+                              state="readonly", width=22)
+    profile_cb.pack(side="left", padx=6)
+
+    def _refresh_profiles(select: str | None = None) -> None:
+        profile_cb["values"] = _list_profiles(root_dir)
+        if select is not None:
+            profile_var.set(select)  # fires the trace -> mapper/statistik reload
+
+    def _ask_profile_name(title: str, initial: str = "") -> str | None:
+        """Prompt for a filesystem-safe profile stem, or None if cancelled/invalid."""
+        raw = simpledialog.askstring(title, "Profilname:", initialvalue=initial, parent=win)
+        if raw is None:
+            return None
+        name = raw.strip()
+        if not name or not all(c.isalnum() or c in "_-" for c in name):
+            messagebox.showerror("Ungültiger Name",
+                                 "Nur Buchstaben, Ziffern, '_' und '-' erlaubt.")
+            return None
+        if (profiles_dir(root_dir) / f"{name}.yaml").exists():
+            messagebox.showerror("Profil existiert", f"'{name}' gibt es schon.")
+            return None
+        return name
+
+    def _profile_new() -> None:
+        name = _ask_profile_name("Neues Profil")
+        if name is None:
+            return
+        profile_writer.dump(profile_writer.new_profile(name),
+                            profiles_dir(root_dir) / f"{name}.yaml")
+        _refresh_profiles(select=name)
+
+    def _profile_duplicate() -> None:
+        src = profiles_dir(root_dir) / f"{profile_var.get()}.yaml"
+        if not src.exists():
+            messagebox.showerror("Kein Profil", "Aktuelles Profil nicht gefunden.")
+            return
+        name = _ask_profile_name("Profil duplizieren", initial=f"{profile_var.get()}_kopie")
+        if name is None:
+            return
+        data = profile_writer.load(src)
+        data["name"] = name  # keep the file's formatting/comments; just rename
+        profile_writer.dump(data, profiles_dir(root_dir) / f"{name}.yaml")
+        _refresh_profiles(select=name)
+
+    def _profile_remove() -> None:
+        name = profile_var.get()
+        names = _list_profiles(root_dir)
+        if len(names) <= 1:
+            messagebox.showerror("Nicht möglich", "Das letzte Profil kann nicht entfernt werden.")
+            return
+        if not messagebox.askyesno("Profil entfernen",
+                                   f"Profil '{name}' wirklich löschen?\nDas lässt sich nicht "
+                                   "rückgängig machen."):
+            return
+        (profiles_dir(root_dir) / f"{name}.yaml").unlink(missing_ok=True)
+        _refresh_profiles(select=next(n for n in names if n != name))
+
+    ttk.Button(prow, text="Neu", width=5, command=_profile_new).pack(side="left")
+    ttk.Button(prow, text="Duplizieren", command=_profile_duplicate).pack(side="left", padx=4)
+    ttk.Button(prow, text="Entfernen", command=_profile_remove).pack(side="left", padx=(0, 8))
     ttk.Label(prow, text="(gilt für Mapper-Start; Basis für Statistik)",
               foreground="#666").pack(side="left")
 
@@ -1168,7 +1227,7 @@ def run() -> None:
     etgt: dict = {"device": None, "index": None, "original_action": None}
     ev = {
         "name": tk.StringVar(), "kind": tk.StringVar(), "code": tk.StringVar(),
-        "raw_min": tk.StringVar(), "raw_max": tk.StringVar(),  # carried, not shown
+        "raw_min": tk.StringVar(), "raw_max": tk.StringVar(),  # shown for axes only
         "action_type": tk.StringVar(),
         "ev_event": tk.StringVar(), "ev_value": tk.StringVar(),
         "sv_simvar": tk.StringVar(), "sv_unit": tk.StringVar(), "sv_invert": tk.BooleanVar(),
@@ -1242,9 +1301,22 @@ def run() -> None:
               foreground="#a15").pack(side="left")
     af["sequence"] = fq
 
-    # row 3: transform (axis only)
-    tffr = ttk.Frame(ed)
-    tffr.grid(row=3, column=0, columnspan=3, sticky="w", pady=2)
+    # row 3: axis shaping — input (raw) range + transform pipeline (axis only)
+    axfr = ttk.Frame(ed)
+    axfr.grid(row=3, column=0, columnspan=3, sticky="ew", pady=2)
+
+    inrow = ttk.Frame(axfr)
+    inrow.pack(anchor="w")
+    ttk.Label(inrow, text="Eingang (roh)").pack(side="left", padx=(0, 6))
+    ttk.Label(inrow, text="min").pack(side="left")
+    ttk.Entry(inrow, textvariable=ev["raw_min"], width=7).pack(side="left", padx=(2, 8))
+    ttk.Label(inrow, text="max").pack(side="left")
+    ttk.Entry(inrow, textvariable=ev["raw_max"], width=7).pack(side="left", padx=(2, 8))
+    ttk.Label(inrow, text="(leer = aus Kalibrierung; raw_max am Detent klemmt dort)",
+              foreground="#666").pack(side="left")
+
+    tffr = ttk.Frame(axfr)
+    tffr.pack(anchor="w", pady=(2, 0))
     ttk.Label(tffr, text="Transform").pack(side="left", padx=(0, 6))
     ttk.Label(tffr, text="dz").pack(side="left")
     ttk.Entry(tffr, textvariable=ev["tf_deadzone"], width=5).pack(side="left", padx=(2, 8))
@@ -1254,10 +1326,27 @@ def run() -> None:
     ttk.Label(tffr, text="expo").pack(side="left")
     ttk.Entry(tffr, textvariable=ev["tf_expo"], width=5).pack(side="left", padx=(2, 8))
     ttk.Checkbutton(tffr, text="invert", variable=ev["tf_invert"]).pack(side="left", padx=(0, 8))
-    ttk.Label(tffr, text="out").pack(side="left")
+    ttk.Label(tffr, text="Ausgang (out)").pack(side="left")
     ttk.Entry(tffr, textvariable=ev["tf_out_min"], width=7).pack(side="left", padx=2)
     ttk.Label(tffr, text="…").pack(side="left")
     ttk.Entry(tffr, textvariable=ev["tf_out_max"], width=7).pack(side="left", padx=2)
+
+    ttk.Label(
+        axfr, foreground="#666", wraplength=580, justify="left",
+        text=(
+            "Felder — Eingang (roh) min/max: Rohbereich der Hardware (aus Kalibrierung; "
+            "leer = automatisch). dz (Deadzone): kleine Auslenkung um die Mitte ignorieren. "
+            "Kurve: Kennlinie linear/expo/squared. expo: deren Stärke 0…1 (weicher um die "
+            "Mitte). invert: Richtung umkehren. Ausgang (out) min/max: Wertebereich, der an "
+            "die Sim geht.\n"
+            "Pipeline: Roh → auf -1…1 normieren (min/max) → Deadzone → Kurve/Expo → Invert "
+            "→ auf out_min…out_max skalieren → Event/SimVar (Achsen-*_SET z. B. "
+            "-16383…16383). Roh-Werte außerhalb min…max klemmen automatisch.\n"
+            "Am Detent teilen: »Duplizieren« → oberer Teil raw_min=Detent, raw_max=voll, "
+            "out=0…max (Detent = Leerlauf/0); unterer Teil raw_min=ganz-zurück, "
+            "raw_max=Detent + eigene Aktion (Reverse/Feather/Cutoff)."
+        ),
+    ).pack(anchor="w", pady=(2, 0))
 
     # row 4: actions + feedback
     edbtn = ttk.Frame(ed)
@@ -1278,9 +1367,9 @@ def run() -> None:
             frame.pack_forget()
         af.get(ev["action_type"].get(), af["event"]).pack(side="left", fill="x")
         if ev["kind"].get() == "axis":
-            tffr.grid()
+            axfr.grid()
         else:
-            tffr.grid_remove()
+            axfr.grid_remove()
 
     def _ed_set_form(form):
         for key, var in ev.items():
@@ -1317,7 +1406,12 @@ def run() -> None:
         ed.config(text=f"Binding bearbeiten — {device_id} #{index}: {binding.name}")
 
     def _ed_reset():
-        if etgt["device"] is not None:
+        if etgt["device"] is None:
+            return
+        if etgt["index"] is None:  # unsaved new binding -> back to a fresh blank form
+            _ed_set_form(gui_mapper.blank_binding_form("button"))
+            _ed_status("Felder ausfüllen, dann Übernehmen.")
+        else:
             _ed_load(etgt["device"], etgt["index"])
 
     def _ed_save(mutate):
@@ -1348,31 +1442,36 @@ def run() -> None:
             _ed_status(str(exc), error=True)
             return
         dev, idx = etgt["device"], etgt["index"]
-        err = _ed_save(lambda d: profile_writer.apply_binding_edit(d, dev, idx, binding))
+        if idx is None:  # new binding from _ed_add: append at the end
+            prof = mstate["profile"]
+            idx = len(prof.bindings.get(dev, [])) if prof else 0
+            err = _ed_save(lambda d: profile_writer.add_binding(d, dev, binding))
+            msg = "Neues Binding angelegt ✓"
+        else:
+            err = _ed_save(lambda d: profile_writer.apply_binding_edit(d, dev, idx, binding))
+            msg = "Gespeichert ✓"
         if err:
             _ed_status(f"Nicht gespeichert: {err}", error=True)
             return
         _reselect(dev, idx)
-        _ed_status("Gespeichert ✓")
+        _ed_status(msg)
 
     def _ed_add():
         dev = _sel(dev_tree)
         if dev is None:
             _ed_status("Kein Gerät gewählt.", error=True)
             return
-        prof = mstate["profile"]
-        idx = len(prof.bindings.get(dev, [])) if prof else 0
-        new = gui_mapper.form_to_binding(gui_mapper.blank_binding_form("button"))
-        err = _ed_save(lambda d: profile_writer.add_binding(d, dev, new))
-        if err:
-            _ed_status(f"Nicht angelegt: {err}", error=True)
-            return
-        _reselect(dev, idx)
-        _ed_status("Neues Binding angelegt ✓")
+        # Don't write a half-filled stub (an empty form fails validation): enter
+        # "new binding" mode (index=None) with a blank form and defer the append
+        # + validation to Übernehmen, so nothing invalid is ever written.
+        etgt.update(device=dev, index=None, original_action=None)
+        _ed_set_form(gui_mapper.blank_binding_form("button"))
+        ed.config(text=f"Neues Binding — {dev} (noch nicht gespeichert)")
+        _ed_status("Felder ausfüllen, dann Übernehmen.")
 
     def _ed_duplicate():
-        if etgt["device"] is None:
-            _ed_status("Kein Binding gewählt.", error=True)
+        if etgt["device"] is None or etgt["index"] is None:
+            _ed_status("Kein gespeichertes Binding gewählt.", error=True)
             return
         dev, idx = etgt["device"], etgt["index"]
         binding = mstate["profile"].bindings[dev][idx]
@@ -1387,8 +1486,8 @@ def run() -> None:
         _ed_status("Dupliziert ✓")
 
     def _ed_remove():
-        if etgt["device"] is None:
-            _ed_status("Kein Binding gewählt.", error=True)
+        if etgt["device"] is None or etgt["index"] is None:
+            _ed_status("Kein gespeichertes Binding gewählt.", error=True)
             return
         dev, idx = etgt["device"], etgt["index"]
         err = _ed_save(lambda d: profile_writer.remove_binding(d, dev, idx))
@@ -1417,11 +1516,14 @@ def run() -> None:
         for i, br in enumerate(binds):
             detail.insert(bnode, "end", iid=f"bind:{i}", text=br.name,
                           values=(br.source, br.action, br.transform))
-        outs = gui_mapper.device_outputs(prof, device_id)
-        if outs:
-            onode = detail.insert("", "end", text=f"Outputs ({len(outs)})", open=True)
-            for i, summary in enumerate(outs):
-                detail.insert(onode, "end", iid=f"out:{i}", text=summary)
+        out_objs = prof.outputs.get(device_id, [])
+        if out_objs:
+            onode = detail.insert("", "end", text=f"Outputs ({len(out_objs)})", open=True)
+            for i, o in enumerate(out_objs):
+                pnode = detail.insert(onode, "end", iid=f"out:{i}", open=True,
+                                      text=gui_mapper.describe_output(o))
+                for j, line in enumerate(gui_mapper.describe_output_detail(o)):
+                    detail.insert(pnode, "end", iid=f"out:{i}:{j}", text=line)
         if reselect_index is not None and binds:
             idx = min(reselect_index, len(binds) - 1)
             detail.selection_set(f"bind:{idx}")

@@ -17,18 +17,26 @@ from dataclasses import dataclass
 
 from .models import (
     Action,
+    AdfBank,
     Binding,
     CurveKind,
     DeviceCatalog,
+    DmeBank,
     EventAction,
     EventFromVarAction,
+    GearLedOutput,
+    MultiPanelOutput,
     Output,
     Profile,
+    RadioBank,
+    RadioPanelOutput,
     RpnAction,
+    SelectorEntry,
     SequenceAction,
     SimVarAction,
     Source,
     Transform,
+    XpdrBank,
 )
 
 # German labels for the physical control kinds (SourceKind values).
@@ -160,6 +168,88 @@ def describe_output(output: Output) -> str:
     except Exception:
         return str(kind)
     return f"{kind} — {n} SimVar{'s' if n != 1 else ''}"
+
+
+def _describe_gear_leds(o: GearLedOutput) -> list[str]:
+    return [
+        f"Rad-LEDs: nose={o.nose}, left={o.left}, right={o.right}",
+        f"grün ab Position {o.down_at:g}",
+        f"Power-Gate: {o.power}" if o.power else "Power-Gate: —",
+    ]
+
+
+def _describe_selector(e: SelectorEntry) -> str:
+    step = f"Schritt {e.step:g}" + (f"/schnell {e.fast_step:g}" if e.fast_step else "")
+    target = f"event {e.set_event}" if e.set_event else "SimVar-Write"
+    flags = [f for f, on in (("rollover", e.rollover), ("sticky", e.sticky)) if on]
+    tail = (", " + ", ".join(flags)) if flags else ""
+    return (f"Selektor {e.code} {e.label}: {e.simvar} "
+            f"[{step}, {e.min:g}…{e.max:g}, {target}, Zeile {e.display_row}{tail}]")
+
+
+def _describe_multi(o: MultiPanelOutput) -> list[str]:
+    lines: list[str] = []
+    for e in o.selector:
+        lines.append(_describe_selector(e))
+        for s in e.alt_sources:
+            evt = f" (event {s.set_event})" if s.set_event else ""
+            lines.append(f"    ↳ Alt-Quelle {s.simvar}{evt}")
+    lines.append(f"AP-Master-LED: {o.ap_master}")
+    lines.append(f"Mode-Var: {o.mode_var}")
+    lines += [f"LED {btn} ← {var}" for btn, var in o.bool_leds.items()]
+    if o.source_toggle is not None:
+        lines.append(f"Quellen-Umschalter: {o.source_toggle.device} code {o.source_toggle.code}")
+    if o.dimmer is not None:
+        tgts = ", ".join((t.var or t.event or "?") for t in o.dimmer.targets)
+        lines.append(f"Dimmer (cw {o.dimmer.cw}/ccw {o.dimmer.ccw}, {o.dimmer.step:g}%): {tgts}")
+    if o.power:
+        lines.append(f"Power-Gate: {o.power}")
+    return lines
+
+
+def _describe_bank(b: object) -> str:
+    if isinstance(b, RadioBank):  # COM/NAV freq
+        fine = ", fine-view" if b.fine_view else ""
+        return (f"{b.code} {b.label} (freq): act={b.active}, stby={b.standby}, "
+                f"swap {b.swap_event}{fine}")
+    if isinstance(b, DmeBank):
+        srcs = "/".join(s.label for s in b.sources)
+        sv = f", src-var {b.source_var}" if b.source_var else ""
+        return f"{b.code} {b.label} (DME, nur Anzeige): Quellen {srcs}{sv}"
+    if isinstance(b, AdfBank):
+        return (f"{b.code} {b.label} (ADF): {b.dig1_var}, {b.dig2_var}, {b.dig3_var} "
+                f"[{b.min_khz}…{b.max_khz} kHz]")
+    if isinstance(b, XpdrBank):
+        baro = f", QNH {b.baro_var}" if b.baro_var else ""
+        return f"{b.code} {b.label} (XPDR): code {b.code_var}, set {b.set_event}{baro}"
+    return f"{getattr(b, 'code', '?')} {getattr(b, 'label', '?')}"
+
+
+def _describe_radio(o: RadioPanelOutput) -> list[str]:
+    lines: list[str] = []
+    for u in o.units:
+        lines.append(f"Einheit {u.name} ({u.row}): Encoder outer {u.outer_cw}/{u.outer_ccw}, "
+                     f"inner {u.inner_cw}/{u.inner_ccw}, swap {u.swap}")
+        lines += ["    " + _describe_bank(b) for b in u.banks]
+    if o.power:
+        lines.append(f"Power-Gate: {o.power}")
+    return lines
+
+
+def describe_output_detail(output: Output) -> list[str]:
+    """Readable child lines exposing an output block's internal controls.
+
+    The Mapper viewer renders these under each output so a panel's selector banks,
+    encoder/swap input codes and LED/dimmer targets are visible — not just the
+    terse ``type — N SimVars`` summary. Returns ``[]`` for an unknown type.
+    """
+    if isinstance(output, GearLedOutput):
+        return _describe_gear_leds(output)
+    if isinstance(output, MultiPanelOutput):
+        return _describe_multi(output)
+    if isinstance(output, RadioPanelOutput):
+        return _describe_radio(output)
+    return []
 
 
 def device_bindings(profile: Profile, device_id: str) -> list[BindingRow]:

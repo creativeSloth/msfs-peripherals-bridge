@@ -47,6 +47,10 @@ def test_empty_flow_sequence_not_padded():
 # --------------------------------------------------------------------------- #
 def test_apply_binding_edit_changes_only_the_target():
     data = pw.load(PROFILES / "piper_arrow.yaml")
+    # Capture the sibling before the edit rather than hard-coding it: the Mapper
+    # GUI now edits these profiles as live files, so the exact binding order must
+    # not be baked into the test — only that editing #0 leaves #1 untouched.
+    before = pw.validate(data).bindings["yoke"][1].action
     pw.apply_binding_edit(
         data,
         "yoke",
@@ -66,7 +70,7 @@ def test_apply_binding_edit_changes_only_the_target():
     prof = pw.validate(data)
     assert prof.bindings["yoke"][0].action.event == "AILERON_SET_X"
     # the untouched second binding is unchanged
-    assert prof.bindings["yoke"][1].action.event == "ELEVATOR_SET"
+    assert prof.bindings["yoke"][1].action == before
 
 
 def test_apply_binding_edit_prunes_removed_keys():
@@ -153,3 +157,21 @@ def test_missing_device_raises():
     data = pw.load(PROFILES / "default.yaml")
     with pytest.raises(KeyError):
         pw.apply_binding_edit(data, "no_such_device", 0, {"name": "x"})
+
+
+# --------------------------------------------------------------------------- #
+# new profile skeleton
+# --------------------------------------------------------------------------- #
+def test_new_profile_validates_and_round_trips():
+    data = pw.new_profile("my_plane")
+    prof = pw.validate(data)  # a fresh skeleton must be model-valid
+    assert prof.name == "my_plane"
+    assert prof.bindings == {} and prof.aircraft_match == []
+    text = pw.dumps(data)
+    assert "name: my_plane" in text
+    assert "im Mapper-Tab bearbeiten" in text  # start comment survives
+    # and a binding can be added to the empty skeleton without extra scaffolding
+    pw.add_binding(data, "yoke",
+                   {"name": "b", "source": {"kind": "button", "code": 1},
+                    "action": {"type": "event", "event": "AP_MASTER"}})
+    assert pw.validate(data).bindings["yoke"][0].name == "b"

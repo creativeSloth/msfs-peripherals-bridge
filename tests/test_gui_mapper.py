@@ -9,6 +9,7 @@ from msfs_peripherals_bridge.gui_mapper import (
     describe_action,
     describe_binding,
     describe_output,
+    describe_output_detail,
     describe_source,
     describe_transform,
     device_bindings,
@@ -21,7 +22,9 @@ from msfs_peripherals_bridge.models import (
     EventAction,
     EventFromVarAction,
     GearLedOutput,
+    MultiPanelOutput,
     Profile,
+    RadioPanelOutput,
     RpnAction,
     SequenceAction,
     SimVarAction,
@@ -166,6 +169,61 @@ def test_device_bindings_and_outputs_accessors():
     assert device_outputs(PROFILE, "multi_panel") == ["gear_leds — 4 SimVars"]
     assert device_bindings(PROFILE, "unknown") == []  # device not in profile
     assert device_outputs(PROFILE, "yoke") == []  # no outputs on the yoke
+
+
+# --------------------------------------------------------------------------- #
+# describe_output_detail — panel outputs/inputs expanded into readable rows
+# --------------------------------------------------------------------------- #
+def test_output_detail_gear_leds():
+    lines = describe_output_detail(GearLedOutput())
+    assert any("Rad-LEDs" in ln and "GEAR CENTER POSITION" in ln for ln in lines)
+    assert any("Power-Gate: ELECTRICAL MASTER BATTERY" in ln for ln in lines)
+
+
+def test_output_detail_multi_panel_selector_leds_dimmer():
+    multi = MultiPanelOutput.model_validate({
+        "selector": [
+            {"code": 3, "label": "HDG", "simvar": "AUTOPILOT HEADING LOCK DIR",
+             "set_event": "HEADING_BUG_SET", "min": 0, "max": 359, "rollover": True,
+             "alt_sources": [{"simvar": "NAV OBS:2", "set_event": "VOR2_SET"}]},
+        ],
+        "bool_leds": {"alt": "L:JF_PA28_AP_alt"},
+        "dimmer": {"cw": 12, "ccw": 13,
+                   "targets": [{"var": "L:CENTRE_LOWER_PANEL_LIGHT", "full": 10}]},
+    })
+    lines = describe_output_detail(multi)
+    assert any("Selektor 3 HDG" in ln and "HEADING_BUG_SET" in ln and "rollover" in ln
+               for ln in lines)
+    assert any("Alt-Quelle NAV OBS:2" in ln and "VOR2_SET" in ln for ln in lines)
+    assert "LED alt ← L:JF_PA28_AP_alt" in lines
+    assert any("Dimmer" in ln and "L:CENTRE_LOWER_PANEL_LIGHT" in ln for ln in lines)
+
+
+def test_output_detail_radio_panel_all_bank_kinds():
+    radio = RadioPanelOutput.model_validate({
+        "units": [{
+            "name": "upper", "row": "upper",
+            "outer_cw": 1, "outer_ccw": 2, "inner_cw": 3, "inner_ccw": 4, "swap": 5,
+            "banks": [
+                {"code": 0, "label": "COM1", "active": "COM ACTIVE FREQUENCY:1",
+                 "standby": "COM STANDBY FREQUENCY:1", "swap_event": "COM1_RADIO_SWAP",
+                 "whole_inc": "A", "whole_dec": "B", "fract_inc": "C", "fract_dec": "D",
+                 "fine_view": True},
+                {"kind": "dme", "code": 5,
+                 "sources": [{"label": "1", "distance": "NAV DME:1", "speed": "NAV DMESPEED:1"}]},
+                {"kind": "adf", "code": 6},
+                {"kind": "xpdr", "code": 7, "baro_var": "KOHLSMAN SETTING HG:1"},
+            ],
+        }],
+    })
+    lines = describe_output_detail(radio)
+    assert any("Einheit upper (upper)" in ln and "outer 1/2" in ln and "swap 5" in ln
+               for ln in lines)
+    assert any("COM1 (freq)" in ln and "act=COM ACTIVE FREQUENCY:1" in ln and "fine-view" in ln
+               for ln in lines)
+    assert any("(DME, nur Anzeige)" in ln for ln in lines)
+    assert any("(ADF)" in ln and "L:KR85_dig1_counter" in ln for ln in lines)
+    assert any("(XPDR)" in ln and "QNH KOHLSMAN SETTING HG:1" in ln for ln in lines)
 
 
 # --------------------------------------------------------------------------- #
