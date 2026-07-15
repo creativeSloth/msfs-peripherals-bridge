@@ -1,9 +1,55 @@
 # STATUS — Resume-Anker
 
 > Kurzer Einstiegspunkt: was läuft, was offen ist, wie es weitergeht.
-> Stand: **2026-07-13** (Mapper-Tab **Stufe A Viewer + Stufe B Inline-Editor + ruamel-Writer +
-> Virtual-Var-Deklaration** gebaut & committet — s. 🆕 ganz oben). **Nächstes = GUI visuell sichten
-> + Test-Speichern.**
+> Stand: **2026-07-15** (Mapper-Tab **Stufe B vom User live gesichtet** → Crash-Fix, Profilverwaltung,
+> Axis-Editor + Erklärung/Detent-Split, Panel-Output-Detailviewer — s. 🆕 ganz oben. **247 Tests grün,
+> ruff clean. Committet auf `feat/mapper-tab` (nicht gepusht).** GUI-Optik erst beim nächsten Öffnen prüfbar.)
+> Frühere Zeile: 2026-07-13 (Stufe A Viewer + Stufe B Inline-Editor + ruamel-Writer + V:-Deklaration).
+
+## 🆕 SESSION 2026-07-15 — Stufe B live gesichtet: Fixes + Profilverwaltung + Axis + Panel-Viewer
+**Branch `feat/mapper-tab`. 247 Tests grün, ruff clean, py_compile ok. Committet (nicht gepusht).**
+User hat die GUI live getestet, viel Feedback gegeben; alle Punkte umgesetzt (User: „ordentlich fertig,
+ohne Nachfragerei"). **Achtung: GUI-Optik/Layout headless nicht prüfbar** (Xvfb fehlt, `DISPLAY=:0` ist der
+Live-Desktop → kein Fenster ungefragt) — Absicherung war ruff-F821 + py_compile + reine Logik-Tests.
+1. **🐞 „+ Neu"-Crash gefixt** (`gui.py`): rief sofort `form_to_binding(blank_form)` → `ValueError:
+   Event-Name fehlt`. Neu: „+ Neu" geht in einen **„neues Binding"-Modus** (`etgt.index=None`) mit
+   leerem Formular; **Validierung + Anhängen erst bei „Übernehmen"** → nie ein halbfertiger Stub im
+   Profil. `_ed_apply` verzweigt bei `index None` → `add_binding`, sonst `apply_binding_edit`.
+   `_ed_reset`/`_ed_duplicate`/`_ed_remove` gegen den Neu-Modus abgesichert.
+2. **Profilverwaltung (neu, `gui.py` Profil-Zeile)**: Buttons **Neu / Duplizieren / Entfernen** neben
+   dem Profil-Dropdown. `profile_writer.new_profile(name)` = minimales valides Skelett (+Start-Kommentar);
+   Duplizieren = `load`+`name`-Rename+`dump` (Formatierung bleibt); Entfernen mit Bestätigung, letztes
+   Profil geschützt. `_refresh_profiles(select=…)` setzt `profile_var` → Trace lädt Mapper/Statistik neu.
+   Test `test_new_profile_validates_and_round_trips`.
+3. **Axis-Editor erweitert + erklärt** (`gui.py`): Achsen zeigen jetzt **Eingang (roh) min/max**
+   (= `raw_min`/`raw_max`) und **Ausgang (out) out_min/out_max** als Felder + ein **Feld-Glossar +
+   Pipeline-Erklärung + Detent-Split-Anleitung**. **Detent-Split** braucht KEINE neue Modell-Funktion:
+   `normalise()` klemmt Roh außerhalb min…max auf ±1 → zwei Bindings auf demselben Achsen-Code mit
+   komplementären Roh-Bereichen decken „Detent=out 0" (oberer Teil) + „unter Detent = Reverse/Feather/
+   Cutoff" (unterer Teil, eigene Aktion) ab. Workflow = »Duplizieren« + Roh-Bereiche setzen (im Text erklärt).
+4. **Panel-Output-Detailviewer (neu)**: `gui_mapper.describe_output_detail(output)` entfaltet jeden Output
+   in lesbare Kind-Zeilen — Selektor-Bänke, **Encoder-/Swap-Input-Codes**, LED-/Dimmer-Maps, alle Radio-
+   Bank-Arten (freq/DME/ADF/XPDR). Der Mapper-Detailbaum rendert sie als Kinder je Output (`_render_detail`).
+   Damit sind **Outputs UND Inputs der Panels sichtbar** (vorher nur „radio_panel — 37 SimVars"). 3 Tests.
+   ⚠️ Panel-Outputs sind damit **sichtbar, aber noch nicht inline editierbar** (= Stufe C, s. u.).
+5. **Test entkoppelt**: `test_apply_binding_edit_changes_only_the_target` hing an exakter Binding-
+   Reihenfolge von `piper_arrow.yaml` — jetzt Sibling **vorher erfasst** statt hart-codiert (die Mapper-
+   GUI editiert diese Profile ja als Live-Dateien).
+6. **`piper_arrow.yaml` zurückgesetzt** (`git checkout`): der User hatte es beim Live-Testen verändert
+   (Test-Duplikat „Aileron (roll) (Kopie)" + einmaliger Flow-Kollaps der hand-umbrochenen Bänke) — reine
+   Test-Artefakte, zurückgesetzt → Handformatierung wieder da.
+
+**🔴 NÄCHSTES (Reihenfolge):**
+1. **Panel-Outputs inline EDITIERBAR** (Stufe C — jetzt sichtbar, aber read-only): Editor für multi/radio/
+   switch outputs (Selektor-/Bank-/LED-/Dimmer-Felder), Sequence-Editor. **Vorlage = Vor-Mapper-Arrow-Profil**
+   (git-History / alte SPAD-XMLs, s. [[reference-spadnext-profiles]]). Scope mit User klären.
+2. **V:-Runtime-Verdrahtung** (Design steht, geparkt): Bridge = dummer geteilter `V:`-Hub in
+   `bridge/bridge.py` (`set_simvar`/`read_subscribed` erkennen `V:`-Präfix → Dict, **sim-unabhängig**,
+   vor `_check_alive`/DLL-Lock; Subscribe/Poll/read_now laufen dann automatisch). **Seeding** aus
+   `profile.local_vars.initial` in `runtime.run` (Bridge bleibt profil-agnostisch). Reconnect-Reseed +
+   Persist = Follow-up. Tests: Seeding als reine Funktion; Bridge-Store via sys.modules-Stub + `object.
+   __new__`. simvars-reference.md §1 um V: ergänzen.
+3. GUI weiter visuell sichten (Rest Stufe B), dann Kette (gui-var-monitor + mapper-tab) → main.
 > Multi-Panel ist auf **`main`** gemerged. **`feat/gui-var-monitor` liegt vor `main` und ist
 > verifiziert (Streaming/Index-Fix/Multi-Client/ADF/DME in-sim), aber NOCH NICHT nach main
 > gemergt** (offene Enden: 10-Hz-Poll, Panel-Sichtprüfung).
