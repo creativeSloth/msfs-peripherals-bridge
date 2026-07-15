@@ -361,7 +361,7 @@ def _attach_tooltip(widget, text) -> None:
         )
         tk.Label(
             tip, text=msg, justify="left", background="#ffffe0", relief="solid",
-            borderwidth=1, font=("TkDefaultFont", 8), padx=6, pady=3,
+            borderwidth=1, font=("TkDefaultFont", 8), padx=6, pady=3, wraplength=340,
         ).pack()
         state["tip"] = tip
 
@@ -1174,15 +1174,19 @@ def run() -> None:
         dev_tree.column(col, width=w, anchor="center")
     dev_tree.grid(row=1, column=0, sticky="nsew", pady=6, padx=(0, 8))
 
-    # right: bindings + outputs of the selected device
-    detail = ttk.Treeview(mtab, columns=("source", "action", "shape"),
+    # right: bindings + outputs of the selected device. The trailing "edit"
+    # column shows a ⚙ per binding row — clicking it (or double-clicking the row)
+    # opens the settings window for that element.
+    detail = ttk.Treeview(mtab, columns=("source", "action", "shape", "edit"),
                           show="tree headings", height=7)
     detail.heading("#0", text="Name")
     detail.column("#0", width=150, anchor="w")
-    for col, head, w in (("source", "Control", 96), ("action", "Aktion", 250),
-                         ("shape", "Shaping", 110)):
+    for col, head, w in (("source", "Control", 92), ("action", "Aktion", 232),
+                         ("shape", "Shaping", 100)):
         detail.heading(col, text=head)
         detail.column(col, width=w, anchor="w")
+    detail.heading("edit", text="")
+    detail.column("edit", width=34, anchor="center", stretch=False)
     detail.grid(row=1, column=1, sticky="nsew", pady=6)
     dsb = ttk.Scrollbar(mtab, orient="vertical", command=detail.yview)
     dsb.grid(row=1, column=2, sticky="ns", pady=6)
@@ -1212,16 +1216,32 @@ def run() -> None:
     # rescan button + inline editor (built below), then the render/edit helpers.
     mbtn = ttk.Frame(mtab)
     mbtn.grid(row=2, column=0, columnspan=3, sticky="ew", pady=(6, 0))
+    # Left group acts on DEVICES; the "Binding:" group acts on the ONE binding
+    # selected on the right — labelled so it isn't confused with the profile
+    # Neu/Duplizieren/Entfernen buttons in the top row.
     b_rescan = ttk.Button(mbtn, text="Geräte neu erkennen",
                           command=lambda: _mapper_reload(rediscover=True))
     b_rescan.pack(side="left")
-    ttk.Label(mbtn, text="Binding wählen zum Bearbeiten · Achsen zeigen Transform.",
+    ttk.Separator(mbtn, orient="vertical").pack(side="left", fill="y", padx=10)
+    ttk.Label(mbtn, text="Binding:").pack(side="left", padx=(0, 4))
+    ttk.Button(mbtn, text="Bearbeiten…", command=lambda: _edit_selected()).pack(side="left")
+    ttk.Button(mbtn, text="+ Neu", command=lambda: _new_binding()).pack(side="left", padx=(6, 0))
+    ttk.Button(mbtn, text="Duplizieren", command=lambda: _ed_duplicate()).pack(side="left", padx=6)
+    ttk.Button(mbtn, text="Entfernen", command=lambda: _ed_remove()).pack(side="left")
+    ttk.Label(mbtn, text="— ⚙ / Doppelklick auf eine Binding-Zeile öffnet das Einstell-Fenster.",
               foreground="#666").pack(side="left", padx=8)
     _attach_tooltip(b_rescan, "evdev + hidraw discovery — welche Geräte hängen jetzt dran")
 
-    # --- inline editor panel ---------------------------------------------- #
-    ed = ttk.LabelFrame(mtab, text="Binding bearbeiten", padding=8)
-    ed.grid(row=3, column=0, columnspan=3, sticky="ew", pady=(8, 0))
+    # --- editor: a separate, on-demand window (opened per element) -------- #
+    # A ⚙-per-row / double-click / "Bearbeiten…" opens this Toplevel with the full
+    # parameter set for one element; it is created hidden and shown on demand.
+    ed_win = tk.Toplevel(win)
+    ed_win.title("Binding bearbeiten")
+    ed_win.withdraw()
+    ed_win.transient(win)
+    ed_win.protocol("WM_DELETE_WINDOW", lambda: _ed_close())
+    ed = ttk.Frame(ed_win, padding=10)
+    ed.pack(fill="both", expand=True)
     ed.columnconfigure(1, weight=1)
     ed.columnconfigure(2, weight=1)
     etgt: dict = {"device": None, "index": None, "original_action": None}
@@ -1305,57 +1325,60 @@ def run() -> None:
     axfr = ttk.Frame(ed)
     axfr.grid(row=3, column=0, columnspan=3, sticky="ew", pady=2)
 
+    # A small ⓘ next to each field carries that field's explanation as a tooltip,
+    # instead of one dense paragraph (per user: split onto the fields).
+    def _info(parent, text):
+        lbl = ttk.Label(parent, text="ⓘ", foreground="#1565c0", cursor="question_arrow")
+        lbl.pack(side="left", padx=(0, 8))
+        _attach_tooltip(lbl, text)
+
     inrow = ttk.Frame(axfr)
     inrow.pack(anchor="w")
-    ttk.Label(inrow, text="Eingang (roh)").pack(side="left", padx=(0, 6))
+    ttk.Label(inrow, text="Eingang (roh)").pack(side="left", padx=(0, 2))
+    _info(inrow,
+          "Roh-Wertebereich der Hardware, den diese Achse nutzt. Leer = automatisch aus der "
+          "Kalibrierung. Roh-Werte außerhalb min…max werden geklemmt.\n\n"
+          "Achse am Detent teilen: Binding »Duplizieren« und je Teil den Roh-Bereich setzen — "
+          "oberer Teil raw_min=Detent…raw_max=voll (out=0…max, Detent = Leerlauf/0), unterer "
+          "Teil raw_min=ganz-zurück…raw_max=Detent mit eigener Aktion (Reverse/Feather/Cutoff).")
     ttk.Label(inrow, text="min").pack(side="left")
     ttk.Entry(inrow, textvariable=ev["raw_min"], width=7).pack(side="left", padx=(2, 8))
     ttk.Label(inrow, text="max").pack(side="left")
     ttk.Entry(inrow, textvariable=ev["raw_max"], width=7).pack(side="left", padx=(2, 8))
-    ttk.Label(inrow, text="(leer = aus Kalibrierung; raw_max am Detent klemmt dort)",
-              foreground="#666").pack(side="left")
 
     tffr = ttk.Frame(axfr)
     tffr.pack(anchor="w", pady=(2, 0))
-    ttk.Label(tffr, text="Transform").pack(side="left", padx=(0, 6))
+    ttk.Label(tffr, text="Transform").pack(side="left", padx=(0, 2))
+    _info(tffr,
+          "Verarbeitung des Roh-Werts: Roh → auf -1…1 normieren (Eingang min/max) → Deadzone "
+          "→ Kurve/Expo → Invert → auf Ausgang out_min…out_max skalieren → an Event/SimVar.")
     ttk.Label(tffr, text="dz").pack(side="left")
-    ttk.Entry(tffr, textvariable=ev["tf_deadzone"], width=5).pack(side="left", padx=(2, 8))
+    ttk.Entry(tffr, textvariable=ev["tf_deadzone"], width=5).pack(side="left", padx=(2, 2))
+    _info(tffr, "Deadzone (0…1): kleine Auslenkung um die Mitte ignorieren — gegen "
+                "Zittern/Drift der Mittelstellung.")
     ttk.Label(tffr, text="Kurve").pack(side="left")
     ttk.Combobox(tffr, textvariable=ev["tf_curve"], values=list(gui_mapper.CURVES),
-                 state="readonly", width=8).pack(side="left", padx=(2, 8))
+                 state="readonly", width=8).pack(side="left", padx=(2, 2))
+    _info(tffr, "Kennlinie: linear (1:1), expo (weicher/feiner um die Mitte) oder squared.")
     ttk.Label(tffr, text="expo").pack(side="left")
-    ttk.Entry(tffr, textvariable=ev["tf_expo"], width=5).pack(side="left", padx=(2, 8))
-    ttk.Checkbutton(tffr, text="invert", variable=ev["tf_invert"]).pack(side="left", padx=(0, 8))
+    ttk.Entry(tffr, textvariable=ev["tf_expo"], width=5).pack(side="left", padx=(2, 2))
+    _info(tffr, "Stärke der Expo-Kurve (0…1): höher = weicher um die Mitte, spitzer an den "
+                "Enden. Nur bei Kurve=expo wirksam.")
+    ttk.Checkbutton(tffr, text="invert", variable=ev["tf_invert"]).pack(side="left", padx=(0, 2))
+    _info(tffr, "Richtung umkehren (Achse läuft andersherum).")
     ttk.Label(tffr, text="Ausgang (out)").pack(side="left")
     ttk.Entry(tffr, textvariable=ev["tf_out_min"], width=7).pack(side="left", padx=2)
     ttk.Label(tffr, text="…").pack(side="left")
-    ttk.Entry(tffr, textvariable=ev["tf_out_max"], width=7).pack(side="left", padx=2)
+    ttk.Entry(tffr, textvariable=ev["tf_out_max"], width=7).pack(side="left", padx=(2, 2))
+    _info(tffr, "Wertebereich, der an Event/SimVar geht. min = bei Roh-min, max = bei Roh-max. "
+                "Achsen-*_SET meist -16383…16383, ein SimVar oft 0…1.")
 
-    ttk.Label(
-        axfr, foreground="#666", wraplength=580, justify="left",
-        text=(
-            "Felder — Eingang (roh) min/max: Rohbereich der Hardware (aus Kalibrierung; "
-            "leer = automatisch). dz (Deadzone): kleine Auslenkung um die Mitte ignorieren. "
-            "Kurve: Kennlinie linear/expo/squared. expo: deren Stärke 0…1 (weicher um die "
-            "Mitte). invert: Richtung umkehren. Ausgang (out) min/max: Wertebereich, der an "
-            "die Sim geht.\n"
-            "Pipeline: Roh → auf -1…1 normieren (min/max) → Deadzone → Kurve/Expo → Invert "
-            "→ auf out_min…out_max skalieren → Event/SimVar (Achsen-*_SET z. B. "
-            "-16383…16383). Roh-Werte außerhalb min…max klemmen automatisch.\n"
-            "Am Detent teilen: »Duplizieren« → oberer Teil raw_min=Detent, raw_max=voll, "
-            "out=0…max (Detent = Leerlauf/0); unterer Teil raw_min=ganz-zurück, "
-            "raw_max=Detent + eigene Aktion (Reverse/Feather/Cutoff)."
-        ),
-    ).pack(anchor="w", pady=(2, 0))
-
-    # row 4: actions + feedback
+    # row 4: this window's actions (all act on THIS one binding) + feedback
     edbtn = ttk.Frame(ed)
     edbtn.grid(row=4, column=0, columnspan=3, sticky="ew", pady=(6, 0))
     ttk.Button(edbtn, text="Übernehmen", command=lambda: _ed_apply()).pack(side="left")
     ttk.Button(edbtn, text="Zurücksetzen", command=lambda: _ed_reset()).pack(side="left", padx=6)
-    ttk.Button(edbtn, text="+ Neu", command=lambda: _ed_add()).pack(side="left")
-    ttk.Button(edbtn, text="Duplizieren", command=lambda: _ed_duplicate()).pack(side="left", padx=6)
-    ttk.Button(edbtn, text="Entfernen", command=lambda: _ed_remove()).pack(side="left")
+    ttk.Button(edbtn, text="Abbrechen", command=lambda: _ed_close()).pack(side="left")
     ed_status = ttk.Label(edbtn, text="", foreground="#666")
     ed_status.pack(side="left", padx=10)
 
@@ -1384,26 +1407,54 @@ def run() -> None:
         d["type"] = "sequence"  # excluded as a default, but the union needs it
         return d
 
-    def _ed_clear():
+    def _selected_bind():
+        """(device_id, index) of the highlighted binding row, or (None, None)."""
+        sel, dev = _sel(detail), _sel(dev_tree)
+        if sel and str(sel).startswith("bind:") and dev:
+            return dev, int(str(sel).split(":")[1])
+        return None, None
+
+    def _ed_close():
+        ed_win.withdraw()
         etgt.update(device=None, index=None, original_action=None)
-        for var in ev.values():
-            var.set(False if isinstance(var, tk.BooleanVar) else "")
-        ev["action_type"].set("event")
-        ev["kind"].set("button")
-        _ed_show_fields()
-        ed.config(text="Binding bearbeiten")
-        _ed_status("Wähle links ein Gerät und ein Binding.")
 
     def _ed_load(device_id, index):
         prof = mstate["profile"]
         binds = prof.bindings.get(device_id, []) if prof else []
         if not (0 <= index < len(binds)):
-            _ed_clear()
             return
         binding = binds[index]
         etgt.update(device=device_id, index=index, original_action=_seq_original(binding))
         _ed_set_form(gui_mapper.binding_to_form(binding))
-        ed.config(text=f"Binding bearbeiten — {device_id} #{index}: {binding.name}")
+        ed_win.title(f"Binding: {binding.name}  —  {device_id} #{index}")
+
+    def _open_editor(device_id, index):
+        """Populate + show the settings window for ONE binding (index None = new)."""
+        if index is None:
+            etgt.update(device=device_id, index=None, original_action=None)
+            _ed_set_form(gui_mapper.blank_binding_form("button"))
+            ed_win.title(f"Neues Binding — {device_id}")
+            _ed_status("Felder ausfüllen, dann Übernehmen.")
+        else:
+            _ed_load(device_id, index)
+            _ed_status("")
+        ed_win.deiconify()
+        ed_win.lift()
+        ed_win.focus_set()
+
+    def _edit_selected():
+        dev, idx = _selected_bind()
+        if dev is None:
+            m_state.config(text="Kein Binding gewählt — rechts eine Binding-Zeile markieren.")
+            return
+        _open_editor(dev, idx)
+
+    def _new_binding():
+        dev = _sel(dev_tree)
+        if dev is None:
+            m_state.config(text="Kein Gerät gewählt — links ein Gerät markieren.")
+            return
+        _open_editor(dev, None)
 
     def _ed_reset():
         if etgt["device"] is None:
@@ -1442,7 +1493,7 @@ def run() -> None:
             _ed_status(str(exc), error=True)
             return
         dev, idx = etgt["device"], etgt["index"]
-        if idx is None:  # new binding from _ed_add: append at the end
+        if idx is None:  # new binding (opened via _new_binding): append at the end
             prof = mstate["profile"]
             idx = len(prof.bindings.get(dev, [])) if prof else 0
             err = _ed_save(lambda d: profile_writer.add_binding(d, dev, binding))
@@ -1453,84 +1504,90 @@ def run() -> None:
         if err:
             _ed_status(f"Nicht gespeichert: {err}", error=True)
             return
+        _ed_close()
         _reselect(dev, idx)
-        _ed_status(msg)
-
-    def _ed_add():
-        dev = _sel(dev_tree)
-        if dev is None:
-            _ed_status("Kein Gerät gewählt.", error=True)
-            return
-        # Don't write a half-filled stub (an empty form fails validation): enter
-        # "new binding" mode (index=None) with a blank form and defer the append
-        # + validation to Übernehmen, so nothing invalid is ever written.
-        etgt.update(device=dev, index=None, original_action=None)
-        _ed_set_form(gui_mapper.blank_binding_form("button"))
-        ed.config(text=f"Neues Binding — {dev} (noch nicht gespeichert)")
-        _ed_status("Felder ausfüllen, dann Übernehmen.")
+        m_state.config(text=msg)
 
     def _ed_duplicate():
-        if etgt["device"] is None or etgt["index"] is None:
-            _ed_status("Kein gespeichertes Binding gewählt.", error=True)
+        dev, idx = _selected_bind()
+        if dev is None:
+            m_state.config(text="Kein Binding gewählt — rechts eine Binding-Zeile markieren.")
             return
-        dev, idx = etgt["device"], etgt["index"]
         binding = mstate["profile"].bindings[dev][idx]
         dup = gui_mapper.form_to_binding(
             gui_mapper.binding_to_form(binding), _seq_original(binding))
         dup["name"] = binding.name + " (Kopie)"
         err = _ed_save(lambda d: profile_writer.add_binding(d, dev, dup, index=idx + 1))
         if err:
-            _ed_status(f"Nicht dupliziert: {err}", error=True)
+            m_state.config(text=f"Nicht dupliziert: {err}")
             return
         _reselect(dev, idx + 1)
-        _ed_status("Dupliziert ✓")
+        m_state.config(text="Binding dupliziert ✓")
 
     def _ed_remove():
-        if etgt["device"] is None or etgt["index"] is None:
-            _ed_status("Kein gespeichertes Binding gewählt.", error=True)
+        dev, idx = _selected_bind()
+        if dev is None:
+            m_state.config(text="Kein Binding gewählt — rechts eine Binding-Zeile markieren.")
             return
-        dev, idx = etgt["device"], etgt["index"]
+        binding = mstate["profile"].bindings[dev][idx]
+        if not messagebox.askyesno("Binding entfernen", f"Binding „{binding.name}“ entfernen?"):
+            return
         err = _ed_save(lambda d: profile_writer.remove_binding(d, dev, idx))
         if err:
-            _ed_status(f"Nicht entfernt: {err}", error=True)
+            m_state.config(text=f"Nicht entfernt: {err}")
             return
+        _ed_close()
         _reselect(dev, max(0, idx - 1))
-        _ed_status("Entfernt ✓")
+        m_state.config(text="Binding entfernt ✓")
 
-    def _ed_on_detail_select(*_):
+    def _on_detail_activate(_e=None):
+        """Double-click a binding row -> open its settings window; else explain."""
         sel = _sel(detail)
-        dev = _sel(dev_tree)
-        if sel and str(sel).startswith("bind:") and dev:
-            _ed_load(dev, int(str(sel).split(":")[1]))
-        else:
-            _ed_clear()
+        dev, idx = _selected_bind()
+        if dev is not None:
+            _open_editor(dev, idx)
+        elif sel and str(sel).startswith("out:"):
+            m_state.config(text="Panel-/Display-Outputs sind noch nicht editierbar (folgt).")
+
+    def _on_detail_click(event):
+        """A click on the ⚙ (edit) cell of a binding row opens its settings window."""
+        if detail.identify_region(event.x, event.y) != "cell":
+            return
+        if detail.identify_column(event.x) != "#4":  # the trailing 'edit' column
+            return
+        row = detail.identify_row(event.y)
+        if not row:
+            return
+        if str(row).startswith("bind:"):
+            detail.selection_set(row)
+            _open_editor(_sel(dev_tree), int(str(row).split(":")[1]))
+        elif str(row).startswith("out:"):
+            m_state.config(text="Panel-/Display-Outputs sind noch nicht editierbar (folgt).")
 
     def _render_detail(device_id, reselect_index=None):
         detail.delete(*detail.get_children())
         prof = mstate["profile"]
         if prof is None or not device_id:
-            _ed_clear()
             return
         binds = gui_mapper.device_bindings(prof, device_id)
         bnode = detail.insert("", "end", text=f"Bindings ({len(binds)})", open=True)
         for i, br in enumerate(binds):
             detail.insert(bnode, "end", iid=f"bind:{i}", text=br.name,
-                          values=(br.source, br.action, br.transform))
+                          values=(br.source, br.action, br.transform, "⚙"))
         out_objs = prof.outputs.get(device_id, [])
         if out_objs:
             onode = detail.insert("", "end", text=f"Outputs ({len(out_objs)})", open=True)
             for i, o in enumerate(out_objs):
                 pnode = detail.insert(onode, "end", iid=f"out:{i}", open=True,
-                                      text=gui_mapper.describe_output(o))
+                                      text=gui_mapper.describe_output(o), values=("", "", "", ""))
                 for j, line in enumerate(gui_mapper.describe_output_detail(o)):
-                    detail.insert(pnode, "end", iid=f"out:{i}:{j}", text=line)
+                    detail.insert(pnode, "end", iid=f"out:{i}:{j}", text=line,
+                                  values=("", "", "", ""))
+        # Just highlight the row after a reload; editing is opened on demand only.
         if reselect_index is not None and binds:
             idx = min(reselect_index, len(binds) - 1)
             detail.selection_set(f"bind:{idx}")
             detail.see(f"bind:{idx}")
-            _ed_load(device_id, idx)
-        else:
-            _ed_clear()
 
     def _mapper_reload(rediscover: bool = False, keep_device=None):
         prof = _current_profile()
@@ -1567,9 +1624,9 @@ def run() -> None:
     kind_cb.bind("<<ComboboxSelected>>", _ed_show_fields)
     type_cb.bind("<<ComboboxSelected>>", _ed_show_fields)
     dev_tree.bind("<<TreeviewSelect>>", lambda *_: _render_detail(_sel(dev_tree)))
-    detail.bind("<<TreeviewSelect>>", _ed_on_detail_select)
+    detail.bind("<Double-Button-1>", _on_detail_activate)
+    detail.bind("<Button-1>", _on_detail_click)
     profile_var.trace_add("write", lambda *_: _mapper_reload(rediscover=False))
-    _ed_clear()
 
     # Switching tabs: the Statistik tab starts/stops its live reads; the Mapper
     # tab discovers devices the first time it is shown (lazy, keeps startup fast).
