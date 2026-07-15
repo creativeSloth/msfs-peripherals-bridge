@@ -51,6 +51,30 @@ def discover(catalog: DeviceCatalog) -> dict[str, str]:
     return found
 
 
+def axis_value_reader(path: str, code: int):
+    """Open ``path`` and return a zero-arg callable giving that axis's live raw value.
+
+    Used by the GUI's "learn raw range": the callable polls the axis's current
+    ``absinfo().value`` so the user can read the value at the detent / at the
+    extremes and capture it. Returns ``None`` if evdev is unavailable or the
+    device can't be opened; the callable returns ``None`` if a later read fails.
+    """
+    if not _HAS_EVDEV:
+        return None
+    try:
+        dev = evdev.InputDevice(path)
+    except OSError:
+        return None
+
+    def read() -> int | None:
+        try:
+            return dev.absinfo(code).value
+        except (OSError, KeyError):
+            return None
+
+    return read
+
+
 def read_device(device_id: str, path: str) -> Iterator[DeviceEvent]:
     """Blocking generator of normalised events from one device node."""
     if not _HAS_EVDEV:

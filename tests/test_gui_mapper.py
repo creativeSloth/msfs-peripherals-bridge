@@ -15,6 +15,8 @@ from msfs_peripherals_bridge.gui_mapper import (
     device_bindings,
     device_outputs,
     form_to_binding,
+    rows_to_seq_action,
+    seq_action_to_rows,
 )
 from msfs_peripherals_bridge.models import (
     Binding,
@@ -302,3 +304,41 @@ def test_blank_form_builds_a_valid_button_binding():
     assert b.source.kind is SourceKind.BUTTON
     assert b.action.event == "PARKING_BRAKES"
     assert b.action.value == 1  # button event auto-gets value 1
+
+
+# --------------------------------------------------------------------------- #
+# sequence action <-> editor rows
+# --------------------------------------------------------------------------- #
+def test_seq_action_to_rows_splits_event_and_simvar_steps():
+    action = SequenceAction.model_validate({
+        "type": "sequence",
+        "on_edge": [{"event": "AVIONICS_MASTER_1", "value": 1},
+                    {"simvar": "L:AUTOPILOT_MODE", "value": 2}],
+        "off_edge": [{"simvar": "L:AUTOPILOT_MODE", "value": 0}],
+    })
+    rows = seq_action_to_rows(action)
+    assert rows["on"][0] == {"target": "event", "name": "AVIONICS_MASTER_1",
+                             "value": "1", "unit": "number"}
+    assert rows["on"][1]["target"] == "simvar" and rows["on"][1]["name"] == "L:AUTOPILOT_MODE"
+    assert rows["off"][0] == {"target": "simvar", "name": "L:AUTOPILOT_MODE",
+                              "value": "0", "unit": "number"}
+
+
+def test_rows_to_seq_action_round_trips_through_the_model():
+    on = [{"target": "event", "name": "AVIONICS_MASTER_1", "value": "1", "unit": "number"},
+          {"target": "simvar", "name": "L:AUTOPILOT_MODE", "value": "2", "unit": "number"}]
+    off = [{"target": "simvar", "name": "L:AUTOPILOT_MODE", "value": "0", "unit": "number"}]
+    act = rows_to_seq_action(on, off)
+    model = SequenceAction.model_validate(act)  # must validate
+    assert [s.event for s in model.on_edge] == ["AVIONICS_MASTER_1", None]
+    assert model.on_edge[1].simvar == "L:AUTOPILOT_MODE" and model.on_edge[1].value == 2
+    assert model.off_edge[0].value == 0
+
+
+def test_rows_to_seq_action_validates_inputs():
+    with pytest.raises(ValueError, match="mindestens einen on-Schritt"):
+        rows_to_seq_action([], [])
+    with pytest.raises(ValueError, match="Name fehlt"):
+        rows_to_seq_action([{"target": "event", "name": "  ", "value": "1"}], [])
+    with pytest.raises(ValueError, match="Zahl"):
+        rows_to_seq_action([{"target": "event", "name": "X", "value": "abc"}], [])

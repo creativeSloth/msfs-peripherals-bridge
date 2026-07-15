@@ -36,6 +36,7 @@ from .models import (
     SimVarAction,
     Source,
     Transform,
+    WriteStep,
     XpdrBank,
 )
 
@@ -293,6 +294,65 @@ def _parse_float(value: object, label: str, default: float) -> float:
         return float(s)
     except ValueError:
         raise ValueError(f"{label} muss eine Zahl sein.") from None
+
+
+def _parse_num(value: object, label: str) -> float | int:
+    """Parse a number, returning an int when it is whole (clean YAML scalars)."""
+    s = str(value).strip() if value is not None else ""
+    try:
+        f = float(s)
+    except (TypeError, ValueError):
+        raise ValueError(f"{label} muss eine Zahl sein.") from None
+    return int(f) if f.is_integer() else f
+
+
+# --------------------------------------------------------------------------- #
+# sequence action <-> editable step rows (pure; the GUI builds widgets around it)
+# --------------------------------------------------------------------------- #
+def seq_action_to_rows(action: SequenceAction) -> dict:
+    """Split a sequence action into editable ``{on: [...], off: [...]}`` step rows.
+
+    Each row is a flat ``{target, name, value, unit}`` (all strings) — ``target``
+    is ``event`` or ``simvar``, ``name`` the event/var name.
+    """
+    def row(s: WriteStep) -> dict:
+        return {
+            "target": "event" if s.event else "simvar",
+            "name": s.event or s.simvar or "",
+            "value": _fmt_num(s.value),
+            "unit": s.unit,
+        }
+    return {"on": [row(s) for s in action.on_edge],
+            "off": [row(s) for s in action.off_edge]}
+
+
+def rows_to_seq_action(on_rows: list[dict], off_rows: list[dict]) -> dict:
+    """Build a sequence action dict from editor rows. Raises ``ValueError`` if invalid.
+
+    A step needs a name and a numeric value; ``on`` must have at least one step
+    (mirrors :class:`~..models.SequenceAction`). ``unit`` is emitted only for a
+    non-default simvar step.
+    """
+    def step(r: dict) -> dict:
+        name = (r.get("name") or "").strip()
+        if not name:
+            raise ValueError("Sequence-Schritt: Name fehlt.")
+        val = _parse_num(r.get("value"), "Wert")
+        if r.get("target") == "simvar":
+            d: dict = {"simvar": name, "value": val}
+            unit = (r.get("unit") or "").strip()
+            if unit and unit != "number":
+                d["unit"] = unit
+            return d
+        return {"event": name, "value": val}
+
+    if not on_rows:
+        raise ValueError("Sequence braucht mindestens einen on-Schritt.")
+    action: dict = {"type": "sequence", "on_edge": [step(r) for r in on_rows]}
+    off = [step(r) for r in off_rows]
+    if off:
+        action["off_edge"] = off
+    return action
 
 
 def binding_to_form(binding: Binding) -> dict:
