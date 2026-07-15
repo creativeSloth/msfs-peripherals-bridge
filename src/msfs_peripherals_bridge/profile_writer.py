@@ -157,6 +157,23 @@ def validate(data: CommentedMap) -> Profile:
     return Profile.model_validate(data)
 
 
+def set_meta(
+    data: CommentedMap,
+    *,
+    description: str | None = None,
+    aircraft_match: list[str] | None = None,
+) -> None:
+    """Update a profile's top-level ``description`` / ``aircraft_match`` in place.
+
+    Only the passed fields are touched; comments and every other key survive.
+    ``aircraft_match`` is written as a flow list to match the profiles' style.
+    """
+    if description is not None:
+        data["description"] = description
+    if aircraft_match is not None:
+        data["aircraft_match"] = _node(list(aircraft_match))
+
+
 def new_profile(name: str, description: str = "") -> CommentedMap:
     """Build a fresh, minimal-but-valid profile document.
 

@@ -841,7 +841,46 @@ def run() -> None:
     win.title("MSFS Peripherals Bridge — Control")
     win.minsize(620, 460)
     win.columnconfigure(0, weight=1)
-    win.rowconfigure(1, weight=1)  # the notebook grows
+    win.rowconfigure(0, weight=1)  # the notebook grows
+
+    # --- modern-ish theme: flat light palette + a blue accent + red danger ---- #
+    BG, SURFACE, TEXT, MUTED = "#f4f5f7", "#ffffff", "#1f2430", "#6b7280"
+    ACCENT, ACCENT_ACT = "#2563eb", "#1d4ed8"
+    DANGER, DANGER_ACT = "#dc2626", "#b91c1c"
+    style = ttk.Style(win)
+    with contextlib.suppress(Exception):
+        style.theme_use("clam")  # the only stock theme that honours custom colours
+    win.configure(bg=BG)
+    style.configure(".", background=BG, foreground=TEXT, fieldbackground=SURFACE,
+                    bordercolor="#d1d5db", lightcolor=BG, darkcolor=BG)
+    style.configure("TFrame", background=BG)
+    style.configure("TLabel", background=BG, foreground=TEXT)
+    style.configure("TLabelframe", background=BG, bordercolor="#d1d5db")
+    style.configure("TLabelframe.Label", background=BG, foreground=MUTED)
+    style.configure("TButton", padding=(10, 5), background="#e5e7eb", foreground=TEXT,
+                    borderwidth=0, focuscolor=BG)
+    style.map("TButton", background=[("active", "#d1d5db"), ("disabled", "#eef0f2")],
+              foreground=[("disabled", "#9aa1ab")])
+    style.configure("TNotebook", background=BG, borderwidth=0, tabmargins=(6, 6, 6, 0))
+    style.configure("TNotebook.Tab", padding=(14, 7), background="#e5e7eb",
+                    foreground=MUTED, borderwidth=0)
+    style.map("TNotebook.Tab", background=[("selected", SURFACE)],
+              foreground=[("selected", ACCENT)], expand=[("selected", (0, 0, 0, 0))])
+    style.configure("Treeview", background=SURFACE, fieldbackground=SURFACE, foreground=TEXT,
+                    rowheight=25, borderwidth=0)
+    style.configure("Treeview.Heading", background="#e5e7eb", foreground=MUTED,
+                    relief="flat", padding=4)
+    style.map("Treeview", background=[("selected", ACCENT)], foreground=[("selected", "#ffffff")])
+    style.configure("TCombobox", padding=3)
+    style.configure("TEntry", padding=3)
+    # Primary/important actions and destructive actions get colour.
+    style.configure("Accent.TButton", background=ACCENT, foreground="#ffffff",
+                    padding=(12, 6), borderwidth=0)
+    style.map("Accent.TButton", background=[("active", ACCENT_ACT), ("disabled", "#a9c1f6")],
+              foreground=[("disabled", "#eef2ff")])
+    style.configure("Danger.TButton", background=DANGER, foreground="#ffffff",
+                    padding=(10, 5), borderwidth=0)
+    style.map("Danger.TButton", background=[("active", DANGER_ACT), ("disabled", "#eab8b8")])
 
     # On/off state of the (borderless) Panel window, mirrored by the toolbar
     # toggle button below. The panel is created when on and destroyed when off.
@@ -861,76 +900,10 @@ def run() -> None:
     def mapper_cmd() -> str:
         return "uv run python -m msfs_peripherals_bridge run --profile " + profile_var.get()
 
-    # --- profile row (ABOVE the tabs, always visible) ---------------------- #
-    prow = ttk.Frame(win, padding=(10, 10))
-    prow.grid(row=0, column=0, sticky="ew")
-    ttk.Label(prow, text="Profil:").pack(side="left")
-    profile_cb = ttk.Combobox(prow, textvariable=profile_var, values=profiles,
-                              state="readonly", width=22)
-    profile_cb.pack(side="left", padx=6)
-
-    def _refresh_profiles(select: str | None = None) -> None:
-        profile_cb["values"] = _list_profiles(root_dir)
-        if select is not None:
-            profile_var.set(select)  # fires the trace -> mapper/statistik reload
-
-    def _ask_profile_name(title: str, initial: str = "") -> str | None:
-        """Prompt for a filesystem-safe profile stem, or None if cancelled/invalid."""
-        raw = simpledialog.askstring(title, "Profilname:", initialvalue=initial, parent=win)
-        if raw is None:
-            return None
-        name = raw.strip()
-        if not name or not all(c.isalnum() or c in "_-" for c in name):
-            messagebox.showerror("Ungültiger Name",
-                                 "Nur Buchstaben, Ziffern, '_' und '-' erlaubt.")
-            return None
-        if (profiles_dir(root_dir) / f"{name}.yaml").exists():
-            messagebox.showerror("Profil existiert", f"'{name}' gibt es schon.")
-            return None
-        return name
-
-    def _profile_new() -> None:
-        name = _ask_profile_name("Neues Profil")
-        if name is None:
-            return
-        profile_writer.dump(profile_writer.new_profile(name),
-                            profiles_dir(root_dir) / f"{name}.yaml")
-        _refresh_profiles(select=name)
-
-    def _profile_duplicate() -> None:
-        src = profiles_dir(root_dir) / f"{profile_var.get()}.yaml"
-        if not src.exists():
-            messagebox.showerror("Kein Profil", "Aktuelles Profil nicht gefunden.")
-            return
-        name = _ask_profile_name("Profil duplizieren", initial=f"{profile_var.get()}_kopie")
-        if name is None:
-            return
-        data = profile_writer.load(src)
-        data["name"] = name  # keep the file's formatting/comments; just rename
-        profile_writer.dump(data, profiles_dir(root_dir) / f"{name}.yaml")
-        _refresh_profiles(select=name)
-
-    def _profile_remove() -> None:
-        name = profile_var.get()
-        names = _list_profiles(root_dir)
-        if len(names) <= 1:
-            messagebox.showerror("Nicht möglich", "Das letzte Profil kann nicht entfernt werden.")
-            return
-        if not messagebox.askyesno("Profil entfernen",
-                                   f"Profil '{name}' wirklich löschen?\nDas lässt sich nicht "
-                                   "rückgängig machen."):
-            return
-        (profiles_dir(root_dir) / f"{name}.yaml").unlink(missing_ok=True)
-        _refresh_profiles(select=next(n for n in names if n != name))
-
-    ttk.Button(prow, text="Neu", width=5, command=_profile_new).pack(side="left")
-    ttk.Button(prow, text="Duplizieren", command=_profile_duplicate).pack(side="left", padx=4)
-    ttk.Button(prow, text="Entfernen", command=_profile_remove).pack(side="left", padx=(0, 8))
-    ttk.Label(prow, text="(gilt für Mapper-Start; Basis für Statistik)",
-              foreground="#666").pack(side="left")
-
+    # The profile selector + management live in their own "Profile" tab (built
+    # last, below) rather than a permanent row above the tabs.
     nb = ttk.Notebook(win)
-    nb.grid(row=1, column=0, sticky="nsew", padx=10)
+    nb.grid(row=0, column=0, sticky="nsew", padx=10)
 
     # ===== Connection tab ================================================== #
     conn = ttk.Frame(nb, padding=10)
@@ -966,11 +939,12 @@ def run() -> None:
         stop_mapper()
         stop_bridge()
 
-    b_bs = ttk.Button(conn, text="Bridge starten", command=start_bridge)
-    b_bx = ttk.Button(conn, text="Bridge stoppen", command=stop_bridge)
-    b_ms = ttk.Button(conn, text="Mapper starten", command=start_mapper)
-    b_mx = ttk.Button(conn, text="Mapper stoppen", command=stop_mapper)
-    b_all = ttk.Button(conn, text="Alles stoppen (Aufräumen)", command=stop_all)
+    b_bs = ttk.Button(conn, text="Bridge starten", style="Accent.TButton", command=start_bridge)
+    b_bx = ttk.Button(conn, text="Bridge stoppen", style="Danger.TButton", command=stop_bridge)
+    b_ms = ttk.Button(conn, text="Mapper starten", style="Accent.TButton", command=start_mapper)
+    b_mx = ttk.Button(conn, text="Mapper stoppen", style="Danger.TButton", command=stop_mapper)
+    b_all = ttk.Button(conn, text="Alles stoppen (Aufräumen)", style="Danger.TButton",
+                       command=stop_all)
     b_bs.grid(row=0, column=0, sticky="ew", padx=3, pady=3)
     b_bx.grid(row=0, column=1, sticky="ew", padx=3, pady=3)
     b_ms.grid(row=1, column=0, sticky="ew", padx=3, pady=3)
@@ -1227,11 +1201,12 @@ def run() -> None:
     bindbtn.grid(row=2, column=1, columnspan=2, sticky="ew", pady=(6, 0))
     # Packed right-to-left so they sit right-aligned in the usual reading order:
     # Binding:  Bearbeiten…  + Neu  Duplizieren  Entfernen
-    ttk.Button(bindbtn, text="Entfernen", command=lambda: _ed_remove()).pack(side="right")
+    ttk.Button(bindbtn, text="Entfernen", style="Danger.TButton",
+               command=lambda: _ed_remove()).pack(side="right")
     ttk.Button(bindbtn, text="Duplizieren",
                command=lambda: _ed_duplicate()).pack(side="right", padx=6)
     ttk.Button(bindbtn, text="+ Neu", command=lambda: _new_binding()).pack(side="right")
-    ttk.Button(bindbtn, text="Bearbeiten…",
+    ttk.Button(bindbtn, text="Bearbeiten…", style="Accent.TButton",
                command=lambda: _edit_selected()).pack(side="right", padx=(0, 6))
     ttk.Label(bindbtn, text="Binding:").pack(side="right", padx=(0, 4))
     ttk.Label(bindbtn, text="✏ / Doppelklick auf eine Zeile öffnet das Fenster",
@@ -1317,7 +1292,8 @@ def run() -> None:
     ttk.Label(ed, text="Aktion").grid(row=2, column=0, sticky="w", padx=(0, 6), pady=2)
     a1 = ttk.Frame(ed)
     a1.grid(row=2, column=1, sticky="w", pady=2)
-    ttk.Button(a1, text="Wählen…", command=lambda: _pick_action()).pack(side="left", padx=(0, 4))
+    ttk.Button(a1, text="Wählen…", style="Accent.TButton",
+               command=lambda: _pick_action()).pack(side="left", padx=(0, 4))
     _info(a1, "Normalfall: aus der Liste eine Variable wählen (oben nach A:/K:/L:/V: filtern) — "
               "der Typ folgt automatisch (K: = Event, A:/L:/V: = SimVar). Den Typ rechts nur für "
               "Fortgeschrittenes (RPN, Sequence, event_from_var) ändern.")
@@ -1469,7 +1445,8 @@ def run() -> None:
     # row 5: this window's actions (all act on THIS one binding) + feedback
     edbtn = ttk.Frame(ed)
     edbtn.grid(row=5, column=0, columnspan=3, sticky="ew", pady=(6, 0))
-    ttk.Button(edbtn, text="Übernehmen", command=lambda: _ed_apply()).pack(side="left")
+    ttk.Button(edbtn, text="Übernehmen", style="Accent.TButton",
+               command=lambda: _ed_apply()).pack(side="left")
     ttk.Button(edbtn, text="Zurücksetzen", command=lambda: _ed_reset()).pack(side="left", padx=6)
     ttk.Button(edbtn, text="Abbrechen", command=lambda: _ed_close()).pack(side="left")
     ed_status = ttk.Label(edbtn, text="", foreground="#666")
@@ -1812,6 +1789,118 @@ def run() -> None:
             _mapper_reload(rediscover=not mstate["discovered"])
 
     nb.bind("<<NotebookTabChanged>>", _on_tab_changed)
+
+    # --- Profile tab (selector + management + metadata) -------------------- #
+    ptab = ttk.Frame(nb, padding=12)
+    nb.add(ptab, text="Profile")
+    ptab.columnconfigure(1, weight=1)
+
+    prow = ttk.Frame(ptab)
+    prow.grid(row=0, column=0, columnspan=2, sticky="ew", pady=(0, 12))
+    ttk.Label(prow, text="Aktives Profil:").pack(side="left")
+    profile_cb = ttk.Combobox(prow, textvariable=profile_var, values=profiles,
+                              state="readonly", width=26)
+    profile_cb.pack(side="left", padx=6)
+
+    def _refresh_profiles(select=None):
+        profile_cb["values"] = _list_profiles(root_dir)
+        if select is not None:
+            profile_var.set(select)  # fires the trace -> reloads everywhere
+
+    def _ask_profile_name(title, initial=""):
+        raw = simpledialog.askstring(title, "Profilname:", initialvalue=initial, parent=win)
+        if raw is None:
+            return None
+        name = raw.strip()
+        if not name or not all(c.isalnum() or c in "_-" for c in name):
+            messagebox.showerror("Ungültiger Name", "Nur Buchstaben, Ziffern, '_' und '-'.")
+            return None
+        if (profiles_dir(root_dir) / f"{name}.yaml").exists():
+            messagebox.showerror("Profil existiert", f"'{name}' gibt es schon.")
+            return None
+        return name
+
+    def _profile_new():
+        name = _ask_profile_name("Neues Profil")
+        if name is None:
+            return
+        profile_writer.dump(profile_writer.new_profile(name),
+                            profiles_dir(root_dir) / f"{name}.yaml")
+        _refresh_profiles(select=name)
+
+    def _profile_duplicate():
+        src = profiles_dir(root_dir) / f"{profile_var.get()}.yaml"
+        if not src.exists():
+            messagebox.showerror("Kein Profil", "Aktuelles Profil nicht gefunden.")
+            return
+        name = _ask_profile_name("Profil duplizieren", initial=f"{profile_var.get()}_kopie")
+        if name is None:
+            return
+        data = profile_writer.load(src)
+        data["name"] = name  # keep the file's formatting/comments; just rename
+        profile_writer.dump(data, profiles_dir(root_dir) / f"{name}.yaml")
+        _refresh_profiles(select=name)
+
+    def _profile_remove():
+        name = profile_var.get()
+        names = _list_profiles(root_dir)
+        if len(names) <= 1:
+            messagebox.showerror("Nicht möglich", "Das letzte Profil kann nicht entfernt werden.")
+            return
+        if not messagebox.askyesno("Profil entfernen",
+                                   f"Profil '{name}' wirklich löschen? Das lässt sich nicht "
+                                   "rückgängig machen."):
+            return
+        (profiles_dir(root_dir) / f"{name}.yaml").unlink(missing_ok=True)
+        _refresh_profiles(select=next(n for n in names if n != name))
+
+    ttk.Button(prow, text="+ Neu", style="Accent.TButton",
+               command=_profile_new).pack(side="left", padx=(8, 0))
+    ttk.Button(prow, text="Duplizieren", command=_profile_duplicate).pack(side="left", padx=6)
+    ttk.Button(prow, text="Entfernen", style="Danger.TButton",
+               command=_profile_remove).pack(side="left")
+
+    ttk.Label(ptab, text="Beschreibung").grid(row=1, column=0, sticky="w", pady=2, padx=(0, 8))
+    p_desc = tk.StringVar()
+    ttk.Entry(ptab, textvariable=p_desc).grid(row=1, column=1, sticky="ew", pady=2)
+    ttk.Label(ptab, text="Auto-Auswahl").grid(row=2, column=0, sticky="w", pady=2, padx=(0, 8))
+    p_match = tk.StringVar()
+    ttk.Entry(ptab, textvariable=p_match).grid(row=2, column=1, sticky="ew", pady=2)
+    ttk.Label(ptab, text="Flugzeug-Titel (Komma-getrennt) — wählt dieses Profil automatisch, "
+                         "wenn der Titel passt.", foreground=MUTED).grid(
+                             row=3, column=1, sticky="w")
+
+    p_status = ttk.Label(ptab, text="", foreground=MUTED)
+
+    def _profile_meta_load(*_):
+        try:
+            prof = load_profile(profiles_dir(root_dir) / f"{profile_var.get()}.yaml")
+        except Exception:
+            p_desc.set("")
+            p_match.set("")
+            return
+        p_desc.set(prof.description)
+        p_match.set(", ".join(prof.aircraft_match))
+        p_status.config(text="")
+
+    def _profile_meta_save():
+        path = profiles_dir(root_dir) / f"{profile_var.get()}.yaml"
+        match = [m.strip() for m in p_match.get().split(",") if m.strip()]
+        try:
+            data = profile_writer.load(path)
+            profile_writer.set_meta(data, description=p_desc.get().strip(), aircraft_match=match)
+            profile_writer.validate(data)
+            profile_writer.dump(data, path)
+            p_status.config(text="Gespeichert ✓", foreground="#15803d")
+        except Exception as exc:
+            p_status.config(text=f"Fehler: {exc}", foreground=DANGER)
+
+    ttk.Button(ptab, text="Beschreibung speichern", style="Accent.TButton",
+               command=_profile_meta_save).grid(row=4, column=1, sticky="w", pady=(10, 0))
+    p_status.grid(row=5, column=1, sticky="w", pady=(4, 0))
+
+    profile_var.trace_add("write", _profile_meta_load)
+    _profile_meta_load()
 
     # --- bottom status bar (small lamps) ----------------------------------- #
     ttk.Separator(win, orient="horizontal").grid(row=2, column=0, sticky="ew", pady=(8, 0))

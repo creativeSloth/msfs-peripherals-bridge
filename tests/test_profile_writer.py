@@ -175,3 +175,14 @@ def test_new_profile_validates_and_round_trips():
                    {"name": "b", "source": {"kind": "button", "code": 1},
                     "action": {"type": "event", "event": "AP_MASTER"}})
     assert pw.validate(data).bindings["yoke"][0].name == "b"
+
+
+def test_set_meta_updates_description_and_match_in_place():
+    data = pw.load(PROFILES / "default.yaml")
+    pw.set_meta(data, description="My Cessna", aircraft_match=["C172", "Skyhawk"])
+    prof = pw.validate(data)
+    assert prof.description == "My Cessna"
+    assert prof.aircraft_match == ["C172", "Skyhawk"]
+    # a partial update leaves the other field untouched
+    pw.set_meta(data, description="Only desc")
+    assert pw.validate(data).aircraft_match == ["C172", "Skyhawk"]
