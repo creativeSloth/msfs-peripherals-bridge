@@ -1,10 +1,41 @@
 # STATUS — Resume-Anker
 
 > Kurzer Einstiegspunkt: was läuft, was offen ist, wie es weitergeht.
-> Stand: **2026-07-15** (Mapper-Tab **Stufe B vom User live gesichtet** → Crash-Fix, Profilverwaltung,
-> Axis-Editor + Erklärung/Detent-Split, Panel-Output-Detailviewer — s. 🆕 ganz oben. **247 Tests grün,
-> ruff clean. Committet auf `feat/mapper-tab` (nicht gepusht).** GUI-Optik erst beim nächsten Öffnen prüfbar.)
+> Stand: **2026-07-15** (großer Stufe-B-Live-Sichtungs-Marathon: Crash-Fix, Profil-CRUD→eigener
+> **Profile-Tab** (+Beschreibung), Axis-Editor mit Feld-ⓘ-Tooltips + Detent-Split + **raw-Learn**,
+> Panel-Output-**Viewer**, **Editor = On-Demand-Fenster** (✏/Doppelklick), **Sequence-Schritt-Editor**,
+> **Aktion folgt der gewählten Variable** (Typ-Dropdown nur noch für Fortgeschrittene), **modernes
+> Theme + Akzent/Danger-Knöpfe**. **251 Tests grün, ruff clean. Headless-Konstruktions-Smoke OK** (Fenster
+> withdrawn). **6 Commits auf `feat/mapper-tab`, NICHT gepusht.** GUI-Optik selbst erst beim nächsten
+> Öffnen final prüfbar. **Größter offener Punkt: Panel-/Display-Outputs nur sichtbar, NICHT editierbar (Stufe C).**)
 > Frühere Zeile: 2026-07-13 (Stufe A Viewer + Stufe B Inline-Editor + ruamel-Writer + V:-Deklaration).
+
+## 🆕 SESSION 2026-07-15 (fortges.) — UX-Umbau aus Live-Feedback + modernes Theme
+**Branch `feat/mapper-tab`, 251 Tests grün, ruff clean, Konstruktions-Smoke ok. Commits `9a46bfd`,
+`fbbe9ff` (+`5b1d8c2`,`ece9403` s. u.). NICHT gepusht.** Weiteres Live-Feedback umgesetzt:
+- **Editor = eigenes On-Demand-Fenster** (`ed_win` Toplevel, `withdraw`/`deiconify`): geöffnet per
+  **„✏ Bearbeiten"-Zelle** in der Binding-Zeile, Doppelklick, oder „Bearbeiten…". Fenster-Knöpfe
+  (Übernehmen/Zurücksetzen/Abbrechen) gelten für DAS eine Binding.
+- **Knopf-Zuordnung klar**: Binding-Aktionen (Bearbeiten…/+Neu/Duplizieren/Entfernen) **rechtsbündig
+  unter der Bindings-Tabelle**; Geräte-Rescan links; Profil-Aktionen im Profile-Tab.
+- **Sequence-Schritt-Editor** (war Platzhalter): `gui_mapper.seq_action_to_rows`/`rows_to_seq_action`
+  (rein, getestet) + `seqfr` mit on/off-Schritten (event/simvar, +Schritt/✕). `_ed_apply` baut die
+  Aktion aus `seq_state`.
+- **Aktion folgt der Variable**: prominenter „Wählen…" öffnet den (gefilterten) Var-Picker und setzt
+  den Typ automatisch (K:=event, A:/L:/V:=simvar) — Typ-Dropdown nur noch für RPN/Sequence/event_from_var,
+  ⓘ erklärt. (User wollte, dass man den Typ-Unterschied NICHT verstehen muss.)
+- **Axis-Feldhilfe** auf **per-Feld-ⓘ-Tooltips** (statt Textblock) + **raw-Learn**: „Lernen…" liest die
+  Achse live (`evdev_reader.axis_value_reader`), zeigt den Rohwert, „→ als min/max" übernimmt (Detent
+  finden). Graceful ohne Gerät/evdev.
+- **Profile-Tab** (letzter Tab, statt Dauer-Kopfzeile): Selector + Neu/Duplizieren/Entfernen +
+  **Beschreibung + Auto-Auswahl** editierbar (`profile_writer.set_meta`, getestet).
+- **Modernes Theme** (`clam` + helle Palette, flache Tabs mit Akzent) + **intuitiv gefärbte Knöpfe**:
+  Accent(blau)=primär/Start, Danger(rot)=Stop/Entfernen.
+
+**⚠️ NOCH VISUELL UNGEPRÜFT** (nur Konstruktions-Smoke, kein echtes Rendering): Layout/Optik von Theme,
+Profile-Tab, Editor-Fenster, Sequence-Editor. **User sichtet beim nächsten Öffnen.** Offene Feature-Punkte
+unverändert: Panel-Outputs inline editierbar (Stufe C), V:-Runtime, HW-Capture für Source-**Code**
+(raw-Learn steht; Code-Capture-Stub `b_learn` noch disabled).
 
 ## 🆕 SESSION 2026-07-15 — Stufe B live gesichtet: Fixes + Profilverwaltung + Axis + Panel-Viewer
 **Branch `feat/mapper-tab`. 247 Tests grün, ruff clean, py_compile ok. Committet (nicht gepusht).**
