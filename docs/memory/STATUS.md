@@ -1,8 +1,14 @@
 # STATUS — Resume-Anker
 
 > Kurzer Einstiegspunkt: was läuft, was offen ist, wie es weitergeht.
-> Stand: **2026-07-16** (Mega-Session, s. Block unten: Stufe C FERTIG, Achsen-Split, Editor-UX v2,
-> Live-Spalte, Flug-Verifikation, Air-Manager-Gauges gesichert **+ GAUGES-TAB GEBAUT**).
+> Stand: **2026-07-16/17 Doppel-Mega-Session** (Blöcke + Nachträge 1–5 unten): Stufe C, Achsen-Split,
+> Editor-UX v2, Live-Spalte, Gauges-Tab, HAT, ⚑-Bedingungen, **V:-Runtime FERTIG**, „+ Panel",
+> Struktur-Baum + Ein-Zeilen-Fenster, Air-Manager-Gauges gesichert. **Branch `feat/gauges` @
+> `1f3dd59`+STATUS-Commit, ALLE Branches GEPUSHT, 302 Tests grün.**
+> **🔴 WIEDEREINSTIEG:** (1) User sichtet weiter live (hat schon angefangen — Feedback floss ein);
+> (2) nächstes Feature = **Geräte-Explorer** (Codes auslesen / Test-Werte an Panels senden /
+> umlabeln — offener Task); (3) in-sim verifizieren: ⚑-Bedingungen, V: e2e (**Bridge NEU STARTEN**,
+> lädt neues bridge.py!), Hat, Split; (4) danach Kette → main.
 > Frühere Zeile: 2026-07-15 (Stufe-B-Marathon), 2026-07-13 (Stufe A/B + Writer).
 
 ## 🆕 SESSION 2026-07-16 (fortges.) — GAUGES-TAB GEBAUT (Branch `feat/gauges`)
@@ -28,6 +34,15 @@ ruff clean, Konstruktions-Smoke ok. Visuell UNGEPRÜFT** (User konnte nicht test
   Beschriftung könnte bei kleinen Zellen gedrängt sein; evtl. loslösbares Gauge-Fenster (wie
   Kachel-Panel); Arcs/sweep im Dialog editierbar machen (aktuell nur Var/Faktor/min/max);
   Presets für weitere Vars. Design-Referenz: `docs/gauges-design.md`.
+
+**➕ NACHTRAG 5 (Session-Ende, Commit `1f3dd59`, GEPUSHT): „+ Panel"-Fixes nach Live-Test.**
+User hat live getestet: „+ Panel" erzeugte Blöcke auch auf dem Yoke (2 Test-multi_panel auf yoke
+entstanden!), saß links statt rechts, Löschen ging nicht aus der Tabelle. Fixes: (a) Sperre —
+nur hidraw-Geräte, sonst Meldung; (b) Knopf in die rechte Knopfzeile verschoben; Dropdown sagt
+„Switch Panel"; (c) **„Entfernen" wirkt auf jede markierte Zeile** (Binding / ganzer Panel-Block
+mit Rückfrage / Listeneintrag / optionaler Block) ohne Fenster. `piper_arrow.yaml`: Yoke-Testblöcke
+entfernt, der **einmalige ruamel-Reflow vom ersten GUI-Speichern ist jetzt committet** (bewiesen:
+HEAD~1↔HEAD semantisch identisch — Fliegen sicher; künftige GUI-Saves = saubere Diffs).
 
 **➕ NACHTRAG 4 (gleiche Session, Commits `32aba6c`+`2ee8621`, 302 Tests, GEPUSHT): V:-RUNTIME FERTIG.**
 - **Bridge-V:-Hub** (geparktes Design umgesetzt): `bridge.py` Modul-Level `_VIRTUAL_VARS`+Lock;
