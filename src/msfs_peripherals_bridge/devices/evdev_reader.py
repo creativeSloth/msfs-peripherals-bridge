@@ -24,8 +24,12 @@ except ImportError:  # pragma: no cover
     _HAS_EVDEV = False
 
 
-def _kind_for(ev_type: int) -> SourceKind | None:
+def _kind_for(ev_type: int, code: int) -> SourceKind | None:
     if ev_type == ecodes.EV_ABS:
+        # POV hats are ABS channels too (ABS_HAT0X..ABS_HAT3Y, ±1) — classify
+        # them as HAT so direction-aware hat bindings can match them.
+        if ecodes.ABS_HAT0X <= code <= ecodes.ABS_HAT3Y:
+            return SourceKind.HAT
         return SourceKind.AXIS
     if ev_type == ecodes.EV_KEY:
         return SourceKind.BUTTON
@@ -81,7 +85,7 @@ def read_device(device_id: str, path: str) -> Iterator[DeviceEvent]:
         raise RuntimeError("python-evdev is required to read devices (Linux only).")
     dev = evdev.InputDevice(path)
     for ev in dev.read_loop():
-        kind = _kind_for(ev.type)
+        kind = _kind_for(ev.type, ev.code)
         if kind is None:
             continue
         yield DeviceEvent(device_id=device_id, kind=kind, code=ev.code, value=ev.value)

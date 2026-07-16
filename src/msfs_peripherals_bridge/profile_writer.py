@@ -319,3 +319,25 @@ def remove_output_entry(
     """Delete entry ``key`` (list index / dict key) from the container at ``path``."""
     container = _walk_to_parent(data, device_id, index, (*path, "_"))
     del container[key]
+
+
+def add_output(data: CommentedMap, device_id: str, output: dict) -> None:
+    """Append a new output block (panel controller) for ``device_id``."""
+    outputs = data.get("outputs")
+    if not isinstance(outputs, CommentedMap):
+        outputs = CommentedMap()
+        data["outputs"] = outputs
+    seq = outputs.get(device_id)
+    if not isinstance(seq, CommentedSeq):
+        seq = CommentedSeq()
+        outputs[device_id] = seq
+    seq.append(_node(output))
+
+
+def remove_output(data: CommentedMap, device_id: str, index: int) -> None:
+    """Delete a whole output block at ``(device_id, index)``."""
+    del data["outputs"][device_id][index]
+    if not data["outputs"][device_id]:
+        del data["outputs"][device_id]  # keep the YAML free of empty stubs
+    if not data["outputs"]:
+        del data["outputs"]

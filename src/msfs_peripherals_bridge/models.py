@@ -140,6 +140,31 @@ class RpnAction(BaseModel):
 
 
 Action = EventAction | SimVarAction | EventFromVarAction | SequenceAction | RpnAction
+# The discriminated form, usable inside Optional fields (HatMap, Binding.action).
+ActionT = Annotated[Action, Field(discriminator="type")]
+
+
+class HatMap(BaseModel):
+    """Direction actions of a POV hat — ONE binding covers the whole hat.
+
+    evdev reports a hat as two ±1 axes: ``ABS_HATnX`` (left -1 / right +1) and
+    ``ABS_HATnY`` (up -1 / down +1), always a consecutive pair. The binding's
+    ``source.code`` is the **X (base) code**; Y is implicitly ``base + 1`` — so
+    declaring which codes belong to the hat is automatic. Each direction maps
+    to its own action (fired once on entering that direction); unset directions
+    do nothing.
+    """
+
+    up: ActionT | None = None
+    down: ActionT | None = None
+    left: ActionT | None = None
+    right: ActionT | None = None
+
+    @model_validator(mode="after")
+    def _at_least_one(self) -> HatMap:
+        if not any((self.up, self.down, self.left, self.right)):
+            raise ValueError("hat needs at least one mapped direction")
+        return self
 
 
 class AxisSplit(BaseModel):
@@ -609,15 +634,21 @@ class Source(BaseModel):
 
 
 class Binding(BaseModel):
-    """Connects one physical Source to one Action, with optional shaping."""
+    """Connects one physical Source to one Action, with optional shaping.
+
+    A hat binding replaces the single ``action`` with a :class:`HatMap`: one
+    binding per hat, its four directions mapped in one place.
+    """
 
     name: str = Field(..., description="Human label, shown in the CLI.")
     source: Source
-    action: Action = Field(..., discriminator="type")
+    action: ActionT | None = Field(None, description="What to do (all non-hat bindings).")
     transform: Transform = Field(default_factory=Transform)
     # Detent split: maps the axis range below `split.at` to its own action while
     # action/transform above cover the detent upwards. Axis sources only.
     split: AxisSplit | None = Field(None, description="Lower-range mapping below a detent.")
+    # POV hat: per-direction actions; source.code is the hat's X (base) code.
+    hat: HatMap | None = Field(None, description="Direction actions (hat sources only).")
 
     @model_validator(mode="after")
     def _buttons_need_value(self) -> Binding:
@@ -634,6 +665,17 @@ class Binding(BaseModel):
     def _split_needs_axis(self) -> Binding:
         if self.split is not None and self.source.kind is not SourceKind.AXIS:
             raise ValueError("'split' is only valid on an axis binding.")
+        return self
+
+    @model_validator(mode="after")
+    def _hat_or_action(self) -> Binding:
+        if self.hat is not None:
+            if self.source.kind is not SourceKind.HAT:
+                raise ValueError("'hat' is only valid on a hat binding.")
+            if self.action is not None:
+                raise ValueError("a hat binding maps directions via 'hat', not 'action'.")
+        elif self.action is None:
+            raise ValueError("binding needs an 'action' (or 'hat' for hat sources).")
         return self
 
 

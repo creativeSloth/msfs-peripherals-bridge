@@ -8,6 +8,7 @@ from msfs_peripherals_bridge.models import (
     Binding,
     EventAction,
     EventFromVarAction,
+    HatMap,
     Profile,
     RpnAction,
     SequenceAction,
@@ -309,3 +310,56 @@ def test_split_requires_an_axis_source():
             action=EventAction(event="X", value=1),
             split=AxisSplit(at=1, action=EventAction(event="Y")),
         )
+
+
+# --------------------------------------------------------------------------- #
+# direction-aware hat: one binding, four direction actions
+# --------------------------------------------------------------------------- #
+def _hat_profile() -> Profile:
+    return Profile(
+        name="t",
+        bindings={
+            "yoke": [
+                Binding(
+                    name="Trim-Hat",
+                    source=Source(kind=SourceKind.HAT, code=16),
+                    hat=HatMap(
+                        up=EventAction(event="ELEV_TRIM_UP"),
+                        down=EventAction(event="ELEV_TRIM_DN"),
+                        left=SimVarAction(simvar="L:PAN_LEFT"),
+                        # right deliberately unmapped
+                    ),
+                )
+            ]
+        },
+    )
+
+
+def test_hat_directions_resolve_on_both_channels():
+    engine = MappingEngine(_hat_profile())
+    # Y channel = base+1: -1 = up, +1 = down
+    assert engine.resolve(DeviceEvent("yoke", SourceKind.HAT, 17, -1)) == [
+        SendEvent(name="ELEV_TRIM_UP", data=1)
+    ]
+    assert engine.resolve(DeviceEvent("yoke", SourceKind.HAT, 17, 1)) == [
+        SendEvent(name="ELEV_TRIM_DN", data=1)
+    ]
+    # X channel = base: -1 = left (simvar set to 1.0)
+    assert engine.resolve(DeviceEvent("yoke", SourceKind.HAT, 16, -1)) == [
+        SetSimVar(name="L:PAN_LEFT", unit="number", value=1.0)
+    ]
+    # unmapped direction + centring do nothing
+    assert engine.resolve(DeviceEvent("yoke", SourceKind.HAT, 16, 1)) == []
+    assert engine.resolve(DeviceEvent("yoke", SourceKind.HAT, 16, 0)) == []
+    # a different hat's channels never match
+    assert engine.resolve(DeviceEvent("yoke", SourceKind.HAT, 18, 1)) == []
+
+
+def test_hat_model_validation():
+    with pytest.raises(ValidationError):  # hat only on hat sources
+        Binding(name="x", source=Source(kind=SourceKind.BUTTON, code=1),
+                hat=HatMap(up=EventAction(event="X")))
+    with pytest.raises(ValidationError):  # hat needs at least one direction
+        Binding(name="x", source=Source(kind=SourceKind.HAT, code=16), hat=HatMap())
+    with pytest.raises(ValidationError):  # non-hat bindings still need an action
+        Binding(name="x", source=Source(kind=SourceKind.BUTTON, code=1))

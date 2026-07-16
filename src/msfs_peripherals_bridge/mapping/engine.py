@@ -25,7 +25,12 @@ from .transforms import shape_axis
 
 
 def _source_matches(source: Source, event: DeviceEvent) -> bool:
-    return source.kind is event.kind and source.code == event.code
+    if source.kind is not event.kind:
+        return False
+    if event.kind is SourceKind.HAT:
+        # a hat binding's code is its X (base) channel; Y is implicitly base+1
+        return event.code in (source.code, source.code + 1)
+    return source.code == event.code
 
 
 def _step_command(step: WriteStep) -> Command:
@@ -73,6 +78,18 @@ class MappingEngine:
                 raw_min = split.at
             value = shape_axis(event.value, raw_min, raw_max, binding.transform)
             return [self._command_for(binding.action, value)]
+
+        if event.kind is SourceKind.HAT and binding.hat is not None:
+            # Direction-aware hat: fire the entered direction's action once;
+            # centring back (value 0) does nothing. evdev sign convention:
+            # X +1 = right / -1 = left, Y +1 = down / -1 = up.
+            if event.value == 0:
+                return []
+            on_y = event.code == binding.source.code + 1
+            direction = ("down" if event.value > 0 else "up") if on_y \
+                else ("right" if event.value > 0 else "left")
+            action = getattr(binding.hat, direction)
+            return [self._command_for(action, 1.0)] if action is not None else []
 
         if isinstance(binding.action, SequenceAction):
             return self._resolve_sequence(binding.action, event)

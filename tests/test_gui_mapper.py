@@ -410,3 +410,29 @@ def test_live_row_map_covers_axes_hats_buttons_not_switches():
     # every mapped iid points at a binding row
     for iids in rows.values():
         assert all(i.startswith("bind:") for i in iids)
+
+
+def test_form_round_trip_preserves_hat():
+    b = _binding({
+        "name": "Trim-Hat",
+        "source": {"kind": "hat", "code": 16},
+        "hat": {"up": {"type": "event", "event": "ELEV_TRIM_UP"},
+                "down": {"type": "event", "event": "ELEV_TRIM_DN", "value": 2},
+                "left": {"type": "simvar", "simvar": "L:PAN_LEFT"}},
+    })
+    form = binding_to_form(b)
+    assert form["hat_up_name"] == "ELEV_TRIM_UP"
+    assert form["hat_down_value"] == "2"
+    assert form["hat_left_type"] == "simvar"
+    assert form["hat_right_name"] == ""
+    rebuilt = _binding(form_to_binding(form))
+    assert rebuilt == b
+
+
+def test_form_hat_requires_a_direction():
+    form = blank_binding_form("hat")
+    with pytest.raises(ValueError, match="Richtung"):
+        form_to_binding(form)
+    form["hat_up_name"] = "ELEV_TRIM_UP"
+    out = form_to_binding(form)
+    assert "action" not in out and out["hat"]["up"]["event"] == "ELEV_TRIM_UP"

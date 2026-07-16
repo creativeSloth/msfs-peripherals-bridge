@@ -195,3 +195,34 @@ def test_output_leaf_labels_are_german_where_known():
     assert "Encoder" in gm.output_field_help(("selector", 0, "sticky")) or \
         gm.output_field_help(("selector", 0, "sticky")).startswith("Anzeige")
     assert gm.output_field_help(("selector", 0)) == ""  # containers: no leaf help
+
+
+def test_output_block_templates_validate_and_remove_cleans_up():
+    # "+ Panel": every whole-block template must validate as inserted, and
+    # removing the blocks again leaves no empty stubs in the YAML.
+    data = pw.load(PROFILES / "cessna_172.yaml")
+    for tpl in gm.OUTPUT_BLOCK_TEMPLATES.values():
+        pw.add_output(data, "yoke", dict(tpl))
+    prof = pw.validate(data)
+    assert len(prof.outputs["yoke"]) == len(gm.OUTPUT_BLOCK_TEMPLATES)
+    for _ in range(len(gm.OUTPUT_BLOCK_TEMPLATES)):
+        pw.remove_output(data, "yoke", 0)
+    assert "outputs" not in data
+    pw.validate(data)
+
+
+def test_group_role_classifies_input_vs_display():
+    assert gm.group_role(("bool_leds",)) == "Anzeige (LED)"
+    assert gm.group_role(("source_toggle",)) == "Eingabe"
+    assert gm.group_role(("dimmer", "targets", 0)) == "Licht"
+    assert gm.group_role(("units", 0, "banks")) == "Eingabe→Anzeige"
+    assert gm.group_role(()) == ""
+
+
+def test_entry_labels_are_short_german_words():
+    o = ARROW.outputs["multi_panel"][0]
+    sel0 = next(n for n in gm.output_nodes(o) if n.path == ("selector", 0))
+    assert sel0.label.startswith("Position ")
+    r = ARROW.outputs["radio_panel"][0]
+    unit0 = next(n for n in gm.output_nodes(r) if n.path == ("units", 0))
+    assert unit0.label.startswith("Einheit ")

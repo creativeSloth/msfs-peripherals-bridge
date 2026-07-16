@@ -153,9 +153,16 @@ def describe_transform(t: Transform) -> str:
 
 def describe_binding(binding: Binding) -> BindingRow:
     """Flatten one :class:`Binding` into its four display columns."""
-    action = describe_action(binding.action)
-    if binding.split is not None:
-        action += f" · unter {binding.split.at}: {describe_action(binding.split.action)}"
+    if binding.hat is not None:
+        parts = [f"{sym} {describe_action(a)}"
+                 for sym, a in (("▲", binding.hat.up), ("▼", binding.hat.down),
+                                ("◀", binding.hat.left), ("▶", binding.hat.right))
+                 if a is not None]
+        action = "Hat: " + " · ".join(parts)
+    else:
+        action = describe_action(binding.action)
+        if binding.split is not None:
+            action += f" · unter {binding.split.at}: {describe_action(binding.split.action)}"
     return BindingRow(
         name=binding.name,
         source=describe_source(binding.source),
@@ -279,6 +286,10 @@ ACTION_TYPES = ("event", "simvar", "event_from_var", "rpn", "sequence")
 # sequence is edge-driven and makes no sense on a continuous axis range.
 SPLIT_ACTION_TYPES = ("event", "simvar", "rpn")
 CURVES = ("linear", "expo", "squared")
+# Hat directions with their editor symbols — evdev sign convention:
+# X (base code): left -1 / right +1; Y (base+1): up -1 / down +1.
+HAT_DIRECTIONS = (("up", "▲ oben"), ("down", "▼ unten"),
+                  ("left", "◀ links"), ("right", "▶ rechts"))
 
 
 def _fmt_num(x: float) -> str:
@@ -401,12 +412,59 @@ def _transform_fields(t: Transform, prefix: str = "tf_") -> dict:
     }
 
 
+def _blank_hat_fields() -> dict:
+    form = {}
+    for d, _sym in HAT_DIRECTIONS:
+        form[f"hat_{d}_type"] = "event"
+        form[f"hat_{d}_name"] = ""
+        form[f"hat_{d}_value"] = ""
+    return form
+
+
+def _hat_fields(hat) -> dict:
+    """Editor fields for a hat map (event/simvar per direction)."""
+    form = _blank_hat_fields()
+    for d, _sym in HAT_DIRECTIONS:
+        a = getattr(hat, d, None) if hat is not None else None
+        if a is None:
+            continue
+        if a.type == "event":
+            form[f"hat_{d}_type"] = "event"
+            form[f"hat_{d}_name"] = a.event
+            form[f"hat_{d}_value"] = "" if a.value is None else str(a.value)
+        elif a.type == "simvar":
+            form[f"hat_{d}_type"] = "simvar"
+            form[f"hat_{d}_name"] = a.simvar
+    return form
+
+
+def _form_hat(form: dict) -> dict:
+    """Build the ``hat:`` block from the editor's direction slots."""
+    hat: dict = {}
+    for d, sym in HAT_DIRECTIONS:
+        name = (form.get(f"hat_{d}_name") or "").strip()
+        if not name:
+            continue
+        if form.get(f"hat_{d}_type") == "simvar":
+            hat[d] = {"type": "simvar", "simvar": name}
+        else:
+            act: dict = {"type": "event", "event": name}
+            val = str(form.get(f"hat_{d}_value") or "").strip()
+            if val:
+                act["value"] = _parse_int(val, f"Wert {sym}")
+            hat[d] = act
+    if not hat:
+        raise ValueError("Hat: mindestens eine Richtung (▲▼◀▶) belegen.")
+    return hat
+
+
 def binding_to_form(binding: Binding) -> dict:
     """Flatten a :class:`Binding` into flat form values (str/bool) for the editor.
 
     Only the fields relevant to the binding's actual action type carry real
     values; the rest get sensible blanks so switching type in the UI starts clean.
-    A detent split fills the ``sp_``-prefixed second slot (action + transform).
+    A detent split fills the ``sp_``-prefixed second slot (action + transform),
+    a hat map the four ``hat_<dir>_*`` direction slots.
     """
     s = binding.source
     form = {
@@ -417,8 +475,10 @@ def binding_to_form(binding: Binding) -> dict:
         "raw_max": "" if s.raw_max is None else str(s.raw_max),
         "is_axis": str(s.kind) == "axis",
     }
-    form.update(_action_fields(binding.action))
+    form.update(_action_fields(binding.action) if binding.action is not None
+                else {**_blank_action_fields(), "action_type": "event"})
     form.update(_transform_fields(binding.transform))
+    form.update(_hat_fields(binding.hat))
     sp = binding.split
     form["sp_enabled"] = sp is not None
     form["sp_at"] = "" if sp is None else str(sp.at)
@@ -518,11 +578,12 @@ def form_to_binding(form: dict, original_action: dict | None = None) -> dict:
         if str(form.get("raw_max", "")).strip() != "":
             source["raw_max"] = _parse_int(form.get("raw_max"), "raw_max")
 
-    binding: dict = {
-        "name": name,
-        "source": source,
-        "action": _form_action(form.get("action_type"), form, original_action),
-    }
+    binding: dict = {"name": name, "source": source}
+    if kind == "hat":
+        # a hat binding maps its four directions in one place — no single action
+        binding["hat"] = _form_hat(form)
+    else:
+        binding["action"] = _form_action(form.get("action_type"), form, original_action)
     if kind == "axis":
         tf = _form_transform(form)
         if tf:
@@ -563,6 +624,7 @@ def blank_binding_form(kind: str = "button") -> dict:
     form.update(_blank_action_fields("sp_"))
     form.update(_transform_fields(Transform()))
     form.update(_transform_fields(Transform(), "sp_tf_"))
+    form.update(_blank_hat_fields())
     return form
 
 
@@ -757,12 +819,26 @@ def _display(value) -> str:
     return str(value)
 
 
+# short German entry words so the tree's name column stays uncluttered
+_ENTRY_WORD = {
+    "selector": "Position",
+    "banks": "Bank",
+    "targets": "Ziel",
+    "sources": "Quelle",
+    "alt_sources": "Alt-Quelle",
+    "units": "Einheit",
+}
+
+
 def _entry_label(name: str, i: int, item) -> str:
     tag = getattr(item, "label", None) or getattr(item, "name", None) \
         or getattr(item, "var", None) or getattr(item, "event", None) or ""
     kind = getattr(item, "kind", "")
-    extra = f" · {kind}" if kind and name == "banks" else ""
-    return f"{name}[{i}]" + (f" — {tag}{extra}" if tag or extra else "")
+    word = _ENTRY_WORD.get(name, name)
+    label = f"{word} {tag}" if tag else f"{word} {i + 1}"
+    if kind and name == "banks":
+        label += f" · {kind}"
+    return label
 
 
 def _walk_output(model, path: tuple, nodes: list[OutputNode]) -> None:
@@ -941,3 +1017,52 @@ def live_row_map(profile: Profile, device_id: str) -> dict[tuple[str, int], list
             continue
         rows.setdefault(key, []).append(f"bind:{i}")
     return rows
+
+
+# Whole-block templates so a panel controller can be CREATED per device (user
+# wish), then filled in through the group windows. Each validates as-is.
+OUTPUT_BLOCK_TEMPLATES: dict[str, dict] = {
+    "Schalter-Panel: Fahrwerks-LEDs": {"type": "gear_leds"},
+    "Multi Panel (Selektor + Display)": {
+        "type": "multi_panel",
+        "selector": [{"code": 0, "label": "ALT",
+                      "simvar": "AUTOPILOT ALTITUDE LOCK VAR", "min": 0, "max": 99999}],
+    },
+    "Radio Panel (2 Einheiten möglich)": {
+        "type": "radio_panel",
+        "units": [{
+            "name": "upper", "row": "upper",
+            "outer_cw": 0, "outer_ccw": 1, "inner_cw": 2, "inner_ccw": 3, "swap": 4,
+            "banks": [{"code": 0, "label": "COM1",
+                       "active": "COM ACTIVE FREQUENCY:1",
+                       "standby": "COM STANDBY FREQUENCY:1",
+                       "swap_event": "COM_STBY_RADIO_SWAP",
+                       "whole_inc": "COM_RADIO_WHOLE_INC",
+                       "whole_dec": "COM_RADIO_WHOLE_DEC",
+                       "fract_inc": "COM_RADIO_FRACT_INC",
+                       "fract_dec": "COM_RADIO_FRACT_DEC"}],
+        }],
+    },
+}
+
+# Input/output role per container (user: LEDs glow = Anzeige, pressing and
+# turning = Eingabe — the table must say which is which).
+_GROUP_ROLE = {
+    "selector": "Eingabe→Anzeige",
+    "alt_sources": "Anzeige-Quelle",
+    "bool_leds": "Anzeige (LED)",
+    "dimmer": "Eingabe→Licht",
+    "targets": "Licht",
+    "source_toggle": "Eingabe",
+    "units": "Eingabe→Anzeige",
+    "banks": "Eingabe→Anzeige",
+    "sources": "Anzeige",
+}
+
+
+def group_role(path: tuple) -> str:
+    """Eingabe/Anzeige classification for a group row (innermost container wins)."""
+    for part in reversed(path):
+        if isinstance(part, str) and part in _GROUP_ROLE:
+            return _GROUP_ROLE[part]
+    return ""
