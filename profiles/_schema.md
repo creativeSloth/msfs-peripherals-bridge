@@ -36,6 +36,22 @@ bindings:
 - `button` - press/release; fires on press (value != 0).
 - `hat`    - directional; treated like a button per direction code.
 
+## Conditions (`when:`)
+Any binding can be gated on live variable values: it only fires while ALL
+listed conditions hold (AND). `var` reads like a subscription name (`A:` bare,
+`L:`/`V:` prefixed); `op` defaults to `==`, `value` to `1`. The runtime
+subscribes every condition var; while a value is still unknown the condition
+counts as NOT met (fail-closed).
+
+```yaml
+    - name: "Gear nur mit Avionik"
+      source: { kind: button, code: 288 }
+      action: { type: event, event: GEAR_TOGGLE, value: 1 }
+      when:
+        - { var: "AVIONICS MASTER SWITCH" }            # == 1
+        - { var: "L:AUTOPILOT_MODE", op: "<", value: 3 }
+```
+
 ## POV hat (kind: hat)
 ONE binding covers the whole hat: `source.code` is the X (base) evdev channel
 (left/right); Y (up/down) is implicitly `code + 1`. Each direction gets its own

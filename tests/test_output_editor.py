@@ -226,3 +226,17 @@ def test_entry_labels_are_short_german_words():
     r = ARROW.outputs["radio_panel"][0]
     unit0 = next(n for n in gm.output_nodes(r) if n.path == ("units", 0))
     assert unit0.label.startswith("Einheit ")
+
+
+def test_gear_led_solo_groups_have_own_windows():
+    # each physical LED is its own tree row/window; Allgemein keeps the rest
+    o = ARROW.outputs["switch_panel"][0]
+    nodes = gm.output_nodes(o)
+    groups = gm.output_groups(nodes)
+    labels = {g.label for g in groups}
+    assert {"LED Bugrad", "LED links", "LED rechts"} <= labels
+    solo = next(g for g in groups if g.label == "LED Bugrad")
+    fields = gm.group_fields(nodes, solo.path)
+    assert [f.path for f in fields] == [("nose",)]
+    root_fields = {f.path[-1] for f in gm.group_fields(nodes, ())}
+    assert "nose" not in root_fields and "down_at" in root_fields

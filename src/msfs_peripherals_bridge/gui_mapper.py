@@ -163,6 +163,8 @@ def describe_binding(binding: Binding) -> BindingRow:
         action = describe_action(binding.action)
         if binding.split is not None:
             action += f" · unter {binding.split.at}: {describe_action(binding.split.action)}"
+    if binding.when:  # gated bindings are recognisable in the table
+        action = f"⚑{len(binding.when)} · " + action
     return BindingRow(
         name=binding.name,
         source=describe_source(binding.source),
@@ -897,25 +899,41 @@ def output_nodes(output: Output) -> list[OutputNode]:
 
 
 # The output editor groups fields into meaning-blocks (per user: no raw field
-# tree): the navigation lists containers only, the form shows one group's
-# scalar fields with German labels + help.
+# tree): the tree lists containers, the window shows one group's scalar fields
+# with German labels + help.
 GROUP_KINDS = ("group", "entry", "list", "dict", "unset")
 _SCALAR_KINDS = ("str", "int", "float", "bool", "choice")
 
+# Fields that are distinct PHYSICAL things (the three gear LEDs) become their
+# own tree rows with their own tiny window — per user: three LED rows must not
+# all open the same collective window. Keyed by field name (root level only).
+_SOLO_FIELDS = {"nose": "LED Bugrad", "left": "LED links", "right": "LED rechts"}
+
 
 def output_groups(nodes: list[OutputNode]) -> list[OutputNode]:
-    """Navigation groups: a root pseudo-group plus every container node."""
+    """Tree groups: root pseudo-group, containers, plus solo physical fields."""
     root = OutputNode((), "Allgemein", "", "root")
-    return [root, *(n for n in nodes if n.kind in GROUP_KINDS)]
+    groups = [root]
+    for n in nodes:
+        if n.kind in GROUP_KINDS:
+            groups.append(n)
+        elif len(n.path) == 1 and n.path[0] in _SOLO_FIELDS:
+            groups.append(OutputNode(n.path, _SOLO_FIELDS[n.path[0]], n.value, "solo"))
+    return groups
 
 
 def group_fields(nodes: list[OutputNode], group_path: tuple) -> list[OutputNode]:
     """The scalar fields sitting directly inside one group (form content)."""
+    group_path = tuple(group_path)
+    if group_path and len(group_path) == 1 and group_path[0] in _SOLO_FIELDS:
+        # a solo group's window edits exactly its own field
+        return [n for n in nodes if n.path == group_path]
     depth = len(group_path) + 1
     return [
         n for n in nodes
-        if len(n.path) == depth and n.path[:-1] == tuple(group_path)
+        if len(n.path) == depth and n.path[:-1] == group_path
         and n.kind in _SCALAR_KINDS
+        and not (depth == 1 and n.path[0] in _SOLO_FIELDS)  # solos live apart
     ]
 
 
@@ -1048,6 +1066,9 @@ OUTPUT_BLOCK_TEMPLATES: dict[str, dict] = {
 # Input/output role per container (user: LEDs glow = Anzeige, pressing and
 # turning = Eingabe — the table must say which is which).
 _GROUP_ROLE = {
+    "nose": "Anzeige (LED)",
+    "left": "Anzeige (LED)",
+    "right": "Anzeige (LED)",
     "selector": "Eingabe→Anzeige",
     "alt_sources": "Anzeige-Quelle",
     "bool_leds": "Anzeige (LED)",
@@ -1066,3 +1087,34 @@ def group_role(path: tuple) -> str:
         if isinstance(part, str) and part in _GROUP_ROLE:
             return _GROUP_ROLE[part]
     return ""
+
+
+# --------------------------------------------------------------------------- #
+# conditions (when:) <-> editable rows (pure; the GUI renders widgets around it)
+# --------------------------------------------------------------------------- #
+CONDITION_OPS = ("==", "!=", "<", "<=", ">", ">=")
+
+
+def conditions_to_rows(when) -> list[dict]:
+    """Flatten ``when:`` conditions into editable string rows."""
+    return [{"var": c.var, "op": c.op, "value": _fmt_num(c.value)} for c in when]
+
+
+def rows_to_conditions(rows: list[dict]) -> list[dict]:
+    """Editor rows -> ``when:`` dicts (defaults omitted); German ValueError."""
+    out: list[dict] = []
+    for row in rows:
+        var = (row.get("var") or "").strip()
+        if not var:
+            raise ValueError("Bedingung: Variable fehlt (über Wählen… setzen).")
+        op = row.get("op") or "=="
+        if op not in CONDITION_OPS:
+            raise ValueError(f"Bedingung: unbekannter Vergleich '{op}'.")
+        value = _parse_num(row.get("value"), "Bedingungs-Wert")
+        cond: dict = {"var": var}
+        if op != "==":
+            cond["op"] = op
+        if value != 1:
+            cond["value"] = value
+        out.append(cond)
+    return out

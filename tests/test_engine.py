@@ -6,6 +6,7 @@ from msfs_peripherals_bridge.mapping.engine import MappingEngine
 from msfs_peripherals_bridge.models import (
     AxisSplit,
     Binding,
+    Condition,
     EventAction,
     EventFromVarAction,
     HatMap,
@@ -363,3 +364,49 @@ def test_hat_model_validation():
         Binding(name="x", source=Source(kind=SourceKind.HAT, code=16), hat=HatMap())
     with pytest.raises(ValidationError):  # non-hat bindings still need an action
         Binding(name="x", source=Source(kind=SourceKind.BUTTON, code=1))
+
+
+# --------------------------------------------------------------------------- #
+# when: conditions gate bindings on live values (fail-closed)
+# --------------------------------------------------------------------------- #
+def _gated_profile() -> Profile:
+    return Profile(
+        name="t",
+        bindings={
+            "yoke": [
+                Binding(
+                    name="Nur mit Avionik",
+                    source=Source(kind=SourceKind.BUTTON, code=288),
+                    action=EventAction(event="GEAR_TOGGLE", value=1),
+                    when=[Condition(var="AVIONICS MASTER SWITCH"),
+                          Condition(var="L:AUTOPILOT_MODE", op="<", value=3)],
+                )
+            ]
+        },
+    )
+
+
+def test_conditions_gate_and_pass():
+    values = {"AVIONICS MASTER SWITCH": 1.0, "L:AUTOPILOT_MODE": 2}
+    engine = MappingEngine(_gated_profile(), values=values.get)
+    press = DeviceEvent("yoke", SourceKind.BUTTON, 288, 1)
+    assert engine.resolve(press) == [SendEvent(name="GEAR_TOGGLE", data=1)]
+    values["L:AUTOPILOT_MODE"] = 3  # second condition (< 3) now fails
+    assert engine.resolve(press) == []
+    values["L:AUTOPILOT_MODE"] = 2
+    values["AVIONICS MASTER SWITCH"] = 0.0  # first (== 1) fails
+    assert engine.resolve(press) == []
+
+
+def test_conditions_unknown_value_blocks():
+    engine = MappingEngine(_gated_profile())  # no value provider at all
+    assert engine.resolve(DeviceEvent("yoke", SourceKind.BUTTON, 288, 1)) == []
+
+
+def test_condition_equality_tolerates_float_noise():
+    prof = Profile(name="t", bindings={"yoke": [Binding(
+        name="x", source=Source(kind=SourceKind.BUTTON, code=1),
+        action=EventAction(event="X", value=1),
+        when=[Condition(var="A", value=29.92)])]})
+    engine = MappingEngine(prof, values={"A": 29.920000001}.get)
+    assert engine.resolve(DeviceEvent("yoke", SourceKind.BUTTON, 1, 1)) != []

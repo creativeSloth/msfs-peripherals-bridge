@@ -1669,8 +1669,63 @@ def run() -> None:
                    ).pack(side="left", padx=4)
 
     # row 5: this window's actions (all act on THIS one binding) + feedback
+    # conditions: a visually separated gate section (applies to EVERY source
+    # kind) — per user: conditional settings must be recognisable at a glance.
+    condfr = ttk.Labelframe(ed, text="⚑ Bedingung — nur ausführen, wenn …", padding=6)
+    condfr.grid(row=5, column=0, columnspan=3, sticky="ew", pady=(6, 2))
+    cond_state: list[dict] = []
+
+    def _cond_add(var="", op="==", value="1"):
+        cond_state.append({"var": tk.StringVar(value=var), "op": tk.StringVar(value=op),
+                           "value": tk.StringVar(value=value)})
+        _cond_render()
+
+    def _cond_del(index):
+        del cond_state[index]
+        _cond_render()
+
+    def _cond_rows():
+        return [{k: v.get() for k, v in row.items()} for row in cond_state]
+
+    def _cond_render():
+        for w in condfr.winfo_children():
+            w.destroy()
+        chead = ttk.Frame(condfr)
+        chead.pack(anchor="w")
+        ttk.Button(chead, text="+ Bedingung",
+                   command=lambda: _cond_add()).pack(side="left", padx=(0, 4))
+        _info(chead, "Das Binding löst nur aus, solange ALLE Bedingungen erfüllt sind — "
+                     "geprüft gegen live gelesene Variablen (A:/L:) oder lokale "
+                     "V:-Variablen. Solange ein Wert noch unbekannt ist, gilt die "
+                     "Bedingung als NICHT erfüllt. Ohne Bedingungen läuft das Binding "
+                     "immer.")
+        if not cond_state:
+            ttk.Label(chead, text="keine — gilt immer",
+                      foreground="#666").pack(side="left", padx=4)
+        for i, row in enumerate(cond_state):
+            fr = ttk.Frame(condfr)
+            fr.pack(anchor="w", pady=1)
+            ttk.Button(fr, text="Wählen…",
+                       command=lambda r=row: _pick_into(r["var"])).pack(side="left",
+                                                                        padx=(0, 3))
+            ttk.Entry(fr, textvariable=row["var"], width=28,
+                      state="readonly").pack(side="left")
+            ttk.Combobox(fr, textvariable=row["op"], values=list(gui_mapper.CONDITION_OPS),
+                         state="readonly", width=4).pack(side="left", padx=3)
+            ttk.Entry(fr, textvariable=row["value"], width=8).pack(side="left")
+            ttk.Button(fr, text="✕", width=2,
+                       command=lambda ix=i: _cond_del(ix)).pack(side="left", padx=4)
+
+    def _cond_load(when):
+        cond_state.clear()
+        for r in gui_mapper.conditions_to_rows(when):
+            _cond_add(r["var"], r["op"], r["value"])
+        _cond_render()
+
+    _cond_render()
+
     edbtn = ttk.Frame(ed)
-    edbtn.grid(row=5, column=0, columnspan=3, sticky="ew", pady=(6, 0))
+    edbtn.grid(row=6, column=0, columnspan=3, sticky="ew", pady=(6, 0))
     ttk.Button(edbtn, text="Übernehmen", style="Accent.TButton",
                command=lambda: _ed_apply()).pack(side="left")
     ttk.Button(edbtn, text="Zurücksetzen", command=lambda: _ed_reset()).pack(side="left", padx=6)
@@ -1908,7 +1963,7 @@ def run() -> None:
         _ed_show_fields()
 
     def _seq_original(binding):
-        if binding.action.type != "sequence":
+        if binding.action is None or binding.action.type != "sequence":
             return None
         d = binding.action.model_dump(exclude_defaults=True)
         d["type"] = "sequence"  # excluded as a default, but the union needs it
@@ -1933,10 +1988,11 @@ def run() -> None:
         binding = binds[index]
         etgt.update(device=device_id, index=index, original_action=_seq_original(binding))
         _ed_set_form(gui_mapper.binding_to_form(binding))
-        if binding.action.type == "sequence":
+        if binding.action is not None and binding.action.type == "sequence":
             _seq_load(binding.action)
         else:
             _seq_clear()
+        _cond_load(binding.when)
         ed_win.title(f"Binding: {binding.name}  —  {device_id} #{index}")
 
     def _open_editor(device_id, index):
@@ -1945,6 +2001,7 @@ def run() -> None:
             etgt.update(device=device_id, index=None, original_action=None)
             _ed_set_form(gui_mapper.blank_binding_form("button"))
             _seq_clear()
+            _cond_load([])
             ed_win.title(f"Neues Binding — {device_id}")
             _ed_status("Felder ausfüllen, dann Übernehmen.")
         else:
@@ -2000,6 +2057,9 @@ def run() -> None:
             binding = gui_mapper.form_to_binding(
                 {k: var.get() for k, var in ev.items()}, override
             )
+            conds = gui_mapper.rows_to_conditions(_cond_rows())
+            if conds:
+                binding["when"] = conds
         except ValueError as exc:
             _ed_status(str(exc), error=True)
             return
@@ -2027,6 +2087,8 @@ def run() -> None:
         binding = mstate["profile"].bindings[dev][idx]
         dup = gui_mapper.form_to_binding(
             gui_mapper.binding_to_form(binding), _seq_original(binding))
+        if binding.when:  # conditions ride along on duplicate
+            dup["when"] = [c.model_dump(exclude_defaults=True) for c in binding.when]
         dup["name"] = binding.name + " (Kopie)"
         err = _ed_save(lambda d: profile_writer.add_binding(d, dev, dup, index=idx + 1))
         if err:
@@ -2187,7 +2249,7 @@ def run() -> None:
             return btns
 
         def _render_group(group):
-            if group.kind in ("root", "group", "entry"):
+            if group.kind in ("root", "group", "entry", "solo"):
                 btns = _fields_form(group)
                 if group.kind == "root":
                     def _remove_block():

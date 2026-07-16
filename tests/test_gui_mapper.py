@@ -436,3 +436,22 @@ def test_form_hat_requires_a_direction():
     form["hat_up_name"] = "ELEV_TRIM_UP"
     out = form_to_binding(form)
     assert "action" not in out and out["hat"]["up"]["event"] == "ELEV_TRIM_UP"
+
+
+def test_condition_rows_round_trip():
+    from msfs_peripherals_bridge.gui_mapper import conditions_to_rows, rows_to_conditions
+    from msfs_peripherals_bridge.models import Condition
+
+    when = [Condition(var="AVIONICS MASTER SWITCH"),
+            Condition(var="L:AUTOPILOT_MODE", op="<", value=3)]
+    rows = conditions_to_rows(when)
+    assert rows[0] == {"var": "AVIONICS MASTER SWITCH", "op": "==", "value": "1"}
+    out = rows_to_conditions(rows)
+    assert out == [{"var": "AVIONICS MASTER SWITCH"},
+                   {"var": "L:AUTOPILOT_MODE", "op": "<", "value": 3}]
+    assert [Condition.model_validate(c) for c in out] == when
+
+    with pytest.raises(ValueError, match="Variable fehlt"):
+        rows_to_conditions([{"var": " ", "op": "==", "value": "1"}])
+    with pytest.raises(ValueError, match="Zahl"):
+        rows_to_conditions([{"var": "X", "op": "==", "value": "abc"}])

@@ -105,3 +105,23 @@ def test_coalesce_preserves_a_button_pressed_after_the_last_axis_move():
     # it, so a "move then click" isn't reordered into "click then move".
     batch = [_axis(0, 1), _axis(0, 2), _button(code=290)]
     assert _coalesce_axes(batch) == [_axis(0, 2), _button(code=290)]
+
+
+def test_condition_vars_collects_all_when_vars():
+    from msfs_peripherals_bridge.models import Binding, Condition, EventAction, Profile, Source
+    from msfs_peripherals_bridge.runtime import ConditionWatcher, condition_vars
+
+    prof = Profile(name="t", bindings={"yoke": [
+        Binding(name="a", source=Source(kind="button", code=1),
+                action=EventAction(event="X", value=1),
+                when=[Condition(var="AVIONICS MASTER SWITCH")]),
+        Binding(name="b", source=Source(kind="button", code=2),
+                action=EventAction(event="Y", value=1),
+                when=[Condition(var="L:MODE"), Condition(var="AVIONICS MASTER SWITCH")]),
+    ]})
+    assert condition_vars(prof) == {"AVIONICS MASTER SWITCH", "L:MODE"}
+
+    w = ConditionWatcher()
+    assert w.get("L:MODE") is None  # unknown until the stream delivers
+    w.update("L:MODE", 2)
+    assert w.get("L:MODE") == 2

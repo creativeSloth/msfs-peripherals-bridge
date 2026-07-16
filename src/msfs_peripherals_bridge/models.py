@@ -144,6 +144,21 @@ Action = EventAction | SimVarAction | EventFromVarAction | SequenceAction | RpnA
 ActionT = Annotated[Action, Field(discriminator="type")]
 
 
+class Condition(BaseModel):
+    """One gate on a live variable — the binding fires only while it holds.
+
+    ``var`` is read exactly like a subscription name: a bare ``A:`` SimVar
+    (``AVIONICS MASTER SWITCH``), an ``L:``-prefixed LVar or a ``V:`` local
+    variable. The runtime subscribes every condition variable and keeps the
+    latest value; while a value is still unknown the condition counts as NOT
+    met (fail-closed), so a gated control stays quiet instead of misfiring.
+    """
+
+    var: str = Field(..., description="Variable: 'AVIONICS MASTER SWITCH', 'L:X' or 'V:x'.")
+    op: Literal["==", "!=", "<", "<=", ">", ">="] = "=="
+    value: float = Field(1.0, description="Comparison value (canonical unit).")
+
+
 class HatMap(BaseModel):
     """Direction actions of a POV hat — ONE binding covers the whole hat.
 
@@ -649,6 +664,10 @@ class Binding(BaseModel):
     split: AxisSplit | None = Field(None, description="Lower-range mapping below a detent.")
     # POV hat: per-direction actions; source.code is the hat's X (base) code.
     hat: HatMap | None = Field(None, description="Direction actions (hat sources only).")
+    # Conditions: ALL must hold (AND) for the binding to fire; empty = always.
+    when: list[Condition] = Field(
+        default_factory=list, description="Only fire while every condition holds."
+    )
 
     @model_validator(mode="after")
     def _buttons_need_value(self) -> Binding:

@@ -96,11 +96,15 @@ class OutputManager:
         dispatcher: StateDispatcher,
         writer: Callable[[str, bytes], None] = write_feature_report,
         schedule: Callable[[float, Callable[[], None]], None] = _default_schedule,
+        state_listener: Callable[[str, object], None] | None = None,
     ) -> None:
         self._paths = device_paths
         self._dispatcher = dispatcher
         self._writer = writer
         self._schedule = schedule
+        # Extra tap on the state stream (the runtime's condition watcher rides
+        # along here, since this manager owns the socket's states() iterator).
+        self._state_listener = state_listener
         self._lock = threading.Lock()
         self._values: dict[str, float | None] = {}
         self._last_report: dict[str, bytes] = {}  # device_id -> last bytes written
@@ -212,6 +216,8 @@ class OutputManager:
     # -- output (bridge state thread) --------------------------------------
     def on_state(self, name: str, value: object) -> None:
         """Record a SimVar update and rewrite any device whose report changed."""
+        if self._state_listener is not None:
+            self._state_listener(name, value)
         with self._lock:
             self._values[name] = _as_float(value)
             for controller in self._controllers.values():

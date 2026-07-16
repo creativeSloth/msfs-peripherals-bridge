@@ -1,15 +1,23 @@
 """The mapping engine: DeviceEvent + active Profile -> SimConnect commands.
 
 This is pure logic with no I/O, so the whole mapping behaviour can be
-unit-tested without hardware or a running simulator.
+unit-tested without hardware or a running simulator. Live variable values for
+``when:`` conditions come in through an injected ``values`` callable (the
+runtime wires it to its condition watcher; tests pass a dict lookup).
 """
 
 from __future__ import annotations
+
+import logging
+import math
+import operator
+from collections.abc import Callable
 
 from ..devices.base import DeviceEvent
 from ..models import (
     Action,
     Binding,
+    Condition,
     EventAction,
     EventFromVarAction,
     Profile,
@@ -22,6 +30,25 @@ from ..models import (
 )
 from ..simconnect.protocol import Command, RpnExec, SendEvent, SendEventFromVar, SetSimVar
 from .transforms import shape_axis
+
+log = logging.getLogger(__name__)
+
+_OPS: dict[str, Callable[[float, float], bool]] = {
+    "<": operator.lt, "<=": operator.le, ">": operator.gt, ">=": operator.ge,
+}
+
+
+def _condition_holds(cond: Condition, value: object) -> bool:
+    """Whether one condition holds for the live value (None/junk = not met)."""
+    try:
+        v = float(value)  # type: ignore[arg-type]
+    except (TypeError, ValueError):
+        return False
+    if cond.op == "==":
+        return math.isclose(v, cond.value, rel_tol=1e-9, abs_tol=1e-6)
+    if cond.op == "!=":
+        return not math.isclose(v, cond.value, rel_tol=1e-9, abs_tol=1e-6)
+    return _OPS[cond.op](v, cond.value)
 
 
 def _source_matches(source: Source, event: DeviceEvent) -> bool:
@@ -41,10 +68,17 @@ def _step_command(step: WriteStep) -> Command:
 
 
 class MappingEngine:
-    """Resolves device events against the bindings of the active profile."""
+    """Resolves device events against the bindings of the active profile.
 
-    def __init__(self, profile: Profile) -> None:
+    ``values`` supplies the latest value of a subscribed variable for ``when:``
+    conditions (``None`` = unknown -> the condition is NOT met, fail-closed).
+    """
+
+    def __init__(
+        self, profile: Profile, values: Callable[[str], object] | None = None
+    ) -> None:
         self.profile = profile
+        self._values = values or (lambda name: None)
 
     def set_profile(self, profile: Profile) -> None:
         self.profile = profile
@@ -56,8 +90,18 @@ class MappingEngine:
         for binding in bindings:
             if not _source_matches(binding.source, event):
                 continue
+            if binding.when and not self._conditions_met(binding):
+                continue
             commands.extend(self._resolve_binding(binding, event))
         return commands
+
+    def _conditions_met(self, binding: Binding) -> bool:
+        for cond in binding.when:
+            if not _condition_holds(cond, self._values(cond.var)):
+                log.debug("Binding '%s' gated: %s %s %g not met",
+                          binding.name, cond.var, cond.op, cond.value)
+                return False
+        return True
 
     def _resolve_binding(self, binding: Binding, event: DeviceEvent) -> list[Command]:
         if event.kind is SourceKind.AXIS:

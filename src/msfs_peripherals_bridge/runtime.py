@@ -7,6 +7,7 @@ own thread and pushes events onto a shared queue.
 
 from __future__ import annotations
 
+import contextlib
 import logging
 import queue
 import threading
@@ -40,6 +41,38 @@ class Dispatcher(Protocol):
     def send(self, command: Command) -> None: ...
 
 
+class ConditionWatcher:
+    """Thread-safe latest-value store for the ``when:`` condition variables.
+
+    Values arrive from the bridge's state stream (either as a tap on the
+    OutputManager, which owns the socket's ``states()`` iterator, or via a
+    dedicated reader thread when the profile has no outputs). The engine reads
+    through :meth:`get`; unknown names return ``None`` = condition not met.
+    """
+
+    def __init__(self) -> None:
+        self._lock = threading.Lock()
+        self._values: dict[str, object] = {}
+
+    def update(self, name: str, value: object) -> None:
+        with self._lock:
+            self._values[name] = value
+
+    def get(self, name: str) -> object:
+        with self._lock:
+            return self._values.get(name)
+
+
+def condition_vars(profile: Profile) -> set[str]:
+    """Every variable referenced by a ``when:`` condition in the profile."""
+    return {
+        cond.var
+        for bindings in profile.bindings.values()
+        for binding in bindings
+        for cond in binding.when
+    }
+
+
 def run(
     profile: Profile,
     catalog: DeviceCatalog,
@@ -48,14 +81,16 @@ def run(
 ) -> None:
     """Run the mapping loop until ``stop`` is set (or KeyboardInterrupt)."""
     stop = stop or threading.Event()
-    engine = MappingEngine(profile)
     events: queue.Queue[DeviceEvent] = queue.Queue(maxsize=1024)
 
     present = {**evdev_reader.discover(catalog), **hidraw_reader.discover(catalog)}
     if not present:
         raise RuntimeError("None of the catalog devices were found on this system.")
 
-    outputs = _start_outputs(profile, present, dispatcher, stop)
+    watcher = _start_conditions(profile, present, dispatcher, stop)
+    engine = MappingEngine(profile, values=watcher.get if watcher else None)
+    outputs = _start_outputs(profile, present, dispatcher, stop,
+                             state_listener=watcher.update if watcher else None)
 
     for device_id, path in present.items():
         if device_id not in profile.bindings:
@@ -153,11 +188,54 @@ def _bounced(
     return prev is not None and (now - prev) < _SWITCH_DEBOUNCE_S
 
 
+def _start_conditions(
+    profile: Profile,
+    present: dict[str, str],
+    dispatcher: Dispatcher,
+    stop: threading.Event,
+) -> ConditionWatcher | None:
+    """Subscribe the ``when:`` condition vars and keep their latest values.
+
+    Values ride on the same state stream the outputs use. When an OutputManager
+    will run, it taps its ``on_state`` into the watcher (it owns the socket's
+    ``states()`` iterator); without outputs a small reader thread consumes the
+    stream here. A dispatcher that can't stream (dry-run) leaves the store
+    empty, so gated bindings stay off — fail-closed, and loudly logged.
+    """
+    names = condition_vars(profile)
+    if not names:
+        return None
+    watcher = ConditionWatcher()
+    if not callable(getattr(dispatcher, "states", None)):
+        log.warning(
+            "Profile has when: conditions but this dispatcher can't stream state; "
+            "gated bindings will stay OFF."
+        )
+        return watcher
+    from .simconnect.protocol import Subscribe
+
+    for name in sorted(names):
+        dispatcher.send(Subscribe(name=name))
+        log.info("Condition subscribed to %s", name)
+    if not any(d in profile.outputs for d in present):
+
+        def _pump_states() -> None:
+            with contextlib.suppress(Exception):  # socket closes on shutdown
+                for name, value in dispatcher.states():  # type: ignore[attr-defined]
+                    if stop.is_set():
+                        return
+                    watcher.update(name, value)
+
+        threading.Thread(target=_pump_states, name="conditions", daemon=True).start()
+    return watcher
+
+
 def _start_outputs(
     profile: Profile,
     present: dict[str, str],
     dispatcher: Dispatcher,
     stop: threading.Event,
+    state_listener=None,
 ) -> OutputManager | None:
     """Start the output manager if the profile declares any outputs.
 
@@ -175,7 +253,8 @@ def _start_outputs(
 
     from .outputs import OutputManager
 
-    manager = OutputManager(profile.outputs, output_devices, dispatcher)
+    manager = OutputManager(profile.outputs, output_devices, dispatcher,
+                            state_listener=state_listener)
     threading.Thread(target=manager.run, args=(stop,), daemon=True).start()
     log.info("Output manager started for %d device(s)", len(output_devices))
     return manager
