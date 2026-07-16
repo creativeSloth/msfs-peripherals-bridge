@@ -1150,8 +1150,10 @@ def run() -> None:
 
     # right: bindings + outputs of the selected device. A single click on a
     # binding/output row opens its settings window (per user: no extra edit
-    # button needed when the row itself opens the editor).
-    detail = ttk.Treeview(mtab, columns=("source", "action", "shape"),
+    # button needed when the row itself opens the editor). The trailing Live
+    # column mirrors the hardware while the device is attached: pressed
+    # buttons show ●, axes a filling bar — so you can find a control fast.
+    detail = ttk.Treeview(mtab, columns=("source", "action", "shape", "live"),
                           show="tree headings", height=7)
     detail.heading("#0", text="Name")
     detail.column("#0", width=150, anchor="w")
@@ -1159,6 +1161,8 @@ def run() -> None:
                          ("shape", "Shaping", 100)):
         detail.heading(col, text=head)
         detail.column(col, width=w, anchor="w")
+    detail.heading("live", text="Live")
+    detail.column("live", width=118, anchor="w", stretch=False)
     detail.grid(row=1, column=1, sticky="nsew", pady=6)
     dsb = ttk.Scrollbar(mtab, orient="vertical", command=detail.yview)
     dsb.grid(row=1, column=2, sticky="ns", pady=6)
@@ -1601,7 +1605,8 @@ def run() -> None:
         with contextlib.suppress(Exception):
             from .devices import evdev_reader
 
-            path = evdev_reader.discover(catalog).get(dev)
+            dcat = _device_catalog()  # NOT `catalog` (that's the var catalog!)
+            path = evdev_reader.discover(dcat).get(dev) if dcat else None
             reader = evdev_reader.axis_value_reader(path, code) if path else None
         if reader is None:
             _ed_status(f"Achse für „{dev}“ nicht live lesbar (Gerät an? evdev?).", error=True)
@@ -2101,16 +2106,17 @@ def run() -> None:
         bnode = detail.insert("", "end", text=f"Bindings ({len(binds)})", open=True)
         for i, br in enumerate(binds):
             detail.insert(bnode, "end", iid=f"bind:{i}", text=br.name,
-                          values=(br.source, br.action, br.transform))
+                          values=(br.source, br.action, br.transform, ""))
         out_objs = prof.outputs.get(device_id, [])
         if out_objs:
             onode = detail.insert("", "end", text=f"Outputs ({len(out_objs)})", open=True)
             for i, o in enumerate(out_objs):
                 pnode = detail.insert(onode, "end", iid=f"out:{i}", open=True,
-                                      text=gui_mapper.describe_output(o), values=("", "", ""))
+                                      text=gui_mapper.describe_output(o),
+                                      values=("", "", "", ""))
                 for j, line in enumerate(gui_mapper.describe_output_detail(o)):
                     detail.insert(pnode, "end", iid=f"out:{i}:{j}", text=line,
-                                  values=("", "", ""))
+                                  values=("", "", "", ""))
         # Just highlight the row after a reload; editing is opened on demand only.
         if reselect_index is not None and binds:
             idx = min(reselect_index, len(binds) - 1)
@@ -2167,6 +2173,57 @@ def run() -> None:
             _mapper_reload(rediscover=not mstate["discovered"])
 
     nb.bind("<<NotebookTabChanged>>", _on_tab_changed)
+
+    # --- live view: mirror the attached device onto the Live column -------- #
+    # One after()-loop for the whole Mapper tab: it (re)opens the selected
+    # device lazily, drains its pending evdev events each tick and paints the
+    # Live cells (buttons ●, axes a filling bar). hidraw panels have no evdev
+    # source, their rows stay blank. A missing/unplugged device is retried
+    # every ~2 s, so plugging it in just starts the live view.
+    live: dict = {"id": None, "read": None, "ranges": {}, "retry": 0}
+
+    def _live_open(device_id):
+        live.update(id=device_id, read=None, ranges={}, retry=0)
+        if device_id is None:
+            return
+        with contextlib.suppress(Exception):
+            from .devices import evdev_reader
+
+            dcat = _device_catalog()
+            path = evdev_reader.discover(dcat).get(device_id) if dcat else None
+            opened = evdev_reader.live_state_reader(path) if path else None
+            if opened:
+                live["read"], live["ranges"] = opened
+
+    def _live_tick():
+        try:
+            dev = _sel(dev_tree) if str(nb.select()) == str(mtab) else None
+            if dev != live["id"]:
+                _live_open(dev)
+            elif dev is not None and live["read"] is None:
+                live["retry"] += 1
+                if live["retry"] >= 20:  # ~2 s — device may be attached by now
+                    _live_open(dev)
+            state = live["read"]() if live["read"] is not None else None
+            if state is None and live["read"] is not None:
+                live["read"] = None  # unplugged -> the retry loop takes over
+            if state and dev and mstate["profile"] is not None:
+                for key, iids in gui_mapper.live_row_map(mstate["profile"], dev).items():
+                    val = state.get(key)
+                    if val is None:
+                        continue
+                    if key[0] == "axis":
+                        lo, hi = live["ranges"].get(key[1], (0, 255))
+                        txt = gui_mapper.live_bar(val, lo, hi)
+                    else:
+                        txt = "●" if val else ""
+                    for iid in iids:
+                        if detail.exists(iid):
+                            detail.set(iid, "live", txt)
+        finally:
+            win.after(100, _live_tick)
+
+    _live_tick()
 
     # --- Profile tab (selector + management + metadata) -------------------- #
     ptab = ttk.Frame(nb, padding=12)
@@ -2291,6 +2348,20 @@ def run() -> None:
         lamp = tk.Label(bar, text=f"● {key}", font=("TkDefaultFont", 8), fg="#999")
         lamp.pack(side="left", padx=(0, 12))
         lamps[key] = lamp
+
+    # Active profile, always visible (right edge of the status bar + the window
+    # title) — the selector itself lives on the Profile tab and can be hidden.
+    prof_badge = tk.Label(bar, text="", font=("TkDefaultFont", 9, "bold"), fg="#1565c0")
+    prof_badge.pack(side="right")
+    ttk.Label(bar, text="Profil:", foreground="#666",
+              font=("TkDefaultFont", 8)).pack(side="right", padx=(0, 4))
+
+    def _update_profile_badge(*_):
+        prof_badge.config(text=profile_var.get())
+        win.title(f"MSFS Peripherals Bridge — {profile_var.get()}")
+
+    profile_var.trace_add("write", _update_profile_badge)
+    _update_profile_badge()
 
     def _set_lamp(key: str, on: bool):
         lamps[key].config(fg="#2e7d32" if on else "#c62828")

@@ -795,3 +795,36 @@ def output_dict_key_options(output: Output, path: tuple) -> list[str]:
 
     used = set(getattr(output, "bool_leds", {}) or {})
     return sorted(MULTI_LED_BUTTONS - used)
+
+
+# --------------------------------------------------------------------------- #
+# live view: map hardware events onto binding rows + render axis bars (pure)
+# --------------------------------------------------------------------------- #
+LIVE_BAR_CELLS = 8
+
+
+def live_bar(value: float, lo: float, hi: float) -> str:
+    """A filling text bar for an axis value, e.g. ``███░░░░░ 2047``."""
+    span = (hi - lo) or 1
+    frac = min(1.0, max(0.0, (value - lo) / span))
+    filled = round(frac * LIVE_BAR_CELLS)
+    return "█" * filled + "░" * (LIVE_BAR_CELLS - filled) + f" {value:g}"
+
+
+def live_row_map(profile: Profile, device_id: str) -> dict[tuple[str, int], list[str]]:
+    """{(evdev-kind, code): [detail-row iids]} for one device's bindings.
+
+    evdev reports axes AND hats as EV_ABS ("axis") and buttons as EV_KEY
+    ("button"); panel switches are hidraw-only and have no live source here.
+    """
+    rows: dict[tuple[str, int], list[str]] = {}
+    for i, b in enumerate(profile.bindings.get(device_id, [])):
+        kind = str(b.source.kind)
+        if kind in ("axis", "hat"):
+            key = ("axis", b.source.code)
+        elif kind == "button":
+            key = ("button", b.source.code)
+        else:  # switch: hidraw panels, not readable via evdev
+            continue
+        rows.setdefault(key, []).append(f"bind:{i}")
+    return rows

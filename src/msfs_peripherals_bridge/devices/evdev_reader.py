@@ -85,3 +85,41 @@ def read_device(device_id: str, path: str) -> Iterator[DeviceEvent]:
         if kind is None:
             continue
         yield DeviceEvent(device_id=device_id, kind=kind, code=ev.code, value=ev.value)
+
+
+def live_state_reader(path: str):
+    """Open ``path`` for the GUI's live view; ``(read, ranges)`` or ``None``.
+
+    ``read()`` drains all pending events non-blocking and returns the current
+    ``{("axis"|"button", code): value}`` state (axes seeded from ``absinfo`` so
+    bars render before the first movement), or ``None`` once the device is gone.
+    ``ranges`` maps axis code -> (min, max) for scaling the bars.
+    """
+    if not _HAS_EVDEV:
+        return None
+    try:
+        dev = evdev.InputDevice(path)
+        caps = dev.capabilities().get(ecodes.EV_ABS, [])
+    except OSError:
+        return None
+    state: dict[tuple[str, int], int] = {
+        ("axis", code): absinfo.value for code, absinfo in caps
+    }
+    ranges = {code: (absinfo.min, absinfo.max) for code, absinfo in caps}
+
+    def read() -> dict[tuple[str, int], int] | None:
+        try:
+            while True:
+                ev = dev.read_one()
+                if ev is None:
+                    return state
+                if ev.type == ecodes.EV_ABS:
+                    state[("axis", ev.code)] = ev.value
+                elif ev.type == ecodes.EV_KEY:
+                    state[("button", ev.code)] = ev.value
+        except BlockingIOError:
+            return state
+        except OSError:
+            return None  # unplugged
+
+    return read, ranges

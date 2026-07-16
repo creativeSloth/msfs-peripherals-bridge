@@ -385,3 +385,28 @@ def test_describe_binding_mentions_the_split():
     })
     row = describe_binding(b)
     assert "unter 20" in row.action and "PROP_FEATHER" in row.action
+
+
+def test_live_bar_fills_proportionally():
+    from msfs_peripherals_bridge.gui_mapper import live_bar
+
+    assert live_bar(0, 0, 100) == "░░░░░░░░ 0"
+    assert live_bar(100, 0, 100) == "████████ 100"
+    assert live_bar(50, 0, 100) == "████░░░░ 50"
+    assert live_bar(999, 0, 100).startswith("████████")  # clamped
+    assert live_bar(5, 5, 5) == "░░░░░░░░ 5"  # degenerate range: no crash
+
+
+def test_live_row_map_covers_axes_hats_buttons_not_switches():
+    from msfs_peripherals_bridge.gui_mapper import live_row_map
+
+    prof = PROFILE  # piper_arrow fixture from this module
+    rows = live_row_map(prof, "yoke")
+    assert rows, "yoke has axis/button bindings"
+    kinds = {k for k, _ in rows}
+    assert kinds <= {"axis", "button"}
+    # switch-panel rows are hidraw-only -> no live keys at all
+    assert live_row_map(prof, "switch_panel") == {}
+    # every mapped iid points at a binding row
+    for iids in rows.values():
+        assert all(i.startswith("bind:") for i in iids)
