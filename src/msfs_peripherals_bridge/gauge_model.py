@@ -124,11 +124,11 @@ def arc_angles(n: NeedleSpec, arc: Arc) -> tuple[float, float]:
 
 
 def wire_name(n: NeedleSpec) -> str | None:
-    """Subscription name for the monitor: A: bare, L: prefixed, else None."""
+    """Subscription name for the monitor: A: bare, L:/V: prefixed, else None."""
     if not n.var:
         return None
-    if n.kind == "L:":
-        return n.var if n.var.startswith("L:") else "L:" + n.var
+    if n.kind in ("L:", "V:"):
+        return n.var if n.var.startswith(n.kind) else n.kind + n.var
     if n.kind == "A:":
         return n.var
     return None

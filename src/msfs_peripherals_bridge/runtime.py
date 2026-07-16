@@ -73,6 +73,21 @@ def condition_vars(profile: Profile) -> set[str]:
     }
 
 
+def seed_local_vars(profile: Profile) -> list[Command]:
+    """Commands seeding the profile's declared V: locals with their initials.
+
+    Sent once at mapper start (the bridge holds the values in its V: hub, the
+    profile stays the single source of the declarations). Restarting the mapper
+    re-seeds — persistence across restarts is the LocalVar.persist follow-up.
+    """
+    from .simconnect.protocol import SetSimVar
+
+    return [
+        SetSimVar(name=f"V:{lv.name}", unit=lv.unit, value=lv.initial)
+        for lv in profile.local_vars
+    ]
+
+
 def run(
     profile: Profile,
     catalog: DeviceCatalog,
@@ -86,6 +101,13 @@ def run(
     present = {**evdev_reader.discover(catalog), **hidraw_reader.discover(catalog)}
     if not present:
         raise RuntimeError("None of the catalog devices were found on this system.")
+
+    # Seed declared V: locals BEFORE conditions/outputs subscribe, so a gate on
+    # a local variable sees its initial value instead of an unknown (=blocked).
+    for command in seed_local_vars(profile):
+        dispatcher.send(command)
+    if profile.local_vars:
+        log.info("Seeded %d local V: variable(s)", len(profile.local_vars))
 
     watcher = _start_conditions(profile, present, dispatcher, stop)
     engine = MappingEngine(profile, values=watcher.get if watcher else None)

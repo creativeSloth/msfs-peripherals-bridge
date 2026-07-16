@@ -106,3 +106,8 @@ def test_presets_are_sane():
             # angles are monotonic across the scale
             angles = [gm.angle_for(n, n.v_min + f * n.span / 10) for f in range(11)]
             assert angles == sorted(angles), name
+
+
+def test_wire_name_virtual():
+    assert gm.wire_name(_needle(kind="V:", var="mode")) == "V:mode"
+    assert gm.wire_name(_needle(kind="V:", var="V:mode")) == "V:mode"

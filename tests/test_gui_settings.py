@@ -96,3 +96,13 @@ def test_statistik_and_panel_coexist(tmp_path):
     )
     assert load_statistik_selection(path=p) == [{"kind": "A:", "name": "V", "unit": "u"}]
     assert load_panel_state(path=p)["tiles"][0]["name"] == "V"
+
+
+def test_wire_name_covers_virtual_vars():
+    from msfs_peripherals_bridge.gui import _wire_name
+
+    assert _wire_name("V:", "mode") == "V:mode"
+    assert _wire_name("V:", "V:mode") == "V:mode"  # already prefixed
+    assert _wire_name("L:", "AUTOPILOT_MODE") == "L:AUTOPILOT_MODE"
+    assert _wire_name("A:", "AIRSPEED INDICATED") == "AIRSPEED INDICATED"
+    assert _wire_name("K:", "GEAR_TOGGLE") is None

@@ -130,9 +130,9 @@ def save_panel_state(state: dict, path: Path | None = None) -> None:
 
 
 def _wire_name(kind: str, name: str) -> str | None:
-    """The name to subscribe to: A: bare, L: prefixed, K: events carry no value."""
-    if kind == "L:":
-        return "L:" + name
+    """Subscription name: A: bare, L:/V: prefixed, K: events carry no value."""
+    if kind in ("L:", "V:"):
+        return name if name.startswith(kind) else kind + name
     if kind == "A:":
         return name
     return None

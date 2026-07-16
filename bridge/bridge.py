@@ -83,6 +83,18 @@ POLL_INTERVAL = 1.0  # seconds between subscribed-variable polls (e.g. TITLE)
 # the MobiFlight WASM channel below. Plain writable A: vars go through SetData.
 _LOCAL_PREFIXES = {"L", "H", "B"}
 
+# Virtual (V:) variables — a sim-independent value hub shared by every client.
+# The mapper's profiles declare them (local_vars) and seed their initial values
+# on start; any client can then set them (op "simvar" with a "V:" name) and read
+# them back via subscribe/read_now like any other variable. Values live at
+# MODULE level, so they survive sim reconnects; they are never sent to the sim.
+_VIRTUAL_LOCK = threading.Lock()
+_VIRTUAL_VARS: dict[str, object] = {}
+
+
+def _is_virtual(name: str) -> bool:
+    return name[:2].upper() == "V:"
+
 # MobiFlight WASM module command channel. Writing `MF.SimVars.Set.<rpn>` to the
 # "MobiFlight.Command" ClientData area makes the module run <rpn> as calculator
 # code, which is how we set L:/H:/B: vars (`<value> (>L:NAME)`). Write-only for
@@ -352,6 +364,10 @@ class SimConnectBridge:
                 self._mark_lost(exc)
 
     def set_simvar(self, name: str, value: float) -> None:
+        if _is_virtual(name):  # V: hub write — no sim, no DLL lock involved
+            with _VIRTUAL_LOCK:
+                _VIRTUAL_VARS[name] = value
+            return
         with self._lock.write():
             self._check_alive()
             prefix = name.split(":", 1)[0].upper() if ":" in name else ""
@@ -589,6 +605,9 @@ class SimConnectBridge:
         Wine build — it falls back to the old synchronous pull, so a value is always
         returned and the change is only that steady-state reads stop taking the lock.
         """
+        if _is_virtual(name):  # V: hub read — no sim, no DLL lock involved
+            with _VIRTUAL_LOCK:
+                return _VIRTUAL_VARS.get(name)
         prefix = name.split(":", 1)[0].upper() if ":" in name else ""
         if prefix in _LOCAL_PREFIXES:
             return self.read_lvar(name)
@@ -704,6 +723,9 @@ class SimConnectBridge:
         predefined list) and the unit is honoured. Falls back to the predefined
         ``read_simvar`` path if this build of the library lacks ``Request``.
         """
+        if _is_virtual(name):  # V: hub read (event_from_var/read paths too)
+            with _VIRTUAL_LOCK:
+                return _VIRTUAL_VARS.get(name)
         with self._lock.read():
             self._check_alive()
             if Request is None:

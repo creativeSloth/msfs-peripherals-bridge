@@ -125,3 +125,19 @@ def test_condition_vars_collects_all_when_vars():
     assert w.get("L:MODE") is None  # unknown until the stream delivers
     w.update("L:MODE", 2)
     assert w.get("L:MODE") == 2
+
+
+def test_seed_local_vars_builds_setsimvar_commands():
+    from msfs_peripherals_bridge.models import Profile
+    from msfs_peripherals_bridge.runtime import seed_local_vars
+    from msfs_peripherals_bridge.simconnect.protocol import SetSimVar
+
+    prof = Profile.model_validate({
+        "name": "t", "bindings": {},
+        "local_vars": [{"name": "mode", "initial": 2},
+                       {"name": "latch", "unit": "bool"}],
+    })
+    cmds = seed_local_vars(prof)
+    assert cmds == [SetSimVar(name="V:mode", unit="number", value=2.0),
+                    SetSimVar(name="V:latch", unit="bool", value=0.0)]
+    assert seed_local_vars(Profile(name="x", bindings={})) == []
