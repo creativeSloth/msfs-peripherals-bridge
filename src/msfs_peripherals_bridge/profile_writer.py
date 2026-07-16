@@ -255,3 +255,67 @@ def set_local_vars(data: CommentedMap, local_vars: list[dict]) -> None:
     current = data.get("local_vars")
     data["local_vars"] = _sync(current if isinstance(current, CommentedSeq) else CommentedSeq(),
                                local_vars)
+
+
+# --------------------------------------------------------------------------- #
+# output edits (Stufe C) — point mutations by model path, comment-preserving
+# --------------------------------------------------------------------------- #
+UNSET = object()  # sentinel: delete the key (fall back to the model default)
+
+
+def _output(data: CommentedMap, device_id: str, index: int):
+    outputs = data.get("outputs")
+    if not isinstance(outputs, CommentedMap) or device_id not in outputs:
+        raise KeyError(f"no outputs for device '{device_id}'")
+    return outputs[device_id][index]
+
+
+def _walk_to_parent(data: CommentedMap, device_id: str, index: int, path: tuple):
+    """The container holding ``path[-1]``, creating missing intermediate maps.
+
+    Paths mirror the pydantic model, so an intermediate key can only be missing
+    where the YAML relies on a model default — those are always mappings.
+    """
+    node = _output(data, device_id, index)
+    for p in path[:-1]:
+        if isinstance(p, str) and (p not in node or node[p] is None):
+            node[p] = CommentedMap()
+        node = node[p]
+    return node
+
+
+def set_output_value(
+    data: CommentedMap, device_id: str, index: int, path: tuple, value: object
+) -> None:
+    """Set one field of an output block in place (comments/style survive).
+
+    ``value`` may be a scalar, ``None`` (explicit YAML null), a dict/list (new
+    nested block, e.g. a dimmer template) or :data:`UNSET` to remove the key so
+    the model default applies again.
+    """
+    parent = _walk_to_parent(data, device_id, index, path)
+    last = path[-1]
+    if value is UNSET:
+        if not isinstance(last, int) and last in parent:
+            del parent[last]
+        return
+    parent[last] = _node(value) if isinstance(value, (dict, list)) else value
+
+
+def add_output_entry(
+    data: CommentedMap, device_id: str, index: int, path: tuple, entry: dict
+) -> None:
+    """Append ``entry`` to the list at ``path`` (created when still missing)."""
+    parent = _walk_to_parent(data, device_id, index, path)
+    last = path[-1]
+    if last not in parent or parent[last] is None:
+        parent[last] = CommentedSeq()
+    parent[last].append(_node(entry))
+
+
+def remove_output_entry(
+    data: CommentedMap, device_id: str, index: int, path: tuple, key: object
+) -> None:
+    """Delete entry ``key`` (list index / dict key) from the container at ``path``."""
+    container = _walk_to_parent(data, device_id, index, (*path, "_"))
+    del container[key]

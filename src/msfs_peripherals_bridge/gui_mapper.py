@@ -564,3 +564,234 @@ def blank_binding_form(kind: str = "button") -> dict:
     form.update(_transform_fields(Transform()))
     form.update(_transform_fields(Transform(), "sp_tf_"))
     return form
+
+
+# --------------------------------------------------------------------------- #
+# Stufe C: output editor — a generic, model-driven field tree. Walks a pydantic
+# Output instance into flat display/edit nodes so ONE editor covers gear_leds,
+# multi_panel and radio_panel (incl. nested selector entries, banks, dimmer,
+# LED maps). Pure: the tkinter window in gui.py only renders/apply-s these.
+# --------------------------------------------------------------------------- #
+UNSET = object()  # sentinel: "remove this key from the YAML" (fall back to default)
+
+# str fields that are labels/units, NOT variable/event names -> no var picker
+_NOT_PICKABLE = {"label", "name", "unit", "row", "display_row", "kind", "type", "device"}
+
+# German blurbs for the container fields, shown as tree tooltips/labels.
+FIELD_LABEL = {
+    "selector": "Selektor-Positionen",
+    "alt_sources": "Alternativ-Quellen",
+    "bool_leds": "LEDs (Var-gesteuert)",
+    "dimmer": "Dimmer",
+    "source_toggle": "Quellen-Umschalter",
+    "targets": "Dimmer-Ziele",
+    "units": "Radio-Einheiten",
+    "banks": "Bänke (Selektor)",
+    "sources": "DME-Quellen",
+}
+
+# templates for "+ Eintrag" per list field; banks offer one template per kind.
+_LIST_TEMPLATES: dict[str, dict] = {
+    "selector": {"code": 0, "label": "NEU", "simvar": "", "min": 0, "max": 100},
+    "alt_sources": {"simvar": ""},
+    "sources": {"label": "1", "distance": "NAV DME:1", "speed": "NAV DMESPEED:1"},
+    "targets": {"var": "", "full": 100},
+}
+_BANK_TEMPLATES: dict[str, dict] = {
+    "COM/NAV-Frequenz": {
+        "code": 0, "label": "NEU", "active": "", "standby": "", "swap_event": "",
+        "whole_inc": "", "whole_dec": "", "fract_inc": "", "fract_dec": "",
+    },
+    "DME": {"kind": "dme", "code": 0,
+            "sources": [{"label": "1", "distance": "NAV DME:1", "speed": "NAV DMESPEED:1"}]},
+    "ADF (KR-85)": {"kind": "adf", "code": 0},
+    "XPDR": {"kind": "xpdr", "code": 0},
+}
+# optional nested models, creatable when unset (None)
+OPTIONAL_TEMPLATES: dict[str, dict] = {
+    "dimmer": {"cw": 0, "ccw": 1, "targets": [{"var": "", "full": 100}]},
+    "source_toggle": {"device": "yoke", "code": 0},
+}
+
+
+@dataclass(frozen=True)
+class OutputNode:
+    """One row of the output editor tree (leaf field or container)."""
+
+    path: tuple
+    label: str
+    value: str
+    kind: str  # str|int|float|bool|choice|ro|list|dict|entry|group|unset
+    choices: tuple = ()
+    optional: bool = False
+    pickable: bool = False
+    removable: bool = False
+    addable: str | None = None  # container field name when entries can be added
+
+
+def _leaf_kind(ann) -> tuple[str | None, tuple, bool]:
+    """(scalar-kind, choices, optional) for an annotation; kind None = no scalar."""
+    import types
+    import typing
+    from typing import Literal
+
+    optional = False
+    origin = typing.get_origin(ann)
+    if origin in (typing.Union, types.UnionType):
+        args = typing.get_args(ann)
+        non_none = [a for a in args if a is not type(None)]
+        optional = len(non_none) < len(args)
+        if len(non_none) != 1:
+            return "str", (), optional
+        ann = non_none[0]
+        origin = typing.get_origin(ann)
+    if origin is Literal:
+        return "choice", tuple(str(a) for a in typing.get_args(ann)), optional
+    if ann is bool:
+        return "bool", (), optional
+    if ann is int:
+        return "int", (), optional
+    if ann is float:
+        return "float", (), optional
+    if ann is str:
+        return "str", (), optional
+    return None, (), optional
+
+
+def _display(value) -> str:
+    if value is None:
+        return "—"
+    if isinstance(value, bool):
+        return "ja" if value else "nein"
+    if isinstance(value, float):
+        return _fmt_num(value)
+    return str(value)
+
+
+def _entry_label(name: str, i: int, item) -> str:
+    tag = getattr(item, "label", None) or getattr(item, "name", None) \
+        or getattr(item, "var", None) or getattr(item, "event", None) or ""
+    kind = getattr(item, "kind", "")
+    extra = f" · {kind}" if kind and name == "banks" else ""
+    return f"{name}[{i}]" + (f" — {tag}{extra}" if tag or extra else "")
+
+
+def _walk_output(model, path: tuple, nodes: list[OutputNode]) -> None:
+    import typing
+
+    from pydantic import BaseModel
+
+    for name, field in type(model).model_fields.items():
+        val = getattr(model, name)
+        fpath = (*path, name)
+        if name in ("type", "kind"):  # discriminators: fixed per block
+            nodes.append(OutputNode(fpath, name, str(val), "ro"))
+            continue
+        kind, choices, optional = _leaf_kind(field.annotation)
+        if kind is not None and not isinstance(val, BaseModel):
+            nodes.append(OutputNode(
+                fpath, name, _display(val), kind, choices=choices, optional=optional,
+                pickable=(kind == "str" and name not in _NOT_PICKABLE),
+            ))
+            continue
+        origin = typing.get_origin(field.annotation)
+        if origin is list:
+            addable = name if (name in _LIST_TEMPLATES or name == "banks") else None
+            nodes.append(OutputNode(fpath, FIELD_LABEL.get(name, name),
+                                    f"({len(val)})", "list", addable=addable))
+            for i, item in enumerate(val):
+                nodes.append(OutputNode((*fpath, i), _entry_label(name, i, item),
+                                        "", "entry", removable=True))
+                _walk_output(item, (*fpath, i), nodes)
+            continue
+        if origin is dict:  # bool_leds: button name -> var
+            nodes.append(OutputNode(fpath, FIELD_LABEL.get(name, name),
+                                    f"({len(val)})", "dict", addable=name))
+            for key, v in val.items():
+                nodes.append(OutputNode((*fpath, key), key, str(v), "str",
+                                        pickable=True, removable=True))
+            continue
+        if isinstance(val, BaseModel):
+            nodes.append(OutputNode(fpath, FIELD_LABEL.get(name, name), "", "group",
+                                    removable=optional))
+            _walk_output(val, fpath, nodes)
+            continue
+        if val is None and optional:  # unset optional model (dimmer/source_toggle)
+            nodes.append(OutputNode(fpath, FIELD_LABEL.get(name, name), "—", "unset",
+                                    addable=name if name in OPTIONAL_TEMPLATES else None))
+            continue
+        nodes.append(OutputNode(fpath, name, _display(val), "ro"))
+
+
+def output_nodes(output: Output) -> list[OutputNode]:
+    """Flatten one output block into editor tree nodes (depth-first order)."""
+    nodes: list[OutputNode] = []
+    _walk_output(output, (), nodes)
+    return nodes
+
+
+def _resolve_parent(output: Output, path: tuple):
+    node = output
+    for p in path[:-1]:
+        node = node[p] if isinstance(p, int) or isinstance(node, dict) else getattr(node, p)
+    return node
+
+
+def parse_output_value(output: Output, path: tuple, raw) -> object:
+    """Parse an editor input for the leaf at ``path``; German ValueError on junk.
+
+    Returns the typed value, or :data:`UNSET` when an emptied optional field
+    should fall back to its default (key removed from the YAML). An optional
+    field whose default is not None gets an explicit ``None`` (YAML null)
+    instead, so "aus" is expressible.
+    """
+    parent = _resolve_parent(output, path)
+    name = path[-1]
+    if isinstance(parent, dict):  # bool_leds entry -> plain str
+        return str(raw).strip()
+    field = type(parent).model_fields[name]
+    kind, choices, optional = _leaf_kind(field.annotation)
+    if isinstance(raw, bool):
+        return raw
+    s = str(raw).strip()
+    if s in ("", "—"):
+        if not optional:
+            raise ValueError(f"{name}: Wert fehlt.")
+        return UNSET if field.default is None else None
+    if kind == "int":
+        return _parse_int(s, name)
+    if kind == "float":
+        return _parse_num(s, name)
+    if kind == "choice":
+        if s not in choices:
+            raise ValueError(f"{name}: muss eins von {', '.join(choices)} sein.")
+        return s
+    if kind == "bool":
+        if s.lower() in ("1", "true", "ja", "an", "on"):
+            return True
+        if s.lower() in ("0", "false", "nein", "aus", "off"):
+            return False
+        raise ValueError(f"{name}: ja/nein erwartet.")
+    return s
+
+
+def output_add_options(output: Output, path: tuple) -> dict[str, dict]:
+    """Menu-label -> template entry for the container at ``path``."""
+    name = path[-1]
+    if name == "banks":
+        return {k: dict(v) for k, v in _BANK_TEMPLATES.items()}
+    if name in _LIST_TEMPLATES:
+        return {"Eintrag": dict(_LIST_TEMPLATES[name])}
+    if name in OPTIONAL_TEMPLATES:
+        return {"Anlegen": dict(OPTIONAL_TEMPLATES[name])}
+    return {}
+
+
+def output_dict_key_options(output: Output, path: tuple) -> list[str]:
+    """Free keys for a dict container (bool_leds: LED buttons not yet mapped)."""
+    if path[-1] != "bool_leds":
+        return []
+    from .mapping.leds import MULTI_LED_BUTTONS
+
+    used = set(getattr(output, "bool_leds", {}) or {})
+    return sorted(MULTI_LED_BUTTONS - used)
