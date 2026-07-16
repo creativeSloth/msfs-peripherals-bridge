@@ -1326,7 +1326,10 @@ def run() -> None:
     # capture buttons are a wordless magic wand (user wish: 🪄, no "Lernen" label)
     b_learn = ttk.Button(srcfr, text="🪄", width=3, state="disabled")
     b_learn.pack(side="left", padx=6)
-    _attach_tooltip(b_learn, "Hardware-Capture (Knopf drücken → Code) — folgt")
+    _attach_tooltip(b_learn,
+                    "Code anlernen (folgt): wird am angeschlossenen Gerät lauschen — "
+                    "gewünschten Knopf/Schalter EINMAL betätigen, der erkannte Code "
+                    "trägt sich hier ein. Noch nicht aktiv.")
 
     # row 2: action — ONE button. Pick from the list and everything follows the
     # picked kind: a K: entry fires that event, an A:/L:/V: entry sets that
@@ -1421,9 +1424,13 @@ def run() -> None:
     b_wand_raw = ttk.Button(inrow, text="🪄", width=3, command=lambda: _learn_raw())
     b_wand_raw.pack(side="left")
     _attach_tooltip(b_wand_raw,
-                    "Achse live lesen: Hebel bewegen, den Rohwert an den Enden / an der "
-                    "Raste ablesen und als min, max oder Detent übernehmen. Braucht das "
-                    "angeschlossene Gerät (evdev).")
+                    "Öffnet ein Live-Fenster, das den ROHWERT dieser Achse direkt vom "
+                    "angeschlossenen Gerät liest (evdev) — gelesen wird die Achse aus dem "
+                    "Code-Feld oben am Gerät dieses Bindings.\n\n"
+                    "Voraussetzung VORHER: Quelle = Achse, der Code stimmt und das Gerät "
+                    "hängt am USB. Dann Hebel bewegen: der aktuelle Rohwert erscheint live "
+                    "und lässt sich per Knopf als Eingang-min, Eingang-max oder Detent "
+                    "übernehmen. Es wird nichts gesendet — nur gelesen.")
     ttk.Label(inrow, textvariable=cal_hint, foreground="#666").pack(side="left", padx=(4, 0))
 
     def _tf_rows(parent, p):
@@ -1481,8 +1488,10 @@ def run() -> None:
     b_wand_det = ttk.Button(sprow, text="🪄", width=3, command=lambda: _learn_raw())
     b_wand_det.pack(side="left", padx=(2, 0))
     _attach_tooltip(b_wand_det,
-                    "Detent anlernen: Hebel an die Raste fahren, Rohwert ablesen und "
-                    "„→ als Detent“ übernehmen.")
+                    "Detent anlernen: liest den Rohwert der Achse live vom angeschlossenen "
+                    "Gerät (evdev, Achse = Code-Feld oben). Voraussetzung: Quelle = Achse, "
+                    "Code stimmt, Gerät angesteckt. Hebel an die Raste fahren und den "
+                    "angezeigten Wert mit „→ als Detent“ übernehmen.")
     _info(sprow, "Roh-Wert der Raste = Grenze der beiden Bereiche — per 🪄 live ablesbar.")
 
     spfr = ttk.Labelframe(axfr, text="⬇ Unterhalb des Detents — eigene Aktion", padding=6)
