@@ -590,6 +590,95 @@ FIELD_LABEL = {
     "sources": "DME-Quellen",
 }
 
+# German label + explanation per output leaf field. The editor tree shows the
+# label; the help line under the edit strip explains what the field means
+# (per user: raw YAML names like `fast_step` said nothing). Keyed by field
+# name — names are unique enough across the output models in practice.
+OUTPUT_FIELD_HELP: dict[str, tuple[str, str]] = {
+    "code": ("Hardware-Code", "Bit/Code des Schalters bzw. der Selektor-Position am Panel "
+             "(gemessen, s. docs/memory/*-hid.md). Nur ändern, wenn die Hardware neu "
+             "vermessen wurde."),
+    "label": ("Bezeichnung", "Menschenlesbarer Name, nur für Anzeige/Logs."),
+    "unit": ("Einheit", "Einheit für Lesen/Schreiben der Variable (meist number)."),
+    "simvar": ("Variable", "Die Sim-Variable, deren Wert angezeigt/editiert wird."),
+    "set_event": ("Setz-Event", "K:-Event zum Setzen des Werts; leer = Variable wird "
+                  "direkt geschrieben."),
+    "step": ("Schritt", "Wertänderung pro Encoder-Rastung."),
+    "fast_step": ("Schnell-Schritt", "Größerer Schritt, wenn der Drehknopf schnell gedreht "
+                  "wird. Leer = keine Beschleunigung."),
+    "min": ("Minimum", "Kleinster einstellbarer Wert."),
+    "max": ("Maximum", "Größter einstellbarer Wert."),
+    "rollover": ("Umlauf", "Am Ende zum Anfang weiterdrehen (z. B. Heading 359→0) statt "
+                 "anzuschlagen."),
+    "sticky": ("Encoder-eigen", "Anzeige behält den zuletzt gedrehten Wert, statt der "
+               "Live-Variable zu folgen (gegen Gauges, die den Wert überschreiben)."),
+    "off_above": ("Aus-Schwelle", "Live-Werte ab dieser Schwelle (oder fehlende) werden als "
+                  "0 angezeigt — fängt „Aus“-Parkwerte wie 80000 ab."),
+    "display_row": ("Display-Zeile", "Obere oder untere Zeile des Panel-Displays."),
+    "ap_master": ("AP-Master-Var", "Bool-Variable für die Autopilot-Master-LED."),
+    "mode_var": ("Modus-Var", "Variable mit dem aktiven AP-Modus (steuert die Modus-LEDs)."),
+    "power": ("Power-Gate", "Bool-Variable: bei 0 bleiben Display/LEDs dunkel (z. B. "
+              "Batterie aus). Leer = immer an."),
+    "device": ("Gerät", "Geräte-ID aus config/devices.yaml (z. B. yoke)."),
+    "cw": ("Code rechtsdrehen", "Eingabe-Code für eine Rastung im Uhrzeigersinn (heller)."),
+    "ccw": ("Code linksdrehen", "Eingabe-Code für eine Rastung gegen den Uhrzeigersinn "
+            "(dunkler)."),
+    "var": ("Variable", "Sim-/L-Variable, die auf den skalierten Wert gesetzt wird."),
+    "event": ("Event", "K:-Event, das mit dem skalierten Wert gefeuert wird."),
+    "full": ("Vollwert", "Wert der Lampe bei 100 % Helligkeit (Skala des Ziels)."),
+    "follow_event": ("Folge-Event", "An/Aus-Licht, das mitschaltet, sobald der Dimmer über "
+                     "dem Minimum steht."),
+    "nose": ("Bugrad-Var", "Positions-Variable des Bugfahrwerks (0=oben … 1=unten)."),
+    "left": ("Links-Var", "Positions-Variable des linken Hauptfahrwerks."),
+    "right": ("Rechts-Var", "Positions-Variable des rechten Hauptfahrwerks."),
+    "down_at": ("Grün ab", "Ab dieser Position gilt das Rad als ausgefahren (grüne LED)."),
+    "name": ("Name", "Bezeichnung, nur für Anzeige/Logs."),
+    "row": ("Display-Hälfte", "Obere oder untere Hälfte des Radio-Panel-Displays."),
+    "outer_cw": ("Äußerer Knopf rechts", "Eingabe-Code: äußerer (grober) Drehknopf im UZS."),
+    "outer_ccw": ("Äußerer Knopf links", "Eingabe-Code: äußerer Drehknopf gegen den UZS."),
+    "inner_cw": ("Innerer Knopf rechts", "Eingabe-Code: innerer (feiner) Drehknopf im UZS."),
+    "inner_ccw": ("Innerer Knopf links", "Eingabe-Code: innerer Drehknopf gegen den UZS."),
+    "swap": ("Tausch-Knopf", "Eingabe-Code des Drückens (ACT↔STBY-Tausch)."),
+    "active": ("Aktiv-Frequenz", "Variable der ACTIVE-Frequenz (obere Display-Zeile)."),
+    "standby": ("Standby-Frequenz", "Variable der STANDBY-Frequenz (wird getunt, untere "
+                "Zeile)."),
+    "swap_event": ("Tausch-Event", "Event, das ACTIVE und STANDBY tauscht."),
+    "whole_inc": ("MHz hoch", "Event des äußeren Knopfs: ganze MHz aufwärts."),
+    "whole_dec": ("MHz runter", "Event des äußeren Knopfs: ganze MHz abwärts."),
+    "fract_inc": ("kHz hoch", "Event des inneren Knopfs: Fein-Schritt aufwärts."),
+    "fract_dec": ("kHz runter", "Event des inneren Knopfs: Fein-Schritt abwärts."),
+    "fract_fast_inc": ("kHz hoch (schnell)", "Event bei schnellem Drehen (gröberer "
+                       "Schritt). Leer = wie kHz hoch."),
+    "fract_fast_dec": ("kHz runter (schnell)", "Event bei schnellem Drehen abwärts. "
+                       "Leer = wie kHz runter."),
+    "fine_view": ("Fein-Anzeige", "Innerer Knopf schaltet die Standby-Zeile auf 3 "
+                  "Nachkommastellen (nur COM 8.33 sinnvoll)."),
+    "distance": ("Distanz-Var", "DME-Entfernungs-Variable (nautische Meilen)."),
+    "speed": ("Geschw.-Var", "DME-Geschwindigkeits-Variable (Knoten)."),
+    "source_var": ("Quellen-Var", "LVar mit der DME-Quelle (0=NAV1, 1=NAV2) — bidirektional "
+                   "mit dem Cockpit-Schalter. Leer = nur lokal durchschalten."),
+    "code_var": ("Squawk-Var", "Variable des Transponder-Codes (BCD16)."),
+    "dig1_var": ("Hunderter-Var", "KR-85-Zähler der Hunderter-Gruppe (0-16)."),
+    "dig2_var": ("Zehner-Var", "KR-85-Zähler der Zehnerstelle (0-9)."),
+    "dig3_var": ("Einer-Var", "KR-85-Zähler der Einerstelle (0-9)."),
+    "min_khz": ("kHz-Minimum", "Kleinste einstellbare ADF-Frequenz."),
+    "max_khz": ("kHz-Maximum", "Größte einstellbare ADF-Frequenz."),
+    "baro_var": ("QNH-Var", "Variable des Luftdrucks für die untere Zeile (inHg). Leer = "
+                 "Zeile bleibt dunkel."),
+    "baro_scale": ("QNH-Faktor", "Multiplikator der QNH-Var nach inHg (schon inHg = 1)."),
+    "baro_inc": ("QNH hoch", "Event des äußeren Knopfs: Luftdruck aufwärts."),
+    "baro_dec": ("QNH runter", "Event des äußeren Knopfs: Luftdruck abwärts."),
+}
+
+
+def output_field_help(path: tuple) -> str:
+    """German explanation for the leaf at ``path`` (plus its YAML name), or ''."""
+    name = path[-1] if path else ""
+    if not isinstance(name, str):
+        return ""
+    entry = OUTPUT_FIELD_HELP.get(name)
+    return f"{entry[1]}  (YAML: {name})" if entry else ""
+
 # templates for "+ Eintrag" per list field; banks offer one template per kind.
 _LIST_TEMPLATES: dict[str, dict] = {
     "selector": {"code": 0, "label": "NEU", "simvar": "", "min": 0, "max": 100},
@@ -689,8 +778,9 @@ def _walk_output(model, path: tuple, nodes: list[OutputNode]) -> None:
             continue
         kind, choices, optional = _leaf_kind(field.annotation)
         if kind is not None and not isinstance(val, BaseModel):
+            label = OUTPUT_FIELD_HELP.get(name, (name, ""))[0]  # German where known
             nodes.append(OutputNode(
-                fpath, name, _display(val), kind, choices=choices, optional=optional,
+                fpath, label, _display(val), kind, choices=choices, optional=optional,
                 pickable=(kind == "str" and name not in _NOT_PICKABLE),
             ))
             continue
@@ -728,6 +818,29 @@ def output_nodes(output: Output) -> list[OutputNode]:
     nodes: list[OutputNode] = []
     _walk_output(output, (), nodes)
     return nodes
+
+
+# The output editor groups fields into meaning-blocks (per user: no raw field
+# tree): the navigation lists containers only, the form shows one group's
+# scalar fields with German labels + help.
+GROUP_KINDS = ("group", "entry", "list", "dict", "unset")
+_SCALAR_KINDS = ("str", "int", "float", "bool", "choice")
+
+
+def output_groups(nodes: list[OutputNode]) -> list[OutputNode]:
+    """Navigation groups: a root pseudo-group plus every container node."""
+    root = OutputNode((), "Allgemein", "", "root")
+    return [root, *(n for n in nodes if n.kind in GROUP_KINDS)]
+
+
+def group_fields(nodes: list[OutputNode], group_path: tuple) -> list[OutputNode]:
+    """The scalar fields sitting directly inside one group (form content)."""
+    depth = len(group_path) + 1
+    return [
+        n for n in nodes
+        if len(n.path) == depth and n.path[:-1] == tuple(group_path)
+        and n.kind in _SCALAR_KINDS
+    ]
 
 
 def _resolve_parent(output: Output, path: tuple):

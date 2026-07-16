@@ -167,3 +167,31 @@ def test_set_output_value_creates_missing_dict_key(tmp_path):
     pw.set_output_value(data, "multi_panel", 0, ("bool_leds", free), "L:TEST")
     prof = pw.validate(data)
     assert prof.outputs["multi_panel"][0].bool_leds[free] == "L:TEST"
+
+
+def test_output_groups_and_group_fields():
+    # the editor window shows meaning-groups (nav) + per-group scalar fields
+    o = ARROW.outputs["multi_panel"][0]
+    nodes = gm.output_nodes(o)
+    groups = gm.output_groups(nodes)
+    assert groups[0].kind == "root" and groups[0].path == ()
+    paths = [g.path for g in groups]
+    assert ("selector",) in paths and ("selector", 0) in paths
+    assert ("bool_leds",) in paths and ("dimmer",) in paths
+    # root fields: top-level scalars only — no containers, no fixed 'type'
+    names = [f.path[-1] for f in gm.group_fields(nodes, ())]
+    assert "ap_master" in names and "power" in names
+    assert "selector" not in names and "type" not in names
+    # entry fields: one selector entry's scalars; nested lists stay out
+    enames = [f.path[-1] for f in gm.group_fields(nodes, ("selector", 0))]
+    assert "simvar" in enames and "alt_sources" not in enames
+
+
+def test_output_leaf_labels_are_german_where_known():
+    o = ARROW.outputs["multi_panel"][0]
+    nodes = gm.output_nodes(o)
+    sim = next(n for n in nodes if n.path == ("selector", 0, "simvar"))
+    assert sim.label == "Variable"
+    assert "Encoder" in gm.output_field_help(("selector", 0, "sticky")) or \
+        gm.output_field_help(("selector", 0, "sticky")).startswith("Anzeige")
+    assert gm.output_field_help(("selector", 0)) == ""  # containers: no leaf help
