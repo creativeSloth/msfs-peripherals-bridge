@@ -2682,8 +2682,113 @@ def run() -> None:
                command=_profile_meta_save).grid(row=4, column=1, sticky="w", pady=(10, 0))
     p_status.grid(row=5, column=1, sticky="w", pady=(4, 0))
 
+    # --- local V: variables: declare/remove them per profile --------------- #
+    # The declarations live in the profile (local_vars:); values live in the
+    # bridge's V: hub, seeded with `initial` at mapper start. Declared vars show
+    # up in every picker (V: filter) and can gate bindings via ⚑ Bedingungen.
+    lvfr = ttk.Labelframe(ptab, text="V: — eigene lokale Variablen", padding=6)
+    lvfr.grid(row=6, column=0, columnspan=2, sticky="ew", pady=(14, 0))
+    lv_list = ttk.Treeview(lvfr, columns=("initial", "desc"), show="tree headings",
+                           height=4, selectmode="browse")
+    lv_list.heading("#0", text="Name (V:…)")
+    lv_list.column("#0", width=180, anchor="w")
+    lv_list.heading("initial", text="Startwert")
+    lv_list.column("initial", width=80, anchor="w")
+    lv_list.heading("desc", text="Beschreibung")
+    lv_list.column("desc", width=280, anchor="w")
+    lv_list.pack(fill="x")
+    lvrow = ttk.Frame(lvfr)
+    lvrow.pack(anchor="w", pady=(6, 0))
+    lv_name = tk.StringVar()
+    lv_init = tk.StringVar(value="0")
+    lv_desc = tk.StringVar()
+    ttk.Label(lvrow, text="Name").pack(side="left")
+    ttk.Entry(lvrow, textvariable=lv_name, width=16).pack(side="left", padx=(2, 8))
+    ttk.Label(lvrow, text="Startwert").pack(side="left")
+    ttk.Entry(lvrow, textvariable=lv_init, width=7).pack(side="left", padx=(2, 8))
+    ttk.Label(lvrow, text="Beschreibung").pack(side="left")
+    ttk.Entry(lvrow, textvariable=lv_desc, width=24).pack(side="left", padx=(2, 8))
+    _info(lvrow, "Eigene Variable fürs Mapping (Modus-Flags, Zähler, Merker): lebt im "
+                 "Bridge-Werte-Hub, nie in der Sim. Wird beim Mapper-Start mit dem "
+                 "Startwert belegt; setzen per Aktion (V:name), lesen überall — auch "
+                 "in ⚑ Bedingungen, Statistik und Gauges.")
+
+    def _lv_load(*_):
+        lv_list.delete(*lv_list.get_children())
+        try:
+            prof = load_profile(profiles_dir(root_dir) / f"{profile_var.get()}.yaml")
+        except Exception:
+            return
+        for lv in prof.local_vars:
+            lv_list.insert("", "end", iid=lv.name, text=f"V:{lv.name}",
+                           values=(f"{lv.initial:g}", lv.description))
+
+    def _lv_save(local_vars):
+        path = profiles_dir(root_dir) / f"{profile_var.get()}.yaml"
+        try:
+            data = profile_writer.load(path)
+            profile_writer.set_local_vars(data, local_vars)
+            profile_writer.validate(data)
+            profile_writer.dump(data, path)
+            p_status.config(text="V:-Variablen gespeichert ✓", foreground="#15803d")
+        except Exception as exc:
+            p_status.config(text=f"Fehler: {exc}", foreground=DANGER)
+        _lv_load()
+
+    def _lv_current():
+        try:
+            prof = load_profile(profiles_dir(root_dir) / f"{profile_var.get()}.yaml")
+        except Exception:
+            return []
+        out = []
+        for lv in prof.local_vars:
+            d = {"name": lv.name}
+            if lv.unit != "number":
+                d["unit"] = lv.unit
+            if lv.initial:
+                d["initial"] = lv.initial
+            if lv.description:
+                d["description"] = lv.description
+            if lv.persist:
+                d["persist"] = True
+            out.append(d)
+        return out
+
+    def _lv_add():
+        name = lv_name.get().strip()
+        if not name:
+            p_status.config(text="V:-Name fehlt.", foreground=DANGER)
+            return
+        try:
+            initial = float(lv_init.get() or 0)
+        except ValueError:
+            p_status.config(text="Startwert muss eine Zahl sein.", foreground=DANGER)
+            return
+        entry: dict = {"name": name}
+        if initial:
+            entry["initial"] = initial
+        if lv_desc.get().strip():
+            entry["description"] = lv_desc.get().strip()
+        _lv_save([lv for lv in _lv_current() if lv["name"] != name] + [entry])
+        lv_name.set("")
+        lv_desc.set("")
+
+    def _lv_remove():
+        sel = lv_list.selection()
+        if not sel:
+            p_status.config(text="Erst eine V:-Variable markieren.", foreground=DANGER)
+            return
+        _lv_save([lv for lv in _lv_current() if lv["name"] != sel[0]])
+
+    ttk.Button(lvrow, text="+ Anlegen", style="Accent.TButton",
+               command=_lv_add).pack(side="left")
+    ttk.Button(lvrow, text="✕ Entfernen", style="Danger.TButton",
+               command=_lv_remove).pack(side="left", padx=6)
+
     profile_var.trace_add("write", _profile_meta_load)
+    profile_var.trace_add("write", _lv_load)
     _profile_meta_load()
+    _lv_load()
 
     # --- Gauges tab: click a panel together from mapped gauges ------------- #
     # Round instruments ported from the user's Air Manager gauges (pure math in
