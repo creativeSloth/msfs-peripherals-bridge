@@ -36,6 +36,22 @@ bindings:
 - `button` - press/release; fires on press (value != 0).
 - `hat`    - directional; treated like a button per direction code.
 
+## POV hat (kind: hat)
+ONE binding covers the whole hat: `source.code` is the X (base) evdev channel
+(left/right); Y (up/down) is implicitly `code + 1`. Each direction gets its own
+action under `hat:` (fired once on entering the direction); `action:` is not
+used on hat bindings. Unset directions do nothing.
+
+```yaml
+    - name: "Trim-Hat"
+      source: { kind: hat, code: 16 }
+      hat:
+        up:    { type: event, event: ELEV_TRIM_UP }
+        down:  { type: event, event: ELEV_TRIM_DN }
+        left:  { type: event, event: AILERON_TRIM_LEFT }
+        right: { type: event, event: AILERON_TRIM_RIGHT }
+```
+
 ## Detent split (axis only)
 A lever with a detent (reverse/feather/cutoff) stays ONE binding: `action`/
 `transform` cover the range from the detent up, the optional `split` block maps

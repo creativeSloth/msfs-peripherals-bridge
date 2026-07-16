@@ -29,6 +29,30 @@ ruff clean, Konstruktions-Smoke ok. Visuell UNGEPRÜFT** (User konnte nicht test
   Kachel-Panel); Arcs/sweep im Dialog editierbar machen (aktuell nur Var/Faktor/min/max);
   Presets für weitere Vars. Design-Referenz: `docs/gauges-design.md`.
 
+**➕ NACHTRAG 2 (gleiche Session, Commits `e6d3ca7`+`359628e`, 293 Tests):**
+- **Tab-Reihenfolge:** Connection · Mapper · Gauges · Statistik · Profile (User-Wunsch).
+- **🪄 Code-Anlernen AKTIV** (war Stub): lauscht via `live_state_reader` am Gerät, erkennt
+  Taster/Achse/Hat + Code (Hat → Basis-Code normalisiert), Übernehmen füllt Quelle.
+- **HAT-Support GEBAUT** (war halb kaputt: evdev meldete Hats als Achse, nur eine Richtung hätte
+  je gefeuert): `models.HatMap` (up/down/left/right je eigene Aktion, `Binding.action` jetzt
+  optional, hat XOR action validiert), `source.code` = X-Basis-Kanal (Y implizit +1),
+  evdev_reader klassifiziert ABS_HAT* als HAT, Engine matcht beide Kanäle + feuert je
+  Richtungs-Flanke. Editor: Quelle=Hat zeigt VIER ▲▼◀▶-Slots im selben Fenster.
+  Schema-Doku in `profiles/_schema.md`.
+- **Mapper-Tabelle = echter Struktur-Baum** (User: „Darstellungsbaum output → selektor-mode[x]"):
+  Panel-Controller als Baum-Zeilen (kurze deutsche Labels „Position ALT", „Bank COM1 · freq",
+  „Einheit upper"), **Eingabe/Anzeige-Rolle** in der Control-Spalte (User: LEDs=Anzeige,
+  Drücken/Schalten=Eingabe — beim Radio-Panel am deutlichsten). Abschnitte: „Eingaben — Bindings"
+  / „Panel-Controller".
+- **Output-Kontextfenster = genau EINE Zeile** (User: Fenster mit nochmal Liste = verwirrend):
+  Doppelklick auf Baum-Zeile → Formular NUR für diese Gruppe, konsistent zum Binding-Editor
+  (deutsches Label · Feld · ⓘ, „Wählen…" an Var-Feldern, Übernehmen/Zurücksetzen/Schließen,
+  Danger-Entfernen). Kein Fenster-Baum mehr.
+- **„+ Panel"** unter der Geräteliste: ganzen Panel-Controller aus 3 validierten Block-Vorlagen
+  anlegen (`profile_writer.add_output/remove_output`, leere Stubs aufgeräumt); Wurzel-Fenster
+  kann den ganzen Block entfernen. (User-Einschätzung bestätigt: für die Saiteks selten nötig —
+  hauptsächlich für neue Flugzeug-Profile; bewusst einfach gehalten.)
+
 **➕ NACHTRAG (gleiche Session, Commit `faa91d6`, 286 Tests): Output-Fenster in GRUPPEN statt
 Feld-Baum.** User-Feedback: der rohe Feld-Baum im Output-Editor „sagt nichts" — jetzt links eine
 schlanke Gruppen-Navigation (Allgemein · Selektor-Positionen (je Eintrag ein Knoten) · LEDs ·
