@@ -36,6 +36,23 @@ bindings:
 - `button` - press/release; fires on press (value != 0).
 - `hat`    - directional; treated like a button per direction code.
 
+## Detent split (axis only)
+A lever with a detent (reverse/feather/cutoff) stays ONE binding: `action`/
+`transform` cover the range from the detent up, the optional `split` block maps
+the range below it to its own action. Each part is normalised over its own raw
+span (the detent is out-min of the upper and out-max of the lower part).
+
+```yaml
+    - name: "Throttle mit Reverse"
+      source: { kind: axis, code: 0 }            # full travel from calibration
+      action: { type: event, event: THROTTLE1_SET }
+      transform: { out_min: 0, out_max: 16383 }
+      split:
+        at: 200                                   # raw value of the detent
+        action: { type: simvar, simvar: "TURB ENG REVERSE NOZZLE PERCENT:1" }
+        transform: { invert: true }
+```
+
 ## Action types
 - `event`  - SimConnect client event (K:/H: event). For axes the shaped value
   becomes the event `data`; for buttons a fixed `value` (default 1) is sent.

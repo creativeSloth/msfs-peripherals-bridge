@@ -142,6 +142,23 @@ class RpnAction(BaseModel):
 Action = EventAction | SimVarAction | EventFromVarAction | SequenceAction | RpnAction
 
 
+class AxisSplit(BaseModel):
+    """The lower half of an axis split at a detent, with its own mapping.
+
+    Levers with a detent (reverse/feather/cutoff below, the normal range above)
+    are ONE physical axis but TWO logical controls. A split keeps them in one
+    binding: the binding's own ``action``/``transform`` cover the range *from the
+    detent up* (raw ``at``…``raw_max``), while this block maps the range *below
+    the detent* (raw ``raw_min``…``at``) to its own action — each range is
+    normalised over its own raw span, so the detent is out_min of the upper part
+    and out_max of the lower part.
+    """
+
+    at: int = Field(..., description="Raw axis value of the detent (range boundary).")
+    action: Action = Field(..., discriminator="type", description="Mapping below the detent.")
+    transform: Transform = Field(default_factory=Transform)
+
+
 class GearLedOutput(BaseModel):
     """Drive the three gear-indicator LEDs on a Saitek switch panel.
 
@@ -598,6 +615,9 @@ class Binding(BaseModel):
     source: Source
     action: Action = Field(..., discriminator="type")
     transform: Transform = Field(default_factory=Transform)
+    # Detent split: maps the axis range below `split.at` to its own action while
+    # action/transform above cover the detent upwards. Axis sources only.
+    split: AxisSplit | None = Field(None, description="Lower-range mapping below a detent.")
 
     @model_validator(mode="after")
     def _buttons_need_value(self) -> Binding:
@@ -608,6 +628,12 @@ class Binding(BaseModel):
         ):
             # A button mapped to an event must send a concrete value on press.
             self.action.value = 1
+        return self
+
+    @model_validator(mode="after")
+    def _split_needs_axis(self) -> Binding:
+        if self.split is not None and self.source.kind is not SourceKind.AXIS:
+            raise ValueError("'split' is only valid on an axis binding.")
         return self
 
 

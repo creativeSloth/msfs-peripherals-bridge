@@ -153,10 +153,13 @@ def describe_transform(t: Transform) -> str:
 
 def describe_binding(binding: Binding) -> BindingRow:
     """Flatten one :class:`Binding` into its four display columns."""
+    action = describe_action(binding.action)
+    if binding.split is not None:
+        action += f" · unter {binding.split.at}: {describe_action(binding.split.action)}"
     return BindingRow(
         name=binding.name,
         source=describe_source(binding.source),
-        action=describe_action(binding.action),
+        action=action,
         transform=describe_transform(binding.transform),
     )
 
@@ -272,6 +275,9 @@ SOURCE_KINDS = ("axis", "button", "switch", "hat")
 # constructed inline yet (its multi-step list needs its own editor) — an existing
 # sequence is preserved on save; you cannot turn another type into one here.
 ACTION_TYPES = ("event", "simvar", "event_from_var", "rpn", "sequence")
+# The split (below-detent) range gets its own action, but no sequence — a
+# sequence is edge-driven and makes no sense on a continuous axis range.
+SPLIT_ACTION_TYPES = ("event", "simvar", "rpn")
 CURVES = ("linear", "expo", "squared")
 
 
@@ -355,13 +361,54 @@ def rows_to_seq_action(on_rows: list[dict], off_rows: list[dict]) -> dict:
     return action
 
 
+def _blank_action_fields(prefix: str = "") -> dict:
+    """Blank editor fields for one action slot (``prefix`` = ``sp_`` for split)."""
+    return {
+        f"{prefix}ev_event": "", f"{prefix}ev_value": "",
+        f"{prefix}sv_simvar": "", f"{prefix}sv_unit": "number", f"{prefix}sv_invert": False,
+        f"{prefix}efv_read": "", f"{prefix}efv_event": "", f"{prefix}efv_unit": "number",
+        f"{prefix}rpn_code": "",
+    }
+
+
+def _action_fields(a: Action, prefix: str = "") -> dict:
+    """Editor fields for one action: only its own type carries real values."""
+    form = _blank_action_fields(prefix)
+    form[f"{prefix}action_type"] = a.type
+    if a.type == "event":
+        form[f"{prefix}ev_event"] = a.event
+        form[f"{prefix}ev_value"] = "" if a.value is None else str(a.value)
+    elif a.type == "simvar":
+        form[f"{prefix}sv_simvar"], form[f"{prefix}sv_unit"] = a.simvar, a.unit
+        form[f"{prefix}sv_invert"] = bool(a.invert)
+    elif a.type == "event_from_var":
+        form[f"{prefix}efv_read"], form[f"{prefix}efv_event"] = a.read, a.event
+        form[f"{prefix}efv_unit"] = a.unit
+    elif a.type == "rpn":
+        form[f"{prefix}rpn_code"] = a.code
+    return form
+
+
+def _transform_fields(t: Transform, prefix: str = "tf_") -> dict:
+    """Editor fields for one transform (``prefix`` = ``sp_tf_`` for split)."""
+    return {
+        f"{prefix}deadzone": _fmt_num(t.deadzone),
+        f"{prefix}curve": str(t.curve),
+        f"{prefix}expo": _fmt_num(t.expo),
+        f"{prefix}invert": bool(t.invert),
+        f"{prefix}out_min": _fmt_num(t.out_min),
+        f"{prefix}out_max": _fmt_num(t.out_max),
+    }
+
+
 def binding_to_form(binding: Binding) -> dict:
     """Flatten a :class:`Binding` into flat form values (str/bool) for the editor.
 
     Only the fields relevant to the binding's actual action type carry real
     values; the rest get sensible blanks so switching type in the UI starts clean.
+    A detent split fills the ``sp_``-prefixed second slot (action + transform).
     """
-    s, a, t = binding.source, binding.action, binding.transform
+    s = binding.source
     form = {
         "name": binding.name,
         "kind": str(s.kind),
@@ -369,28 +416,19 @@ def binding_to_form(binding: Binding) -> dict:
         "raw_min": "" if s.raw_min is None else str(s.raw_min),
         "raw_max": "" if s.raw_max is None else str(s.raw_max),
         "is_axis": str(s.kind) == "axis",
-        "action_type": a.type,
-        # action fields start blank; the active type fills its own below
-        "ev_event": "", "ev_value": "",
-        "sv_simvar": "", "sv_unit": "number", "sv_invert": False,
-        "efv_read": "", "efv_event": "", "efv_unit": "number",
-        "rpn_code": "",
-        "tf_deadzone": _fmt_num(t.deadzone),
-        "tf_curve": str(t.curve),
-        "tf_expo": _fmt_num(t.expo),
-        "tf_invert": bool(t.invert),
-        "tf_out_min": _fmt_num(t.out_min),
-        "tf_out_max": _fmt_num(t.out_max),
     }
-    if a.type == "event":
-        form["ev_event"] = a.event
-        form["ev_value"] = "" if a.value is None else str(a.value)
-    elif a.type == "simvar":
-        form["sv_simvar"], form["sv_unit"], form["sv_invert"] = a.simvar, a.unit, bool(a.invert)
-    elif a.type == "event_from_var":
-        form["efv_read"], form["efv_event"], form["efv_unit"] = a.read, a.event, a.unit
-    elif a.type == "rpn":
-        form["rpn_code"] = a.code
+    form.update(_action_fields(binding.action))
+    form.update(_transform_fields(binding.transform))
+    sp = binding.split
+    form["sp_enabled"] = sp is not None
+    form["sp_at"] = "" if sp is None else str(sp.at)
+    if sp is None:
+        form.update(_blank_action_fields("sp_"))
+        form["sp_action_type"] = "event"
+        form.update(_transform_fields(Transform(), "sp_tf_"))
+    else:
+        form.update(_action_fields(sp.action, "sp_"))
+        form.update(_transform_fields(sp.transform, "sp_tf_"))
     return form
 
 
@@ -489,16 +527,40 @@ def form_to_binding(form: dict, original_action: dict | None = None) -> dict:
         tf = _form_transform(form)
         if tf:
             binding["transform"] = tf
+        if form.get("sp_enabled"):
+            binding["split"] = _form_split(form)
     return binding
+
+
+def _form_split(form: dict) -> dict:
+    """Build the below-detent ``split`` block from the ``sp_``-prefixed fields.
+
+    The sub-form trick: stripping the ``sp_`` prefix turns the split fields back
+    into standard action/transform field names, so the same parsers apply.
+    """
+    sub = {k[3:]: v for k, v in form.items() if k.startswith("sp_")}
+    atype = sub.get("action_type")
+    if atype not in SPLIT_ACTION_TYPES:
+        raise ValueError(f"Split: Aktions-Typ '{atype}' geht unterhalb des Detents nicht.")
+    split: dict = {
+        "at": _parse_int(form.get("sp_at"), "Detent (roh)"),
+        "action": _form_action(atype, sub, None),
+    }
+    tf = _form_transform(sub)  # sp_tf_* stripped to tf_*
+    if tf:
+        split["transform"] = tf
+    return split
 
 
 def blank_binding_form(kind: str = "button") -> dict:
     """Flat form values for a brand-new binding (used by 'add')."""
-    return {
+    form = {
         "name": "Neues Binding", "kind": kind, "code": "0", "raw_min": "", "raw_max": "",
         "is_axis": kind == "axis", "action_type": "event",
-        "ev_event": "", "ev_value": "", "sv_simvar": "", "sv_unit": "number", "sv_invert": False,
-        "efv_read": "", "efv_event": "", "efv_unit": "number", "rpn_code": "",
-        "tf_deadzone": "0", "tf_curve": "linear", "tf_expo": "0", "tf_invert": False,
-        "tf_out_min": "0", "tf_out_max": "1",
+        "sp_enabled": False, "sp_at": "", "sp_action_type": "event",
     }
+    form.update(_blank_action_fields())
+    form.update(_blank_action_fields("sp_"))
+    form.update(_transform_fields(Transform()))
+    form.update(_transform_fields(Transform(), "sp_tf_"))
+    return form

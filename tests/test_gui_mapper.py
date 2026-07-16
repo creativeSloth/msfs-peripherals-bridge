@@ -342,3 +342,46 @@ def test_rows_to_seq_action_validates_inputs():
         rows_to_seq_action([{"target": "event", "name": "  ", "value": "1"}], [])
     with pytest.raises(ValueError, match="Zahl"):
         rows_to_seq_action([{"target": "event", "name": "X", "value": "abc"}], [])
+
+
+def test_form_round_trip_preserves_split():
+    b = _binding({
+        "name": "Throttle mit Reverse",
+        "source": {"kind": "axis", "code": 0, "raw_min": 0, "raw_max": 1000},
+        "action": {"type": "event", "event": "THROTTLE1_SET"},
+        "transform": {"out_min": 0, "out_max": 16383},
+        "split": {"at": 200,
+                  "action": {"type": "simvar",
+                             "simvar": "TURB ENG REVERSE NOZZLE PERCENT:1"},
+                  "transform": {"invert": True}},
+    })
+    form = binding_to_form(b)
+    assert form["sp_enabled"] is True
+    assert form["sp_at"] == "200"
+    assert form["sp_action_type"] == "simvar"
+    assert form["sp_sv_simvar"] == "TURB ENG REVERSE NOZZLE PERCENT:1"
+    assert form["sp_tf_invert"] is True
+    rebuilt = _binding(form_to_binding(form))
+    assert rebuilt == b
+
+
+def test_form_split_disabled_emits_no_split():
+    form = blank_binding_form("axis")
+    form["ev_event"] = "THROTTLE1_SET"
+    out = form_to_binding(form)
+    assert "split" not in out
+    # enabling it without a detent value must fail with a German message
+    form["sp_enabled"] = True
+    form["sp_ev_event"] = "X"
+    with pytest.raises(ValueError, match="Detent"):
+        form_to_binding(form)
+
+
+def test_describe_binding_mentions_the_split():
+    b = _binding({
+        "name": "Prop", "source": {"kind": "axis", "code": 3, "raw_min": 0, "raw_max": 100},
+        "action": {"type": "event", "event": "PROP_PITCH1_SET"},
+        "split": {"at": 20, "action": {"type": "event", "event": "PROP_FEATHER"}},
+    })
+    row = describe_binding(b)
+    assert "unter 20" in row.action and "PROP_FEATHER" in row.action

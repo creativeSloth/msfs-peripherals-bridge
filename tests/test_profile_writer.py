@@ -186,3 +186,33 @@ def test_set_meta_updates_description_and_match_in_place():
     # a partial update leaves the other field untouched
     pw.set_meta(data, description="Only desc")
     assert pw.validate(data).aircraft_match == ["C172", "Skyhawk"]
+
+
+def test_apply_binding_edit_can_add_a_detent_split(tmp_path):
+    # One binding gains a split: block edits validate + round-trip with the
+    # nested split map intact (and everything else untouched).
+    data = pw.load(PROFILES / "cessna_172.yaml")
+    prof = pw.validate(data)
+    dev, idx = next(
+        (d, i)
+        for d, bs in prof.bindings.items()
+        for i, b in enumerate(bs)
+        if b.source.kind == "axis"
+    )
+    edited = {
+        "name": "Split-Test",
+        "source": {"kind": "axis", "code": prof.bindings[dev][idx].source.code},
+        "action": {"type": "event", "event": "THROTTLE1_SET"},
+        "transform": {"out_min": 0, "out_max": 16383},
+        "split": {"at": 120,
+                  "action": {"type": "event", "event": "THROTTLE_REVERSE_THRUST_TOGGLE"},
+                  "transform": {"invert": True}},
+    }
+    pw.apply_binding_edit(data, dev, idx, edited)
+    pw.validate(data)
+    out = tmp_path / "split.yaml"
+    pw.dump(data, out)
+    b = load_profile(out).bindings[dev][idx]
+    assert b.split is not None and b.split.at == 120
+    assert b.split.action.event == "THROTTLE_REVERSE_THRUST_TOGGLE"
+    assert b.split.transform.invert is True

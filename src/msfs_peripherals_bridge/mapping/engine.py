@@ -8,6 +8,7 @@ from __future__ import annotations
 
 from ..devices.base import DeviceEvent
 from ..models import (
+    Action,
     Binding,
     EventAction,
     EventFromVarAction,
@@ -61,8 +62,17 @@ class MappingEngine:
                     f"Axis binding '{binding.name}' has no raw range; the profile "
                     f"was not resolved against calibration (call apply_calibration)."
                 )
+            # A detent split cuts the axis in two logical ranges, each normalised
+            # over its own raw span: at/above the detent the binding's own
+            # action/transform apply, below it the split's (reverse/feather/cutoff).
+            split = binding.split
+            if split is not None and event.value < split.at:
+                value = shape_axis(event.value, raw_min, split.at, split.transform)
+                return [self._command_for(split.action, value)]
+            if split is not None:
+                raw_min = split.at
             value = shape_axis(event.value, raw_min, raw_max, binding.transform)
-            return [self._command_for(binding, value)]
+            return [self._command_for(binding.action, value)]
 
         if isinstance(binding.action, SequenceAction):
             return self._resolve_sequence(binding.action, event)
@@ -80,14 +90,14 @@ class MappingEngine:
             )
             if momentary and event.value != 1:
                 return []
-            return [self._command_for(binding, float(event.value))]
+            return [self._command_for(binding.action, float(event.value))]
 
         # Buttons / hats: fire on the press edge only (value == 1), ignoring
         # release (0) and kernel key autorepeat (2) so holding a button toggles
         # a state (e.g. parking brake) exactly once.
         if event.value != 1:
             return []
-        return [self._command_for(binding, float(event.value))]
+        return [self._command_for(binding.action, float(event.value))]
 
     @staticmethod
     def _resolve_sequence(action: SequenceAction, event: DeviceEvent) -> list[Command]:
@@ -105,8 +115,7 @@ class MappingEngine:
         return [_step_command(step) for step in steps]
 
     @staticmethod
-    def _command_for(binding: Binding, value: float) -> Command:
-        action = binding.action
+    def _command_for(action: Action, value: float) -> Command:
         if isinstance(action, SimVarAction):
             data = 1.0 - value if action.invert else value
             return SetSimVar(name=action.simvar, unit=action.unit, value=data)

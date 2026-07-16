@@ -4,6 +4,7 @@ from pydantic import ValidationError
 from msfs_peripherals_bridge.devices.base import DeviceEvent
 from msfs_peripherals_bridge.mapping.engine import MappingEngine
 from msfs_peripherals_bridge.models import (
+    AxisSplit,
     Binding,
     EventAction,
     EventFromVarAction,
@@ -246,3 +247,65 @@ def test_event_from_var_button_emits_sendeventfromvar_on_press_only():
     # Release / autorepeat must not re-fire the sync.
     assert engine.resolve(DeviceEvent("yoke", SourceKind.BUTTON, 290, 0)) == []
     assert engine.resolve(DeviceEvent("yoke", SourceKind.BUTTON, 290, 2)) == []
+
+
+# --------------------------------------------------------------------------- #
+# detent split: one axis binding, two logical ranges
+# --------------------------------------------------------------------------- #
+def _split_profile() -> Profile:
+    # TQ6-like throttle: full travel 0..1000, detent at 200. Above the detent the
+    # normal THROTTLE1_SET range; below it a reverse-throttle SimVar 0..1.
+    return Profile(
+        name="t",
+        bindings={
+            "tq6": [
+                Binding(
+                    name="Throttle mit Reverse",
+                    source=Source(kind=SourceKind.AXIS, code=0, raw_min=0, raw_max=1000),
+                    action=EventAction(event="THROTTLE1_SET"),
+                    transform=Transform(out_min=0, out_max=16383),
+                    split=AxisSplit(
+                        at=200,
+                        action=SimVarAction(simvar="TURB ENG REVERSE NOZZLE PERCENT:1"),
+                        transform=Transform(invert=True),
+                    ),
+                )
+            ]
+        },
+    )
+
+
+def test_split_axis_upper_range_normalises_from_the_detent():
+    engine = MappingEngine(_split_profile())
+    # At the detent the upper range starts: out_min (0).
+    assert engine.resolve(DeviceEvent("tq6", SourceKind.AXIS, 0, 200)) == [
+        SendEvent(name="THROTTLE1_SET", data=0)
+    ]
+    # Full travel = out_max.
+    assert engine.resolve(DeviceEvent("tq6", SourceKind.AXIS, 0, 1000)) == [
+        SendEvent(name="THROTTLE1_SET", data=16383)
+    ]
+    # Halfway between detent and max -> mid output.
+    assert engine.resolve(DeviceEvent("tq6", SourceKind.AXIS, 0, 600)) == [
+        SendEvent(name="THROTTLE1_SET", data=8192)
+    ]
+
+
+def test_split_axis_lower_range_uses_its_own_action_and_transform():
+    engine = MappingEngine(_split_profile())
+    # Below the detent the split action fires; invert=True makes full-back = 1.
+    cmds = engine.resolve(DeviceEvent("tq6", SourceKind.AXIS, 0, 0))
+    assert cmds == [SetSimVar(name="TURB ENG REVERSE NOZZLE PERCENT:1", unit="number", value=1.0)]
+    # Just below the detent -> lower range's top -> inverted to ~0.
+    (cmd,) = engine.resolve(DeviceEvent("tq6", SourceKind.AXIS, 0, 199))
+    assert cmd.value == pytest.approx(0.0, abs=0.01)
+
+
+def test_split_requires_an_axis_source():
+    with pytest.raises(ValidationError):
+        Binding(
+            name="x",
+            source=Source(kind=SourceKind.BUTTON, code=1),
+            action=EventAction(event="X", value=1),
+            split=AxisSplit(at=1, action=EventAction(event="Y")),
+        )
