@@ -29,6 +29,17 @@ ruff clean, Konstruktions-Smoke ok. Visuell UNGEPRÜFT** (User konnte nicht test
   Kachel-Panel); Arcs/sweep im Dialog editierbar machen (aktuell nur Var/Faktor/min/max);
   Presets für weitere Vars. Design-Referenz: `docs/gauges-design.md`.
 
+**➕ NACHTRAG (gleiche Session, Commit `faa91d6`, 286 Tests): Output-Fenster in GRUPPEN statt
+Feld-Baum.** User-Feedback: der rohe Feld-Baum im Output-Editor „sagt nichts" — jetzt links eine
+schlanke Gruppen-Navigation (Allgemein · Selektor-Positionen (je Eintrag ein Knoten) · LEDs ·
+Dimmer · Radio-Einheiten/Bänke …), rechts ein Formular mit **deutschen Feldnamen + ⓘ-Erklärung
+je Feld** (neues `gui_mapper.OUTPUT_FIELD_HELP`, ~50 Felder erklärt, YAML-Name steht in der
+Hilfe). Übernehmen speichert alle geänderten Felder der Gruppe in EINEM validierten Schreibvorgang;
+Listen/optionale Blöcke: „+ Eintrag/Anlegen", „✕ Entfernen"; LED-Zeilen mit ✓/✕ inline. Die
+technischen Output-Detailzeilen im Mapper-Baum sind default **eingeklappt**. **Inputs (Binding-
+Editor) bewusst unverändert** — User: „bei den Inputs schon gut". Reine Helfer
+`output_groups`/`group_fields`/`output_field_help` getestet.
+
 ## 🆕 SESSION 2026-07-16 — Stufe C fertig · Achsen-Split · Editor-UX v2 · Live-Spalte · Gauges gesichert
 **Branch `feat/mapper-tab`, 7 neue Commits `f2c10ec`…`cdc7d2f` (NICHT gepusht). 273 Tests grün,
 ruff clean, Konstruktions-Smoke OK (Fenster withdrawn). ⚠️ ALLE neuen GUI-Teile visuell UNGEPRÜFT.**
