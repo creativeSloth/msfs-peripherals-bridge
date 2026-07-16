@@ -214,7 +214,8 @@ def test_output_block_templates_validate_and_remove_cleans_up():
 def test_group_role_classifies_input_vs_display():
     assert gm.group_role(("bool_leds",)) == "Anzeige (LED)"
     assert gm.group_role(("source_toggle",)) == "Eingabe"
-    assert gm.group_role(("dimmer", "targets", 0)) == "Licht"
+    assert gm.group_role(("dimmer",)) == "Eingabe (Drehrad)"  # the trim wheel IS an input
+    assert gm.group_role(("dimmer", "targets", 0)) == "Anzeige (Licht)"
     assert gm.group_role(("units", 0, "banks")) == "Eingabe→Anzeige"
     assert gm.group_role(()) == ""
 
