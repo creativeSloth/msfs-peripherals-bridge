@@ -1,14 +1,60 @@
 # STATUS — Resume-Anker
 
 > Kurzer Einstiegspunkt: was läuft, was offen ist, wie es weitergeht.
-> Stand: **2026-07-15** (großer Stufe-B-Live-Sichtungs-Marathon: Crash-Fix, Profil-CRUD→eigener
-> **Profile-Tab** (+Beschreibung), Axis-Editor mit Feld-ⓘ-Tooltips + Detent-Split + **raw-Learn**,
-> Panel-Output-**Viewer**, **Editor = On-Demand-Fenster** (✏/Doppelklick), **Sequence-Schritt-Editor**,
-> **Aktion folgt der gewählten Variable** (Typ-Dropdown nur noch für Fortgeschrittene), **modernes
-> Theme + Akzent/Danger-Knöpfe**. **251 Tests grün, ruff clean. Headless-Konstruktions-Smoke OK** (Fenster
-> withdrawn). **6 Commits auf `feat/mapper-tab`, NICHT gepusht.** GUI-Optik selbst erst beim nächsten
-> Öffnen final prüfbar. **Größter offener Punkt: Panel-/Display-Outputs nur sichtbar, NICHT editierbar (Stufe C).**)
-> Frühere Zeile: 2026-07-13 (Stufe A Viewer + Stufe B Inline-Editor + ruamel-Writer + V:-Deklaration).
+> Stand: **2026-07-16** (Mega-Session, s. Block unten: Stufe C FERTIG, Achsen-Split, Editor-UX v2,
+> Live-Spalte, Flug-Verifikation, Air-Manager-Gauges gesichert).
+> Frühere Zeile: 2026-07-15 (Stufe-B-Marathon), 2026-07-13 (Stufe A/B + Writer).
+
+## 🆕 SESSION 2026-07-16 — Stufe C fertig · Achsen-Split · Editor-UX v2 · Live-Spalte · Gauges gesichert
+**Branch `feat/mapper-tab`, 7 neue Commits `f2c10ec`…`cdc7d2f` (NICHT gepusht). 273 Tests grün,
+ruff clean, Konstruktions-Smoke OK (Fenster withdrawn). ⚠️ ALLE neuen GUI-Teile visuell UNGEPRÜFT.**
+
+1. **✈️ FLUG-VERIFIKATION (User will fliegen):** `piper_arrow.yaml` + Runtime-Pfad unverändert
+   gegenüber dem in-sim-verifizierten Stand — Diff vs `main` in Runtime-Dateien ist exakt die am
+   2026-07-11 verifizierte Arbeit (bridge-Streaming, ADF/KR-85, DME source_var, Achsen-Koaleszenz).
+   Die GUI-Arbeit berührt den Mapper-Laufzeitpfad nicht. Profil-Kopien des Users
+   (`piper_arrow_kopie/_sicherung`) behalten, aber `aircraft_match: []` → Auto-Auswahl lädt
+   IMMER das Original. `msfs-bridge piper_arrow` bleibt sowieso explizit.
+2. **Achsen-Split in EINEM Binding** (User-Wunsch statt Duplizieren-Workflow): `models.AxisSplit`
+   (`split: {at, action, transform}` am Binding, nur axis), Engine teilt am Detent (jeder Teil
+   normalisiert über die eigene Roh-Spanne), Editor zeigt bei „Achse am Detent teilen" einen klar
+   abgetrennten zweiten Aktions-Bereich (eigenes Wählen…/Felder/Verarbeitung/Ausgang), Learn-Fenster
+   hat „→ als Detent". Doku `profiles/_schema.md`.
+3. **Editor-UX v2 (Live-Feedback des Users):** (a) **Doppelklick** auf Tabellenzeile öffnet das
+   Editor-Fenster (Einfachklick markiert nur; ✏-Spalte + „Bearbeiten…"-Knopf entfernt);
+   (b) Aktions-Zeile **eingedampft auf EINEN „Wählen…"-Knopf** — kein Typ-Dropdown, kein „…"-Duplikat;
+   Typ folgt der Auswahl (grauer Hinweis), **Sequence = „Mehrschritt"-Haken**, RPN/event_from_var
+   erscheinen nur, wenn das Binding sie schon nutzt (deutsches ⓘ erklärt „was ist RPN");
+   (c) Quelle-Dropdown deutsch: Achse/Taster/Schalter(haltend)/Hat + ⓘ (muss zur Hardware passen);
+   (d) Achsen-Bereich **untereinander** (Eingang/Verarbeitung/Ausgang) mit konsistenten min/max-Labels;
+   (e) Leer-Wert-Hinweise: grauer Kalibrier-Hinweis (leer = raw aus Kalibrierung, konkrete Werte),
+   Event-Wert-ⓘ (leer = auto: Taster 1/Schalter-Zustand/Achsenwert); (f) **Picker-gefüllte Felder
+   readonly** (Event/SimVar/Read/Sequence-Namen), Sequence-Schritte ohne event/simvar-Dropdown.
+4. **Stufe C FERTIG — Panel-Outputs editierbar:** Doppelklick auf Output-Zeile → Editor-Fenster mit
+   modellgetriebenem Feld-Baum (`gui_mapper.output_nodes` läuft generisch über die Pydantic-Modelle:
+   gear_leds/multi_panel/radio_panel inkl. Selektoren, Bänke, bool_leds, Dimmer). Zeile anklicken →
+   passende Edit-Leiste (Entry/Checkbox/Choice/Var-Picker readonly, „+ Eintrag" mit Bank-Vorlagen
+   je Art, „✕ Entfernen", optionale Blöcke wie dimmer/source_toggle anleg-/entfernbar).
+   `profile_writer.set_output_value/add_output_entry/remove_output_entry` = Punkt-Mutationen am
+   Pfad (Kommentare bleiben), jeder Apply validiert VOR dem Schreiben. 13 Tests.
+5. **Live-Spalte im Mapper** (User-Wunsch): gedrückte Tasten ●, Achsen als füllender Balken
+   (`█░`-Zeichen + Rohwert), `evdev_reader.live_state_reader` (non-blocking drain, absinfo-Seed),
+   after-Loop öffnet das gewählte Gerät lazy, Retry ~2 s. Hidraw-Panels bleiben leer (kein evdev).
+   **Profil-Badge**: aktives Profil fett in der Statuszeile + im Fenstertitel.
+   **🐞 Learn-Bugfix:** raw-Learn übergab den VAR-Katalog an `evdev_reader.discover()` (per
+   suppress verschluckt → „nicht lesbar") — jetzt `_device_catalog()`.
+6. **Air-Manager-Gauges GESICHERT** (User-Wunsch, viel Eigenarbeit): `reference/air-manager/` —
+   7 „ES"-Instrumente (MAP+FuelConsumption, RPM, EGT, Airspeed, 3× Fuel), Template, Panel-BG,
+   eigenes Piper-Panel + Dev-Configs (79 MB, größte Datei 14 MB → GitHub-safe). README dort.
+   **Skalierungs-Analyse + Architektur: `docs/gauges-design.md`** (Zeiger-Formel, Presets, Plan).
+
+**🔴 NÄCHSTES:**
+1. **User sichtet die GUI live** (alles neu: Doppelklick-UX, Aktion-Eindampfung, Split-UI,
+   Output-Editor, Live-Spalte, Badge, Theme) → Feedback-Fixes.
+2. **Gauges-Tab** = EIGENES Feature (eigener Branch, `docs/gauges-design.md` liegt bereit):
+   Canvas-Rundinstrumente, Zeiger frei auf Sim-Vars mappbar, Presets aus den Luas.
+3. V:-Runtime-Verdrahtung (Design steht, s. 2026-07-13); HW-Capture „Lernen" für Source-Code
+   (Live-Reader-Infrastruktur existiert jetzt!); Kette (gui-var-monitor + mapper-tab) → main.
 
 ## 🆕 SESSION 2026-07-15 (fortges.) — UX-Umbau aus Live-Feedback + modernes Theme
 **Branch `feat/mapper-tab`, 251 Tests grün, ruff clean, Konstruktions-Smoke ok. Commits `9a46bfd`,
