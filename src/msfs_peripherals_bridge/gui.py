@@ -8,6 +8,9 @@ with tabs, and a small status bar with lamps pinned to the bottom edge.
   actual command they run.
 * **Statistik** tab — assemble a live value list: pick variables from a searchable,
   type-filterable catalog (popup) and read their current values (snapshot).
+* **Gauges** tab — click a panel together from round instruments (ported from the
+  user's Air Manager gauges): pick a template/library gauge, map its needles to
+  variables first, then it renders live on the panel canvas (gauge_model.py).
 * **Mapper** tab — device viewer + inline binding editor: every catalog device with
   its live-connected status and, per device, the bindings/outputs the selected profile
   assigns it. Select a binding to edit it in the panel below (name/source/action/
@@ -997,10 +1000,15 @@ def run() -> None:
         except tk.TclError:
             return False
 
+    # forward hook: the Gauges tab (built further down) contributes its needle
+    # variables to the shared subscription while it is visible.
+    gauge_hook: dict = {"wires": lambda: []}
+
     def _resubscribe():
         # Subscribe only to what's visible: the Statistik list while its tab is
-        # shown, plus the detached panel's tiles while it's open. Anything else
-        # would keep the bridge reading vars nobody is looking at.
+        # shown, the detached panel's tiles while it's open, plus the Gauges
+        # tab's needle vars while it is shown. Anything else would keep the
+        # bridge reading vars nobody is looking at.
         wires = []
         if _statistik_shown():
             wires += [
@@ -1010,6 +1018,7 @@ def run() -> None:
         pw = panel_ref["win"]
         if pw is not None and pw.alive():
             wires += pw.wires()
+        wires += gauge_hook["wires"]()
         monitor.set_names(list(dict.fromkeys(wires)))
 
     def _persist_selection():
@@ -2352,6 +2361,309 @@ def run() -> None:
 
     profile_var.trace_add("write", _profile_meta_load)
     _profile_meta_load()
+
+    # --- Gauges tab: click a panel together from mapped gauges ------------- #
+    # Round instruments ported from the user's Air Manager gauges (pure math in
+    # gauge_model.py, scale parameters from docs/gauges-design.md). Flow per
+    # user wish: "+ Gauge" -> pick a template or a LIBRARY gauge -> FIRST map
+    # the needles to variables -> Übernehmen puts it on the panel AND saves it
+    # by name into the library, so configured gauges can be called up again.
+    from . import gauge_model
+
+    gtab = ttk.Frame(nb, padding=8)
+    nb.insert(2, gtab, text="Gauges")
+    gtab.rowconfigure(1, weight=1)
+    gtab.columnconfigure(0, weight=1)
+
+    gbar = ttk.Frame(gtab)
+    gbar.grid(row=0, column=0, sticky="ew")
+    g_add = ttk.Menubutton(gbar, text="+ Gauge")
+    g_add.pack(side="left")
+    _attach_tooltip(g_add, "Instrument hinzufügen: erst aus Bibliothek (bereits gemappte "
+                           "Gauges) oder Vorlage wählen, dann die Zeiger auf Variablen "
+                           "mappen — danach liegt es auf dem Panel.")
+    ttk.Button(gbar, text="✎ Mappen", command=lambda: _g_edit_selected()
+               ).pack(side="left", padx=6)
+    ttk.Button(gbar, text="✕ Entfernen", style="Danger.TButton",
+               command=lambda: _g_remove()).pack(side="left")
+    g_hint = ttk.Label(gbar, text="Klick wählt · Doppelklick mappt", foreground="#666")
+    g_hint.pack(side="left", padx=10)
+
+    gcv = tk.Canvas(gtab, background="#232323", highlightthickness=0)
+    gcv.grid(row=1, column=0, sticky="nsew", pady=(6, 0))
+
+    # panel content + per-gauge canvas items: [(needle, line_id, text_id, cx, cy, r)]
+    g_state: dict = {"specs": [], "sel": None, "items": []}
+
+    def _g_load():
+        data = load_gui_settings()
+        with contextlib.suppress(Exception):  # a broken settings file must not kill the GUI
+            g_state["specs"] = [gauge_model.from_dict(d) for d in data.get("gauges_panel", [])]
+
+    def _g_persist():
+        data = load_gui_settings()
+        data["gauges_panel"] = [gauge_model.to_dict(g) for g in g_state["specs"]]
+        save_gui_settings(data)
+
+    def _g_library() -> dict:
+        lib = load_gui_settings().get("gauge_library", {})
+        return lib if isinstance(lib, dict) else {}
+
+    def _g_lib_save(spec):
+        data = load_gui_settings()
+        data.setdefault("gauge_library", {})[spec.name] = gauge_model.to_dict(spec)
+        save_gui_settings(data)
+
+    def _g_lib_delete(name):
+        data = load_gui_settings()
+        if name in data.get("gauge_library", {}):
+            del data["gauge_library"][name]
+            save_gui_settings(data)
+
+    def _g_wires():
+        wires = []
+        for g in g_state["specs"]:
+            for n in g.needles:
+                if (w := gauge_model.wire_name(n)) is not None:
+                    wires.append(w)
+        return wires
+
+    gauge_hook["wires"] = (
+        lambda: _g_wires() if str(nb.select()) == str(gtab) else []
+    )
+
+    def _g_layout() -> tuple[int, float]:
+        """(cols, cell size) maximising the gauge size for the canvas."""
+        count = max(1, len(g_state["specs"]))
+        w = max(gcv.winfo_width(), 120)
+        h = max(gcv.winfo_height(), 120)
+        best = (1, 0.0)
+        for cols in range(1, count + 1):
+            rows = -(-count // cols)
+            cell = min(w / cols, h / rows)
+            if cell > best[1]:
+                best = (cols, cell)
+        return best
+
+    def _g_draw_one(g, cx, cy, radius, selected):
+        gcv.create_oval(cx - radius, cy - radius, cx + radius, cy + radius,
+                        fill="#161616", outline="#64b5f6" if selected else "#4a4a4a",
+                        width=3 if selected else 2)
+        gcv.create_text(cx, cy - radius * 0.38, text=g.name, fill="#9e9e9e",
+                        font=("TkDefaultFont", max(7, int(radius * 0.09))))
+        needles = []
+        for idx, n in enumerate(g.needles):
+            r = radius * n.radius * 0.92
+            for arc in n.arcs:
+                a1, a2 = gauge_model.arc_angles(n, arc)
+                rr = r * 0.99
+                gcv.create_arc(cx - rr, cy - rr, cx + rr, cy + rr,
+                               start=90 - a2, extent=a2 - a1, style="arc",
+                               outline=arc.color, width=max(3, int(radius * 0.035)))
+            for value, ang, major in gauge_model.ticks(n):
+                ln = r * (0.16 if major else 0.08)
+                gcv.create_line(*gauge_model.polar(cx, cy, r - ln, ang),
+                                *gauge_model.polar(cx, cy, r, ang),
+                                fill="#e0e0e0", width=2 if major else 1)
+                if major:
+                    gcv.create_text(*gauge_model.polar(cx, cy, r - ln - radius * 0.09, ang),
+                                    text=f"{value:g}", fill="#e0e0e0",
+                                    font=("TkDefaultFont", max(6, int(radius * 0.075))))
+            line = gcv.create_line(cx, cy, *gauge_model.polar(cx, cy, r * 0.8, n.omega),
+                                   fill=n.color, width=max(2, int(radius * 0.03)),
+                                   capstyle="round")
+            text = gcv.create_text(cx, cy + radius * (0.3 + 0.16 * idx),
+                                   text=f"{n.label} —", fill=n.color,
+                                   font=("TkDefaultFont", max(7, int(radius * 0.085))))
+            needles.append((n, line, text, cx, cy, r))
+        hub = radius * 0.05
+        gcv.create_oval(cx - hub, cy - hub, cx + hub, cy + hub, fill="#9e9e9e", outline="")
+        return needles
+
+    def _g_redraw(_e=None):
+        gcv.delete("all")
+        g_state["items"] = []
+        specs = g_state["specs"]
+        if not specs:
+            gcv.create_text(16, 16, anchor="nw", fill="#9e9e9e", justify="left",
+                            text="Noch keine Gauges.\n„+ Gauge“ → Vorlage/Bibliothek wählen "
+                                 "→ Zeiger auf Variablen mappen → aufs Panel.")
+            return
+        cols, cell = _g_layout()
+        for i, g in enumerate(specs):
+            cx = (i % cols) * cell + cell / 2
+            cy = (i // cols) * cell + cell / 2
+            g_state["items"].append(
+                _g_draw_one(g, cx, cy, cell * 0.46, selected=(i == g_state["sel"]))
+            )
+
+    def _g_tick():
+        try:
+            if str(nb.select()) == str(gtab):
+                vals = monitor.values()
+                for needles in g_state["items"]:
+                    for n, line, text, cx, cy, r in needles:
+                        wire = gauge_model.wire_name(n)
+                        value = vals.get(wire) if wire else None
+                        if isinstance(value, (int, float)) and not isinstance(value, bool):
+                            ang = gauge_model.angle_for(n, float(value))
+                            gcv.coords(line, cx, cy, *gauge_model.polar(cx, cy, r * 0.8, ang))
+                            shown = gauge_model.display_value(n, float(value))
+                            gcv.itemconfigure(text, text=f"{n.label} {n.fmt.format(shown)}")
+                        else:
+                            gcv.itemconfigure(text, text=f"{n.label} —")
+        finally:
+            win.after(150, _g_tick)
+
+    def _g_index_at(x, y):
+        if not g_state["specs"]:
+            return None
+        cols, cell = _g_layout()
+        i = int(y // cell) * cols + int(x // cell)
+        return i if int(x // cell) < cols and 0 <= i < len(g_state["specs"]) else None
+
+    def _g_click(event):
+        g_state["sel"] = _g_index_at(event.x, event.y)
+        _g_redraw()
+
+    def _g_double(event):
+        i = _g_index_at(event.x, event.y)
+        if i is not None:
+            g_state["sel"] = i
+            _g_config(g_state["specs"][i], existing_index=i)
+
+    def _g_edit_selected():
+        i = g_state["sel"]
+        if i is None:
+            g_hint.config(text="Erst ein Gauge anklicken.")
+            return
+        _g_config(g_state["specs"][i], existing_index=i)
+
+    def _g_remove():
+        i = g_state["sel"]
+        if i is None:
+            g_hint.config(text="Erst ein Gauge anklicken.")
+            return
+        del g_state["specs"][i]
+        g_state["sel"] = None
+        _g_persist()
+        _resubscribe()
+        _g_redraw()
+        g_hint.config(text="Gauge vom Panel entfernt (Bibliothek unberührt).")
+
+    def _g_config(spec, existing_index=None):
+        """Map the needles of ``spec`` to variables, then add/update the panel.
+
+        Mapping comes FIRST (user flow): a new gauge lands on the panel only
+        after Übernehmen — which also saves the gauge by name into the library
+        so it can be called up again later.
+        """
+        dlg = tk.Toplevel(win)
+        dlg.title(f"Gauge mappen — {spec.name}")
+        dlg.transient(win)
+        frm = ttk.Frame(dlg, padding=12)
+        frm.pack(fill="both", expand=True)
+        name_var = tk.StringVar(value=spec.name)
+        ttk.Label(frm, text="Name").grid(row=0, column=0, sticky="w", pady=(0, 6))
+        ttk.Entry(frm, textvariable=name_var, width=26).grid(
+            row=0, column=1, sticky="w", padx=4, pady=(0, 6))
+        rows = []
+        for r, n in enumerate(spec.needles, start=1):
+            ttk.Label(frm, text=f"Zeiger „{n.label}“").grid(row=r, column=0, sticky="w", pady=2)
+            fr = ttk.Frame(frm)
+            fr.grid(row=r, column=1, sticky="w", pady=2)
+            v_kind = tk.StringVar(value=n.kind)
+            v_var = tk.StringVar(value=n.var)
+            v_factor = tk.StringVar(value=f"{n.factor:g}")
+            v_lo = tk.StringVar(value=f"{n.v_min:g}")
+            v_hi = tk.StringVar(value=f"{n.v_max:g}")
+            ttk.Entry(fr, textvariable=v_var, width=30,
+                      state="readonly").pack(side="left")
+
+            def _pick(vk=v_kind, vv=v_var):
+                def on_pick(v):
+                    vk.set(v.kind)
+                    vv.set(v.name)
+                _open_var_picker(win, catalog, on_pick)
+
+            ttk.Button(fr, text="Wählen…", style="Accent.TButton",
+                       command=_pick).pack(side="left", padx=4)
+            ttk.Label(fr, text="Faktor").pack(side="left", padx=(8, 0))
+            ttk.Entry(fr, textvariable=v_factor, width=7).pack(side="left", padx=(2, 2))
+            _info(fr, "Rohwert mal Faktor = angezeigter Wert (z. B. 0.001 für Hz → kHz). "
+                      "Leer/1 = unverändert.")
+            ttk.Label(fr, text="min").pack(side="left", padx=(6, 0))
+            ttk.Entry(fr, textvariable=v_lo, width=7).pack(side="left", padx=2)
+            ttk.Label(fr, text="max").pack(side="left")
+            ttk.Entry(fr, textvariable=v_hi, width=7).pack(side="left", padx=2)
+            rows.append((n, v_kind, v_var, v_factor, v_lo, v_hi))
+        g_status = ttk.Label(frm, text="", foreground="#c62828")
+        g_status.grid(row=len(spec.needles) + 1, column=0, columnspan=2, sticky="w")
+        btns = ttk.Frame(frm)
+        btns.grid(row=len(spec.needles) + 2, column=0, columnspan=2,
+                  sticky="ew", pady=(8, 0))
+
+        def _apply():
+            try:
+                for n, vk, vv, vf, vlo, vhi in rows:
+                    lo, hi = float(vlo.get() or 0), float(vhi.get() or 0)
+                    if lo >= hi:
+                        raise ValueError(f"Zeiger „{n.label}“: min muss < max sein.")
+                    n.kind, n.var = vk.get(), vv.get().strip()
+                    n.factor = float(vf.get() or 1) or 1.0
+                    n.v_min, n.v_max = lo, hi
+            except ValueError as exc:
+                g_status.config(text=str(exc))
+                return
+            spec.name = name_var.get().strip() or spec.name
+            if existing_index is None:
+                g_state["specs"].append(spec)
+                g_state["sel"] = len(g_state["specs"]) - 1
+            _g_lib_save(spec)  # callable again later by name
+            _g_persist()
+            _resubscribe()
+            _g_redraw()
+            dlg.destroy()
+
+        ttk.Button(btns, text="Übernehmen", style="Accent.TButton",
+                   command=_apply).pack(side="left")
+        ttk.Button(btns, text="Abbrechen", command=dlg.destroy).pack(side="left", padx=6)
+        if spec.name in _g_library():
+            def _unlib():
+                _g_lib_delete(name_var.get().strip() or spec.name)
+                g_status.config(text="Aus der Bibliothek gelöscht (Panel unberührt).")
+            ttk.Button(btns, text="Aus Bibliothek löschen", style="Danger.TButton",
+                       command=_unlib).pack(side="left", padx=6)
+        dlg.lift()
+        dlg.focus_set()
+
+    g_menu = tk.Menu(g_add, tearoff=0)
+
+    def _g_menu_fill():
+        g_menu.delete(0, "end")
+        lib = _g_library()
+        if lib:
+            for name in sorted(lib):
+                g_menu.add_command(
+                    label=f"📚 {name}",
+                    command=lambda nm=name: _g_config(gauge_model.from_dict(_g_library()[nm])),
+                )
+            g_menu.add_separator()
+        for name in gauge_model.presets():
+            g_menu.add_command(
+                label=name,
+                command=lambda nm=name: _g_config(gauge_model.presets()[nm]),
+            )
+
+    g_menu.configure(postcommand=_g_menu_fill)
+    g_add.configure(menu=g_menu)
+
+    gcv.bind("<Button-1>", _g_click)
+    gcv.bind("<Double-Button-1>", _g_double)
+    gcv.bind("<Configure>", _g_redraw)
+    _g_load()
+    _g_redraw()
+    _g_tick()
 
     # --- bottom status bar (small lamps) ----------------------------------- #
     ttk.Separator(win, orient="horizontal").grid(row=2, column=0, sticky="ew", pady=(8, 0))
