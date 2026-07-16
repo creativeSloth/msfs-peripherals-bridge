@@ -1040,7 +1040,7 @@ def live_row_map(profile: Profile, device_id: str) -> dict[tuple[str, int], list
 # Whole-block templates so a panel controller can be CREATED per device (user
 # wish), then filled in through the group windows. Each validates as-is.
 OUTPUT_BLOCK_TEMPLATES: dict[str, dict] = {
-    "Schalter-Panel: Fahrwerks-LEDs": {"type": "gear_leds"},
+    "Switch Panel: Fahrwerks-LEDs": {"type": "gear_leds"},
     "Multi Panel (Selektor + Display)": {
         "type": "multi_panel",
         "selector": [{"code": 0, "label": "ALT",

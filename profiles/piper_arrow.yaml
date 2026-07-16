@@ -254,8 +254,8 @@ bindings:
       source: { kind: switch, code: 15 }
       action:
         type: sequence
-        on_edge:  [ { simvar: "L:AUTOPILOT_HDG", value: 1 } ]
-        off_edge: [ { simvar: "L:AUTOPILOT_HDG", value: 0 } ]
+        on_edge: [{ simvar: "L:AUTOPILOT_HDG", value: 1 }]
+        off_edge: [{ simvar: "L:AUTOPILOT_HDG", value: 0 }]
     # Flaps rocker: momentary up/down, one notch per press (as SPAD: DECR/INCR).
     - name: "Flaps up"
       source: { kind: switch, code: 16 }
@@ -357,24 +357,16 @@ outputs:
         # gauge parks AUTOPILOT ALTITUDE LOCK VAR at 80000 when the ALT hold is off
         # (VS active) — off_above maps that (and any missing value) to 0, so the
         # readout reads 0 when off instead of "80000".
-        - { code: 0, label: ALT, simvar: "AUTOPILOT ALTITUDE LOCK VAR",
-            set_event: AP_ALT_VAR_SET_ENGLISH, step: 100, fast_step: 300, min: 0, max: 99999,
-            off_above: 60000 }
+        - { code: 0, label: ALT, simvar: "AUTOPILOT ALTITUDE LOCK VAR", set_event: AP_ALT_VAR_SET_ENGLISH, step: 100, fast_step: 300, min: 0, max: 99999, off_above: 60000 }
         # VS lives on the *bottom* display row so ALT (top) and VS stay visible
         # together; switching ALT<->VS only re-points the encoder.
-        - { code: 1, label: VS, simvar: "AUTOPILOT VERTICAL HOLD VAR",
-            set_event: AP_VS_VAR_SET_ENGLISH, step: 100, fast_step: 300, min: -9999, max: 9999,
-            display_row: bottom, off_above: 30000 }
-        - { code: 2, label: IAS, simvar: "AUTOPILOT AIRSPEED HOLD VAR",
-            set_event: AP_SPD_VAR_SET, step: 1, fast_step: 3, min: 0, max: 360 }
-        - { code: 3, label: HDG, simvar: "AUTOPILOT HEADING LOCK DIR",
-            set_event: HEADING_BUG_SET, step: 1, fast_step: 3, min: 0, max: 359, rollover: true }
+        - { code: 1, label: VS, simvar: "AUTOPILOT VERTICAL HOLD VAR", set_event: AP_VS_VAR_SET_ENGLISH, step: 100, fast_step: 300, min: -9999, max: 9999, display_row: bottom, off_above: 30000 }
+        - { code: 2, label: IAS, simvar: "AUTOPILOT AIRSPEED HOLD VAR", set_event: AP_SPD_VAR_SET, step: 1, fast_step: 3, min: 0, max: 360 }
+        - { code: 3, label: HDG, simvar: "AUTOPILOT HEADING LOCK DIR", set_event: HEADING_BUG_SET, step: 1, fast_step: 3, min: 0, max: 359, rollover: true }
         # CRS edits the OBS course. The yoke's left rocker-down (code 291) flips
         # the source between NAV1 (source #1) and NAV2 (alt); while CRS is selected
         # the active index (1 or 2) shows on the free bottom row.
-        - { code: 4, label: CRS, simvar: "NAV OBS:1",
-            set_event: VOR1_SET, step: 1, fast_step: 3, min: 0, max: 359, rollover: true,
-            alt_sources: [ { simvar: "NAV OBS:2", set_event: VOR2_SET } ] }
+        - { code: 4, label: CRS, simvar: "NAV OBS:1", set_event: VOR1_SET, step: 1, fast_step: 3, min: 0, max: 359, rollover: true, alt_sources: [{ simvar: "NAV OBS:2", set_event: VOR2_SET }] }
       ap_master: "AUTOPILOT MASTER"
       mode_var: "L:AUTOPILOT_MODE"
       # ALT/VS are *hold* modes that coexist with the active lateral mode, so they
@@ -384,7 +376,7 @@ outputs:
       # button or cockpit clickspot), so it lights even if the write below is wrong.
       bool_leds:
         alt: "L:JF_PA28_AP_alt"
-        vs:  "L:JF_PA28_AP_vs"
+        vs: "L:JF_PA28_AP_vs"
       source_toggle: { device: yoke, code: 291 }
       # Trim wheel = instrument-light dimmer for the radio + panel lights (no
       # switch on the real Piper). The dimmer tracks a shared PERCENT (0..100,
@@ -450,22 +442,10 @@ outputs:
           inner_ccw: 17
           swap: 14
           banks:
-            - { code: 0, label: COM1, active: "COM ACTIVE FREQUENCY:1", standby: "COM STANDBY FREQUENCY:1",
-                swap_event: COM1_RADIO_SWAP, fine_view: true,
-                whole_inc: COM_RADIO_WHOLE_INC, whole_dec: COM_RADIO_WHOLE_DEC,
-                fract_inc: COM_RADIO_FRACT_INC, fract_dec: COM_RADIO_FRACT_DEC }
-            - { code: 1, label: COM2, active: "COM ACTIVE FREQUENCY:2", standby: "COM STANDBY FREQUENCY:2",
-                swap_event: COM2_RADIO_SWAP, fine_view: true,
-                whole_inc: COM2_RADIO_WHOLE_INC, whole_dec: COM2_RADIO_WHOLE_DEC,
-                fract_inc: COM2_RADIO_FRACT_INC, fract_dec: COM2_RADIO_FRACT_DEC }
-            - { code: 2, label: NAV1, active: "NAV ACTIVE FREQUENCY:1", standby: "NAV STANDBY FREQUENCY:1",
-                swap_event: NAV1_RADIO_SWAP,
-                whole_inc: NAV1_RADIO_WHOLE_INC, whole_dec: NAV1_RADIO_WHOLE_DEC,
-                fract_inc: NAV1_RADIO_FRACT_INC, fract_dec: NAV1_RADIO_FRACT_DEC }
-            - { code: 3, label: NAV2, active: "NAV ACTIVE FREQUENCY:2", standby: "NAV STANDBY FREQUENCY:2",
-                swap_event: NAV2_RADIO_SWAP,
-                whole_inc: NAV2_RADIO_WHOLE_INC, whole_dec: NAV2_RADIO_WHOLE_DEC,
-                fract_inc: NAV2_RADIO_FRACT_INC, fract_dec: NAV2_RADIO_FRACT_DEC }
+            - { code: 0, label: COM1, active: "COM ACTIVE FREQUENCY:1", standby: "COM STANDBY FREQUENCY:1", swap_event: COM1_RADIO_SWAP, fine_view: true, whole_inc: COM_RADIO_WHOLE_INC, whole_dec: COM_RADIO_WHOLE_DEC, fract_inc: COM_RADIO_FRACT_INC, fract_dec: COM_RADIO_FRACT_DEC }
+            - { code: 1, label: COM2, active: "COM ACTIVE FREQUENCY:2", standby: "COM STANDBY FREQUENCY:2", swap_event: COM2_RADIO_SWAP, fine_view: true, whole_inc: COM2_RADIO_WHOLE_INC, whole_dec: COM2_RADIO_WHOLE_DEC, fract_inc: COM2_RADIO_FRACT_INC, fract_dec: COM2_RADIO_FRACT_DEC }
+            - { code: 2, label: NAV1, active: "NAV ACTIVE FREQUENCY:1", standby: "NAV STANDBY FREQUENCY:1", swap_event: NAV1_RADIO_SWAP, whole_inc: NAV1_RADIO_WHOLE_INC, whole_dec: NAV1_RADIO_WHOLE_DEC, fract_inc: NAV1_RADIO_FRACT_INC, fract_dec: NAV1_RADIO_FRACT_DEC }
+            - { code: 3, label: NAV2, active: "NAV ACTIVE FREQUENCY:2", standby: "NAV STANDBY FREQUENCY:2", swap_event: NAV2_RADIO_SWAP, whole_inc: NAV2_RADIO_WHOLE_INC, whole_dec: NAV2_RADIO_WHOLE_DEC, fract_inc: NAV2_RADIO_FRACT_INC, fract_dec: NAV2_RADIO_FRACT_DEC }
             # ADF (code 4): KR-85 4-digit kHz freq, edited a digit-pair at a time.
             # Push toggles the cursor between the high pair (1000s,100s) and low pair
             # (10s,1s); outer knob = the pair's left digit, inner = its right (0-9,
@@ -497,22 +477,10 @@ outputs:
           inner_ccw: 21
           swap: 15
           banks:
-            - { code: 7, label: COM1, active: "COM ACTIVE FREQUENCY:1", standby: "COM STANDBY FREQUENCY:1",
-                swap_event: COM1_RADIO_SWAP, fine_view: true,
-                whole_inc: COM_RADIO_WHOLE_INC, whole_dec: COM_RADIO_WHOLE_DEC,
-                fract_inc: COM_RADIO_FRACT_INC, fract_dec: COM_RADIO_FRACT_DEC }
-            - { code: 8, label: COM2, active: "COM ACTIVE FREQUENCY:2", standby: "COM STANDBY FREQUENCY:2",
-                swap_event: COM2_RADIO_SWAP, fine_view: true,
-                whole_inc: COM2_RADIO_WHOLE_INC, whole_dec: COM2_RADIO_WHOLE_DEC,
-                fract_inc: COM2_RADIO_FRACT_INC, fract_dec: COM2_RADIO_FRACT_DEC }
-            - { code: 9, label: NAV1, active: "NAV ACTIVE FREQUENCY:1", standby: "NAV STANDBY FREQUENCY:1",
-                swap_event: NAV1_RADIO_SWAP,
-                whole_inc: NAV1_RADIO_WHOLE_INC, whole_dec: NAV1_RADIO_WHOLE_DEC,
-                fract_inc: NAV1_RADIO_FRACT_INC, fract_dec: NAV1_RADIO_FRACT_DEC }
-            - { code: 10, label: NAV2, active: "NAV ACTIVE FREQUENCY:2", standby: "NAV STANDBY FREQUENCY:2",
-                swap_event: NAV2_RADIO_SWAP,
-                whole_inc: NAV2_RADIO_WHOLE_INC, whole_dec: NAV2_RADIO_WHOLE_DEC,
-                fract_inc: NAV2_RADIO_FRACT_INC, fract_dec: NAV2_RADIO_FRACT_DEC }
+            - { code: 7, label: COM1, active: "COM ACTIVE FREQUENCY:1", standby: "COM STANDBY FREQUENCY:1", swap_event: COM1_RADIO_SWAP, fine_view: true, whole_inc: COM_RADIO_WHOLE_INC, whole_dec: COM_RADIO_WHOLE_DEC, fract_inc: COM_RADIO_FRACT_INC, fract_dec: COM_RADIO_FRACT_DEC }
+            - { code: 8, label: COM2, active: "COM ACTIVE FREQUENCY:2", standby: "COM STANDBY FREQUENCY:2", swap_event: COM2_RADIO_SWAP, fine_view: true, whole_inc: COM2_RADIO_WHOLE_INC, whole_dec: COM2_RADIO_WHOLE_DEC, fract_inc: COM2_RADIO_FRACT_INC, fract_dec: COM2_RADIO_FRACT_DEC }
+            - { code: 9, label: NAV1, active: "NAV ACTIVE FREQUENCY:1", standby: "NAV STANDBY FREQUENCY:1", swap_event: NAV1_RADIO_SWAP, whole_inc: NAV1_RADIO_WHOLE_INC, whole_dec: NAV1_RADIO_WHOLE_DEC, fract_inc: NAV1_RADIO_FRACT_INC, fract_dec: NAV1_RADIO_FRACT_DEC }
+            - { code: 10, label: NAV2, active: "NAV ACTIVE FREQUENCY:2", standby: "NAV STANDBY FREQUENCY:2", swap_event: NAV2_RADIO_SWAP, whole_inc: NAV2_RADIO_WHOLE_INC, whole_dec: NAV2_RADIO_WHOLE_DEC, fract_inc: NAV2_RADIO_FRACT_INC, fract_dec: NAV2_RADIO_FRACT_DEC }
             # DME (code 12), lower unit — bidirectional NAV source via source_var.
             - kind: dme
               code: 12

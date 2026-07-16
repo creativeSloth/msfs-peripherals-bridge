@@ -1207,20 +1207,35 @@ def run() -> None:
                           command=lambda: _mapper_reload(rediscover=True))
     b_rescan.pack(side="left")
     _attach_tooltip(b_rescan, "evdev + hidraw discovery — welche Geräte hängen jetzt dran")
-    # Create a whole panel controller for the selected device (deliberately
-    # simple: pick one of three block templates, fill it via the group windows).
-    b_addpanel = ttk.Menubutton(devbtn, text="+ Panel")
-    b_addpanel.pack(side="left", padx=6)
+
+    bindbtn = ttk.Frame(mtab)
+    bindbtn.grid(row=2, column=1, columnspan=2, sticky="ew", pady=(6, 0))
+    # Packed right-to-left so they sit right-aligned under the table they act
+    # on (per user: '+ Panel' creates content in THIS list, so it lives here):
+    # + Panel  + Binding  Duplizieren  Entfernen
+    ttk.Button(bindbtn, text="Entfernen", style="Danger.TButton",
+               command=lambda: _remove_selected_row()).pack(side="right")
+    ttk.Button(bindbtn, text="Duplizieren",
+               command=lambda: _ed_duplicate()).pack(side="right", padx=6)
+    ttk.Button(bindbtn, text="+ Binding", command=lambda: _new_binding()).pack(side="right")
+    b_addpanel = ttk.Menubutton(bindbtn, text="+ Panel")
+    b_addpanel.pack(side="right", padx=6)
     _attach_tooltip(b_addpanel,
-                    "Neuen Panel-Controller für das links gewählte Gerät anlegen "
-                    "(Start-Vorlage; Details danach über die Baum-Zeilen einstellen). "
-                    "Nur nötig, wenn ein Profil das Panel noch gar nicht kennt.")
+                    "Neuen Panel-Controller anlegen — nur für Saitek-Panels (hidraw) "
+                    "und nur nötig, wenn das Profil das Panel noch gar nicht kennt. "
+                    "Details danach über die Baum-Zeilen einstellen.")
     addpanel_menu = tk.Menu(b_addpanel, tearoff=0)
 
     def _add_panel(template_name):
         dev = _sel(dev_tree)
         if dev is None:
             m_state.config(text="Kein Gerät gewählt — links ein Gerät markieren.")
+            return
+        cat_ = _device_catalog()
+        ddef = cat_.by_id(dev) if cat_ else None
+        if ddef is None or ddef.transport != "hidraw":
+            m_state.config(text=f"„{dev}“ ist kein Panel — Panel-Controller gibt es "
+                                "nur für die Saitek-Panels (hidraw).")
             return
         tpl = gui_mapper.OUTPUT_BLOCK_TEMPLATES[template_name]
         _edit_profile(lambda d: profile_writer.add_output(d, dev, dict(tpl)),
@@ -1230,18 +1245,8 @@ def run() -> None:
         addpanel_menu.add_command(label=_tname,
                                   command=lambda t=_tname: _add_panel(t))
     b_addpanel.configure(menu=addpanel_menu)
-
-    bindbtn = ttk.Frame(mtab)
-    bindbtn.grid(row=2, column=1, columnspan=2, sticky="ew", pady=(6, 0))
-    # Packed right-to-left so they sit right-aligned in the usual reading order:
-    # Binding:  + Neu  Duplizieren  Entfernen  (editing opens by clicking a row)
-    ttk.Button(bindbtn, text="Entfernen", style="Danger.TButton",
-               command=lambda: _ed_remove()).pack(side="right")
-    ttk.Button(bindbtn, text="Duplizieren",
-               command=lambda: _ed_duplicate()).pack(side="right", padx=6)
-    ttk.Button(bindbtn, text="+ Neu", command=lambda: _new_binding()).pack(side="right")
-    ttk.Label(bindbtn, text="Binding:").pack(side="right", padx=(0, 4))
-    ttk.Label(bindbtn, text="Doppelklick auf eine Zeile öffnet den Editor",
+    ttk.Label(bindbtn, text="Doppelklick auf eine Zeile öffnet den Editor · "
+                            "Entfernen wirkt auf die markierte Zeile",
               foreground="#666").pack(side="left")
 
     # --- editor: a separate, on-demand window (opened per element) -------- #
@@ -2396,6 +2401,40 @@ def run() -> None:
         ow.minsize(540, 320)
         ow.lift()
         ow.focus_set()
+
+    def _remove_selected_row():
+        """Remove whatever row is selected: binding, panel block or entry.
+
+        The right-hand Entfernen button acts on the marked table row (per user:
+        deleting must not require opening a window first).
+        """
+        sel, dev = _sel(detail), _sel(dev_tree)
+        sid = str(sel) if sel else ""
+        if sid.startswith("bind:"):
+            _ed_remove()
+            return
+        if not sid.startswith("out:") or dev is None:
+            m_state.config(text="Erst rechts eine Zeile markieren.")
+            return
+        parts = sid.split(":", 2)
+        idx = int(parts[1])
+        gpath = tuple(int(s) if s.isdigit() else s
+                      for s in parts[2].split("/")) if len(parts) > 2 else ()
+        if not gpath:  # the panel block row itself
+            if messagebox.askyesno("Panel-Block entfernen",
+                                   "Diesen ganzen Panel-Block aus dem Profil entfernen?"):
+                _edit_profile(lambda d: profile_writer.remove_output(d, dev, idx),
+                              "Panel-Block entfernt ✓")
+        elif isinstance(gpath[-1], int):  # a list entry (Position/Bank/Ziel/…)
+            _edit_profile(lambda d: profile_writer.remove_output_entry(
+                d, dev, idx, gpath[:-1], gpath[-1]), "Eintrag entfernt ✓")
+        elif len(gpath) == 1 and gpath[0] in gui_mapper.OPTIONAL_TEMPLATES:
+            if messagebox.askyesno("Block entfernen", f"„{gpath[0]}“ entfernen?"):
+                _edit_profile(lambda d: profile_writer.set_output_value(
+                    d, dev, idx, gpath, profile_writer.UNSET), "Block entfernt ✓")
+        else:
+            m_state.config(text="Diese Zeile lässt sich nicht entfernen — Einträge oder "
+                                "ganze Panel-Blöcke markieren.")
 
     def _open_row(row):
         """Open the editor for a detail row: bind:<i> or out:<i>[:<group-path>]."""
