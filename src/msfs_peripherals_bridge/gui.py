@@ -35,7 +35,7 @@ import threading
 import time
 from pathlib import Path
 
-from .config import gui_settings_file, profiles_dir, project_root
+from .config import calibration_file, gui_settings_file, profiles_dir, project_root
 
 BRIDGE_PORT = 7842
 _POLL_MS = 1000  # status refresh cadence
@@ -1148,10 +1148,10 @@ def run() -> None:
         dev_tree.column(col, width=w, anchor="center")
     dev_tree.grid(row=1, column=0, sticky="nsew", pady=6, padx=(0, 8))
 
-    # right: bindings + outputs of the selected device. The trailing "edit"
-    # column shows a ⚙ per binding row — clicking it (or double-clicking the row)
-    # opens the settings window for that element.
-    detail = ttk.Treeview(mtab, columns=("source", "action", "shape", "edit"),
+    # right: bindings + outputs of the selected device. A single click on a
+    # binding/output row opens its settings window (per user: no extra edit
+    # button needed when the row itself opens the editor).
+    detail = ttk.Treeview(mtab, columns=("source", "action", "shape"),
                           show="tree headings", height=7)
     detail.heading("#0", text="Name")
     detail.column("#0", width=150, anchor="w")
@@ -1159,8 +1159,6 @@ def run() -> None:
                          ("shape", "Shaping", 100)):
         detail.heading(col, text=head)
         detail.column(col, width=w, anchor="w")
-    detail.heading("edit", text="")
-    detail.column("edit", width=104, anchor="center", stretch=False)
     detail.grid(row=1, column=1, sticky="nsew", pady=6)
     dsb = ttk.Scrollbar(mtab, orient="vertical", command=detail.yview)
     dsb.grid(row=1, column=2, sticky="ns", pady=6)
@@ -1200,16 +1198,14 @@ def run() -> None:
     bindbtn = ttk.Frame(mtab)
     bindbtn.grid(row=2, column=1, columnspan=2, sticky="ew", pady=(6, 0))
     # Packed right-to-left so they sit right-aligned in the usual reading order:
-    # Binding:  Bearbeiten…  + Neu  Duplizieren  Entfernen
+    # Binding:  + Neu  Duplizieren  Entfernen  (editing opens by clicking a row)
     ttk.Button(bindbtn, text="Entfernen", style="Danger.TButton",
                command=lambda: _ed_remove()).pack(side="right")
     ttk.Button(bindbtn, text="Duplizieren",
                command=lambda: _ed_duplicate()).pack(side="right", padx=6)
     ttk.Button(bindbtn, text="+ Neu", command=lambda: _new_binding()).pack(side="right")
-    ttk.Button(bindbtn, text="Bearbeiten…", style="Accent.TButton",
-               command=lambda: _edit_selected()).pack(side="right", padx=(0, 6))
     ttk.Label(bindbtn, text="Binding:").pack(side="right", padx=(0, 4))
-    ttk.Label(bindbtn, text="✏ / Doppelklick auf eine Zeile öffnet das Fenster",
+    ttk.Label(bindbtn, text="Klick auf eine Zeile öffnet den Editor",
               foreground="#666").pack(side="left")
 
     # --- editor: a separate, on-demand window (opened per element) -------- #
@@ -1235,6 +1231,17 @@ def run() -> None:
         "rpn_code": tk.StringVar(),
         "tf_deadzone": tk.StringVar(), "tf_curve": tk.StringVar(), "tf_expo": tk.StringVar(),
         "tf_invert": tk.BooleanVar(), "tf_out_min": tk.StringVar(), "tf_out_max": tk.StringVar(),
+        # detent split: the second (below-detent) mapping slot of an axis binding
+        "sp_enabled": tk.BooleanVar(), "sp_at": tk.StringVar(),
+        "sp_action_type": tk.StringVar(value="event"),
+        "sp_ev_event": tk.StringVar(), "sp_ev_value": tk.StringVar(),
+        "sp_sv_simvar": tk.StringVar(), "sp_sv_unit": tk.StringVar(),
+        "sp_sv_invert": tk.BooleanVar(),
+        "sp_efv_read": tk.StringVar(), "sp_efv_event": tk.StringVar(),
+        "sp_efv_unit": tk.StringVar(), "sp_rpn_code": tk.StringVar(),
+        "sp_tf_deadzone": tk.StringVar(), "sp_tf_curve": tk.StringVar(),
+        "sp_tf_expo": tk.StringVar(), "sp_tf_invert": tk.BooleanVar(),
+        "sp_tf_out_min": tk.StringVar(), "sp_tf_out_max": tk.StringVar(),
     }
 
     def _var_catalog():
@@ -1247,6 +1254,14 @@ def run() -> None:
 
     def _pick_into(var):
         _open_var_picker(win, _var_catalog(), lambda v: var.set(_var_name(v)))
+
+    def _pick_seq_step(st):
+        """Pick a sequence step's target — its event/simvar kind follows the var."""
+        def on_pick(v):
+            st["target"].set("event" if v.kind == "K:" else "simvar")
+            st["name"].set(_var_name(v))
+            _seq_render()  # refresh the row's grey kind label
+        _open_var_picker(win, _var_catalog(), on_pick)
 
     def _pick_action():
         """Pick a variable and let it drive the action type (K:=event, else simvar).
@@ -1273,11 +1288,33 @@ def run() -> None:
     ttk.Label(ed, text="Name").grid(row=0, column=0, sticky="w", padx=(0, 6), pady=2)
     ttk.Entry(ed, textvariable=ev["name"]).grid(row=0, column=1, columnspan=2, sticky="ew", pady=2)
 
-    # row 1: source (kind + code + learn)
+    # row 1: source (kind + code + learn). The kind is NOT a free choice — it must
+    # match the physical control (else the binding never fires), so the dropdown
+    # speaks German and an ⓘ explains the one distinction that matters
+    # (Taster fires on press; a maintained Schalter reports on AND off).
+    _KIND_CHOICES = (
+        ("axis", "Achse (Hebel/Drehregler)"),
+        ("button", "Taster (feuert beim Drücken)"),
+        ("switch", "Schalter (haltend, meldet Ein+Aus)"),
+        ("hat", "Hat (Rundblick-Kreuz)"),
+    )
+    _kind_label = dict(_KIND_CHOICES)
+    _kind_of_label = {label: k for k, label in _KIND_CHOICES}
+    kind_disp = tk.StringVar()
+    ev["kind"].trace_add(
+        "write", lambda *_: kind_disp.set(_kind_label.get(ev["kind"].get(), ev["kind"].get()))
+    )
     ttk.Label(ed, text="Quelle").grid(row=1, column=0, sticky="w", padx=(0, 6), pady=2)
-    kind_cb = ttk.Combobox(ed, textvariable=ev["kind"], values=list(gui_mapper.SOURCE_KINDS),
-                           state="readonly", width=8)
-    kind_cb.grid(row=1, column=1, sticky="w", pady=2)
+    k1 = ttk.Frame(ed)
+    k1.grid(row=1, column=1, sticky="w", pady=2)
+    kind_cb = ttk.Combobox(k1, textvariable=kind_disp,
+                           values=[label for _, label in _KIND_CHOICES],
+                           state="readonly", width=28)
+    kind_cb.pack(side="left", padx=(0, 4))
+    _info(k1, "Muss zum physischen Bedienelement passen, sonst reagiert das Binding nicht: "
+              "Achse = Hebel/Drehachse · Taster = Druckknopf (löst beim Drücken aus) · "
+              "Schalter = haltender Kippschalter (meldet Einschalten UND Ausschalten — "
+              "alle Saitek-Panel-Schalter) · Hat = Rundblick-Kreuz am Yoke.")
     srcfr = ttk.Frame(ed)
     srcfr.grid(row=1, column=2, sticky="w")
     ttk.Label(srcfr, text="Code").pack(side="left", padx=(0, 4))
@@ -1286,103 +1323,189 @@ def run() -> None:
     b_learn.pack(side="left", padx=6)
     _attach_tooltip(b_learn, "Hardware-Capture (Knopf drücken → Code) — folgt")
 
-    # row 2: action. Main path = "Wählen…": pick a variable and the type follows
-    # its kind (K:=event, A:/L:/V:=simvar). The type dropdown is only for advanced
-    # cases (rpn / sequence / event_from_var), so the user need not understand it.
+    # row 2: action — ONE button. Pick from the list and everything follows the
+    # picked kind: a K: entry fires that event, an A:/L:/V: entry sets that
+    # variable; the user never chooses event-vs-simvar by hand (a grey note names
+    # what will happen). "Mehrschritt" turns the action into a sequence (steps
+    # edited below). RPN / event_from_var have NO create path here — they only
+    # show up (read-only-ish, with an ⓘ) when the opened binding already uses them.
+    _TYPE_NOTE = {
+        "event": "→ Event feuern", "simvar": "→ Variable setzen",
+        "event_from_var": "→ Spezial: Event aus Variable", "rpn": "→ Spezial: RPN",
+        "sequence": "→ Schritte s. unten",
+    }
     ttk.Label(ed, text="Aktion").grid(row=2, column=0, sticky="w", padx=(0, 6), pady=2)
     a1 = ttk.Frame(ed)
     a1.grid(row=2, column=1, sticky="w", pady=2)
     ttk.Button(a1, text="Wählen…", style="Accent.TButton",
                command=lambda: _pick_action()).pack(side="left", padx=(0, 4))
-    _info(a1, "Normalfall: aus der Liste eine Variable wählen (oben nach A:/K:/L:/V: filtern) — "
-              "der Typ folgt automatisch (K: = Event, A:/L:/V: = SimVar). Den Typ rechts nur für "
-              "Fortgeschrittenes (RPN, Sequence, event_from_var) ändern.")
-    type_cb = ttk.Combobox(a1, textvariable=ev["action_type"], values=list(gui_mapper.ACTION_TYPES),
-                           state="readonly", width=13)
-    type_cb.pack(side="left")
+    _info(a1, "Aus der Liste wählen (oben nach A:/K:/L:/V: filtern). Was du wählst, bestimmt "
+              "automatisch, was beim Auslösen passiert: ein K:-Event wird gefeuert, eine "
+              "A:/L:/V:-Variable gesetzt — den Unterschied musst du nicht kennen.")
+    type_note = ttk.Label(a1, text="", foreground="#666")
+    type_note.pack(side="left", padx=(0, 8))
+    seq_on = tk.BooleanVar(value=False)
+    ttk.Checkbutton(a1, text="Mehrschritt", variable=seq_on,
+                    command=lambda: _seq_toggle()).pack(side="left")
+    _info(a1, "Mehrere Schritte je Flanke ausführen (z. B. beim Einschalten gleich mehrere "
+              "Events/Variablen setzen) — die Schritte unten bearbeiten.")
     afh = ttk.Frame(ed)
     afh.grid(row=2, column=2, sticky="ew", pady=2)
     af: dict = {}
     fe = ttk.Frame(afh)
     ttk.Label(fe, text="Event").pack(side="left")
-    ttk.Entry(fe, textvariable=ev["ev_event"], width=22).pack(side="left", padx=4)
-    ttk.Button(fe, text="…", width=2, command=lambda: _pick_into(ev["ev_event"])).pack(side="left")
+    ttk.Entry(fe, textvariable=ev["ev_event"], width=24,
+              state="readonly").pack(side="left", padx=4)
     ttk.Label(fe, text="Wert").pack(side="left", padx=(8, 0))
-    ttk.Entry(fe, textvariable=ev["ev_value"], width=6).pack(side="left", padx=4)
+    ttk.Entry(fe, textvariable=ev["ev_value"], width=6).pack(side="left", padx=(4, 2))
+    _info(fe, "Leer = automatisch: ein Taster sendet 1 beim Drücken, ein Schalter seinen "
+              "Zustand (1/0), eine Achse ihren Ausgangs-Wert. Eine Zahl hier erzwingt "
+              "stattdessen immer genau diesen festen Wert.")
     af["event"] = fe
     fs = ttk.Frame(afh)
     ttk.Label(fs, text="SimVar").pack(side="left")
-    ttk.Entry(fs, textvariable=ev["sv_simvar"], width=22).pack(side="left", padx=4)
-    ttk.Button(fs, text="…", width=2, command=lambda: _pick_into(ev["sv_simvar"])).pack(side="left")
+    ttk.Entry(fs, textvariable=ev["sv_simvar"], width=24,
+              state="readonly").pack(side="left", padx=4)
     ttk.Label(fs, text="Unit").pack(side="left", padx=(8, 0))
     ttk.Entry(fs, textvariable=ev["sv_unit"], width=8).pack(side="left", padx=4)
     ttk.Checkbutton(fs, text="invert", variable=ev["sv_invert"]).pack(side="left", padx=6)
     af["simvar"] = fs
     ff = ttk.Frame(afh)
+    _info(ff, "Spezialfall „Event aus Variable“: liest beim Auslösen die Read-Variable "
+              "und feuert das Event mit deren Wert (z. B. Flaps-Stufe aus einer LVar).")
     ttk.Label(ff, text="Read").pack(side="left")
-    ttk.Entry(ff, textvariable=ev["efv_read"], width=18).pack(side="left", padx=4)
+    ttk.Entry(ff, textvariable=ev["efv_read"], width=16,
+              state="readonly").pack(side="left", padx=4)
     ttk.Button(ff, text="…", width=2, command=lambda: _pick_into(ev["efv_read"])).pack(side="left")
     ttk.Label(ff, text="Event").pack(side="left", padx=(8, 0))
-    ttk.Entry(ff, textvariable=ev["efv_event"], width=16).pack(side="left", padx=4)
-    ttk.Button(ff, text="…", width=2, command=lambda: _pick_into(ev["efv_event"])).pack(side="left")
+    ttk.Entry(ff, textvariable=ev["efv_event"], width=16,
+              state="readonly").pack(side="left", padx=4)
+    ttk.Button(ff, text="…", width=2,
+               command=lambda: _pick_into(ev["efv_event"])).pack(side="left")
     af["event_from_var"] = ff
     fr = ttk.Frame(afh)
+    _info(fr, "RPN = Rechenausdruck (MobiFlight-Kalkulator) für Spezialfälle, z. B. eine "
+              "LVar umschalten: (L:X) ! (>L:X). Nur für Fortgeschrittene — im Normalfall "
+              "einfach „Wählen…“ benutzen.")
     ttk.Label(fr, text="RPN").pack(side="left")
-    ttk.Entry(fr, textvariable=ev["rpn_code"], width=44).pack(side="left", padx=4)
+    ttk.Entry(fr, textvariable=ev["rpn_code"], width=40).pack(side="left", padx=4)
     af["rpn"] = fr
     fq = ttk.Frame(afh)
     ttk.Label(fq, text="mehrere Schritte je Flanke — unten bearbeiten ↓",
               foreground="#444").pack(side="left")
     af["sequence"] = fq
 
-    # row 3: axis shaping — input (raw) range + transform pipeline (axis only)
+    # row 3: axis shaping — stacked rows (Eingang / Verarbeitung / Ausgang) so the
+    # window stays narrow; min/max labels are consistent on input AND output. The
+    # detent split lives below as its own clearly-separated second mapping area.
     axfr = ttk.Frame(ed)
     axfr.grid(row=3, column=0, columnspan=3, sticky="ew", pady=2)
 
-    # (per user: field help sits on per-field ⓘ tooltips via _info, above.)
+    cal_hint = tk.StringVar(value="")
     inrow = ttk.Frame(axfr)
     inrow.pack(anchor="w")
     ttk.Label(inrow, text="Eingang (roh)").pack(side="left", padx=(0, 2))
     _info(inrow,
-          "Roh-Wertebereich der Hardware, den diese Achse nutzt. Leer = automatisch aus der "
-          "Kalibrierung. Roh-Werte außerhalb min…max werden geklemmt.\n\n"
-          "Achse am Detent teilen: Binding »Duplizieren« und je Teil den Roh-Bereich setzen — "
-          "oberer Teil raw_min=Detent…raw_max=voll (out=0…max, Detent = Leerlauf/0), unterer "
-          "Teil raw_min=ganz-zurück…raw_max=Detent mit eigener Aktion (Reverse/Feather/Cutoff).")
+          "Roh-Wertebereich der Hardware, den dieses Binding nutzt. Leer = der kalibrierte "
+          "Bereich der Achse (steht rechts in grau). Roh-Werte außerhalb min…max werden "
+          "geklemmt.")
     ttk.Label(inrow, text="min").pack(side="left")
     ttk.Entry(inrow, textvariable=ev["raw_min"], width=7).pack(side="left", padx=(2, 8))
     ttk.Label(inrow, text="max").pack(side="left")
     ttk.Entry(inrow, textvariable=ev["raw_max"], width=7).pack(side="left", padx=(2, 8))
     ttk.Button(inrow, text="Lernen…", command=lambda: _learn_raw()).pack(side="left")
-    _info(inrow, "Achse live lesen: Hebel bewegen, den Rohwert am Detent / an den Enden ablesen "
-                 "und als min oder max übernehmen. Braucht das angeschlossene Gerät (evdev).")
+    _info(inrow, "Achse live lesen: Hebel bewegen, den Rohwert an den Enden / an der Raste "
+                 "ablesen und als min, max oder Detent übernehmen. Braucht das "
+                 "angeschlossene Gerät (evdev).")
+    ttk.Label(inrow, textvariable=cal_hint, foreground="#666").pack(side="left", padx=(4, 0))
 
-    tffr = ttk.Frame(axfr)
-    tffr.pack(anchor="w", pady=(2, 0))
-    ttk.Label(tffr, text="Transform").pack(side="left", padx=(0, 2))
-    _info(tffr,
-          "Verarbeitung des Roh-Werts: Roh → auf -1…1 normieren (Eingang min/max) → Deadzone "
-          "→ Kurve/Expo → Invert → auf Ausgang out_min…out_max skalieren → an Event/SimVar.")
-    ttk.Label(tffr, text="dz").pack(side="left")
-    ttk.Entry(tffr, textvariable=ev["tf_deadzone"], width=5).pack(side="left", padx=(2, 2))
-    _info(tffr, "Deadzone (0…1): kleine Auslenkung um die Mitte ignorieren — gegen "
-                "Zittern/Drift der Mittelstellung.")
-    ttk.Label(tffr, text="Kurve").pack(side="left")
-    ttk.Combobox(tffr, textvariable=ev["tf_curve"], values=list(gui_mapper.CURVES),
-                 state="readonly", width=8).pack(side="left", padx=(2, 2))
-    _info(tffr, "Kennlinie: linear (1:1), expo (weicher/feiner um die Mitte) oder squared.")
-    ttk.Label(tffr, text="expo").pack(side="left")
-    ttk.Entry(tffr, textvariable=ev["tf_expo"], width=5).pack(side="left", padx=(2, 2))
-    _info(tffr, "Stärke der Expo-Kurve (0…1): höher = weicher um die Mitte, spitzer an den "
-                "Enden. Nur bei Kurve=expo wirksam.")
-    ttk.Checkbutton(tffr, text="invert", variable=ev["tf_invert"]).pack(side="left", padx=(0, 2))
-    _info(tffr, "Richtung umkehren (Achse läuft andersherum).")
-    ttk.Label(tffr, text="Ausgang (out)").pack(side="left")
-    ttk.Entry(tffr, textvariable=ev["tf_out_min"], width=7).pack(side="left", padx=2)
-    ttk.Label(tffr, text="…").pack(side="left")
-    ttk.Entry(tffr, textvariable=ev["tf_out_max"], width=7).pack(side="left", padx=(2, 2))
-    _info(tffr, "Wertebereich, der an Event/SimVar geht. min = bei Roh-min, max = bei Roh-max. "
-                "Achsen-*_SET meist -16383…16383, ein SimVar oft 0…1.")
+    def _tf_rows(parent, p):
+        """Verarbeitung + Ausgang rows for one transform slot (p = tf_/sp_tf_)."""
+        procrow = ttk.Frame(parent)
+        procrow.pack(anchor="w", pady=(2, 0))
+        ttk.Label(procrow, text="Verarbeitung").pack(side="left", padx=(0, 2))
+        _info(procrow,
+              "Pipeline: Roh → auf -1…1 normieren (Eingang min/max) → Deadzone → Kurve/Expo "
+              "→ invert → auf Ausgang min…max skalieren → an Event/SimVar.")
+        ttk.Label(procrow, text="dz").pack(side="left")
+        ttk.Entry(procrow, textvariable=ev[p + "deadzone"],
+                  width=5).pack(side="left", padx=(2, 2))
+        _info(procrow, "Deadzone (0…1): kleine Auslenkung um die Mitte ignorieren — gegen "
+                       "Zittern/Drift der Mittelstellung. Leer = 0 (aus).")
+        ttk.Label(procrow, text="Kurve").pack(side="left")
+        ttk.Combobox(procrow, textvariable=ev[p + "curve"], values=list(gui_mapper.CURVES),
+                     state="readonly", width=8).pack(side="left", padx=(2, 2))
+        _info(procrow, "Kennlinie: linear (1:1), expo (weicher/feiner um die Mitte) "
+                       "oder squared.")
+        ttk.Label(procrow, text="expo").pack(side="left")
+        ttk.Entry(procrow, textvariable=ev[p + "expo"], width=5).pack(side="left", padx=(2, 2))
+        _info(procrow, "Stärke der Expo-Kurve (0…1): höher = weicher um die Mitte, spitzer "
+                       "an den Enden. Nur bei Kurve=expo wirksam. Leer = 0.")
+        ttk.Checkbutton(procrow, text="invert",
+                        variable=ev[p + "invert"]).pack(side="left", padx=(0, 2))
+        _info(procrow, "Richtung umkehren (Achse läuft andersherum).")
+        outrow = ttk.Frame(parent)
+        outrow.pack(anchor="w", pady=(2, 0))
+        ttk.Label(outrow, text="Ausgang (out)").pack(side="left", padx=(0, 2))
+        _info(outrow, "Wertebereich, der an Event/SimVar geht: min wird bei Eingang-min "
+                      "gesendet, max bei Eingang-max. Leer = 0…1. Achsen-*_SET-Events "
+                      "brauchen meist -16383…16383, ein SimVar oft 0…1.")
+        ttk.Label(outrow, text="min").pack(side="left")
+        ttk.Entry(outrow, textvariable=ev[p + "out_min"],
+                  width=7).pack(side="left", padx=(2, 8))
+        ttk.Label(outrow, text="max").pack(side="left")
+        ttk.Entry(outrow, textvariable=ev[p + "out_max"],
+                  width=7).pack(side="left", padx=(2, 2))
+
+    _tf_rows(axfr, "tf_")
+
+    # Detent split: ONE binding, two ranges. Enabling it opens a clearly separated
+    # second mapping area for the range below the detent (its own action+shaping).
+    sprow = ttk.Frame(axfr)
+    sprow.pack(anchor="w", pady=(6, 0))
+    ttk.Checkbutton(sprow, text="Achse am Detent teilen", variable=ev["sp_enabled"],
+                    command=lambda: _ed_show_fields()).pack(side="left")
+    _info(sprow, "Für Hebel mit Raste (Reverse/Feather/Cutoff): oberhalb des Detents gilt "
+                 "die Aktion oben, unterhalb eine EIGENE Aktion — beides in EINEM Binding. "
+                 "Jeder Teilbereich wird über seine eigene Spanne skaliert (der Detent ist "
+                 "Ausgang-min des oberen und Ausgang-max des unteren Teils).")
+    ttk.Label(sprow, text="Detent (roh)").pack(side="left", padx=(8, 0))
+    ttk.Entry(sprow, textvariable=ev["sp_at"], width=7).pack(side="left", padx=(2, 2))
+    _info(sprow, "Roh-Wert der Raste = Grenze der beiden Bereiche. Über „Lernen…“ ablesen "
+                 "(Hebel an die Raste fahren → „als Detent übernehmen“).")
+
+    spfr = ttk.Labelframe(axfr, text="⬇ Unterhalb des Detents — eigene Aktion", padding=6)
+    sp1 = ttk.Frame(spfr)
+    sp1.pack(anchor="w")
+    ttk.Button(sp1, text="Wählen…", style="Accent.TButton",
+               command=lambda: _pick_sp_action()).pack(side="left", padx=(0, 4))
+    sp_note = ttk.Label(sp1, text="", foreground="#666")
+    sp_note.pack(side="left", padx=(0, 8))
+    spah = ttk.Frame(sp1)
+    spah.pack(side="left")
+    spf: dict = {}
+    sfe = ttk.Frame(spah)
+    ttk.Label(sfe, text="Event").pack(side="left")
+    ttk.Entry(sfe, textvariable=ev["sp_ev_event"], width=24,
+              state="readonly").pack(side="left", padx=4)
+    ttk.Label(sfe, text="Wert").pack(side="left", padx=(8, 0))
+    ttk.Entry(sfe, textvariable=ev["sp_ev_value"], width=6).pack(side="left", padx=(4, 2))
+    _info(sfe, "Leer = automatisch: die Achse sendet ihren Ausgangs-Wert (s. Ausgang unten).")
+    spf["event"] = sfe
+    sfs = ttk.Frame(spah)
+    ttk.Label(sfs, text="SimVar").pack(side="left")
+    ttk.Entry(sfs, textvariable=ev["sp_sv_simvar"], width=24,
+              state="readonly").pack(side="left", padx=4)
+    ttk.Label(sfs, text="Unit").pack(side="left", padx=(8, 0))
+    ttk.Entry(sfs, textvariable=ev["sp_sv_unit"], width=8).pack(side="left", padx=4)
+    ttk.Checkbutton(sfs, text="invert", variable=ev["sp_sv_invert"]).pack(side="left", padx=6)
+    spf["simvar"] = sfs
+    sfr = ttk.Frame(spah)
+    _info(sfr, "RPN = Rechenausdruck für Spezialfälle (nur wenn schon im Profil so angelegt).")
+    ttk.Label(sfr, text="RPN").pack(side="left")
+    ttk.Entry(sfr, textvariable=ev["sp_rpn_code"], width=36).pack(side="left", padx=4)
+    spf["rpn"] = sfr
+    _tf_rows(spfr, "sp_tf_")
 
     # row 4: sequence step editor (only visible when action type = sequence).
     # A sequence fires several writes per edge — on_edge on press/switch-on,
@@ -1422,11 +1545,14 @@ def run() -> None:
             for i, st in enumerate(seq_state[edge]):
                 row = ttk.Frame(seqfr)
                 row.pack(anchor="w", padx=(16, 0))
-                ttk.Combobox(row, textvariable=st["target"], values=("event", "simvar"),
-                             state="readonly", width=7).pack(side="left")
-                ttk.Entry(row, textvariable=st["name"], width=26).pack(side="left", padx=3)
+                # target follows the picked var (K:=event else simvar) — no dropdown
+                ttk.Label(row, width=9, foreground="#666",
+                          text="Event" if st["target"].get() == "event" else "Variable"
+                          ).pack(side="left")
+                ttk.Entry(row, textvariable=st["name"], width=26,
+                          state="readonly").pack(side="left", padx=3)
                 ttk.Button(row, text="…", width=2,
-                           command=lambda v=st["name"]: _pick_into(v)).pack(side="left")
+                           command=lambda s=st: _pick_seq_step(s)).pack(side="left")
                 ttk.Label(row, text="Wert").pack(side="left", padx=(6, 0))
                 ttk.Entry(row, textvariable=st["value"], width=7).pack(side="left", padx=3)
                 ttk.Button(row, text="✕", width=2,
@@ -1489,20 +1615,24 @@ def run() -> None:
         cur = tk.StringVar(value="—")
         ttk.Label(frm, textvariable=cur, font=("TkDefaultFont", 18)).pack(anchor="w", pady=4)
         ttk.Label(frm, foreground="#666", wraplength=320, justify="left",
-                  text="Detent finden: an den Detent fahren, Wert ablesen, als min oder max "
-                       "übernehmen (der andere Teil-Bereich beginnt dann dort).").pack(anchor="w")
+                  text="Hebel an ein Ende / an die Raste fahren, Wert ablesen und übernehmen. "
+                       "„als Detent“ füllt die Split-Grenze (Achse teilen).").pack(anchor="w")
         st = {"val": None}
+
+        _GRAB_LABEL = {"raw_min": "Eingang min", "raw_max": "Eingang max", "sp_at": "Detent"}
 
         def _grab(which):
             if st["val"] is not None:
                 ev[which].set(str(st["val"]))
-                _ed_status(f"{which} = {st['val']} übernommen ✓")
+                _ed_status(f"{_GRAB_LABEL[which]} = {st['val']} übernommen ✓")
 
         btns = ttk.Frame(frm)
         btns.pack(anchor="w", pady=(8, 0))
         ttk.Button(btns, text="→ als min", command=lambda: _grab("raw_min")).pack(side="left")
         ttk.Button(btns, text="→ als max",
                    command=lambda: _grab("raw_max")).pack(side="left", padx=6)
+        ttk.Button(btns, text="→ als Detent",
+                   command=lambda: _grab("sp_at")).pack(side="left")
         ttk.Button(btns, text="Schließen", command=cap.destroy).pack(side="left", padx=6)
 
         def _tick():
@@ -1517,24 +1647,65 @@ def run() -> None:
         _tick()
         cap.lift()
 
+    def _cal_hint_text(device_id, code_str):
+        """What raw min/max mean when left empty: the axis' calibrated range."""
+        try:
+            from .devices.calibration import load_calibration
+
+            cal = load_calibration(calibration_file())
+            axis = cal.devices[device_id].axes[int(str(code_str).strip())]
+            return f"leer = Kalibrierung: {axis.raw_min}…{axis.raw_max}"
+        except Exception:
+            return "leer = Kalibrierung (kein Eintrag für diese Achse!)"
+
     def _ed_show_fields(*_):
+        atype = ev["action_type"].get()
         for frame in af.values():
             frame.pack_forget()
-        af.get(ev["action_type"].get(), af["event"]).pack(side="left", fill="x")
+        af.get(atype, af["event"]).pack(side="left", fill="x")
+        type_note.config(text=_TYPE_NOTE.get(atype, ""))
+        seq_on.set(atype == "sequence")
         if ev["kind"].get() == "axis":
             axfr.grid()
+            if etgt["device"] is not None:
+                cal_hint.set(_cal_hint_text(etgt["device"], ev["code"].get()))
+            sp_type = ev["sp_action_type"].get()
+            for frame in spf.values():
+                frame.pack_forget()
+            spf.get(sp_type, spf["event"]).pack(side="left", fill="x")
+            sp_note.config(text=_TYPE_NOTE.get(sp_type, ""))
+            if ev["sp_enabled"].get():
+                spfr.pack(anchor="w", fill="x", pady=(2, 0))
+            else:
+                spfr.pack_forget()
         else:
             axfr.grid_remove()
-        if ev["action_type"].get() == "sequence":
+        if atype == "sequence":
             seqfr.grid()
         else:
             seqfr.grid_remove()
 
-    def _on_type_change(*_):
+    def _seq_toggle():
+        """The "Mehrschritt" checkbox: on = sequence action, off = back to pick."""
+        if seq_on.get():
+            ev["action_type"].set("sequence")
+            if not seq_state["on"] and not seq_state["off"]:
+                _seq_add("on")  # seed one editable step
+        else:
+            ev["action_type"].set("event")  # empty until the user picks anew
         _ed_show_fields()
-        # Switching to sequence with nothing loaded: seed one on-step to edit.
-        if ev["action_type"].get() == "sequence" and not seq_state["on"] and not seq_state["off"]:
-            _seq_add("on")
+
+    def _pick_sp_action():
+        """Pick the below-detent target; the action kind follows the picked var."""
+        def on_pick(v):
+            if v.kind == "K:":
+                ev["sp_action_type"].set("event")
+                ev["sp_ev_event"].set(_var_name(v))
+            else:  # A: / L: / V: -> set a SimVar/LVar/virtual var
+                ev["sp_action_type"].set("simvar")
+                ev["sp_sv_simvar"].set(_var_name(v))
+            _ed_show_fields()
+        _open_var_picker(win, _var_catalog(), on_pick)
 
     def _ed_set_form(form):
         for key, var in ev.items():
@@ -1588,13 +1759,6 @@ def run() -> None:
         ed_win.deiconify()
         ed_win.lift()
         ed_win.focus_set()
-
-    def _edit_selected():
-        dev, idx = _selected_bind()
-        if dev is None:
-            m_state.config(text="Kein Binding gewählt — rechts eine Binding-Zeile markieren.")
-            return
-        _open_editor(dev, idx)
 
     def _new_binding():
         dev = _sel(dev_tree)
@@ -1693,29 +1857,39 @@ def run() -> None:
         _reselect(dev, max(0, idx - 1))
         m_state.config(text="Binding entfernt ✓")
 
+    def _open_output_editor(device_id, out_index):  # replaced by Stufe C below
+        m_state.config(text="Panel-/Display-Outputs sind noch nicht editierbar (folgt).")
+
+    def _open_row(row):
+        """Open the editor for a detail row: bind:<i> or out:<i>[:<j>]."""
+        dev = _sel(dev_tree)
+        if dev is None or not row:
+            return
+        sid = str(row)
+        if sid.startswith("bind:"):
+            _open_editor(dev, int(sid.split(":")[1]))
+        elif sid.startswith("out:"):
+            _open_output_editor(dev, int(sid.split(":")[1]))
+
     def _on_detail_activate(_e=None):
-        """Double-click a binding row -> open its settings window; else explain."""
-        sel = _sel(detail)
-        dev, idx = _selected_bind()
-        if dev is not None:
-            _open_editor(dev, idx)
-        elif sel and str(sel).startswith("out:"):
-            m_state.config(text="Panel-/Display-Outputs sind noch nicht editierbar (folgt).")
+        """Keyboard (Return) on a selected row -> open its settings window."""
+        _open_row(_sel(detail))
 
     def _on_detail_click(event):
-        """A click on the ⚙ (edit) cell of a binding row opens its settings window."""
-        if detail.identify_region(event.x, event.y) != "cell":
-            return
-        if detail.identify_column(event.x) != "#4":  # the trailing 'edit' column
+        """A single click on a binding/output row opens its settings window.
+
+        Clicks on the expand/collapse triangle only toggle the branch; clicks on
+        the header rows ("Bindings (n)"/"Outputs (n)") just select as usual.
+        """
+        if "indicator" in detail.identify_element(event.x, event.y):
+            return  # expand/collapse click — don't open an editor
+        if detail.identify_region(event.x, event.y) not in ("tree", "cell"):
             return
         row = detail.identify_row(event.y)
         if not row:
             return
-        if str(row).startswith("bind:"):
-            detail.selection_set(row)
-            _open_editor(_sel(dev_tree), int(str(row).split(":")[1]))
-        elif str(row).startswith("out:"):
-            m_state.config(text="Panel-/Display-Outputs sind noch nicht editierbar (folgt).")
+        detail.selection_set(row)
+        _open_row(row)
 
     def _render_detail(device_id, reselect_index=None):
         detail.delete(*detail.get_children())
@@ -1726,16 +1900,16 @@ def run() -> None:
         bnode = detail.insert("", "end", text=f"Bindings ({len(binds)})", open=True)
         for i, br in enumerate(binds):
             detail.insert(bnode, "end", iid=f"bind:{i}", text=br.name,
-                          values=(br.source, br.action, br.transform, "✏ Bearbeiten"))
+                          values=(br.source, br.action, br.transform))
         out_objs = prof.outputs.get(device_id, [])
         if out_objs:
             onode = detail.insert("", "end", text=f"Outputs ({len(out_objs)})", open=True)
             for i, o in enumerate(out_objs):
                 pnode = detail.insert(onode, "end", iid=f"out:{i}", open=True,
-                                      text=gui_mapper.describe_output(o), values=("", "", "", ""))
+                                      text=gui_mapper.describe_output(o), values=("", "", ""))
                 for j, line in enumerate(gui_mapper.describe_output_detail(o)):
                     detail.insert(pnode, "end", iid=f"out:{i}:{j}", text=line,
-                                  values=("", "", "", ""))
+                                  values=("", "", ""))
         # Just highlight the row after a reload; editing is opened on demand only.
         if reselect_index is not None and binds:
             idx = min(reselect_index, len(binds) - 1)
@@ -1774,10 +1948,13 @@ def run() -> None:
             n = sum(1 for r in rows if r.present)
             m_state.config(text=f"{n}/{len(rows)} verbunden · Profil „{prof.name}“")
 
-    kind_cb.bind("<<ComboboxSelected>>", _ed_show_fields)
-    type_cb.bind("<<ComboboxSelected>>", _on_type_change)
+    def _on_kind_change(_e=None):
+        ev["kind"].set(_kind_of_label.get(kind_disp.get(), kind_disp.get()))
+        _ed_show_fields()
+
+    kind_cb.bind("<<ComboboxSelected>>", _on_kind_change)
     dev_tree.bind("<<TreeviewSelect>>", lambda *_: _render_detail(_sel(dev_tree)))
-    detail.bind("<Double-Button-1>", _on_detail_activate)
+    detail.bind("<Return>", _on_detail_activate)
     detail.bind("<Button-1>", _on_detail_click)
     profile_var.trace_add("write", lambda *_: _mapper_reload(rediscover=False))
 
