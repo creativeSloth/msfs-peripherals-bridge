@@ -2445,7 +2445,7 @@ def run() -> None:
     from . import gauge_model
 
     gtab = ttk.Frame(nb, padding=8)
-    nb.insert(2, gtab, text="Gauges")
+    nb.add(gtab, text="Gauges")
     gtab.rowconfigure(1, weight=1)
     gtab.columnconfigure(0, weight=1)
 
@@ -2738,6 +2738,12 @@ def run() -> None:
     _g_load()
     _g_redraw()
     _g_tick()
+
+    # tab order per user (2026-07-16): Mapper directly after Connection,
+    # Gauges + Statistik to its right, Profile last. nb.insert() on an
+    # already-managed child just moves it.
+    for pos, tab in enumerate((conn, mtab, gtab, stab, ptab)):
+        nb.insert(pos, tab)
 
     # --- bottom status bar (small lamps) ----------------------------------- #
     ttk.Separator(win, orient="horizontal").grid(row=2, column=0, sticky="ew", pady=(8, 0))
