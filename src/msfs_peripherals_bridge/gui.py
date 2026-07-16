@@ -1148,11 +1148,11 @@ def run() -> None:
         dev_tree.column(col, width=w, anchor="center")
     dev_tree.grid(row=1, column=0, sticky="nsew", pady=6, padx=(0, 8))
 
-    # right: bindings + outputs of the selected device. A single click on a
+    # right: bindings + outputs of the selected device. Double-click on a
     # binding/output row opens its settings window (per user: no extra edit
-    # button needed when the row itself opens the editor). The trailing Live
-    # column mirrors the hardware while the device is attached: pressed
-    # buttons show ●, axes a filling bar — so you can find a control fast.
+    # button, and single click must only select). The trailing Live column
+    # mirrors the hardware while the device is attached: pressed buttons
+    # show ●, axes a filling bar — so you can find a control fast.
     detail = ttk.Treeview(mtab, columns=("source", "action", "shape", "live"),
                           show="tree headings", height=7)
     detail.heading("#0", text="Name")
@@ -1209,7 +1209,7 @@ def run() -> None:
                command=lambda: _ed_duplicate()).pack(side="right", padx=6)
     ttk.Button(bindbtn, text="+ Neu", command=lambda: _new_binding()).pack(side="right")
     ttk.Label(bindbtn, text="Binding:").pack(side="right", padx=(0, 4))
-    ttk.Label(bindbtn, text="Klick auf eine Zeile öffnet den Editor",
+    ttk.Label(bindbtn, text="Doppelklick auf eine Zeile öffnet den Editor",
               foreground="#666").pack(side="left")
 
     # --- editor: a separate, on-demand window (opened per element) -------- #
@@ -2081,11 +2081,11 @@ def run() -> None:
         """Keyboard (Return) on a selected row -> open its settings window."""
         _open_row(_sel(detail))
 
-    def _on_detail_click(event):
-        """A single click on a binding/output row opens its settings window.
+    def _on_detail_double(event):
+        """Double-click opens the row's editor; a single click only selects.
 
-        Clicks on the expand/collapse triangle only toggle the branch; clicks on
-        the header rows ("Bindings (n)"/"Outputs (n)") just select as usual.
+        Clicks on the expand/collapse triangle only toggle the branch; the
+        header rows ("Bindings (n)"/"Outputs (n)") have nothing to open.
         """
         if "indicator" in detail.identify_element(event.x, event.y):
             return  # expand/collapse click — don't open an editor
@@ -2162,7 +2162,7 @@ def run() -> None:
     kind_cb.bind("<<ComboboxSelected>>", _on_kind_change)
     dev_tree.bind("<<TreeviewSelect>>", lambda *_: _render_detail(_sel(dev_tree)))
     detail.bind("<Return>", _on_detail_activate)
-    detail.bind("<Button-1>", _on_detail_click)
+    detail.bind("<Double-Button-1>", _on_detail_double)
     profile_var.trace_add("write", lambda *_: _mapper_reload(rediscover=False))
 
     # Switching tabs: the Statistik tab starts/stops its live reads; the Mapper
