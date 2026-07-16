@@ -1323,7 +1323,8 @@ def run() -> None:
     srcfr.grid(row=1, column=2, sticky="w")
     ttk.Label(srcfr, text="Code").pack(side="left", padx=(0, 4))
     ttk.Entry(srcfr, textvariable=ev["code"], width=8).pack(side="left")
-    b_learn = ttk.Button(srcfr, text="Lernen", state="disabled")
+    # capture buttons are a wordless magic wand (user wish: 🪄, no "Lernen" label)
+    b_learn = ttk.Button(srcfr, text="🪄", width=3, state="disabled")
     b_learn.pack(side="left", padx=6)
     _attach_tooltip(b_learn, "Hardware-Capture (Knopf drücken → Code) — folgt")
 
@@ -1417,10 +1418,12 @@ def run() -> None:
     ttk.Entry(inrow, textvariable=ev["raw_min"], width=7).pack(side="left", padx=(2, 8))
     ttk.Label(inrow, text="max").pack(side="left")
     ttk.Entry(inrow, textvariable=ev["raw_max"], width=7).pack(side="left", padx=(2, 8))
-    ttk.Button(inrow, text="Lernen…", command=lambda: _learn_raw()).pack(side="left")
-    _info(inrow, "Achse live lesen: Hebel bewegen, den Rohwert an den Enden / an der Raste "
-                 "ablesen und als min, max oder Detent übernehmen. Braucht das "
-                 "angeschlossene Gerät (evdev).")
+    b_wand_raw = ttk.Button(inrow, text="🪄", width=3, command=lambda: _learn_raw())
+    b_wand_raw.pack(side="left")
+    _attach_tooltip(b_wand_raw,
+                    "Achse live lesen: Hebel bewegen, den Rohwert an den Enden / an der "
+                    "Raste ablesen und als min, max oder Detent übernehmen. Braucht das "
+                    "angeschlossene Gerät (evdev).")
     ttk.Label(inrow, textvariable=cal_hint, foreground="#666").pack(side="left", padx=(4, 0))
 
     def _tf_rows(parent, p):
@@ -1475,8 +1478,12 @@ def run() -> None:
                  "Ausgang-min des oberen und Ausgang-max des unteren Teils).")
     ttk.Label(sprow, text="Detent (roh)").pack(side="left", padx=(8, 0))
     ttk.Entry(sprow, textvariable=ev["sp_at"], width=7).pack(side="left", padx=(2, 2))
-    _info(sprow, "Roh-Wert der Raste = Grenze der beiden Bereiche. Über „Lernen…“ ablesen "
-                 "(Hebel an die Raste fahren → „als Detent übernehmen“).")
+    b_wand_det = ttk.Button(sprow, text="🪄", width=3, command=lambda: _learn_raw())
+    b_wand_det.pack(side="left", padx=(2, 0))
+    _attach_tooltip(b_wand_det,
+                    "Detent anlernen: Hebel an die Raste fahren, Rohwert ablesen und "
+                    "„→ als Detent“ übernehmen.")
+    _info(sprow, "Roh-Wert der Raste = Grenze der beiden Bereiche — per 🪄 live ablesbar.")
 
     spfr = ttk.Labelframe(axfr, text="⬇ Unterhalb des Detents — eigene Aktion", padding=6)
     sp1 = ttk.Frame(spfr)
