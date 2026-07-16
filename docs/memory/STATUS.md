@@ -29,6 +29,22 @@ ruff clean, Konstruktions-Smoke ok. Visuell UNGEPRÜFT** (User konnte nicht test
   Kachel-Panel); Arcs/sweep im Dialog editierbar machen (aktuell nur Var/Faktor/min/max);
   Presets für weitere Vars. Design-Referenz: `docs/gauges-design.md`.
 
+**➕ NACHTRAG 4 (gleiche Session, Commits `32aba6c`+`2ee8621`, 302 Tests, GEPUSHT): V:-RUNTIME FERTIG.**
+- **Bridge-V:-Hub** (geparktes Design umgesetzt): `bridge.py` Modul-Level `_VIRTUAL_VARS`+Lock;
+  `set_simvar`/`read_subscribed`/`read_var` erkennen `V:` ZUERST (kein Sim, kein DLL-Lock, Werte
+  überleben Sim-Reconnects); Subscribe/Poll/read_now servieren V: automatisch an alle Clients.
+  **Offline-Stub-Smoke 5/5** (SimConnect-Stub + `object.__new__`; Scratchpad `vhub_smoke.py`).
+- **Seeding**: `runtime.seed_local_vars(profile)` → SetSimVar `V:<name>`=initial beim Mapper-Start,
+  VOR Conditions/Outputs (Bedingung auf V: sieht den Startwert statt unbekannt=blockiert).
+  Mapper-Neustart re-seeded (Persist = LocalVar.persist-Follow-up).
+- **Wires**: GUI `_wire_name` + `gauge_model.wire_name` können V: → Statistik, Kachel-Panel,
+  Gauges und ⚑-Bedingungen beobachten V: live.
+- **V:-Editor-UI im Profile-Tab** (Lücke geschlossen): Labelframe „V: — eigene lokale Variablen"
+  mit Liste + Anlegen (Name/Startwert/Beschreibung) + Entfernen via `profile_writer.set_local_vars`.
+- Doku: simvars-reference §1 hat jetzt die V:-Zeile. **⚠️ In-sim/e2e ungetestet** (Bridge neu
+  starten → V: anlegen → per Binding setzen → in Statistik/Bedingung sehen).
+- **Alle 3 Branches GEPUSHT** (origin: gui-var-monitor, mapper-tab, gauges).
+
 **➕ NACHTRAG 3 (gleiche Session, Commits `211a422`+`0608e7c`, 299 Tests): BEDINGUNGEN + LED-Fixes.**
 - **`when:`-Bedingungen an Bindings** (lang geplant, jetzt KOMPLETT: Modell+Engine+Runtime+UI):
   `models.Condition {var, op, value}`, Liste = UND; Engine bekommt Value-Provider injiziert,
