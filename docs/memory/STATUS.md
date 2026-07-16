@@ -2,8 +2,32 @@
 
 > Kurzer Einstiegspunkt: was läuft, was offen ist, wie es weitergeht.
 > Stand: **2026-07-16** (Mega-Session, s. Block unten: Stufe C FERTIG, Achsen-Split, Editor-UX v2,
-> Live-Spalte, Flug-Verifikation, Air-Manager-Gauges gesichert).
+> Live-Spalte, Flug-Verifikation, Air-Manager-Gauges gesichert **+ GAUGES-TAB GEBAUT**).
 > Frühere Zeile: 2026-07-15 (Stufe-B-Marathon), 2026-07-13 (Stufe A/B + Writer).
+
+## 🆕 SESSION 2026-07-16 (fortges.) — GAUGES-TAB GEBAUT (Branch `feat/gauges`)
+**Branch `feat/gauges`** (von `feat/mapper-tab` abgezweigt), Commit `c580928`. **284 Tests grün,
+ruff clean, Konstruktions-Smoke ok. Visuell UNGEPRÜFT** (User konnte nicht testen).
+- **`gauge_model.py`** (rein, 11 Tests): Rundinstrument-Mathematik aus den Air-Manager-Luas —
+  `winkel(v) = omega + sweep·((v−v_min)/Δ)^h` (Lua-Form normalisiert: sweep = IMMER der volle
+  Winkel), Ticks (major/minor), Arcs, `polar()` (0°=Norden, im UZS), Dict-Round-Trip für die
+  Persistenz. **Presets aus den Original-Luas vermessen**: „MAP + Fuel Flow" (ZWEI Zeiger — äußere
+  MAP-Skala 10–50/180°/−90°, innere FF-Skala 0–25/165°/+100°, radius 0.58), RPM (0–3500/290°/215°,
+  grün 500–2650), Airspeed (20–190/306°, grün/gelb/blau-Arcs), EGT (1200–1700/100°/−50°),
+  Fuel L/R (0–38.5/100°/−50°), „Eigenes…" (leer).
+- **GUI-Tab „Gauges"** (Position 2, nach Statistik): Canvas-Panel, Gauges im automatischen Raster
+  (Zellengröße maximiert). **User-Flow wie gewünscht:** „+ Gauge" → Menü zeigt **📚 Bibliothek**
+  (bereits gemappte Gauges, per Name wieder aufrufbar) + Vorlagen → **ZUERST Mapping-Dialog**
+  (je Zeiger: Variable über den Var-Picker (readonly-Feld), Faktor, min/max) → „Übernehmen" legt
+  das Gauge aufs Panel UND speichert es in die Bibliothek (`gauge_library` in gui-settings.json;
+  Panel-Inhalt = `gauges_panel`). Klick wählt (blauer Ring), Doppelklick remappt, „✕ Entfernen"
+  nimmt nur vom Panel (Bibliothek bleibt; Löschen aus Bibliothek im Dialog). Zeiger rendern live
+  aus dem geteilten `_ValueMonitor` (Subscription nur bei sichtbarem Tab via `gauge_hook` in
+  `_resubscribe`; Zeiger-Update 150 ms, `canvas.coords`).
+- **Offen:** visuelle Sichtung (Skalen-Optik, Schriftgrößen, Dark-Face); Mehr-Zeiger-Skalen-
+  Beschriftung könnte bei kleinen Zellen gedrängt sein; evtl. loslösbares Gauge-Fenster (wie
+  Kachel-Panel); Arcs/sweep im Dialog editierbar machen (aktuell nur Var/Faktor/min/max);
+  Presets für weitere Vars. Design-Referenz: `docs/gauges-design.md`.
 
 ## 🆕 SESSION 2026-07-16 — Stufe C fertig · Achsen-Split · Editor-UX v2 · Live-Spalte · Gauges gesichert
 **Branch `feat/mapper-tab`, 7 neue Commits `f2c10ec`…`cdc7d2f` (NICHT gepusht). 273 Tests grün,
