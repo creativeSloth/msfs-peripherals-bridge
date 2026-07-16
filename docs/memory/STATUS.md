@@ -29,6 +29,23 @@ ruff clean, Konstruktions-Smoke ok. Visuell UNGEPRÜFT** (User konnte nicht test
   Kachel-Panel); Arcs/sweep im Dialog editierbar machen (aktuell nur Var/Faktor/min/max);
   Presets für weitere Vars. Design-Referenz: `docs/gauges-design.md`.
 
+**➕ NACHTRAG 3 (gleiche Session, Commits `211a422`+`0608e7c`, 299 Tests): BEDINGUNGEN + LED-Fixes.**
+- **`when:`-Bedingungen an Bindings** (lang geplant, jetzt KOMPLETT: Modell+Engine+Runtime+UI):
+  `models.Condition {var, op, value}`, Liste = UND; Engine bekommt Value-Provider injiziert,
+  unbekannter Wert = Bedingung NICHT erfüllt (fail-closed, ==/!= mit isclose); Runtime
+  `ConditionWatcher` abonniert alle when:-Vars (Tap auf OutputManager-State-Stream via neuem
+  `state_listener`, ohne Outputs eigener Reader-Thread); Binding-Editor hat eine **optisch
+  abgesetzte „⚑ Bedingung"-Labelframe-Sektion** (Zeilen: Wählen…/readonly Var · Operator · Wert ·
+  ✕, „+ Bedingung"); Tabelle zeigt ⚑n. V:-Vars stecken schon im Format (greifen sobald der
+  Bridge-Hub existiert). Doku `_schema.md`. **⚠️ In-sim ungetestet** (Subscribe+Gating live prüfen).
+- **Gear-LEDs = Solo-Zeilen**: LED Bugrad/links/rechts je eigene Baum-Zeile mit eigenem
+  Mini-Fenster (User: drei Zeilen → immer dasselbe Sammel-Fenster war verwirrend); „Allgemein"
+  behält down_at/power. **Dimmer-Rolle = „Eingabe (Drehrad)"** (User-Korrektur), Ziele =
+  „Anzeige (Licht)". Hat-Binding-Crash im Editor gefixt (action None).
+- **NÄCHSTES FEATURE (Task, noch nicht gebaut): Geräte-Explorer** — je Gerät alle Codes live
+  auslesen, bei Panels Test-Werte je Code/Segment senden (LED/Segment identifizieren,
+  wie tools/panel-scan out_*), Codes umlabeln (Label-Store: devices.yaml vs gui-settings offen).
+
 **➕ NACHTRAG 2 (gleiche Session, Commits `e6d3ca7`+`359628e`, 293 Tests):**
 - **Tab-Reihenfolge:** Connection · Mapper · Gauges · Statistik · Profile (User-Wunsch).
 - **🪄 Code-Anlernen AKTIV** (war Stub): lauscht via `live_state_reader` am Gerät, erkennt
