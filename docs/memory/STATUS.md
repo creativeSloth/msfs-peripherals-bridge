@@ -1,15 +1,58 @@
 # STATUS — Resume-Anker
 
 > Kurzer Einstiegspunkt: was läuft, was offen ist, wie es weitergeht.
-> Stand: **2026-07-16/17 Doppel-Mega-Session** (Blöcke + Nachträge 1–5 unten): Stufe C, Achsen-Split,
-> Editor-UX v2, Live-Spalte, Gauges-Tab, HAT, ⚑-Bedingungen, **V:-Runtime FERTIG**, „+ Panel",
-> Struktur-Baum + Ein-Zeilen-Fenster, Air-Manager-Gauges gesichert. **Branch `feat/gauges` @
-> `1f3dd59`+STATUS-Commit, ALLE Branches GEPUSHT, 302 Tests grün.**
-> **🔴 WIEDEREINSTIEG:** (1) User sichtet weiter live (hat schon angefangen — Feedback floss ein);
-> (2) nächstes Feature = **Geräte-Explorer** (Codes auslesen / Test-Werte an Panels senden /
-> umlabeln — offener Task); (3) in-sim verifizieren: ⚑-Bedingungen, V: e2e (**Bridge NEU STARTEN**,
-> lädt neues bridge.py!), Hat, Split; (4) danach Kette → main.
-> Frühere Zeile: 2026-07-15 (Stufe-B-Marathon), 2026-07-13 (Stufe A/B + Writer).
+> Stand: **2026-07-17 (Abend) — V:-Runtime IN-SIM e2e VERIFIZIERT + großer GUI-Batch + hidraw-Zauberstab.**
+> Branch `feat/gauges`, 2 neue Commits `3507407`+`ba8c332` (NICHT gepusht), 302 Tests grün, ruff clean.
+> **✅ V: e2e bewiesen** (Seeding 0.0 · Cowl-Switch **Code 6** → 0↔1 · Hub-Runde) via Direkt-Client an
+> Bridge :7842. **GUI-Batch committet** (Details Session unten): Variablen-Tab-Umbau (V:-Übersichtstabelle,
+> Buttons ÜBER die Tabelle, V:-Editor aus Profile RAUS), Panel-Picker + Toggle-Button, Bridge-Log
+> eingebettet, **🪄 Zauberstab hidraw-fähig**, pythonw-Fix. ⚠️ **GUI visuell UNGEPRÜFT** (headless).
+> **🔴 WIEDEREINSTIEG:** (1) **GUI + Mapper + Bridge NEU STARTEN** (neuer Code: pythonw, GUI-Umbau) →
+> alles live sichten; (2) tq6-Arbeit im `piper_arrow.yaml` ist UNCOMMITTED (User-WIP: throttle2/prop2/mix2
+> auf Achsen 1/3/5, Namen noch roh z. B. „Mixture 1 (Kopie)"=MIXTURE2_SET) — aufräumen + committen;
+> (3) pythonw-Fenster-Fix verifizieren (Wine-Konsole weg?); (4) danach Geräte-Explorer / Kette → main.
+> Frühere Zeile: 2026-07-16/17 Doppel-Mega (Stufe C, Split, V:-Runtime-Code, Gauges, HAT, ⚑), 2026-07-15/13.
+
+## 🆕 SESSION 2026-07-17 (Abend) — V: e2e IN-SIM + GUI-Batch + hidraw-Zauberstab (Commits `3507407`,`ba8c332`)
+
+**✅ V:-RUNTIME e2e IN-SIM VERIFIZIERT** (war laut STATUS „e2e ungetestet"). MSFS lief, Bridge mit V:-Hub.
+Bewiesen via Direkt-Socket-Client an `127.0.0.1:7842` (Scratchpad, newline-JSON):
+- **Hub-Runde:** set `V:TEST_FLAG`=42/7 → subscribe-Push + read_now liefern zurück (sim-unabhängig).
+- **Seeding:** Mapper-Neustart mit temp `local_vars:[TEST_FLAG init 0]` → Hub-Wert 0.0 (überschrieb die
+  7.0 aus dem Vortest) = `seed_local_vars` läuft beim Mapper-Start.
+- **Hardware→V::** temp Binding `switch code 6 → simvar V:TEST_FLAG` (stateful) → User kippte **Cowl-Schalter**
+  mehrfach → Watcher sah 0↔1 sauber. **Cowl = Switch-Panel Code 6** (Saitek „COWL CLOSE"; freie switch_panel-
+  Codes: 6=Cowl, 9=Nav). Reihenfolge: 0 BAT,1 ALT,2 AVIONICS,3 FUEL PUMP,4 DE-ICE,5 PITOT,**6 COWL**,
+  7 (Panel-Licht→AP master),8 BEACON,10 STROBE,11 TAXI,12 LANDING,13-17 Magneto,18/19 Gear.
+- **Test-Gerüst wieder ENTFERNT** (profile_writer, chirurgisch — NICHT `git checkout`, das hätte die tq6-
+  Arbeit gekillt). `piper_arrow.yaml` = HEAD + nur die tq6-Arbeit (uncommitted).
+- **⚠️ Merker:** Bridge-Port 7842 geht erst NACH SimConnect auf (`connect_sim()` vor `bind()`) → auch reiner
+  V:-Test braucht laufendes MSFS. Shell = **zsh** → `/dev/tcp` geht NICHT (Falsch-„zu"); Port mit `ss`/python.
+
+**🖥️ GROSSER GUI-BATCH (Live-Feedback, 2 Commits, 302 Tests grün, ruff clean; visuell UNGEPRÜFT/headless):**
+1. **Statistik-Tab → „Variablen".** Var-Picker zeigt jetzt **V:-Vars** (Filter „V: lokal" in
+   `_open_var_picker`; `_statistik_catalog` mischt profileigene V: frisch dazu) — greift auch im Mapper-Picker.
+2. **Variablen-Tab-Umbau:** Buttons **ÜBER** der Tabelle (row 1): „Variablen in die Liste holen" +
+   „Variablen aus Liste entfernen" (rot). **V:-Übersicht = eigene Tabelle (row 3)** (Anlegen/Entfernen) —
+   **aus dem Profile-Tab hierher migriert, Profile-V:-Editor ENTFERNT.** (Load deferred via `win.after`, da
+   `load_profile` erst nach dem Tab-Aufbau importiert wird.) „+ V:-Variable"-Dialog wieder raus.
+3. **Kachel-Panel:** eigener **„+ Variable"-Picker** neben „Raster" (`_PanelWindow.catalog_provider`);
+   **„→ Ins Panel" entfernt.** **Panel-Toggle:** Text „Panel öffnen"↔„Panel schließen" + **invertierte Farben**
+   (neuer Style `AccentInv`); `_toggle_panel` zustandsbasiert (`panel_btn`-Holder für Text/Style).
+4. **Connection-Tab: Bridge-Log live eingebettet** (tailt `bridge/bridge.log`, `win.after`-Loop, autoscroll,
+   gedeckelt) → kein loses Bridge-Terminal nötig. GUI-Mapper-Start ist fensterlos (DEVNULL).
+5. **🪄 Zauberstab HIDRAW-FÄHIG** (war evdev-only → „Panels gehen nicht"): neu `hidraw_reader.live_state_reader`
+   (nicht-blockierend, `{("switch",bit):value}`); `_learn_code` wählt Reader nach `ddef.transport`. Panel
+   sendet **KEINEN On-Open-Snapshot** (empirisch) → **Lazy-Baseline** aus 1. Frame → UX: **Schalter HIN UND
+   ZURÜCK** (1. Flip=Baseline, 2.=Code). Kind „switch"=„Schalter". `code=byte·8+bit`.
+6. **pythonw.exe** in `run-bridge.sh` (statt python.exe) → Wine spawnt **kein Konsolenfenster** mehr; Log
+   unberührt (FileHandler). **⚠️ UNGETESTET** — User prüft beim nächsten Bridge-Start. (pythonw.exe liegt im
+   pybridge-Prefix.)
+7. Kleinkram: „+ Panel" → **„+ Saitek-Panel"**; Gauges-Tab nach rechts
+   (**Connection·Mapper·Variablen·Gauges·Profile**); Inline-✕ (Sequence/Bedingung) rot.
+
+**🔴 NÄCHSTES:** GUI+Mapper+Bridge NEU STARTEN & alles live sichten; tq6-WIP im piper_arrow aufräumen+
+committen; pythonw-Fenster prüfen; dann Geräte-Explorer (Wand-hidraw ist der halbe Weg) / Kette → main.
 
 ## 🆕 SESSION 2026-07-16 (fortges.) — GAUGES-TAB GEBAUT (Branch `feat/gauges`)
 **Branch `feat/gauges`** (von `feat/mapper-tab` abgezweigt), Commit `c580928`. **284 Tests grün,
