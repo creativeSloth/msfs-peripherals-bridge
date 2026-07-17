@@ -138,6 +138,23 @@ def _wire_name(kind: str, name: str) -> str | None:
     return None
 
 
+def _local_vars_as_dicts(prof) -> list[dict]:
+    """A profile's local V: vars as plain dicts (for profile_writer.set_local_vars)."""
+    out: list[dict] = []
+    for lv in prof.local_vars:
+        d: dict = {"name": lv.name}
+        if lv.unit != "number":
+            d["unit"] = lv.unit
+        if lv.initial:
+            d["initial"] = lv.initial
+        if lv.description:
+            d["description"] = lv.description
+        if lv.persist:
+            d["persist"] = True
+        out.append(d)
+    return out
+
+
 # --- pure grid helpers (unit-tested without a display) --------------------- #
 def _panel_first_free(occupied, cols, rows):
     """First free (col, row) scanning row-major, or None if the grid is full."""
@@ -467,9 +484,16 @@ def _open_var_picker(parent, catalog, on_add) -> None:
     import tkinter as tk
     from tkinter import ttk
 
-    from .gui_catalog import KIND_EVENT, KIND_LVAR, KIND_SIMVAR, filter_catalog
+    from .gui_catalog import (
+        KIND_EVENT,
+        KIND_LVAR,
+        KIND_SIMVAR,
+        KIND_VIRTUAL,
+        filter_catalog,
+    )
 
-    kinds = {"Alle": None, "A: SimVar": KIND_SIMVAR, "K: Event": KIND_EVENT, "L: LVar": KIND_LVAR}
+    kinds = {"Alle": None, "A: SimVar": KIND_SIMVAR, "K: Event": KIND_EVENT,
+             "L: LVar": KIND_LVAR, "V: lokal": KIND_VIRTUAL}
 
     top = tk.Toplevel(parent)
     top.title("Variable auswählen")
@@ -535,13 +559,14 @@ class _PanelWindow:
     subscription with the Statistik list via ``on_change``).
     """
 
-    def __init__(self, master, monitor, on_change, on_close) -> None:
+    def __init__(self, master, monitor, on_change, on_close, catalog_provider=None) -> None:
         import tkinter as tk
 
         self._tk = tk
         self.monitor = monitor
         self._on_change = on_change
         self._on_close = on_close
+        self._catalog_provider = catalog_provider or (lambda: [])
         self.tiles: dict[str, dict] = {}
         self._drag: dict = {"key": None, "dx": 0.0, "dy": 0.0}
         self._mv = (0, 0)
@@ -564,6 +589,12 @@ class _PanelWindow:
         handle = tk.Label(bar, text="::", background="#37474f", foreground="#b0bec5",
                           font=("TkDefaultFont", 10, "bold"), cursor="fleur")
         handle.pack(side="left", padx=(6, 4))
+        add_btn = tk.Button(bar, text="+ Variable", background="#455a64",
+                            foreground="#eceff1", relief="flat", cursor="hand2",
+                            activebackground="#546e7a", activeforeground="#ffffff",
+                            highlightthickness=0, borderwidth=0, padx=6,
+                            command=self._pick_var)
+        add_btn.pack(side="left", padx=(0, 8))
         tk.Label(bar, text="Raster", background="#37474f",
                  foreground="#eceff1").pack(side="left")
         self._cols_var = tk.IntVar(value=self.cols)
@@ -637,6 +668,13 @@ class _PanelWindow:
         self._place(t)
         self._save()
         return True
+
+    def _pick_var(self) -> None:
+        """Open the shared var picker; each pick drops a tile into the grid."""
+        def _on(v):
+            if self.add(v.kind, v.name, getattr(v, "unit", "") or ""):
+                self._on_change()
+        _open_var_picker(self.win, self._catalog_provider(), _on)
 
     def destroy(self) -> None:
         self._close()
@@ -963,9 +1001,70 @@ def run() -> None:
     ttk.Label(conn, text="Bridge ist single-client — Mapper ODER ein Tool.",
               foreground="#666").grid(row=3, column=0, columnspan=2, sticky="w", pady=(8, 0))
 
+    # --- live bridge log (the Wine-side bridge.py console, tailed) ---------- #
+    # bridge.py logs every record to bridge/bridge.log (flushed per record — the
+    # piped Wine stderr is block-buffered and unreliable). We tail that file so
+    # the bridge "terminal" shows right here instead of a separate console.
+    conn.rowconfigure(5, weight=1)
+    ttk.Label(conn, text="Bridge-Log (Wine-Layer, live) —  bridge/bridge.log",
+              foreground=MUTED).grid(row=4, column=0, columnspan=2, sticky="w", pady=(12, 2))
+    logfr = ttk.Frame(conn)
+    logfr.grid(row=5, column=0, columnspan=2, sticky="nsew")
+    logfr.rowconfigure(0, weight=1)
+    logfr.columnconfigure(0, weight=1)
+    log_txt = tk.Text(logfr, height=12, wrap="none", background="#0f172a",
+                      foreground="#d1d5db", insertbackground="#d1d5db",
+                      font=("TkFixedFont", 9), borderwidth=0, highlightthickness=0)
+    log_txt.grid(row=0, column=0, sticky="nsew")
+    log_vsb = ttk.Scrollbar(logfr, orient="vertical", command=log_txt.yview)
+    log_vsb.grid(row=0, column=1, sticky="ns")
+    log_hsb = ttk.Scrollbar(logfr, orient="horizontal", command=log_txt.xview)
+    log_hsb.grid(row=1, column=0, sticky="ew")
+    log_txt.config(yscrollcommand=log_vsb.set, xscrollcommand=log_hsb.set, state="disabled")
+    _bridge_log_path = root_dir / "bridge" / "bridge.log"
+    _log_pos = {"at": 0}
+
+    def _log_append(text: str, follow: bool) -> None:
+        log_txt.config(state="normal")
+        log_txt.insert("end", text)
+        # Cap the buffer so a long session can't grow it without bound.
+        if int(log_txt.index("end-1c").split(".")[0]) > 2000:
+            log_txt.delete("1.0", "end-1500l")
+        log_txt.config(state="disabled")
+        if follow:
+            log_txt.see("end")
+
+    def _tail_bridge_log():
+        try:
+            size = _bridge_log_path.stat().st_size
+            if size < _log_pos["at"]:  # rotated/truncated → resync from start
+                _log_pos["at"] = 0
+                log_txt.config(state="normal")
+                log_txt.delete("1.0", "end")
+                log_txt.config(state="disabled")
+            if size > _log_pos["at"]:
+                follow = log_txt.yview()[1] > 0.999  # only autoscroll if pinned to bottom
+                with open(_bridge_log_path, encoding="utf-8", errors="replace") as fh:
+                    if _log_pos["at"] == 0:  # first load: show only the tail
+                        fh.seek(max(0, size - 16384))
+                        chunk = fh.read()
+                        if size > 16384:
+                            chunk = "… (älteres im bridge.log)\n" + chunk[chunk.find("\n") + 1:]
+                        follow = True
+                    else:
+                        fh.seek(_log_pos["at"])
+                        chunk = fh.read()
+                    _log_pos["at"] = fh.tell()
+                _log_append(chunk, follow)
+        except OSError:
+            pass  # log not there yet (bridge never started) — try again next tick
+        win.after(700, _tail_bridge_log)
+
+    _tail_bridge_log()
+
     # ===== Statistik tab =================================================== #
     stab = ttk.Frame(nb, padding=10)
-    nb.add(stab, text="Statistik")
+    nb.add(stab, text="Variablen")
     stab.rowconfigure(1, weight=1)
     stab.columnconfigure(0, weight=1)
 
@@ -1066,7 +1165,8 @@ def run() -> None:
     def _show_panel():
         pw = panel_ref["win"]
         if pw is None or not pw.alive():
-            pw = _PanelWindow(win, monitor, on_change=_resubscribe, on_close=_panel_closed)
+            pw = _PanelWindow(win, monitor, on_change=_resubscribe, on_close=_panel_closed,
+                              catalog_provider=_statistik_catalog)
             panel_ref["win"] = pw
         panel_on.set(True)
         _persist_visible(True)
@@ -1083,24 +1183,11 @@ def run() -> None:
         _resubscribe()
 
     def _toggle_panel():
-        _show_panel() if panel_on.get() else _hide_panel()
-
-    def _transfer_to_panel():
-        pw = _show_panel()
-        full = False
-        for iid in tree.selection() or tree.get_children(""):
-            kind = tree.set(iid, "kind")
-            if kind == "K:":  # events carry no value -> not a tile
-                continue
-            if f"{kind}\t{tree.set(iid, 'name')}" in pw:
-                continue
-            if not pw.add(kind, tree.set(iid, "name"), tree.set(iid, "unit")):
-                full = True
-        _resubscribe()
-        if full:
-            messagebox.showinfo(
-                "Panel voll", "Das Raster ist voll — vergrößere es (Spalten x Zeilen).",
-            )
+        pw = panel_ref["win"]
+        if pw is not None and pw.alive():
+            _hide_panel()
+        else:
+            _show_panel()
 
     # Restore the var selection saved from the last session (before wiring buttons).
     for _saved in load_statistik_selection():
@@ -1112,24 +1199,99 @@ def run() -> None:
             persist=False,
         )
 
+    def _statistik_catalog():
+        # Base A:/K:/L: catalog + the current profile's own V: vars, read fresh so
+        # a just-declared virtual shows up in the picker without a restart.
+        lvs = []
+        with contextlib.suppress(Exception):
+            lvs = load_profile(profiles_dir(root_dir)
+                               / f"{profile_var.get()}.yaml").local_vars
+        return catalog + gui_catalog.local_var_catalog(lvs)
+
+    def _new_local_var():
+        dlg = tk.Toplevel(win)
+        dlg.title("Neue V:-Variable")
+        dlg.transient(win)
+        dlg.resizable(False, False)
+        frm = ttk.Frame(dlg, padding=12)
+        frm.pack(fill="both", expand=True)
+        frm.columnconfigure(1, weight=1)
+        ttk.Label(frm, text="Eigene virtuelle Variable — lebt im Bridge-Hub, nie in der\n"
+                            "Sim. Beim Mapper-Start mit dem Startwert belegt.",
+                  foreground=MUTED, justify="left").grid(
+                      row=0, column=0, columnspan=2, sticky="w", pady=(0, 8))
+        name_v, init_v, desc_v = tk.StringVar(), tk.StringVar(value="0"), tk.StringVar()
+        ttk.Label(frm, text="Name (V:…)").grid(row=1, column=0, sticky="w", padx=(0, 8))
+        e_name = ttk.Entry(frm, textvariable=name_v, width=26)
+        e_name.grid(row=1, column=1, sticky="ew", pady=2)
+        ttk.Label(frm, text="Startwert").grid(row=2, column=0, sticky="w", padx=(0, 8))
+        ttk.Entry(frm, textvariable=init_v, width=26).grid(row=2, column=1, sticky="ew", pady=2)
+        ttk.Label(frm, text="Beschreibung").grid(row=3, column=0, sticky="w", padx=(0, 8))
+        ttk.Entry(frm, textvariable=desc_v, width=26).grid(row=3, column=1, sticky="ew", pady=2)
+        msg = ttk.Label(frm, text="", foreground=DANGER)
+        msg.grid(row=4, column=0, columnspan=2, sticky="w", pady=(4, 0))
+
+        def _create():
+            name = name_v.get().strip()
+            if not name:
+                msg.config(text="Name fehlt.")
+                return
+            try:
+                initial = float(init_v.get() or 0)
+            except ValueError:
+                msg.config(text="Startwert muss eine Zahl sein.")
+                return
+            entry: dict = {"name": name}
+            if initial:
+                entry["initial"] = initial
+            if desc_v.get().strip():
+                entry["description"] = desc_v.get().strip()
+            path = profiles_dir(root_dir) / f"{profile_var.get()}.yaml"
+            try:
+                keep = [d for d in _local_vars_as_dicts(load_profile(path))
+                        if d["name"] != name]
+                data = profile_writer.load(path)
+                profile_writer.set_local_vars(data, [*keep, entry])
+                profile_writer.validate(data)
+                profile_writer.dump(data, path)
+            except Exception as exc:
+                msg.config(text=f"Fehler: {exc}")
+                return
+            # Declared into the profile only — it now shows up in the picker's
+            # "V: lokal" list. It is NOT auto-added to the monitored value list
+            # (per user: the create button feeds the catalog, not the readout).
+            msg.config(text=f"V:{name} angelegt — im Picker („V: lokal“) wählbar ✓",
+                       foreground="#15803d")
+            name_v.set("")
+            init_v.set("0")
+            desc_v.set("")
+            e_name.focus_set()
+
+        btns = ttk.Frame(frm)
+        btns.grid(row=5, column=0, columnspan=2, sticky="e", pady=(12, 0))
+        ttk.Button(btns, text="Schließen", command=dlg.destroy).pack(side="right")
+        ttk.Button(btns, text="Anlegen", style="Accent.TButton",
+                   command=_create).pack(side="right", padx=6)
+        e_name.focus_set()
+        dlg.bind("<Return>", lambda _e: _create())
+
     sbtn = ttk.Frame(stab)
     sbtn.grid(row=2, column=0, columnspan=4, sticky="ew", pady=(6, 0))
-    b_add = ttk.Button(sbtn, text="Variable hinzufügen …",
-                       command=lambda: _open_var_picker(win, catalog, add_var))
-    b_rm = ttk.Button(sbtn, text="Entfernen", command=remove_selected)
-    b_panel = ttk.Button(sbtn, text="→ Ins Panel", command=lambda: _transfer_to_panel())
-    # Toolbutton-styled checkbutton: pressed (on) while the panel is visible.
-    b_toggle = ttk.Checkbutton(sbtn, text="Panel", style="Toolbutton",
-                               variable=panel_on, command=lambda: _toggle_panel())
+    b_add = ttk.Button(sbtn, text="Variablen in die Liste holen",
+                       command=lambda: _open_var_picker(win, _statistik_catalog(), add_var))
+    b_newv = ttk.Button(sbtn, text="+ V:-Variable", command=_new_local_var)
+    b_rm = ttk.Button(sbtn, text="Entfernen", style="Danger.TButton", command=remove_selected)
+    b_toggle = ttk.Button(sbtn, text="🖥  Panel öffnen", style="Accent.TButton",
+                          command=_toggle_panel)
     b_add.pack(side="left")
+    b_newv.pack(side="left", padx=6)
     b_rm.pack(side="left", padx=6)
-    b_panel.pack(side="left")
     b_toggle.pack(side="left", padx=6)
     mon_state = ttk.Label(sbtn, text="", foreground="#666")
     mon_state.pack(side="right")
-    _attach_tooltip(b_add, "Popup: nach Typ (A:/K:/L:) filtern + Namen suchen")
-    _attach_tooltip(b_panel, "Ausgewählte (oder alle) Wert-Zeilen als Kacheln ins Panel legen")
-    _attach_tooltip(b_toggle, "Panel-Fenster an/aus (gedrückt = sichtbar)")
+    _attach_tooltip(b_add, "Popup: nach Typ (A:/K:/L:/V:) filtern + Namen suchen")
+    _attach_tooltip(b_newv, "Eigene virtuelle Variable (V:) anlegen — erscheint danach im Picker")
+    _attach_tooltip(b_toggle, "Loslösbares Kachel-Panel öffnen/schließen (mit eigenem Picker)")
     # ===== Mapper tab (device viewer + inline binding editor) ============== #
     from . import gui_mapper, profile_writer
     from .mapping.loader import load_device_catalog, load_profile
@@ -1218,7 +1380,7 @@ def run() -> None:
     ttk.Button(bindbtn, text="Duplizieren",
                command=lambda: _ed_duplicate()).pack(side="right", padx=6)
     ttk.Button(bindbtn, text="+ Binding", command=lambda: _new_binding()).pack(side="right")
-    b_addpanel = ttk.Menubutton(bindbtn, text="+ Panel")
+    b_addpanel = ttk.Menubutton(bindbtn, text="+ Saitek-Panel")
     b_addpanel.pack(side="right", padx=6)
     _attach_tooltip(b_addpanel,
                     "Neuen Panel-Controller anlegen — nur für Saitek-Panels (hidraw) "
@@ -1369,12 +1531,11 @@ def run() -> None:
     b_learn = ttk.Button(srcfr, text="🪄", width=3, command=lambda: _learn_code())
     b_learn.pack(side="left", padx=6)
     _attach_tooltip(b_learn,
-                    "Bedienelement anlernen: lauscht live am angeschlossenen Gerät (evdev) "
-                    "des Bindings — gewünschten Knopf EINMAL drücken oder den Hebel "
-                    "deutlich bewegen, dann werden Art (Taster/Achse/Hat) und Code erkannt "
-                    "und oben eingetragen.\n\nVoraussetzung: das Gerät hängt am USB. "
-                    "Saitek-Panels (hidraw) lassen sich so nicht anlernen — deren Codes "
-                    "stehen in den Mess-Dokus.")
+                    "Bedienelement anlernen: lauscht live am angeschlossenen Gerät des "
+                    "Bindings — gewünschten Knopf/Schalter EINMAL betätigen oder den Hebel "
+                    "deutlich bewegen, dann werden Art (Taster/Schalter/Achse/Hat) und Code "
+                    "erkannt und oben eingetragen.\n\nFunktioniert für Achsen-Hardware (evdev) "
+                    "UND die Saitek-Panels (hidraw). Voraussetzung: das Gerät hängt am USB.")
 
     # row 2: action — ONE button. Pick from the list and everything follows the
     # picked kind: a K: entry fires that event, an A:/L:/V: entry sets that
@@ -1621,7 +1782,7 @@ def run() -> None:
                            command=lambda s=st: _pick_seq_step(s)).pack(side="left")
                 ttk.Label(row, text="Wert").pack(side="left", padx=(6, 0))
                 ttk.Entry(row, textvariable=st["value"], width=7).pack(side="left", padx=3)
-                ttk.Button(row, text="✕", width=2,
+                ttk.Button(row, text="✕", width=2, style="Danger.TButton",
                            command=lambda e=edge, ix=i: _seq_del(e, ix)).pack(side="left")
 
     def _seq_load(action):
@@ -1718,7 +1879,7 @@ def run() -> None:
             ttk.Combobox(fr, textvariable=row["op"], values=list(gui_mapper.CONDITION_OPS),
                          state="readonly", width=4).pack(side="left", padx=3)
             ttk.Entry(fr, textvariable=row["value"], width=8).pack(side="left")
-            ttk.Button(fr, text="✕", width=2,
+            ttk.Button(fr, text="✕", width=2, style="Danger.TButton",
                        command=lambda ix=i: _cond_del(ix)).pack(side="left", padx=4)
 
     def _cond_load(when):
@@ -1754,30 +1915,41 @@ def run() -> None:
             _ed_status("Erst ein Binding öffnen.", error=True)
             return
         opened = None
+        is_panel = False
         with contextlib.suppress(Exception):
-            from .devices import evdev_reader
+            from .devices import evdev_reader, hidraw_reader
 
             dcat = _device_catalog()
-            path = evdev_reader.discover(dcat).get(dev) if dcat else None
-            opened = evdev_reader.live_state_reader(path) if path else None
+            ddef = dcat.by_id(dev) if dcat else None
+            if ddef is not None and ddef.transport == "hidraw":
+                is_panel = True
+                path = hidraw_reader.discover(dcat).get(dev)
+                opened = hidraw_reader.live_state_reader(path) if path else None
+            else:
+                path = evdev_reader.discover(dcat).get(dev) if dcat else None
+                opened = evdev_reader.live_state_reader(path) if path else None
         if opened is None:
-            _ed_status(f"„{dev}“ nicht live lesbar (Gerät an? evdev? Panels gehen "
-                       "nicht — Codes s. Mess-Doku).", error=True)
+            _ed_status(f"„{dev}“ nicht live lesbar — Gerät angesteckt?", error=True)
             return
         reader, ranges = opened
-        base = dict(reader() or {})
+        # Panels send no on-open snapshot, so their baseline is captured lazily from
+        # the first frame (= the first flip); evdev state is seeded immediately.
+        base = {"v": {} if is_panel else dict(reader() or {})}
         cap = tk.Toplevel(ed_win)
         cap.title(f"Anlernen — {dev}")
         cap.transient(ed_win)
         frm = ttk.Frame(cap, padding=12)
         frm.pack(fill="both", expand=True)
-        ttk.Label(frm, text="Jetzt den gewünschten Knopf drücken\n"
-                            "oder den Hebel deutlich bewegen:").pack(anchor="w")
+        ttk.Label(frm, text=("Panel-Schalter EINMAL HIN UND ZURÜCK legen\n"
+                             "(erst Baseline, dann steht der Code):"
+                             if is_panel else
+                             "Jetzt den gewünschten Knopf drücken\n"
+                             "oder den Hebel deutlich bewegen:")).pack(anchor="w")
         found = tk.StringVar(value="— lausche —")
         ttk.Label(frm, textvariable=found,
                   font=("TkDefaultFont", 13, "bold")).pack(anchor="w", pady=6)
         st = {"kind": None, "code": None}
-        _KIND_WORD = {"button": "Taster", "axis": "Achse", "hat": "Hat"}
+        _KIND_WORD = {"button": "Taster", "axis": "Achse", "hat": "Hat", "switch": "Schalter"}
 
         def _apply():
             if st["kind"] is None:
@@ -1805,15 +1977,25 @@ def run() -> None:
             if state is None:
                 found.set("Gerät getrennt.")
                 return
+            if is_panel and not base["v"]:  # panel: first frame is the baseline, no capture
+                if state:
+                    base["v"] = dict(state)
+                    found.set("Baseline gesetzt — jetzt denselben Schalter ZURÜCK legen")
+                cap.after(80, _tick)
+                return
+            b = base["v"]
             for (kind, code), val in state.items():
                 if kind == "button":
-                    if val and base.get((kind, code)) != val:
+                    if val and b.get((kind, code)) != val:
                         st.update(kind="button", code=code)
+                elif kind == "switch":  # hidraw panel bit — either edge counts as a flip
+                    if b.get((kind, code)) != val:
+                        st.update(kind="switch", code=code)
                 else:  # EV_ABS: axes and hats
                     lo, hi = ranges.get(code, (0, 255))
                     span = (hi - lo) or 1
                     # >= so a hat press (span ±1 -> delta exactly 1) registers too
-                    if abs(val - base.get((kind, code), val)) >= max(span * 0.2, 1):
+                    if abs(val - b.get((kind, code), val)) >= max(span * 0.2, 1):
                         st.update(kind="hat" if span <= 2 else "axis", code=code)
             if st["kind"] is not None:
                 found.set(f"{_KIND_WORD[st['kind']]} — Code {st['code']}")
@@ -2779,19 +2961,7 @@ def run() -> None:
             prof = load_profile(profiles_dir(root_dir) / f"{profile_var.get()}.yaml")
         except Exception:
             return []
-        out = []
-        for lv in prof.local_vars:
-            d = {"name": lv.name}
-            if lv.unit != "number":
-                d["unit"] = lv.unit
-            if lv.initial:
-                d["initial"] = lv.initial
-            if lv.description:
-                d["description"] = lv.description
-            if lv.persist:
-                d["persist"] = True
-            out.append(d)
-        return out
+        return _local_vars_as_dicts(prof)
 
     def _lv_add():
         name = lv_name.get().strip()
@@ -3132,10 +3302,10 @@ def run() -> None:
     _g_redraw()
     _g_tick()
 
-    # tab order per user (2026-07-16): Mapper directly after Connection,
-    # Gauges + Statistik to its right, Profile last. nb.insert() on an
-    # already-managed child just moves it.
-    for pos, tab in enumerate((conn, mtab, gtab, stab, ptab)):
+    # tab order per user (2026-07-17): Mapper after Connection, then Statistik,
+    # Gauges to its right, Profile last. nb.insert() on an already-managed child
+    # just moves it.
+    for pos, tab in enumerate((conn, mtab, stab, gtab, ptab)):
         nb.insert(pos, tab)
 
     # --- bottom status bar (small lamps) ----------------------------------- #
