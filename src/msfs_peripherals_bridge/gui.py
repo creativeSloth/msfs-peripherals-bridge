@@ -919,6 +919,11 @@ def run() -> None:
                     padding=(12, 6), borderwidth=0)
     style.map("Accent.TButton", background=[("active", ACCENT_ACT), ("disabled", "#a9c1f6")],
               foreground=[("disabled", "#eef2ff")])
+    # Inverted accent — used by the Panel toggle while the panel is open.
+    style.configure("AccentInv.TButton", background=SURFACE, foreground=ACCENT,
+                    padding=(12, 6), borderwidth=1)
+    style.map("AccentInv.TButton", background=[("active", "#eef2ff")],
+              foreground=[("disabled", "#a9c1f6")])
     style.configure("Danger.TButton", background=DANGER, foreground="#ffffff",
                     padding=(10, 5), borderwidth=0)
     style.map("Danger.TButton", background=[("active", DANGER_ACT), ("disabled", "#eab8b8")])
@@ -926,6 +931,8 @@ def run() -> None:
     # On/off state of the (borderless) Panel window, mirrored by the toolbar
     # toggle button below. The panel is created when on and destroyed when off.
     panel_on = tk.BooleanVar(value=False)
+    panel_btn_text = tk.StringVar(value="🖥  Panel öffnen")
+    panel_btn: dict = {"w": None}  # holds the toggle button once built (for text/style)
 
     profile_var = tk.StringVar(value=default_profile)
     mapper = {"ctl": None}  # rebuilt on start so a profile change takes effect
@@ -1065,7 +1072,7 @@ def run() -> None:
     # ===== Statistik tab =================================================== #
     stab = ttk.Frame(nb, padding=10)
     nb.add(stab, text="Variablen")
-    stab.rowconfigure(1, weight=1)
+    stab.rowconfigure(2, weight=1)  # the value table grows (buttons above it in row 1)
     stab.columnconfigure(0, weight=1)
 
     ttk.Label(stab, text="Live-Wertliste — Variablen zum Beobachten zusammenstellen:"
@@ -1079,9 +1086,9 @@ def run() -> None:
     ):
         tree.heading(col, text=head)
         tree.column(col, width=w, anchor=anchor)
-    tree.grid(row=1, column=0, columnspan=3, sticky="nsew", pady=6)
+    tree.grid(row=2, column=0, columnspan=3, sticky="nsew", pady=6)
     tsb = ttk.Scrollbar(stab, orient="vertical", command=tree.yview)
-    tsb.grid(row=1, column=3, sticky="ns", pady=6)
+    tsb.grid(row=2, column=3, sticky="ns", pady=6)
     tree.config(yscrollcommand=tsb.set)
 
     # The detachable Panel window (opened on demand) shares this monitor; the
@@ -1157,9 +1164,15 @@ def run() -> None:
         st["visible"] = value
         save_panel_state(st)
 
+    def _panel_btn_open(is_open: bool):
+        panel_btn_text.set("🖥  Panel schließen" if is_open else "🖥  Panel öffnen")
+        if panel_btn["w"] is not None:
+            panel_btn["w"].config(style="AccentInv.TButton" if is_open else "Accent.TButton")
+
     def _panel_closed():
         panel_ref["win"] = None
         panel_on.set(False)
+        _panel_btn_open(False)
         _resubscribe()
 
     def _show_panel():
@@ -1169,6 +1182,7 @@ def run() -> None:
                               catalog_provider=_statistik_catalog)
             panel_ref["win"] = pw
         panel_on.set(True)
+        _panel_btn_open(True)
         _persist_visible(True)
         _resubscribe()
         return pw
@@ -1179,6 +1193,7 @@ def run() -> None:
             pw.destroy()  # borderless: destroy is the reliable "close" on any WM
         panel_ref["win"] = None
         panel_on.set(False)
+        _panel_btn_open(False)
         _persist_visible(False)
         _resubscribe()
 
@@ -1208,90 +1223,113 @@ def run() -> None:
                                / f"{profile_var.get()}.yaml").local_vars
         return catalog + gui_catalog.local_var_catalog(lvs)
 
-    def _new_local_var():
-        dlg = tk.Toplevel(win)
-        dlg.title("Neue V:-Variable")
-        dlg.transient(win)
-        dlg.resizable(False, False)
-        frm = ttk.Frame(dlg, padding=12)
-        frm.pack(fill="both", expand=True)
-        frm.columnconfigure(1, weight=1)
-        ttk.Label(frm, text="Eigene virtuelle Variable — lebt im Bridge-Hub, nie in der\n"
-                            "Sim. Beim Mapper-Start mit dem Startwert belegt.",
-                  foreground=MUTED, justify="left").grid(
-                      row=0, column=0, columnspan=2, sticky="w", pady=(0, 8))
-        name_v, init_v, desc_v = tk.StringVar(), tk.StringVar(value="0"), tk.StringVar()
-        ttk.Label(frm, text="Name (V:…)").grid(row=1, column=0, sticky="w", padx=(0, 8))
-        e_name = ttk.Entry(frm, textvariable=name_v, width=26)
-        e_name.grid(row=1, column=1, sticky="ew", pady=2)
-        ttk.Label(frm, text="Startwert").grid(row=2, column=0, sticky="w", padx=(0, 8))
-        ttk.Entry(frm, textvariable=init_v, width=26).grid(row=2, column=1, sticky="ew", pady=2)
-        ttk.Label(frm, text="Beschreibung").grid(row=3, column=0, sticky="w", padx=(0, 8))
-        ttk.Entry(frm, textvariable=desc_v, width=26).grid(row=3, column=1, sticky="ew", pady=2)
-        msg = ttk.Label(frm, text="", foreground=DANGER)
-        msg.grid(row=4, column=0, columnspan=2, sticky="w", pady=(4, 0))
-
-        def _create():
-            name = name_v.get().strip()
-            if not name:
-                msg.config(text="Name fehlt.")
-                return
-            try:
-                initial = float(init_v.get() or 0)
-            except ValueError:
-                msg.config(text="Startwert muss eine Zahl sein.")
-                return
-            entry: dict = {"name": name}
-            if initial:
-                entry["initial"] = initial
-            if desc_v.get().strip():
-                entry["description"] = desc_v.get().strip()
-            path = profiles_dir(root_dir) / f"{profile_var.get()}.yaml"
-            try:
-                keep = [d for d in _local_vars_as_dicts(load_profile(path))
-                        if d["name"] != name]
-                data = profile_writer.load(path)
-                profile_writer.set_local_vars(data, [*keep, entry])
-                profile_writer.validate(data)
-                profile_writer.dump(data, path)
-            except Exception as exc:
-                msg.config(text=f"Fehler: {exc}")
-                return
-            # Declared into the profile only — it now shows up in the picker's
-            # "V: lokal" list. It is NOT auto-added to the monitored value list
-            # (per user: the create button feeds the catalog, not the readout).
-            msg.config(text=f"V:{name} angelegt — im Picker („V: lokal“) wählbar ✓",
-                       foreground="#15803d")
-            name_v.set("")
-            init_v.set("0")
-            desc_v.set("")
-            e_name.focus_set()
-
-        btns = ttk.Frame(frm)
-        btns.grid(row=5, column=0, columnspan=2, sticky="e", pady=(12, 0))
-        ttk.Button(btns, text="Schließen", command=dlg.destroy).pack(side="right")
-        ttk.Button(btns, text="Anlegen", style="Accent.TButton",
-                   command=_create).pack(side="right", padx=6)
-        e_name.focus_set()
-        dlg.bind("<Return>", lambda _e: _create())
-
     sbtn = ttk.Frame(stab)
-    sbtn.grid(row=2, column=0, columnspan=4, sticky="ew", pady=(6, 0))
+    sbtn.grid(row=1, column=0, columnspan=4, sticky="ew", pady=(2, 4))
     b_add = ttk.Button(sbtn, text="Variablen in die Liste holen",
                        command=lambda: _open_var_picker(win, _statistik_catalog(), add_var))
-    b_newv = ttk.Button(sbtn, text="+ V:-Variable", command=_new_local_var)
-    b_rm = ttk.Button(sbtn, text="Entfernen", style="Danger.TButton", command=remove_selected)
-    b_toggle = ttk.Button(sbtn, text="🖥  Panel öffnen", style="Accent.TButton",
+    b_rm = ttk.Button(sbtn, text="Variablen aus Liste entfernen", style="Danger.TButton",
+                      command=remove_selected)
+    b_toggle = ttk.Button(sbtn, textvariable=panel_btn_text, style="Accent.TButton",
                           command=_toggle_panel)
+    panel_btn["w"] = b_toggle
     b_add.pack(side="left")
-    b_newv.pack(side="left", padx=6)
     b_rm.pack(side="left", padx=6)
     b_toggle.pack(side="left", padx=6)
     mon_state = ttk.Label(sbtn, text="", foreground="#666")
     mon_state.pack(side="right")
     _attach_tooltip(b_add, "Popup: nach Typ (A:/K:/L:/V:) filtern + Namen suchen")
-    _attach_tooltip(b_newv, "Eigene virtuelle Variable (V:) anlegen — erscheint danach im Picker")
     _attach_tooltip(b_toggle, "Loslösbares Kachel-Panel öffnen/schließen (mit eigenem Picker)")
+
+    # --- V: overview: declare / remove the profile's own virtual variables --- #
+    # Sits below the value table. Values live in the bridge's V: hub (seeded with
+    # `initial` at mapper start); declared vars show up in every var-picker.
+    vfr = ttk.Labelframe(stab, text="Eigene V:-Variablen (Bridge-Hub, sim-unabhängig)",
+                         padding=6)
+    vfr.grid(row=3, column=0, columnspan=4, sticky="ew", pady=(10, 0))
+    v_list = ttk.Treeview(vfr, columns=("initial", "desc"), show="tree headings",
+                          height=4, selectmode="browse")
+    v_list.heading("#0", text="Name (V:…)")
+    v_list.column("#0", width=180, anchor="w")
+    v_list.heading("initial", text="Startwert")
+    v_list.column("initial", width=80, anchor="w")
+    v_list.heading("desc", text="Beschreibung")
+    v_list.column("desc", width=320, anchor="w")
+    v_list.pack(fill="x")
+    vrow = ttk.Frame(vfr)
+    vrow.pack(anchor="w", pady=(6, 0))
+    v_name, v_init, v_desc = tk.StringVar(), tk.StringVar(value="0"), tk.StringVar()
+    ttk.Label(vrow, text="Name").pack(side="left")
+    ttk.Entry(vrow, textvariable=v_name, width=16).pack(side="left", padx=(2, 8))
+    ttk.Label(vrow, text="Startwert").pack(side="left")
+    ttk.Entry(vrow, textvariable=v_init, width=7).pack(side="left", padx=(2, 8))
+    ttk.Label(vrow, text="Beschreibung").pack(side="left")
+    ttk.Entry(vrow, textvariable=v_desc, width=22).pack(side="left", padx=(2, 8))
+    v_status = ttk.Label(vfr, text="", foreground=MUTED)
+    v_status.pack(anchor="w", pady=(4, 0))
+
+    def _vlist_load(*_):
+        v_list.delete(*v_list.get_children())
+        try:
+            prof = load_profile(profiles_dir(root_dir) / f"{profile_var.get()}.yaml")
+        except Exception:
+            return
+        for lv in prof.local_vars:
+            v_list.insert("", "end", iid=lv.name, text=f"V:{lv.name}",
+                          values=(f"{lv.initial:g}", lv.description))
+
+    def _vlist_save(local_vars):
+        path = profiles_dir(root_dir) / f"{profile_var.get()}.yaml"
+        try:
+            data = profile_writer.load(path)
+            profile_writer.set_local_vars(data, local_vars)
+            profile_writer.validate(data)
+            profile_writer.dump(data, path)
+            v_status.config(text="Gespeichert ✓", foreground="#15803d")
+        except Exception as exc:
+            v_status.config(text=f"Fehler: {exc}", foreground=DANGER)
+        _vlist_load()
+
+    def _vlist_current():
+        try:
+            return _local_vars_as_dicts(
+                load_profile(profiles_dir(root_dir) / f"{profile_var.get()}.yaml"))
+        except Exception:
+            return []
+
+    def _vlist_add():
+        name = v_name.get().strip()
+        if not name:
+            v_status.config(text="Name fehlt.", foreground=DANGER)
+            return
+        try:
+            initial = float(v_init.get() or 0)
+        except ValueError:
+            v_status.config(text="Startwert muss eine Zahl sein.", foreground=DANGER)
+            return
+        entry: dict = {"name": name}
+        if initial:
+            entry["initial"] = initial
+        if v_desc.get().strip():
+            entry["description"] = v_desc.get().strip()
+        kept = [lv for lv in _vlist_current() if lv["name"] != name]
+        _vlist_save([*kept, entry])
+        v_name.set("")
+        v_desc.set("")
+
+    def _vlist_remove():
+        sel = v_list.selection()
+        if not sel:
+            v_status.config(text="Erst eine V:-Variable markieren.", foreground=DANGER)
+            return
+        _vlist_save([lv for lv in _vlist_current() if lv["name"] != sel[0]])
+
+    ttk.Button(vrow, text="Anlegen", style="Accent.TButton",
+               command=_vlist_add).pack(side="left", padx=(4, 4))
+    ttk.Button(vrow, text="Entfernen", style="Danger.TButton",
+               command=_vlist_remove).pack(side="left")
+    profile_var.trace_add("write", _vlist_load)
+    win.after(400, _vlist_load)  # deferred: load_profile is imported just below
+
     # ===== Mapper tab (device viewer + inline binding editor) ============== #
     from . import gui_mapper, profile_writer
     from .mapping.loader import load_device_catalog, load_profile
@@ -2903,101 +2941,8 @@ def run() -> None:
                command=_profile_meta_save).grid(row=4, column=1, sticky="w", pady=(10, 0))
     p_status.grid(row=5, column=1, sticky="w", pady=(4, 0))
 
-    # --- local V: variables: declare/remove them per profile --------------- #
-    # The declarations live in the profile (local_vars:); values live in the
-    # bridge's V: hub, seeded with `initial` at mapper start. Declared vars show
-    # up in every picker (V: filter) and can gate bindings via ⚑ Bedingungen.
-    lvfr = ttk.Labelframe(ptab, text="V: — eigene lokale Variablen", padding=6)
-    lvfr.grid(row=6, column=0, columnspan=2, sticky="ew", pady=(14, 0))
-    lv_list = ttk.Treeview(lvfr, columns=("initial", "desc"), show="tree headings",
-                           height=4, selectmode="browse")
-    lv_list.heading("#0", text="Name (V:…)")
-    lv_list.column("#0", width=180, anchor="w")
-    lv_list.heading("initial", text="Startwert")
-    lv_list.column("initial", width=80, anchor="w")
-    lv_list.heading("desc", text="Beschreibung")
-    lv_list.column("desc", width=280, anchor="w")
-    lv_list.pack(fill="x")
-    lvrow = ttk.Frame(lvfr)
-    lvrow.pack(anchor="w", pady=(6, 0))
-    lv_name = tk.StringVar()
-    lv_init = tk.StringVar(value="0")
-    lv_desc = tk.StringVar()
-    ttk.Label(lvrow, text="Name").pack(side="left")
-    ttk.Entry(lvrow, textvariable=lv_name, width=16).pack(side="left", padx=(2, 8))
-    ttk.Label(lvrow, text="Startwert").pack(side="left")
-    ttk.Entry(lvrow, textvariable=lv_init, width=7).pack(side="left", padx=(2, 8))
-    ttk.Label(lvrow, text="Beschreibung").pack(side="left")
-    ttk.Entry(lvrow, textvariable=lv_desc, width=24).pack(side="left", padx=(2, 8))
-    _info(lvrow, "Eigene Variable fürs Mapping (Modus-Flags, Zähler, Merker): lebt im "
-                 "Bridge-Werte-Hub, nie in der Sim. Wird beim Mapper-Start mit dem "
-                 "Startwert belegt; setzen per Aktion (V:name), lesen überall — auch "
-                 "in ⚑ Bedingungen, Statistik und Gauges.")
-
-    def _lv_load(*_):
-        lv_list.delete(*lv_list.get_children())
-        try:
-            prof = load_profile(profiles_dir(root_dir) / f"{profile_var.get()}.yaml")
-        except Exception:
-            return
-        for lv in prof.local_vars:
-            lv_list.insert("", "end", iid=lv.name, text=f"V:{lv.name}",
-                           values=(f"{lv.initial:g}", lv.description))
-
-    def _lv_save(local_vars):
-        path = profiles_dir(root_dir) / f"{profile_var.get()}.yaml"
-        try:
-            data = profile_writer.load(path)
-            profile_writer.set_local_vars(data, local_vars)
-            profile_writer.validate(data)
-            profile_writer.dump(data, path)
-            p_status.config(text="V:-Variablen gespeichert ✓", foreground="#15803d")
-        except Exception as exc:
-            p_status.config(text=f"Fehler: {exc}", foreground=DANGER)
-        _lv_load()
-
-    def _lv_current():
-        try:
-            prof = load_profile(profiles_dir(root_dir) / f"{profile_var.get()}.yaml")
-        except Exception:
-            return []
-        return _local_vars_as_dicts(prof)
-
-    def _lv_add():
-        name = lv_name.get().strip()
-        if not name:
-            p_status.config(text="V:-Name fehlt.", foreground=DANGER)
-            return
-        try:
-            initial = float(lv_init.get() or 0)
-        except ValueError:
-            p_status.config(text="Startwert muss eine Zahl sein.", foreground=DANGER)
-            return
-        entry: dict = {"name": name}
-        if initial:
-            entry["initial"] = initial
-        if lv_desc.get().strip():
-            entry["description"] = lv_desc.get().strip()
-        _lv_save([lv for lv in _lv_current() if lv["name"] != name] + [entry])
-        lv_name.set("")
-        lv_desc.set("")
-
-    def _lv_remove():
-        sel = lv_list.selection()
-        if not sel:
-            p_status.config(text="Erst eine V:-Variable markieren.", foreground=DANGER)
-            return
-        _lv_save([lv for lv in _lv_current() if lv["name"] != sel[0]])
-
-    ttk.Button(lvrow, text="+ Anlegen", style="Accent.TButton",
-               command=_lv_add).pack(side="left")
-    ttk.Button(lvrow, text="✕ Entfernen", style="Danger.TButton",
-               command=_lv_remove).pack(side="left", padx=6)
-
     profile_var.trace_add("write", _profile_meta_load)
-    profile_var.trace_add("write", _lv_load)
     _profile_meta_load()
-    _lv_load()
 
     # --- Gauges tab: click a panel together from mapped gauges ------------- #
     # Round instruments ported from the user's Air Manager gauges (pure math in

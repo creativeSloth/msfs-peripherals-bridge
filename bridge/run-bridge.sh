@@ -14,8 +14,10 @@ APPID="${MSFS_APPID:-1250410}"
 STEAM_ROOT="${STEAM_ROOT:-$HOME/.steam/steam}"
 COMPAT_DATA="${STEAM_COMPAT_DATA_PATH:-$STEAM_ROOT/steamapps/compatdata/$APPID}"
 PREFIX="$COMPAT_DATA/pfx"
-# Windows Python installed into the prefix by setup-prefix.sh.
-WIN_PYTHON="${WIN_PYTHON:-$PREFIX/drive_c/pybridge/python.exe}"
+# Windows Python installed into the prefix by setup-prefix.sh. Use the *windowless*
+# pythonw.exe (GUI subsystem) so Wine doesn't spawn a console window for the bridge
+# — logging still lands in bridge.log via bridge.py's FileHandler (flushed per record).
+WIN_PYTHON="${WIN_PYTHON:-$PREFIX/drive_c/pybridge/pythonw.exe}"
 
 # Proton build to use — the prefix migrated to Proton Experimental.
 PROTON_NAME="${PROTON_NAME:-Proton - Experimental}"
