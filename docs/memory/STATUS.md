@@ -1,8 +1,8 @@
 # STATUS — Resume-Anker
 
 > Kurzer Einstiegspunkt: was läuft, was offen ist, wie es weitergeht.
-> Stand: **2026-07-18 — Connection-Umbau + Settings-Tab + i18n (Sprachpaket DE/EN/ES/FR) für ganz gui.py.**
-> Branch `feat/gauges`, neue Commits …`84915c0`+`567284a`+`18aa321` (+STATUS) (NICHT gepusht), **317 Tests grün**, ruff clean.
+> Stand: **2026-07-18 — Connection-Umbau + Settings-Tab + i18n-SPRACHPAKET VOLLSTÄNDIG (DE/EN/ES/FR).**
+> Branch `feat/gauges`, neue Commits …`84915c0`→`1d0feeb` (NICHT gepusht), **317 Tests grün**, ruff clean.
 > **🆕 GUI-Umbau `84915c0`** (visuell UNGEPRÜFT/headless, aber Konstruktions-Smoke DE/EN/ES/FR ok + Prefix-Checks
 > gegen echtes Prefix verifiziert): Connection-Tab neu nach Sinngruppen — Sub-Notebook „Steuerung & Status" /
 > „Bridge-Protokoll" (Log-Terminal ausgelagert), Gruppe „Prozesse" (kompakte Knöpfe, neue Styles Small*),
@@ -17,10 +17,13 @@
 > DE-Quelltext (gettext-Stil). Auto-Wrap via Scratch-Skript `wrap_tr.py` (String-Run bleibt in tr() → Key=konkat.
 > Wert). Bewusst NICHT übersetzt (in allen Sprachen gleich): Symbole (…/✓/🪄/min/max/dz/expo/Code/SimVar/RPN) +
 > Roh-Kommando-Tooltips (bash …/killpg …/filedialog …). ruff: per-file-ignore E501 für i18n.py.
-> **⏳ OFFEN i18n (Folgeschritt):** Daten-Strings aus `gui_mapper.py` (Control-Labels „Achse/Taste/Schalter/Hat",
-> Gruppen-Labels „Position ALT" etc., `OUTPUT_FIELD_HELP` ~50 Felder, describe_*-Ausgaben) — im Mapper-Baum/Editor
-> sichtbar, laufen noch auf Deutsch. Ansatz: `from .i18n import tr` in gui_mapper (rein, tk-frei) + wrappen; Tests
-> prüfen mit Default-DE → bleiben grün.
+> **✅ i18n VOLLSTÄNDIG (`ceab706`+`1d0feeb`):** auch `gui_mapper.py` — Control-Labels (Achse/Taste/Hat/Schalter),
+> Gerätestatus, describe_*-Ausgaben, FIELD_LABEL, alle ~55 OUTPUT_FIELD_HELP-Felder+Hilfen, _ENTRY_WORD/_SOLO/
+> _GROUP_ROLE + 19 Validierungs-Fehler. `tr()` an Use-Sites (Dicts bleiben DE-Quelle=Key). ~145 Einträge; Tests
+> grün via Default-DE-Fallback. **Scratch-Generatoren** `wrap_tr.py`/`gen_mapper_i18n.py` (Übersetzungen im Skript,
+> Keys aus Import → exakt). **⏳ i18n-Rest bewusst offen:** Anwenden per **GUI-Neustart** (os.execv), kein Live-
+> Retranslation der schon gebauten Widgets. **🔴 GUI weiterhin visuell UNGEPRÜFT** (headless) → beim nächsten
+> Start Connection-Umbau + Sprachumschaltung live sichten.
 > **✅ V: e2e bewiesen** (Seeding 0.0 · Cowl-Switch **Code 6** → 0↔1 · Hub-Runde) via Direkt-Client an
 > Bridge :7842. **GUI-Batch committet** (Details Session unten): Variablen-Tab-Umbau (V:-Übersichtstabelle,
 > Buttons ÜBER die Tabelle, V:-Editor aus Profile RAUS), Panel-Picker + Toggle-Button, Bridge-Log
