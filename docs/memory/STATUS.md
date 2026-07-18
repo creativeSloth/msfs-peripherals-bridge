@@ -1,8 +1,19 @@
 # STATUS — Resume-Anker
 
 > Kurzer Einstiegspunkt: was läuft, was offen ist, wie es weitergeht.
-> Stand: **2026-07-18 — tq6-WIP aufgeräumt + committet (`f64d979`); davor 2026-07-17 V:-Runtime e2e + GUI-Batch.**
-> Branch `feat/gauges`, 3 neue Commits `3507407`+`ba8c332`+`f64d979` (NICHT gepusht), 302 Tests grün, ruff clean.
+> Stand: **2026-07-18 — Connection-Umbau + Settings-Tab + i18n-Fundament (`84915c0`); tq6-WIP erledigt (`f64d979`).**
+> Branch `feat/gauges`, neue Commits …`f64d979`+`8a01a4e`+`84915c0` (NICHT gepusht), **317 Tests grün**, ruff clean.
+> **🆕 GUI-Umbau `84915c0`** (visuell UNGEPRÜFT/headless, aber Konstruktions-Smoke DE/EN/ES/FR ok + Prefix-Checks
+> gegen echtes Prefix verifiziert): Connection-Tab neu nach Sinngruppen — Sub-Notebook „Steuerung & Status" /
+> „Bridge-Protokoll" (Log-Terminal ausgelagert), Gruppe „Prozesse" (kompakte Knöpfe, neue Styles Small*),
+> Gruppe „Umgebung & Voraussetzungen": **Prefix-Pfad-Feld** (persistiert `gui-settings.json:prefix_path`,
+> Durchsuchen/Speichern, beim Start geladen, als Env `STEAM_COMPAT_DATA_PATH` an run-bridge.sh injiziert via
+> neuem `ProcessController.env`) + **Voraussetzungs-Checkliste ✓/✗** (Prefix, drive_c, pythonw/python.exe,
+> SimConnect.dll, Proton, run-bridge.sh, bridge.py) mit Initial-Check + „Erneut prüfen" + „Prefix einrichten…".
+> **Settings-Tab neu**: Sprach-Dropdown DE/EN/ES/FR (sofort gespeichert `:language`, Anwenden=os.execv-Neustart).
+> **i18n-Fundament**: reines `i18n.py` (`tr()` Fallback DE→Key) + `env_check.py` (reine Prüf-Fns). Übersetzt:
+> Tab-Namen, Connection-, Settings-Tab, Statusleiste, Dialoge. **⏳ OFFEN i18n:** volle Label/Tooltip-Abdeckung
+> der übrigen Tabs (Variablen/Mapper/Gauges/Profile + alle Dialoge) — fallen aktuell sauber auf Deutsch zurück.
 > **✅ V: e2e bewiesen** (Seeding 0.0 · Cowl-Switch **Code 6** → 0↔1 · Hub-Runde) via Direkt-Client an
 > Bridge :7842. **GUI-Batch committet** (Details Session unten): Variablen-Tab-Umbau (V:-Übersichtstabelle,
 > Buttons ÜBER die Tabelle, V:-Editor aus Profile RAUS), Panel-Picker + Toggle-Button, Bridge-Log
