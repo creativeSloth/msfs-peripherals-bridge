@@ -3008,10 +3008,11 @@ def run() -> None:
 
     # --- live view: mirror the attached device onto the Live column -------- #
     # One after()-loop for the whole Mapper tab: it (re)opens the selected
-    # device lazily, drains its pending evdev events each tick and paints the
-    # Live cells (buttons ●, axes a filling bar). hidraw panels have no evdev
-    # source, their rows stay blank. A missing/unplugged device is retried
-    # every ~2 s, so plugging it in just starts the live view.
+    # device lazily, drains its pending events each tick and paints the Live
+    # cells (buttons/switches ●, axes a filling bar). The reader is picked by
+    # transport — evdev for the yoke/pedals/quadrant, hidraw for the Saitek
+    # panels — so panel switches light up live too. A missing/unplugged device
+    # is retried every ~2 s, so plugging it in just starts the live view.
     live: dict = {"id": None, "read": None, "ranges": {}, "retry": 0}
 
     def _live_open(device_id):
@@ -3019,11 +3020,16 @@ def run() -> None:
         if device_id is None:
             return
         with contextlib.suppress(Exception):
-            from .devices import evdev_reader
+            from .devices import evdev_reader, hidraw_reader
 
             dcat = _device_catalog()
-            path = evdev_reader.discover(dcat).get(device_id) if dcat else None
-            opened = evdev_reader.live_state_reader(path) if path else None
+            ddef = dcat.by_id(device_id) if dcat else None
+            if ddef is not None and ddef.transport == "hidraw":
+                path = hidraw_reader.discover(dcat).get(device_id)
+                opened = hidraw_reader.live_state_reader(path) if path else None
+            else:
+                path = evdev_reader.discover(dcat).get(device_id) if dcat else None
+                opened = evdev_reader.live_state_reader(path) if path else None
             if opened:
                 live["read"], live["ranges"] = opened
 

@@ -397,7 +397,7 @@ def test_live_bar_fills_proportionally():
     assert live_bar(5, 5, 5) == "░░░░░░░░ 5"  # degenerate range: no crash
 
 
-def test_live_row_map_covers_axes_hats_buttons_not_switches():
+def test_live_row_map_covers_axes_hats_buttons_and_switches():
     from msfs_peripherals_bridge.gui_mapper import live_row_map
 
     prof = PROFILE  # piper_arrow fixture from this module
@@ -405,11 +405,24 @@ def test_live_row_map_covers_axes_hats_buttons_not_switches():
     assert rows, "yoke has axis/button bindings"
     kinds = {k for k, _ in rows}
     assert kinds <= {"axis", "button"}
-    # switch-panel rows are hidraw-only -> no live keys at all
-    assert live_row_map(prof, "switch_panel") == {}
     # every mapped iid points at a binding row
     for iids in rows.values():
         assert all(i.startswith("bind:") for i in iids)
+
+    # hidraw panel switches now map to ("switch", code) keys — the same global
+    # bit index the profile stores, so the Live column can light them up.
+    panel = Profile.model_validate({
+        "name": "SW",
+        "bindings": {"switch_panel": [
+            {"name": "Battery", "source": {"kind": "switch", "code": 0},
+             "action": {"type": "event", "event": "MASTER_BATTERY_SET"}},
+            {"name": "Cowl", "source": {"kind": "switch", "code": 6},
+             "action": {"type": "event", "event": "COWL_FLAPS_SET"}},
+        ]},
+    })
+    sw = live_row_map(panel, "switch_panel")
+    assert {k for k, _ in sw} == {"switch"}
+    assert ("switch", 0) in sw and ("switch", 6) in sw
 
 
 def test_form_round_trip_preserves_hat():

@@ -1026,10 +1026,12 @@ def live_bar(value: float, lo: float, hi: float) -> str:
 
 
 def live_row_map(profile: Profile, device_id: str) -> dict[tuple[str, int], list[str]]:
-    """{(evdev-kind, code): [detail-row iids]} for one device's bindings.
+    """{(live-kind, code): [detail-row iids]} for one device's bindings.
 
     evdev reports axes AND hats as EV_ABS ("axis") and buttons as EV_KEY
-    ("button"); panel switches are hidraw-only and have no live source here.
+    ("button"); hidraw panel switches report as ("switch", byte*8+bit) — the same
+    global bit index the profile stores as the switch's code, so those rows light
+    up live too once the hidraw reader is wired in.
     """
     rows: dict[tuple[str, int], list[str]] = {}
     for i, b in enumerate(profile.bindings.get(device_id, [])):
@@ -1038,7 +1040,9 @@ def live_row_map(profile: Profile, device_id: str) -> dict[tuple[str, int], list
             key = ("axis", b.source.code)
         elif kind == "button":
             key = ("button", b.source.code)
-        else:  # switch: hidraw panels, not readable via evdev
+        elif kind == "switch":  # hidraw panel switches (live via hidraw_reader)
+            key = ("switch", b.source.code)
+        else:
             continue
         rows.setdefault(key, []).append(f"bind:{i}")
     return rows
