@@ -38,7 +38,9 @@ import threading
 import time
 from pathlib import Path
 
+from . import env_check
 from .config import calibration_file, gui_settings_file, profiles_dir, project_root
+from .i18n import tr
 
 BRIDGE_PORT = 7842
 _POLL_MS = 1000  # status refresh cadence
@@ -79,6 +81,33 @@ def _clean_vars(items: object) -> list[dict[str, str]]:
                     "unit": unit if isinstance(unit, str) else "",
                 })
     return out
+
+
+def load_language(path: Path | None = None) -> str:
+    """Restore the saved GUI language code (defaults to German)."""
+    from .i18n import DEFAULT_LANG, LANGUAGES
+    code = load_gui_settings(path).get("language")
+    return code if code in LANGUAGES else DEFAULT_LANG
+
+
+def save_language(code: str, path: Path | None = None) -> None:
+    """Persist the GUI language code, preserving the rest of the settings file."""
+    data = load_gui_settings(path)
+    data["language"] = code
+    save_gui_settings(data, path)
+
+
+def load_prefix_path(path: Path | None = None) -> str:
+    """Restore the saved MSFS Proton prefix path ("" = auto-detect)."""
+    value = load_gui_settings(path).get("prefix_path")
+    return value if isinstance(value, str) else ""
+
+
+def save_prefix_path(prefix: str, path: Path | None = None) -> None:
+    """Persist the prefix path, preserving the rest of the settings file."""
+    data = load_gui_settings(path)
+    data["prefix_path"] = prefix
+    save_gui_settings(data, path)
 
 
 def load_statistik_selection(path: Path | None = None) -> list[dict[str, str]]:
@@ -293,11 +322,15 @@ def _discover_present(catalog) -> set[str] | None:
 class ProcessController:
     """Owns one long-running subprocess, started in its own process group."""
 
-    def __init__(self, name: str, argv: list[str], cwd: Path, log_path: Path | None = None):
+    def __init__(self, name: str, argv: list[str], cwd: Path, log_path: Path | None = None,
+                 env: dict[str, str] | None = None):
         self.name = name
         self.argv = argv
         self.cwd = cwd
         self.log_path = log_path
+        # Extra environment overrides merged onto os.environ at launch. Kept
+        # mutable so the Connection tab can retarget the prefix before start().
+        self.env = env
         self.proc: subprocess.Popen | None = None
         self._pgid: int | None = None
         self._kill_deadline: float | None = None
@@ -309,9 +342,10 @@ class ProcessController:
             stdout = open(self.log_path, "a", encoding="utf-8")  # noqa: SIM115 (child owns it)
         else:
             stdout = subprocess.DEVNULL
+        full_env = {**os.environ, **self.env} if self.env else None
         self.proc = subprocess.Popen(
             self.argv, cwd=str(self.cwd), stdout=stdout,
-            stderr=subprocess.STDOUT, start_new_session=True,
+            stderr=subprocess.STDOUT, start_new_session=True, env=full_env,
         )
         self._pgid = os.getpgid(self.proc.pid)
         self._kill_deadline = None
@@ -863,11 +897,19 @@ def run() -> None:
     from tkinter import messagebox, simpledialog, ttk
 
     from . import gui_catalog
+    from .i18n import set_language
+
+    # Apply the persisted UI language before any widget text is built.
+    set_language(load_language())
 
     root_dir = project_root()
+    # The prefix path (persisted, "" = auto-detect) targets the bridge at a
+    # specific MSFS Proton prefix via env overrides; recomputed before each start.
+    prefix_var_holder: dict[str, str] = {"path": load_prefix_path()}
     bridge = ProcessController(
         "bridge", ["bash", str(root_dir / "bridge" / "run-bridge.sh")],
         cwd=root_dir, log_path=root_dir / "bridge" / "bridge.log",
+        env=env_check.bridge_env(prefix_var_holder["path"]),
     )
     profiles = _list_profiles(root_dir)
     default_profile = (
@@ -927,6 +969,17 @@ def run() -> None:
     style.configure("Danger.TButton", background=DANGER, foreground="#ffffff",
                     padding=(10, 5), borderwidth=0)
     style.map("Danger.TButton", background=[("active", DANGER_ACT), ("disabled", "#eab8b8")])
+    # Compact variants for dense groups (Connection tab): smaller padding, colours
+    # re-declared explicitly so they don't depend on ttk style-map inheritance.
+    style.configure("Small.TButton", padding=(8, 3))
+    style.configure("SmallAccent.TButton", background=ACCENT, foreground="#ffffff",
+                    padding=(8, 3), borderwidth=0)
+    style.map("SmallAccent.TButton",
+              background=[("active", ACCENT_ACT), ("disabled", "#a9c1f6")],
+              foreground=[("disabled", "#eef2ff")])
+    style.configure("SmallDanger.TButton", background=DANGER, foreground="#ffffff",
+                    padding=(8, 3), borderwidth=0)
+    style.map("SmallDanger.TButton", background=[("active", DANGER_ACT), ("disabled", "#eab8b8")])
 
     # On/off state of the (borderless) Panel window, mirrored by the toolbar
     # toggle button below. The panel is created when on and destroyed when off.
@@ -954,10 +1007,20 @@ def run() -> None:
     nb.grid(row=0, column=0, sticky="nsew", padx=10)
 
     # ===== Connection tab ================================================== #
-    conn = ttk.Frame(nb, padding=10)
-    nb.add(conn, text="Connection")
-    for c in range(2):
-        conn.columnconfigure(c, weight=1)
+    # A nested notebook keeps the tab tidy: "Control & status" carries the
+    # process buttons (grouped by sense) and the prerequisite check-list; the
+    # live bridge "terminal" is tucked onto its own "Bridge log" sub-tab.
+    conn = ttk.Frame(nb, padding=0)
+    nb.add(conn, text=tr("tab.connection"))
+    conn.columnconfigure(0, weight=1)
+    conn.rowconfigure(0, weight=1)
+    conn_nb = ttk.Notebook(conn)
+    conn_nb.grid(row=0, column=0, sticky="nsew", padx=8, pady=8)
+    ctltab = ttk.Frame(conn_nb, padding=10)
+    logtab = ttk.Frame(conn_nb, padding=10)
+    conn_nb.add(ctltab, text=tr("conn.subtab.control"))
+    conn_nb.add(logtab, text=tr("conn.subtab.log"))
+    ctltab.columnconfigure(0, weight=1)
 
     def start_bridge():
         # Don't double-start: if 7842 already LISTENs (bridge up from a terminal
@@ -965,6 +1028,8 @@ def run() -> None:
         # the port and crash-loops.
         if _port_listening(BRIDGE_PORT):
             return
+        # Retarget the (possibly reconfigured) prefix before launching.
+        bridge.env = env_check.bridge_env(prefix_var_holder["path"])
         bridge.start()
 
     def stop_bridge():
@@ -987,17 +1052,37 @@ def run() -> None:
         stop_mapper()
         stop_bridge()
 
-    b_bs = ttk.Button(conn, text="Bridge starten", style="Accent.TButton", command=start_bridge)
-    b_bx = ttk.Button(conn, text="Bridge stoppen", style="Danger.TButton", command=stop_bridge)
-    b_ms = ttk.Button(conn, text="Mapper starten", style="Accent.TButton", command=start_mapper)
-    b_mx = ttk.Button(conn, text="Mapper stoppen", style="Danger.TButton", command=stop_mapper)
-    b_all = ttk.Button(conn, text="Alles stoppen (Aufräumen)", style="Danger.TButton",
+    # --- group 1: processes (Bridge / Mapper start-stop, compact) ---------- #
+    proc_fr = ttk.Labelframe(ctltab, text=tr("conn.group.processes"), padding=10)
+    proc_fr.grid(row=0, column=0, sticky="ew")
+    proc_fr.columnconfigure(1, weight=1)
+    proc_fr.columnconfigure(2, weight=1)
+
+    ttk.Label(proc_fr, text=tr("conn.bridge")).grid(row=0, column=0, sticky="w",
+                                                     padx=(0, 10), pady=2)
+    b_bs = ttk.Button(proc_fr, text=tr("conn.start"), style="SmallAccent.TButton",
+                      command=start_bridge)
+    b_bx = ttk.Button(proc_fr, text=tr("conn.stop"), style="SmallDanger.TButton",
+                      command=stop_bridge)
+    b_bs.grid(row=0, column=1, sticky="ew", padx=3, pady=2)
+    b_bx.grid(row=0, column=2, sticky="ew", padx=3, pady=2)
+
+    ttk.Label(proc_fr, text=tr("conn.mapper")).grid(row=1, column=0, sticky="w",
+                                                     padx=(0, 10), pady=2)
+    b_ms = ttk.Button(proc_fr, text=tr("conn.start"), style="SmallAccent.TButton",
+                      command=start_mapper)
+    b_mx = ttk.Button(proc_fr, text=tr("conn.stop"), style="SmallDanger.TButton",
+                      command=stop_mapper)
+    b_ms.grid(row=1, column=1, sticky="ew", padx=3, pady=2)
+    b_mx.grid(row=1, column=2, sticky="ew", padx=3, pady=2)
+
+    b_all = ttk.Button(proc_fr, text=tr("conn.stop_all"), style="SmallDanger.TButton",
                        command=stop_all)
-    b_bs.grid(row=0, column=0, sticky="ew", padx=3, pady=3)
-    b_bx.grid(row=0, column=1, sticky="ew", padx=3, pady=3)
-    b_ms.grid(row=1, column=0, sticky="ew", padx=3, pady=3)
-    b_mx.grid(row=1, column=1, sticky="ew", padx=3, pady=3)
-    b_all.grid(row=2, column=0, columnspan=2, sticky="ew", padx=3, pady=(6, 3))
+    b_all.grid(row=2, column=0, columnspan=3, sticky="ew", padx=3, pady=(8, 2))
+
+    ttk.Label(proc_fr, text=tr("conn.single_client_note"), foreground=MUTED,
+              font=("TkDefaultFont", 8)).grid(row=3, column=0, columnspan=3,
+                                              sticky="w", pady=(6, 0))
 
     _attach_tooltip(b_bs, "bash bridge/run-bridge.sh   (Supervisor → bridge.py → Proton)")
     _attach_tooltip(b_bx, "killpg SIGTERM + sweep 'bridge/bridge.py' / 'bridge/run-bridge.sh'")
@@ -1005,18 +1090,154 @@ def run() -> None:
     _attach_tooltip(b_mx, "killpg SIGTERM (Mapper-Prozessgruppe) + sweep 'peripherals_bridge run'")
     _attach_tooltip(b_all, "stop_mapper() + stop_bridge() — alle Strays wegräumen")
 
-    ttk.Label(conn, text="Bridge ist single-client — Mapper ODER ein Tool.",
-              foreground="#666").grid(row=3, column=0, columnspan=2, sticky="w", pady=(8, 0))
+    # --- group 2: environment & prerequisites (prefix + green/red checks) -- #
+    env_fr = ttk.Labelframe(ctltab, text=tr("conn.group.environment"), padding=10)
+    env_fr.grid(row=1, column=0, sticky="ew", pady=(10, 0))
+    env_fr.columnconfigure(1, weight=1)
 
-    # --- live bridge log (the Wine-side bridge.py console, tailed) ---------- #
+    ttk.Label(env_fr, text=tr("conn.prefix_label")).grid(row=0, column=0, sticky="w",
+                                                         padx=(0, 8), pady=2)
+    prefix_var = tk.StringVar(value=prefix_var_holder["path"])
+    prefix_entry = ttk.Entry(env_fr, textvariable=prefix_var)
+    prefix_entry.grid(row=0, column=1, sticky="ew", pady=2)
+    prefix_btns = ttk.Frame(env_fr)
+    prefix_btns.grid(row=0, column=2, sticky="e", padx=(6, 0))
+
+    checks_fr = ttk.Frame(env_fr)
+    summary_lbl = tk.Label(env_fr, text="", font=("TkDefaultFont", 9, "bold"),
+                           bg=BG, anchor="w")
+
+    def _render_checks() -> None:
+        for w in checks_fr.winfo_children():
+            w.destroy()
+        items = env_check.check_prerequisites(prefix_var_holder["path"] or None, root_dir)
+        n_bad = 0
+        for i, item in enumerate(items):
+            n_bad += 0 if item.ok else 1
+            tk.Label(checks_fr, text="✓" if item.ok else "✗", bg=BG,
+                     fg="#2e7d32" if item.ok else "#c62828",
+                     font=("TkDefaultFont", 10, "bold")).grid(row=i, column=0,
+                                                              sticky="w", padx=(0, 6))
+            tk.Label(checks_fr, text=tr(item.key), bg=BG, fg=TEXT, anchor="w"
+                     ).grid(row=i, column=1, sticky="w")
+            tk.Label(checks_fr, text=item.detail, bg=BG, fg=MUTED,
+                     font=("TkDefaultFont", 8), anchor="w").grid(row=i, column=2,
+                                                                 sticky="w", padx=(8, 0))
+        if n_bad == 0:
+            summary_lbl.config(text="✓ " + tr("conn.prereq_all_ok"), fg="#2e7d32")
+        else:
+            summary_lbl.config(text="✗ " + tr("conn.prereq_problems", n=n_bad), fg="#c62828")
+
+    def _apply_prefix() -> None:
+        prefix_var_holder["path"] = prefix_var.get().strip()
+        save_prefix_path(prefix_var_holder["path"])
+        bridge.env = env_check.bridge_env(prefix_var_holder["path"])
+        _render_checks()
+
+    def _browse_prefix() -> None:
+        from tkinter import filedialog
+        start = prefix_var.get().strip() or str(env_check.default_prefix())
+        chosen = filedialog.askdirectory(initialdir=start, title=tr("conn.prefix_label"))
+        if chosen:
+            prefix_var.set(chosen)
+            _apply_prefix()
+
+    def _spawn_and_tail(*, title: str, argv: list[str], env: dict[str, str], on_done) -> None:
+        """Run a one-shot setup subprocess and stream its output into a window."""
+        top = tk.Toplevel(win)
+        top.title(title)
+        top.geometry("760x460")
+        top.columnconfigure(0, weight=1)
+        top.rowconfigure(1, weight=1)
+        ttk.Label(top, text=tr("conn.setup_running"), padding=6).grid(row=0, column=0,
+                                                                      columnspan=2, sticky="w")
+        txt = tk.Text(top, wrap="none", background="#0f172a", foreground="#d1d5db",
+                      font=("TkFixedFont", 9), borderwidth=0, highlightthickness=0)
+        txt.grid(row=1, column=0, sticky="nsew")
+        vsb = ttk.Scrollbar(top, orient="vertical", command=txt.yview)
+        vsb.grid(row=1, column=1, sticky="ns")
+        txt.config(yscrollcommand=vsb.set)
+        setup_log = root_dir / "bridge" / "setup-prefix.log"
+        fh = open(setup_log, "w", encoding="utf-8")  # noqa: SIM115 (closed when the child ends)
+        full_env = {**os.environ, **env} if env else None
+        proc = subprocess.Popen(argv, cwd=str(root_dir), stdout=fh,
+                                stderr=subprocess.STDOUT, start_new_session=True, env=full_env)
+        st = {"at": 0, "done": False}
+
+        def _pump():
+            with contextlib.suppress(OSError):
+                with open(setup_log, encoding="utf-8", errors="replace") as r:
+                    r.seek(st["at"])
+                    chunk = r.read()
+                    st["at"] = r.tell()
+                if chunk:
+                    txt.insert("end", chunk)
+                    txt.see("end")
+            if proc.poll() is None:
+                top.after(500, _pump)
+            elif not st["done"]:
+                st["done"] = True
+                with contextlib.suppress(Exception):
+                    fh.close()
+                txt.insert("end", f"\n— exit {proc.returncode} —\n")
+                txt.see("end")
+                with contextlib.suppress(Exception):
+                    on_done()
+        _pump()
+
+    def _run_setup() -> None:
+        if not messagebox.askyesno(tr("dialog.confirm"), tr("conn.setup_confirm")):
+            return
+        _spawn_and_tail(
+            title=tr("conn.setup_title"),
+            argv=["bash", str(root_dir / "bridge" / "setup-prefix.sh")],
+            env=env_check.bridge_env(prefix_var_holder["path"]),
+            on_done=_render_checks,
+        )
+
+    b_browse = ttk.Button(prefix_btns, text=tr("conn.browse"), style="Small.TButton",
+                          command=_browse_prefix)
+    b_save = ttk.Button(prefix_btns, text=tr("conn.save"), style="Small.TButton",
+                        command=_apply_prefix)
+    b_browse.pack(side="left", padx=(0, 4))
+    b_save.pack(side="left")
+    prefix_entry.bind("<Return>", lambda _e: _apply_prefix())
+    _attach_tooltip(b_browse, "filedialog.askdirectory → prefix_path (gui-settings.json)")
+    _attach_tooltip(b_save, "prefix_path speichern + Bridge-Env (STEAM_COMPAT_DATA_PATH) setzen")
+
+    ttk.Label(env_fr, text=tr("conn.prefix_hint"), foreground=MUTED,
+              font=("TkDefaultFont", 8), wraplength=520, justify="left"
+              ).grid(row=1, column=0, columnspan=3, sticky="w", pady=(0, 6))
+    ttk.Separator(env_fr, orient="horizontal").grid(row=2, column=0, columnspan=3,
+                                                     sticky="ew", pady=4)
+    ttk.Label(env_fr, text=tr("conn.prereq_title")).grid(row=3, column=0, columnspan=3,
+                                                          sticky="w")
+    checks_fr.grid(row=4, column=0, columnspan=3, sticky="ew", pady=(2, 4))
+    checks_fr.columnconfigure(2, weight=1)
+    summary_lbl.grid(row=5, column=0, columnspan=3, sticky="w", pady=(2, 4))
+
+    env_btns = ttk.Frame(env_fr)
+    env_btns.grid(row=6, column=0, columnspan=3, sticky="w", pady=(2, 0))
+    b_recheck = ttk.Button(env_btns, text=tr("conn.recheck"), style="Small.TButton",
+                           command=_render_checks)
+    b_setup = ttk.Button(env_btns, text=tr("conn.setup_prefix"), style="Small.TButton",
+                         command=_run_setup)
+    b_recheck.pack(side="left", padx=(0, 4))
+    b_setup.pack(side="left")
+    _attach_tooltip(b_setup, "bash bridge/setup-prefix.sh  (Windows-Python + SimConnect)")
+
+    _render_checks()  # initial green/red status the moment the tab is built
+
+    # --- log sub-tab: the tailed bridge "terminal" ------------------------- #
     # bridge.py logs every record to bridge/bridge.log (flushed per record — the
     # piped Wine stderr is block-buffered and unreliable). We tail that file so
-    # the bridge "terminal" shows right here instead of a separate console.
-    conn.rowconfigure(5, weight=1)
-    ttk.Label(conn, text="Bridge-Log (Wine-Layer, live) —  bridge/bridge.log",
-              foreground=MUTED).grid(row=4, column=0, columnspan=2, sticky="w", pady=(12, 2))
-    logfr = ttk.Frame(conn)
-    logfr.grid(row=5, column=0, columnspan=2, sticky="nsew")
+    # the bridge "terminal" shows here instead of in a separate console.
+    logtab.rowconfigure(1, weight=1)
+    logtab.columnconfigure(0, weight=1)
+    ttk.Label(logtab, text=tr("conn.log_label") + " —  bridge/bridge.log",
+              foreground=MUTED).grid(row=0, column=0, sticky="w", pady=(0, 4))
+    logfr = ttk.Frame(logtab)
+    logfr.grid(row=1, column=0, sticky="nsew")
     logfr.rowconfigure(0, weight=1)
     logfr.columnconfigure(0, weight=1)
     log_txt = tk.Text(logfr, height=12, wrap="none", background="#0f172a",
@@ -1071,7 +1292,7 @@ def run() -> None:
 
     # ===== Statistik tab =================================================== #
     stab = ttk.Frame(nb, padding=10)
-    nb.add(stab, text="Variablen")
+    nb.add(stab, text=tr("tab.variables"))
     stab.rowconfigure(2, weight=1)  # the value table grows (buttons above it in row 1)
     stab.columnconfigure(0, weight=1)
 
@@ -1335,7 +1556,7 @@ def run() -> None:
     from .mapping.loader import load_device_catalog, load_profile
 
     mtab = ttk.Frame(nb, padding=10)
-    nb.add(mtab, text="Mapper")
+    nb.add(mtab, text=tr("tab.mapper"))
     mtab.rowconfigure(1, weight=1)
     mtab.columnconfigure(0, weight=1)  # device list
     mtab.columnconfigure(1, weight=2)  # detail
@@ -2834,7 +3055,7 @@ def run() -> None:
 
     # --- Profile tab (selector + management + metadata) -------------------- #
     ptab = ttk.Frame(nb, padding=12)
-    nb.add(ptab, text="Profile")
+    nb.add(ptab, text=tr("tab.profile"))
     ptab.columnconfigure(1, weight=1)
 
     prow = ttk.Frame(ptab)
@@ -2953,7 +3174,7 @@ def run() -> None:
     from . import gauge_model
 
     gtab = ttk.Frame(nb, padding=8)
-    nb.add(gtab, text="Gauges")
+    nb.add(gtab, text=tr("tab.gauges"))
     gtab.rowconfigure(1, weight=1)
     gtab.columnconfigure(0, weight=1)
 
@@ -3247,17 +3468,62 @@ def run() -> None:
     _g_redraw()
     _g_tick()
 
+    # ===== Settings tab ==================================================== #
+    from .i18n import available_languages, code_for_name, get_language, language_name, set_language
+
+    settab = ttk.Frame(nb, padding=12)
+    nb.add(settab, text=tr("tab.settings"))
+    settab.columnconfigure(0, weight=1)
+
+    lang_fr = ttk.Labelframe(settab, text=tr("settings.language_group"), padding=12)
+    lang_fr.grid(row=0, column=0, sticky="ew")
+    lang_fr.columnconfigure(1, weight=1)
+
+    ttk.Label(lang_fr, text=tr("settings.language_label")).grid(row=0, column=0,
+                                                                sticky="w", padx=(0, 10))
+    lang_var = tk.StringVar(value=language_name(get_language()))
+    lang_box = ttk.Combobox(lang_fr, values=list(available_languages().values()),
+                            textvariable=lang_var, state="readonly", width=18)
+    lang_box.grid(row=0, column=1, sticky="w")
+
+    ttk.Label(lang_fr, text=tr("settings.language_hint"), foreground=MUTED,
+              font=("TkDefaultFont", 8), wraplength=520, justify="left"
+              ).grid(row=1, column=0, columnspan=2, sticky="w", pady=(6, 0))
+    restart_note = ttk.Label(lang_fr, text="", foreground=DANGER)
+    restart_note.grid(row=2, column=0, columnspan=2, sticky="w", pady=(8, 0))
+
+    def _on_lang_change(_e=None):
+        code = code_for_name(lang_var.get())
+        save_language(code)   # persist immediately so the choice is remembered
+        set_language(code)
+        restart_note.config(text=tr("settings.restart_needed"))
+
+    lang_box.bind("<<ComboboxSelected>>", _on_lang_change)
+
+    def _restart_gui():
+        # The bridge/mapper run in their own process groups and survive the exec,
+        # so a language restart never interrupts a running session.
+        with contextlib.suppress(Exception):
+            win.destroy()
+        try:
+            os.execv(sys.executable, [sys.executable, "-m", "msfs_peripherals_bridge.gui"])
+        except OSError as exc:  # pragma: no cover - platform dependent
+            messagebox.showinfo(tr("dialog.note"), str(exc))
+
+    ttk.Button(lang_fr, text=tr("settings.apply_restart"), style="Accent.TButton",
+               command=_restart_gui).grid(row=3, column=0, columnspan=2, sticky="w", pady=(10, 0))
+
     # tab order per user (2026-07-17): Mapper after Connection, then Statistik,
-    # Gauges to its right, Profile last. nb.insert() on an already-managed child
-    # just moves it.
-    for pos, tab in enumerate((conn, mtab, stab, gtab, ptab)):
+    # Gauges to its right, Profile, Settings last. nb.insert() on an already-managed
+    # child just moves it.
+    for pos, tab in enumerate((conn, mtab, stab, gtab, ptab, settab)):
         nb.insert(pos, tab)
 
     # --- bottom status bar (small lamps) ----------------------------------- #
     ttk.Separator(win, orient="horizontal").grid(row=2, column=0, sticky="ew", pady=(8, 0))
     bar = ttk.Frame(win, padding=(10, 3))
     bar.grid(row=3, column=0, sticky="ew")
-    ttk.Label(bar, text="Status:", foreground="#666",
+    ttk.Label(bar, text=tr("status.label"), foreground="#666",
               font=("TkDefaultFont", 8)).pack(side="left", padx=(0, 8))
     lamps: dict[str, tk.Label] = {}
     for key in ("MSFS", "Bridge", "Mapper"):
@@ -3269,7 +3535,7 @@ def run() -> None:
     # title) — the selector itself lives on the Profile tab and can be hidden.
     prof_badge = tk.Label(bar, text="", font=("TkDefaultFont", 9, "bold"), fg="#1565c0")
     prof_badge.pack(side="right")
-    ttk.Label(bar, text="Profil:", foreground="#666",
+    ttk.Label(bar, text=tr("status.profile"), foreground="#666",
               font=("TkDefaultFont", 8)).pack(side="right", padx=(0, 4))
 
     def _update_profile_badge(*_):
