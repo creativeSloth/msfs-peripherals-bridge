@@ -1,8 +1,24 @@
 # STATUS — Resume-Anker
 
 > Kurzer Einstiegspunkt: was läuft, was offen ist, wie es weitergeht.
-> Stand: **2026-07-18 — Connection-Umbau + Settings-Tab + i18n-SPRACHPAKET VOLLSTÄNDIG (DE/EN/ES/FR).**
-> Branch `feat/gauges`, neue Commits …`84915c0`→`1d0feeb` (NICHT gepusht), **317 Tests grün**, ruff clean.
+> Stand: **2026-07-18 (spät) — `feat/gauges` → `main` GEMERGT + GEPUSHT; neuer Branch `feat/mapper-panel-nachbau`.**
+> **🟢 MERGE:** `feat/gauges` (61 Commits: Mapper/Gauges/V:-Runtime/Connection-Umbau/i18n) via `--no-ff` in `main`
+> (`3159ef0`) und **nach origin gepusht**. `feat/gauges` bleibt als Branch stehen.
+> **🆕 AKTUELLER BRANCH `feat/mapper-panel-nachbau`** (von main, Commit `d263322`, **gepusht**, 318 Tests, ruff clean):
+> **Live-Spalte im Mapper hidraw-fähig** — `_live_open` wählt Reader nach Transport (hidraw fürs Panel wie der
+> Zauberstab), `live_row_map` nimmt switch-Bindings auf (Key `("switch", byte·8+bit)` = `source.code`). → ● jetzt
+> auch für real gekippte Panel-Schalter (vorher nur evdev). **🔴 NÄCHSTE SESSION ZUERST TESTEN:** GUI starten,
+> Mapper-Tab, Switch-Panel wählen, Schalter kippen → leuchtet die „Live"-Spalte ●? (braucht angestecktes Panel).
+> **🎯 GEPLANT (User-Entscheid: Hybrid, Nachbau NUR für die 3 Saitek-Panels, Rest = Karten):** Panel-Nachbau =
+> Canvas-Schema je Panel (Schalter/LEDs/Display/Selektor an ~physischer Position), Element zeigt gemappte Var/Event
+> + **Live** (Schalter-Highlight ✓, LED-Glühen aus Sim via `_ValueMonitor`, Display-Werte), Klick → bestehender
+> Editor. Reine Fn `panel_layout(profile, device)` (testbar) + Canvas rendert. **Hand-Layout je Panel (nur 3,
+> Positionen aus HID-Docs), Auto-Raster als Fallback.** **⏳ OFFENE ENTSCHEIDE (User):** (1) Umschalter
+> „Tabelle ↔ Nachbau" statt Ersetzen? (2) v1-Live-Umfang: Schalter+LED, Display als Schritt 2? **Nächster Bau-
+> Schritt:** `panel_layout` + Switch-Panel als erstes Nachbau-Beispiel. **⚠️ GUI weiterhin visuell UNGEPRÜFT**
+> (ganzer Connection/Settings/i18n-Batch) — beim Start alles live sichten + Sprachumschaltung testen.
+> ---
+> Stand davor: **Connection-Umbau + Settings-Tab + i18n-SPRACHPAKET VOLLSTÄNDIG (DE/EN/ES/FR).** 317 Tests grün.
 > **🆕 GUI-Umbau `84915c0`** (visuell UNGEPRÜFT/headless, aber Konstruktions-Smoke DE/EN/ES/FR ok + Prefix-Checks
 > gegen echtes Prefix verifiziert): Connection-Tab neu nach Sinngruppen — Sub-Notebook „Steuerung & Status" /
 > „Bridge-Protokoll" (Log-Terminal ausgelagert), Gruppe „Prozesse" (kompakte Knöpfe, neue Styles Small*),
