@@ -307,7 +307,7 @@ def _parse_int(value: object, label: str) -> int:
     try:
         return int(str(value).strip())
     except (TypeError, ValueError):
-        raise ValueError(f"{label} muss eine ganze Zahl sein.") from None
+        raise ValueError(tr("{label} muss eine ganze Zahl sein.", label=label)) from None
 
 
 def _parse_float(value: object, label: str, default: float) -> float:
@@ -317,7 +317,7 @@ def _parse_float(value: object, label: str, default: float) -> float:
     try:
         return float(s)
     except ValueError:
-        raise ValueError(f"{label} muss eine Zahl sein.") from None
+        raise ValueError(tr("{label} muss eine Zahl sein.", label=label)) from None
 
 
 def _parse_num(value: object, label: str) -> float | int:
@@ -326,7 +326,7 @@ def _parse_num(value: object, label: str) -> float | int:
     try:
         f = float(s)
     except (TypeError, ValueError):
-        raise ValueError(f"{label} muss eine Zahl sein.") from None
+        raise ValueError(tr("{label} muss eine Zahl sein.", label=label)) from None
     return int(f) if f.is_integer() else f
 
 
@@ -360,7 +360,7 @@ def rows_to_seq_action(on_rows: list[dict], off_rows: list[dict]) -> dict:
     def step(r: dict) -> dict:
         name = (r.get("name") or "").strip()
         if not name:
-            raise ValueError("Sequence-Schritt: Name fehlt.")
+            raise ValueError(tr("Sequence-Schritt: Name fehlt."))
         val = _parse_num(r.get("value"), "Wert")
         if r.get("target") == "simvar":
             d: dict = {"simvar": name, "value": val}
@@ -371,7 +371,7 @@ def rows_to_seq_action(on_rows: list[dict], off_rows: list[dict]) -> dict:
         return {"event": name, "value": val}
 
     if not on_rows:
-        raise ValueError("Sequence braucht mindestens einen on-Schritt.")
+        raise ValueError(tr("Sequence braucht mindestens einen on-Schritt."))
     action: dict = {"type": "sequence", "on_edge": [step(r) for r in on_rows]}
     off = [step(r) for r in off_rows]
     if off:
@@ -461,7 +461,7 @@ def _form_hat(form: dict) -> dict:
                 act["value"] = _parse_int(val, f"Wert {sym}")
             hat[d] = act
     if not hat:
-        raise ValueError("Hat: mindestens eine Richtung (▲▼◀▶) belegen.")
+        raise ValueError(tr("Hat: mindestens eine Richtung (▲▼◀▶) belegen."))
     return hat
 
 
@@ -503,7 +503,7 @@ def _form_action(atype: str, form: dict, original_action: dict | None) -> dict:
     if atype == "event":
         ev = (form.get("ev_event") or "").strip()
         if not ev:
-            raise ValueError("Event-Name fehlt.")
+            raise ValueError(tr("Event-Name fehlt."))
         act: dict = {"type": "event", "event": ev}
         val = (form.get("ev_value") or "").strip()
         if val != "":
@@ -512,7 +512,7 @@ def _form_action(atype: str, form: dict, original_action: dict | None) -> dict:
     if atype == "simvar":
         sv = (form.get("sv_simvar") or "").strip()
         if not sv:
-            raise ValueError("SimVar-Name fehlt.")
+            raise ValueError(tr("SimVar-Name fehlt."))
         act = {"type": "simvar", "simvar": sv}
         unit = (form.get("sv_unit") or "").strip()
         if unit and unit != "number":
@@ -524,7 +524,7 @@ def _form_action(atype: str, form: dict, original_action: dict | None) -> dict:
         read = (form.get("efv_read") or "").strip()
         ev = (form.get("efv_event") or "").strip()
         if not read or not ev:
-            raise ValueError("event_from_var braucht 'read' und 'event'.")
+            raise ValueError(tr("event_from_var braucht 'read' und 'event'."))
         act = {"type": "event_from_var", "read": read, "event": ev}
         unit = (form.get("efv_unit") or "").strip()
         if unit and unit != "number":
@@ -533,13 +533,13 @@ def _form_action(atype: str, form: dict, original_action: dict | None) -> dict:
     if atype == "rpn":
         code = (form.get("rpn_code") or "").strip()
         if not code:
-            raise ValueError("RPN-Ausdruck fehlt.")
+            raise ValueError(tr("RPN-Ausdruck fehlt."))
         return {"type": "rpn", "code": code}
     if atype == "sequence":
         if not original_action or original_action.get("type") != "sequence":
-            raise ValueError("Sequence kann inline (noch) nicht angelegt werden.")
+            raise ValueError(tr("Sequence kann inline (noch) nicht angelegt werden."))
         return original_action
-    raise ValueError(f"Unbekannter Aktions-Typ: {atype}")
+    raise ValueError(tr("Unbekannter Aktions-Typ: {atype}", atype=atype))
 
 
 def _form_transform(form: dict) -> dict:
@@ -574,10 +574,10 @@ def form_to_binding(form: dict, original_action: dict | None = None) -> dict:
     """
     name = (form.get("name") or "").strip()
     if not name:
-        raise ValueError("Name darf nicht leer sein.")
+        raise ValueError(tr("Name darf nicht leer sein."))
     kind = form.get("kind")
     if kind not in SOURCE_KINDS:
-        raise ValueError(f"Unbekannte Quell-Art: {kind}")
+        raise ValueError(tr("Unbekannte Quell-Art: {kind}", kind=kind))
     source: dict = {"kind": kind, "code": _parse_int(form.get("code"), "Code")}
     if kind == "axis":
         if str(form.get("raw_min", "")).strip() != "":
@@ -609,7 +609,8 @@ def _form_split(form: dict) -> dict:
     sub = {k[3:]: v for k, v in form.items() if k.startswith("sp_")}
     atype = sub.get("action_type")
     if atype not in SPLIT_ACTION_TYPES:
-        raise ValueError(f"Split: Aktions-Typ '{atype}' geht unterhalb des Detents nicht.")
+        raise ValueError(
+            tr("Split: Aktions-Typ '{atype}' geht unterhalb des Detents nicht.", atype=atype))
     split: dict = {
         "at": _parse_int(form.get("sp_at"), "Detent (roh)"),
         "action": _form_action(atype, sub, None),
@@ -746,7 +747,7 @@ def output_field_help(path: tuple) -> str:
     if not isinstance(name, str):
         return ""
     entry = OUTPUT_FIELD_HELP.get(name)
-    return f"{entry[1]}  (YAML: {name})" if entry else ""
+    return f"{tr(entry[1])}  (YAML: {name})" if entry else ""
 
 # templates for "+ Eintrag" per list field; banks offer one template per kind.
 _LIST_TEMPLATES: dict[str, dict] = {
@@ -841,7 +842,7 @@ def _entry_label(name: str, i: int, item) -> str:
     tag = getattr(item, "label", None) or getattr(item, "name", None) \
         or getattr(item, "var", None) or getattr(item, "event", None) or ""
     kind = getattr(item, "kind", "")
-    word = _ENTRY_WORD.get(name, name)
+    word = tr(_ENTRY_WORD.get(name, name))
     label = f"{word} {tag}" if tag else f"{word} {i + 1}"
     if kind and name == "banks":
         label += f" · {kind}"
@@ -861,7 +862,7 @@ def _walk_output(model, path: tuple, nodes: list[OutputNode]) -> None:
             continue
         kind, choices, optional = _leaf_kind(field.annotation)
         if kind is not None and not isinstance(val, BaseModel):
-            label = OUTPUT_FIELD_HELP.get(name, (name, ""))[0]  # German where known
+            label = tr(OUTPUT_FIELD_HELP.get(name, (name, ""))[0])  # German where known
             nodes.append(OutputNode(
                 fpath, label, _display(val), kind, choices=choices, optional=optional,
                 pickable=(kind == "str" and name not in _NOT_PICKABLE),
@@ -870,7 +871,7 @@ def _walk_output(model, path: tuple, nodes: list[OutputNode]) -> None:
         origin = typing.get_origin(field.annotation)
         if origin is list:
             addable = name if (name in _LIST_TEMPLATES or name == "banks") else None
-            nodes.append(OutputNode(fpath, FIELD_LABEL.get(name, name),
+            nodes.append(OutputNode(fpath, tr(FIELD_LABEL.get(name, name)),
                                     f"({len(val)})", "list", addable=addable))
             for i, item in enumerate(val):
                 nodes.append(OutputNode((*fpath, i), _entry_label(name, i, item),
@@ -878,19 +879,19 @@ def _walk_output(model, path: tuple, nodes: list[OutputNode]) -> None:
                 _walk_output(item, (*fpath, i), nodes)
             continue
         if origin is dict:  # bool_leds: button name -> var
-            nodes.append(OutputNode(fpath, FIELD_LABEL.get(name, name),
+            nodes.append(OutputNode(fpath, tr(FIELD_LABEL.get(name, name)),
                                     f"({len(val)})", "dict", addable=name))
             for key, v in val.items():
                 nodes.append(OutputNode((*fpath, key), key, str(v), "str",
                                         pickable=True, removable=True))
             continue
         if isinstance(val, BaseModel):
-            nodes.append(OutputNode(fpath, FIELD_LABEL.get(name, name), "", "group",
+            nodes.append(OutputNode(fpath, tr(FIELD_LABEL.get(name, name)), "", "group",
                                     removable=optional))
             _walk_output(val, fpath, nodes)
             continue
         if val is None and optional:  # unset optional model (dimmer/source_toggle)
-            nodes.append(OutputNode(fpath, FIELD_LABEL.get(name, name), "—", "unset",
+            nodes.append(OutputNode(fpath, tr(FIELD_LABEL.get(name, name)), "—", "unset",
                                     addable=name if name in OPTIONAL_TEMPLATES else None))
             continue
         nodes.append(OutputNode(fpath, name, _display(val), "ro"))
@@ -923,7 +924,7 @@ def output_groups(nodes: list[OutputNode]) -> list[OutputNode]:
         if n.kind in GROUP_KINDS:
             groups.append(n)
         elif len(n.path) == 1 and n.path[0] in _SOLO_FIELDS:
-            groups.append(OutputNode(n.path, _SOLO_FIELDS[n.path[0]], n.value, "solo"))
+            groups.append(OutputNode(n.path, tr(_SOLO_FIELDS[n.path[0]]), n.value, "solo"))
     return groups
 
 
@@ -968,7 +969,7 @@ def parse_output_value(output: Output, path: tuple, raw) -> object:
     s = str(raw).strip()
     if s in ("", "—"):
         if not optional:
-            raise ValueError(f"{name}: Wert fehlt.")
+            raise ValueError(tr("{name}: Wert fehlt.", name=name))
         return UNSET if field.default is None else None
     if kind == "int":
         return _parse_int(s, name)
@@ -976,14 +977,15 @@ def parse_output_value(output: Output, path: tuple, raw) -> object:
         return _parse_num(s, name)
     if kind == "choice":
         if s not in choices:
-            raise ValueError(f"{name}: muss eins von {', '.join(choices)} sein.")
+            raise ValueError(
+                tr("{name}: muss eins von {choices} sein.", name=name, choices=", ".join(choices)))
         return s
     if kind == "bool":
         if s.lower() in ("1", "true", "ja", "an", "on"):
             return True
         if s.lower() in ("0", "false", "nein", "aus", "off"):
             return False
-        raise ValueError(f"{name}: ja/nein erwartet.")
+        raise ValueError(tr("{name}: ja/nein erwartet.", name=name))
     return s
 
 
@@ -1090,7 +1092,7 @@ def group_role(path: tuple) -> str:
     """Eingabe/Anzeige classification for a group row (innermost container wins)."""
     for part in reversed(path):
         if isinstance(part, str) and part in _GROUP_ROLE:
-            return _GROUP_ROLE[part]
+            return tr(_GROUP_ROLE[part])
     return ""
 
 
@@ -1111,10 +1113,10 @@ def rows_to_conditions(rows: list[dict]) -> list[dict]:
     for row in rows:
         var = (row.get("var") or "").strip()
         if not var:
-            raise ValueError("Bedingung: Variable fehlt (über Wählen… setzen).")
+            raise ValueError(tr("Bedingung: Variable fehlt (über Wählen… setzen)."))
         op = row.get("op") or "=="
         if op not in CONDITION_OPS:
-            raise ValueError(f"Bedingung: unbekannter Vergleich '{op}'.")
+            raise ValueError(tr("Bedingung: unbekannter Vergleich '{op}'.", op=op))
         value = _parse_num(row.get("value"), "Bedingungs-Wert")
         cond: dict = {"var": var}
         if op != "==":
