@@ -1,8 +1,8 @@
 # STATUS — Resume-Anker
 
 > Kurzer Einstiegspunkt: was läuft, was offen ist, wie es weitergeht.
-> Stand: **2026-07-18 — Connection-Umbau + Settings-Tab + i18n-Fundament (`84915c0`); tq6-WIP erledigt (`f64d979`).**
-> Branch `feat/gauges`, neue Commits …`f64d979`+`8a01a4e`+`84915c0` (NICHT gepusht), **317 Tests grün**, ruff clean.
+> Stand: **2026-07-18 — Connection-Umbau + Settings-Tab + i18n (Sprachpaket DE/EN/ES/FR) für ganz gui.py.**
+> Branch `feat/gauges`, neue Commits …`84915c0`+`567284a`+`18aa321` (+STATUS) (NICHT gepusht), **317 Tests grün**, ruff clean.
 > **🆕 GUI-Umbau `84915c0`** (visuell UNGEPRÜFT/headless, aber Konstruktions-Smoke DE/EN/ES/FR ok + Prefix-Checks
 > gegen echtes Prefix verifiziert): Connection-Tab neu nach Sinngruppen — Sub-Notebook „Steuerung & Status" /
 > „Bridge-Protokoll" (Log-Terminal ausgelagert), Gruppe „Prozesse" (kompakte Knöpfe, neue Styles Small*),
@@ -11,9 +11,16 @@
 > neuem `ProcessController.env`) + **Voraussetzungs-Checkliste ✓/✗** (Prefix, drive_c, pythonw/python.exe,
 > SimConnect.dll, Proton, run-bridge.sh, bridge.py) mit Initial-Check + „Erneut prüfen" + „Prefix einrichten…".
 > **Settings-Tab neu**: Sprach-Dropdown DE/EN/ES/FR (sofort gespeichert `:language`, Anwenden=os.execv-Neustart).
-> **i18n-Fundament**: reines `i18n.py` (`tr()` Fallback DE→Key) + `env_check.py` (reine Prüf-Fns). Übersetzt:
-> Tab-Namen, Connection-, Settings-Tab, Statusleiste, Dialoge. **⏳ OFFEN i18n:** volle Label/Tooltip-Abdeckung
-> der übrigen Tabs (Variablen/Mapper/Gauges/Profile + alle Dialoge) — fallen aktuell sauber auf Deutsch zurück.
+> **🆕 i18n-SPRACHPAKET (`567284a`+`18aa321`):** reines `i18n.py` (`tr()`, Fallback DE→Key) + `env_check.py`.
+> **GANZ gui.py gewickelt+übersetzt** (DE/EN/ES/FR): alle text=/label=, _attach_tooltip, messagebox über alle Tabs
+> (Variablen/Mapper/Gauges/Profile, Binding-/Output-Editor, Kachel-Panel, Var-Picker, Statusleiste). Schlüssel =
+> DE-Quelltext (gettext-Stil). Auto-Wrap via Scratch-Skript `wrap_tr.py` (String-Run bleibt in tr() → Key=konkat.
+> Wert). Bewusst NICHT übersetzt (in allen Sprachen gleich): Symbole (…/✓/🪄/min/max/dz/expo/Code/SimVar/RPN) +
+> Roh-Kommando-Tooltips (bash …/killpg …/filedialog …). ruff: per-file-ignore E501 für i18n.py.
+> **⏳ OFFEN i18n (Folgeschritt):** Daten-Strings aus `gui_mapper.py` (Control-Labels „Achse/Taste/Schalter/Hat",
+> Gruppen-Labels „Position ALT" etc., `OUTPUT_FIELD_HELP` ~50 Felder, describe_*-Ausgaben) — im Mapper-Baum/Editor
+> sichtbar, laufen noch auf Deutsch. Ansatz: `from .i18n import tr` in gui_mapper (rein, tk-frei) + wrappen; Tests
+> prüfen mit Default-DE → bleiben grün.
 > **✅ V: e2e bewiesen** (Seeding 0.0 · Cowl-Switch **Code 6** → 0↔1 · Hub-Runde) via Direkt-Client an
 > Bridge :7842. **GUI-Batch committet** (Details Session unten): Variablen-Tab-Umbau (V:-Übersichtstabelle,
 > Buttons ÜBER die Tabelle, V:-Editor aus Profile RAUS), Panel-Picker + Toggle-Button, Bridge-Log
