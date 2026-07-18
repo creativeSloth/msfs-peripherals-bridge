@@ -1,16 +1,19 @@
 # STATUS — Resume-Anker
 
 > Kurzer Einstiegspunkt: was läuft, was offen ist, wie es weitergeht.
-> Stand: **2026-07-17 (Abend) — V:-Runtime IN-SIM e2e VERIFIZIERT + großer GUI-Batch + hidraw-Zauberstab.**
-> Branch `feat/gauges`, 2 neue Commits `3507407`+`ba8c332` (NICHT gepusht), 302 Tests grün, ruff clean.
+> Stand: **2026-07-18 — tq6-WIP aufgeräumt + committet (`f64d979`); davor 2026-07-17 V:-Runtime e2e + GUI-Batch.**
+> Branch `feat/gauges`, 3 neue Commits `3507407`+`ba8c332`+`f64d979` (NICHT gepusht), 302 Tests grün, ruff clean.
 > **✅ V: e2e bewiesen** (Seeding 0.0 · Cowl-Switch **Code 6** → 0↔1 · Hub-Runde) via Direkt-Client an
 > Bridge :7842. **GUI-Batch committet** (Details Session unten): Variablen-Tab-Umbau (V:-Übersichtstabelle,
 > Buttons ÜBER die Tabelle, V:-Editor aus Profile RAUS), Panel-Picker + Toggle-Button, Bridge-Log
 > eingebettet, **🪄 Zauberstab hidraw-fähig**, pythonw-Fix. ⚠️ **GUI visuell UNGEPRÜFT** (headless).
 > **🔴 WIEDEREINSTIEG:** (1) **GUI + Mapper + Bridge NEU STARTEN** (neuer Code: pythonw, GUI-Umbau) →
-> alles live sichten; (2) tq6-Arbeit im `piper_arrow.yaml` ist UNCOMMITTED (User-WIP: throttle2/prop2/mix2
-> auf Achsen 1/3/5, Namen noch roh z. B. „Mixture 1 (Kopie)"=MIXTURE2_SET) — aufräumen + committen;
-> (3) pythonw-Fenster-Fix verifizieren (Wine-Konsole weg?); (4) danach Geräte-Explorer / Kette → main.
+> alles live sichten; (2) ✅ **tq6-WIP ERLEDIGT** (`f64d979`): 6 Hebel T1/T2/P1/P2/M1/M2 (Motor 1&2),
+> Inversion via `raw_min>raw_max`, „Mixture 1 (Kopie)"→„Mixture 2", Code-Reihenfolge + Kommentare geputzt,
+> valide+Tests grün — **NUR noch in-sim fliegen/prüfen** (bes. ob Motor-2-Events T2/P2/M2 am Arrow gewollt
+> sind, s. Frage unten); (3) pythonw-Fenster-Fix verifizieren (Wine-Konsole weg?); (4) danach
+> Geräte-Explorer / Kette → main. ⚠️ **OFFENE FRAGE:** Arrow ist einmotorig — T2/P2/M2 auf Achse 1/3/5
+> sind am Single-Engine no-ops; falls unerwünscht, die 3 Motor-2-Einträge wieder raus (Commit reverten).
 > Frühere Zeile: 2026-07-16/17 Doppel-Mega (Stufe C, Split, V:-Runtime-Code, Gauges, HAT, ⚑), 2026-07-15/13.
 
 ## 🆕 SESSION 2026-07-17 (Abend) — V: e2e IN-SIM + GUI-Batch + hidraw-Zauberstab (Commits `3507407`,`ba8c332`)
