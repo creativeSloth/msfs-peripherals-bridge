@@ -319,6 +319,51 @@ def test_dme_simvars_are_subscribed():
     assert {"NAV DME:1", "NAV DMESPEED:1", "NAV DME:2", "NAV DMESPEED:2"} <= names
 
 
+def _dme_bidir_config() -> RadioPanelOutput:
+    """Config whose upper DME (code 2) is backed by a source_var (bidirectional)."""
+    dme = DmeBank(
+        code=2, source_var="L:DME_SRC",
+        sources=[
+            DmeSource(label="1", distance="NAV DME:1", speed="NAV DMESPEED:1"),
+            DmeSource(label="2", distance="NAV DME:2", speed="NAV DMESPEED:2"),
+        ],
+    )
+    return RadioPanelOutput(units=[RadioUnit(
+        name="upper", row="upper", banks=[_com1(), dme],
+        outer_cw=5, outer_ccw=6, inner_cw=7, inner_ccw=8, swap=9,
+    )])
+
+
+def test_dme_source_var_drives_display():
+    # The shown source follows the cockpit switch var (so a cockpit flip drives us).
+    c = RadioPanelController(_dme_bidir_config())
+    c.on_event(code=2, value=1)  # DME
+    c.on_state("NAV DME:1", 12.3)
+    c.on_state("NAV DME:2", 5.0)
+    c.on_state("NAV DMESPEED:2", 90)
+    c.on_state("L:DME_SRC", 1)  # cockpit switch -> NAV2
+    assert list(c.render()[1:6]) == [BLANK, BLANK, BLANK, 5 + DOT, 0]  # NAV2 5.0
+    assert list(c.render()[6:11]) == [2, BLANK, BLANK, 9, 0]  # nav index 2
+    c.on_state("L:DME_SRC", 0)  # cockpit switch -> NAV1
+    assert list(c.render()[1:6]) == [BLANK, BLANK, 1, 2 + DOT, 3]  # NAV1 12.3
+
+
+def test_dme_push_writes_source_var():
+    # The push flips the source var (so the panel drives the cockpit switch).
+    t = [0.0]
+    c = RadioPanelController(_dme_bidir_config(), clock=lambda: t[0])
+    c.on_event(code=2, value=1)  # DME
+    c.on_state("L:DME_SRC", 0)
+    assert c.on_event(code=9, value=1) == [SetSimVar(name="L:DME_SRC", unit="number", value=1)]
+    t[0] += 1.0  # past the swap-debounce window
+    # locally echoed to 1; the next push flips back to 0
+    assert c.on_event(code=9, value=1) == [SetSimVar(name="L:DME_SRC", unit="number", value=0)]
+
+
+def test_dme_source_var_subscribed():
+    assert "L:DME_SRC" in _dme_bidir_config().simvars()
+
+
 # -- XPDR position (mode-less squawk edit) -----------------------------------
 
 
@@ -379,57 +424,61 @@ def test_xpdr_code_var_subscribed():
     assert "TRANSPONDER CODE:1" in make_config().simvars()
 
 
-# -- ADF position (digit-pair kHz edit) --------------------------------------
+# -- ADF position (KR-85 digit-pair kHz edit) --------------------------------
+
+# KR-85 counters: F_kHz = (dig1+1)*100 + dig2*10 + dig3.
+_D1, _D2, _D3 = "L:KR85_dig1_counter", "L:KR85_dig2_counter", "L:KR85_dig3_counter"
+
+
+def _adf_set(c: RadioPanelController, khz: int) -> None:
+    """Seed the three KR-85 counters so the ADF reads ``khz``."""
+    c.on_state(_D1, khz // 100 - 1)
+    c.on_state(_D2, (khz // 10) % 10)
+    c.on_state(_D3, khz % 10)
 
 
 def test_adf_displays_khz_with_dots_on_high_pair():
     c = RadioPanelController(make_config())
     c.on_event(code=4, value=1)  # upper -> ADF (cursor starts on high pair)
-    c.on_state("ADF STANDBY FREQUENCY:1", 350000)  # Hz -> 350 kHz
+    _adf_set(c, 350)
     assert list(c.render()[1:6]) == [BLANK, 0 + DOT, 3 + DOT, 5, 0]  # 0350, high dots
 
 
 def test_adf_inner_steps_right_digit_of_pair_and_echoes():
     c = RadioPanelController(make_config())
     c.on_event(code=4, value=1)
-    c.on_state("ADF STANDBY FREQUENCY:1", 350000)
-    # inner cw -> right digit of the high pair = hundreds: 350 -> 450
+    _adf_set(c, 350)  # dig1=2
+    # inner cw -> right digit of the high pair = hundreds: 350 -> 450 (only dig1 changes)
     cmd = c.on_event(code=7, value=1)
-    assert cmd == [SetSimVar(name="ADF STANDBY FREQUENCY:1", unit="number", value=450000.0)]
+    assert cmd == [SetSimVar(name=_D1, unit="number", value=3)]
     assert list(c.render()[1:6]) == [BLANK, 0 + DOT, 4 + DOT, 5, 0]
 
 
 def test_adf_outer_steps_left_digit_of_pair():
     c = RadioPanelController(make_config())
     c.on_event(code=4, value=1)
-    c.on_state("ADF STANDBY FREQUENCY:1", 350000)
-    # outer cw -> left digit of the high pair = thousands: 350 -> 1350
-    assert c.on_event(code=5, value=1) == [
-        SetSimVar(name="ADF STANDBY FREQUENCY:1", unit="number", value=1350000.0)
-    ]
+    _adf_set(c, 350)  # dig1=2
+    # outer cw -> left digit of the high pair = thousands: 350 -> 1350 (dig1 2->12)
+    assert c.on_event(code=5, value=1) == [SetSimVar(name=_D1, unit="number", value=12)]
 
 
 def test_adf_push_toggles_pair_and_moves_dots():
     t = [0.0]
     c = RadioPanelController(make_config(), clock=lambda: t[0])
     c.on_event(code=4, value=1)
-    c.on_state("ADF STANDBY FREQUENCY:1", 350000)
+    _adf_set(c, 350)  # dig3=0
     c.on_event(code=9, value=1)  # push -> low pair
     assert list(c.render()[1:6]) == [BLANK, 0, 3, 5 + DOT, 0 + DOT]  # dots on low pair
-    # inner now edits the low pair's right digit = ones: 350 -> 351
-    assert c.on_event(code=7, value=1) == [
-        SetSimVar(name="ADF STANDBY FREQUENCY:1", unit="number", value=351000.0)
-    ]
+    # inner now edits the low pair's right digit = ones: 350 -> 351 (only dig3 changes)
+    assert c.on_event(code=7, value=1) == [SetSimVar(name=_D3, unit="number", value=1)]
 
 
 def test_adf_thousands_digit_wraps_0_1_at_ceiling():
     c = RadioPanelController(make_config())
     c.on_event(code=4, value=1)
-    c.on_state("ADF STANDBY FREQUENCY:1", 1799000)  # thousands = 1 (max)
-    # thousands wraps 1 -> 0 (0..1 only), the other digits untouched -> 0799
-    assert c.on_event(code=5, value=1) == [
-        SetSimVar(name="ADF STANDBY FREQUENCY:1", unit="number", value=799000.0)
-    ]
+    _adf_set(c, 1799)  # thousands = 1 (max), dig1=16
+    # thousands wraps 1 -> 0 (0..1 only), the other digits untouched -> 0799 (dig1 16->6)
+    assert c.on_event(code=5, value=1) == [SetSimVar(name=_D1, unit="number", value=6)]
 
 
 def test_adf_hundreds_wraps_at_7_without_touching_low_digits():
@@ -437,11 +486,9 @@ def test_adf_hundreds_wraps_at_7_without_touching_low_digits():
     # tens/ones to 9. Now the hundreds digit wraps 0..7 (thousands=1) on its own.
     c = RadioPanelController(make_config())
     c.on_event(code=4, value=1)
-    c.on_state("ADF STANDBY FREQUENCY:1", 1750000)  # 1,7,5,0
-    # inner cw = hundreds +1: 7 wraps to 0, tens/ones stay 5/0 -> 1050
-    assert c.on_event(code=7, value=1) == [
-        SetSimVar(name="ADF STANDBY FREQUENCY:1", unit="number", value=1050000.0)
-    ]
+    _adf_set(c, 1750)  # 1,7,5,0 -> dig1=16
+    # inner cw = hundreds +1: 7 wraps to 0, tens/ones stay 5/0 -> 1050 (dig1 16->9)
+    assert c.on_event(code=7, value=1) == [SetSimVar(name=_D1, unit="number", value=9)]
 
 
 def test_adf_hundreds_reaches_8_9_when_thousands_zero():
@@ -449,14 +496,14 @@ def test_adf_hundreds_reaches_8_9_when_thousands_zero():
     # (800-999 kHz must be dialable).
     c = RadioPanelController(make_config())
     c.on_event(code=4, value=1)
-    c.on_state("ADF STANDBY FREQUENCY:1", 750000)  # 0,7,5,0
-    assert c.on_event(code=7, value=1) == [  # hundreds 7 -> 8 -> 850
-        SetSimVar(name="ADF STANDBY FREQUENCY:1", unit="number", value=850000.0)
-    ]
+    _adf_set(c, 750)  # 0,7,5,0 -> dig1=6
+    # hundreds 7 -> 8 -> 850 (dig1 6->7)
+    assert c.on_event(code=7, value=1) == [SetSimVar(name=_D1, unit="number", value=7)]
 
 
-def test_adf_freq_var_subscribed():
-    assert "ADF STANDBY FREQUENCY:1" in make_config().simvars()
+def test_adf_freq_vars_subscribed():
+    subs = make_config().simvars()
+    assert _D1 in subs and _D2 in subs and _D3 in subs
 
 
 # -- XPDR barometer (outer knob = QNH on the bottom row) ----------------------

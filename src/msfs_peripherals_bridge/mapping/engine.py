@@ -1,14 +1,23 @@
 """The mapping engine: DeviceEvent + active Profile -> SimConnect commands.
 
 This is pure logic with no I/O, so the whole mapping behaviour can be
-unit-tested without hardware or a running simulator.
+unit-tested without hardware or a running simulator. Live variable values for
+``when:`` conditions come in through an injected ``values`` callable (the
+runtime wires it to its condition watcher; tests pass a dict lookup).
 """
 
 from __future__ import annotations
 
+import logging
+import math
+import operator
+from collections.abc import Callable
+
 from ..devices.base import DeviceEvent
 from ..models import (
+    Action,
     Binding,
+    Condition,
     EventAction,
     EventFromVarAction,
     Profile,
@@ -22,9 +31,33 @@ from ..models import (
 from ..simconnect.protocol import Command, RpnExec, SendEvent, SendEventFromVar, SetSimVar
 from .transforms import shape_axis
 
+log = logging.getLogger(__name__)
+
+_OPS: dict[str, Callable[[float, float], bool]] = {
+    "<": operator.lt, "<=": operator.le, ">": operator.gt, ">=": operator.ge,
+}
+
+
+def _condition_holds(cond: Condition, value: object) -> bool:
+    """Whether one condition holds for the live value (None/junk = not met)."""
+    try:
+        v = float(value)  # type: ignore[arg-type]
+    except (TypeError, ValueError):
+        return False
+    if cond.op == "==":
+        return math.isclose(v, cond.value, rel_tol=1e-9, abs_tol=1e-6)
+    if cond.op == "!=":
+        return not math.isclose(v, cond.value, rel_tol=1e-9, abs_tol=1e-6)
+    return _OPS[cond.op](v, cond.value)
+
 
 def _source_matches(source: Source, event: DeviceEvent) -> bool:
-    return source.kind is event.kind and source.code == event.code
+    if source.kind is not event.kind:
+        return False
+    if event.kind is SourceKind.HAT:
+        # a hat binding's code is its X (base) channel; Y is implicitly base+1
+        return event.code in (source.code, source.code + 1)
+    return source.code == event.code
 
 
 def _step_command(step: WriteStep) -> Command:
@@ -35,10 +68,17 @@ def _step_command(step: WriteStep) -> Command:
 
 
 class MappingEngine:
-    """Resolves device events against the bindings of the active profile."""
+    """Resolves device events against the bindings of the active profile.
 
-    def __init__(self, profile: Profile) -> None:
+    ``values`` supplies the latest value of a subscribed variable for ``when:``
+    conditions (``None`` = unknown -> the condition is NOT met, fail-closed).
+    """
+
+    def __init__(
+        self, profile: Profile, values: Callable[[str], object] | None = None
+    ) -> None:
         self.profile = profile
+        self._values = values or (lambda name: None)
 
     def set_profile(self, profile: Profile) -> None:
         self.profile = profile
@@ -50,8 +90,18 @@ class MappingEngine:
         for binding in bindings:
             if not _source_matches(binding.source, event):
                 continue
+            if binding.when and not self._conditions_met(binding):
+                continue
             commands.extend(self._resolve_binding(binding, event))
         return commands
+
+    def _conditions_met(self, binding: Binding) -> bool:
+        for cond in binding.when:
+            if not _condition_holds(cond, self._values(cond.var)):
+                log.debug("Binding '%s' gated: %s %s %g not met",
+                          binding.name, cond.var, cond.op, cond.value)
+                return False
+        return True
 
     def _resolve_binding(self, binding: Binding, event: DeviceEvent) -> list[Command]:
         if event.kind is SourceKind.AXIS:
@@ -61,8 +111,29 @@ class MappingEngine:
                     f"Axis binding '{binding.name}' has no raw range; the profile "
                     f"was not resolved against calibration (call apply_calibration)."
                 )
+            # A detent split cuts the axis in two logical ranges, each normalised
+            # over its own raw span: at/above the detent the binding's own
+            # action/transform apply, below it the split's (reverse/feather/cutoff).
+            split = binding.split
+            if split is not None and event.value < split.at:
+                value = shape_axis(event.value, raw_min, split.at, split.transform)
+                return [self._command_for(split.action, value)]
+            if split is not None:
+                raw_min = split.at
             value = shape_axis(event.value, raw_min, raw_max, binding.transform)
-            return [self._command_for(binding, value)]
+            return [self._command_for(binding.action, value)]
+
+        if event.kind is SourceKind.HAT and binding.hat is not None:
+            # Direction-aware hat: fire the entered direction's action once;
+            # centring back (value 0) does nothing. evdev sign convention:
+            # X +1 = right / -1 = left, Y +1 = down / -1 = up.
+            if event.value == 0:
+                return []
+            on_y = event.code == binding.source.code + 1
+            direction = ("down" if event.value > 0 else "up") if on_y \
+                else ("right" if event.value > 0 else "left")
+            action = getattr(binding.hat, direction)
+            return [self._command_for(action, 1.0)] if action is not None else []
 
         if isinstance(binding.action, SequenceAction):
             return self._resolve_sequence(binding.action, event)
@@ -80,14 +151,14 @@ class MappingEngine:
             )
             if momentary and event.value != 1:
                 return []
-            return [self._command_for(binding, float(event.value))]
+            return [self._command_for(binding.action, float(event.value))]
 
         # Buttons / hats: fire on the press edge only (value == 1), ignoring
         # release (0) and kernel key autorepeat (2) so holding a button toggles
         # a state (e.g. parking brake) exactly once.
         if event.value != 1:
             return []
-        return [self._command_for(binding, float(event.value))]
+        return [self._command_for(binding.action, float(event.value))]
 
     @staticmethod
     def _resolve_sequence(action: SequenceAction, event: DeviceEvent) -> list[Command]:
@@ -105,8 +176,7 @@ class MappingEngine:
         return [_step_command(step) for step in steps]
 
     @staticmethod
-    def _command_for(binding: Binding, value: float) -> Command:
-        action = binding.action
+    def _command_for(action: Action, value: float) -> Command:
         if isinstance(action, SimVarAction):
             data = 1.0 - value if action.invert else value
             return SetSimVar(name=action.simvar, unit=action.unit, value=data)

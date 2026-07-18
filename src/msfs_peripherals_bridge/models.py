@@ -140,6 +140,63 @@ class RpnAction(BaseModel):
 
 
 Action = EventAction | SimVarAction | EventFromVarAction | SequenceAction | RpnAction
+# The discriminated form, usable inside Optional fields (HatMap, Binding.action).
+ActionT = Annotated[Action, Field(discriminator="type")]
+
+
+class Condition(BaseModel):
+    """One gate on a live variable — the binding fires only while it holds.
+
+    ``var`` is read exactly like a subscription name: a bare ``A:`` SimVar
+    (``AVIONICS MASTER SWITCH``), an ``L:``-prefixed LVar or a ``V:`` local
+    variable. The runtime subscribes every condition variable and keeps the
+    latest value; while a value is still unknown the condition counts as NOT
+    met (fail-closed), so a gated control stays quiet instead of misfiring.
+    """
+
+    var: str = Field(..., description="Variable: 'AVIONICS MASTER SWITCH', 'L:X' or 'V:x'.")
+    op: Literal["==", "!=", "<", "<=", ">", ">="] = "=="
+    value: float = Field(1.0, description="Comparison value (canonical unit).")
+
+
+class HatMap(BaseModel):
+    """Direction actions of a POV hat — ONE binding covers the whole hat.
+
+    evdev reports a hat as two ±1 axes: ``ABS_HATnX`` (left -1 / right +1) and
+    ``ABS_HATnY`` (up -1 / down +1), always a consecutive pair. The binding's
+    ``source.code`` is the **X (base) code**; Y is implicitly ``base + 1`` — so
+    declaring which codes belong to the hat is automatic. Each direction maps
+    to its own action (fired once on entering that direction); unset directions
+    do nothing.
+    """
+
+    up: ActionT | None = None
+    down: ActionT | None = None
+    left: ActionT | None = None
+    right: ActionT | None = None
+
+    @model_validator(mode="after")
+    def _at_least_one(self) -> HatMap:
+        if not any((self.up, self.down, self.left, self.right)):
+            raise ValueError("hat needs at least one mapped direction")
+        return self
+
+
+class AxisSplit(BaseModel):
+    """The lower half of an axis split at a detent, with its own mapping.
+
+    Levers with a detent (reverse/feather/cutoff below, the normal range above)
+    are ONE physical axis but TWO logical controls. A split keeps them in one
+    binding: the binding's own ``action``/``transform`` cover the range *from the
+    detent up* (raw ``at``…``raw_max``), while this block maps the range *below
+    the detent* (raw ``raw_min``…``at``) to its own action — each range is
+    normalised over its own raw span, so the detent is out_min of the upper part
+    and out_max of the lower part.
+    """
+
+    at: int = Field(..., description="Raw axis value of the detent (range boundary).")
+    action: Action = Field(..., discriminator="type", description="Mapping below the detent.")
+    transform: Transform = Field(default_factory=Transform)
 
 
 class GearLedOutput(BaseModel):
@@ -412,26 +469,45 @@ class DmeBank(BaseModel):
     sources: list[DmeSource] = Field(
         ..., min_length=1, description="DME sources the push cycles through (NAV1, NAV2)."
     )
+    source_var: str | None = Field(
+        None,
+        description=(
+            "Optional LVar holding the DME NAV source (0-based index into sources). "
+            "When set, the shown source follows this var (so a cockpit NAV1/NAV2 "
+            "switch drives the panel) and the push writes it (so the panel drives the "
+            "cockpit) — fully bidirectional. None = local-only cycle. JF Arrow: "
+            "L:RIGHT_MISC_dme_nav (0=NAV1, 1=NAV2)."
+        ),
+    )
 
 
 class AdfBank(BaseModel):
-    """ADF selector position — set the kHz frequency a digit-pair at a time.
+    """ADF (KR-85) selector position — set the kHz frequency a digit-pair at a time.
 
-    The 4-digit kHz frequency is edited with the two encoders + the push: the push
-    toggles a two-digit cursor between the high pair (1000s, 100s) and the low pair
-    (10s, 1s); the outer knob steps the active pair's left digit, the inner its
-    right (each 0-9, wrapping), and the whole value is clamped to
-    ``[min_khz, max_khz]`` so no out-of-range frequency can be dialled. Two dots in
-    the display mark the active pair. The value is read/written on ``freq`` — the
-    STANDBY var, which reads cleanly (ACTIVE reads garbage on the JF Arrow);
-    ``scale`` converts the SimVar to kHz (measured 2026-07-08: reads Hz, so 0.001).
+    The JF Arrow ADF is a **KR-85** whose frequency lives in three cockpit-knob
+    LVars, NOT the standard ADF SimVars (those are decoupled junk on this gauge —
+    writing them changes a parallel value the gauge ignores, measured in-sim
+    2026-07-11). The frequency is::
+
+        F_kHz = (dig1 + 1) * 100 + dig2 * 10 + dig3
+
+    where ``dig1`` is the hundreds group (0..16 -> 100..1700), ``dig2`` the tens and
+    ``dig3`` the ones. The two encoders + push edit the 4-digit kHz value (push
+    toggles a two-digit cursor between the high pair 1000s/100s and the low pair
+    10s/1s; outer knob steps the pair's left digit, inner its right, each wrapping,
+    the whole value clamped to ``[min_khz, max_khz]``). On every change the three
+    counters are written so the real gauge follows; the display reads them back, so
+    turning the cockpit knobs is mirrored too. Two dots mark the active pair.
     """
 
     kind: Literal["adf"] = "adf"
     code: int = Field(..., ge=0, description="Selector bit code for this position.")
     label: str = Field("ADF", description="Human label (logging only).")
-    freq: str = Field("ADF STANDBY FREQUENCY:1", description="Freq SimVar (reads Hz).")
-    scale: float = Field(0.001, description="Multiply the SimVar to get kHz (Hz->kHz).")
+    dig1_var: str = Field(
+        "L:KR85_dig1_counter", description="Hundreds-group counter (0..16); = F//100 - 1."
+    )
+    dig2_var: str = Field("L:KR85_dig2_counter", description="Tens-digit counter (0..9).")
+    dig3_var: str = Field("L:KR85_dig3_counter", description="Ones-digit counter (0..9).")
     min_khz: int = Field(190, ge=0, description="Lowest dialable kHz (clamp floor).")
     max_khz: int = Field(1799, ge=0, description="Highest dialable kHz (clamp ceiling).")
 
@@ -535,12 +611,14 @@ class RadioPanelOutput(BaseModel):
                 if isinstance(bank, DmeBank):
                     for src in bank.sources:
                         names += [src.distance, src.speed]
+                    if bank.source_var is not None:
+                        names.append(bank.source_var)
                 elif isinstance(bank, XpdrBank):
                     names.append(bank.code_var)
                     if bank.baro_var is not None:
                         names.append(bank.baro_var)
                 elif isinstance(bank, AdfBank):
-                    names.append(bank.freq)
+                    names += [bank.dig1_var, bank.dig2_var, bank.dig3_var]
                 else:  # freq (COM/NAV) — active + standby
                     names += [bank.active, bank.standby]
         if self.power is not None:
@@ -571,12 +649,25 @@ class Source(BaseModel):
 
 
 class Binding(BaseModel):
-    """Connects one physical Source to one Action, with optional shaping."""
+    """Connects one physical Source to one Action, with optional shaping.
+
+    A hat binding replaces the single ``action`` with a :class:`HatMap`: one
+    binding per hat, its four directions mapped in one place.
+    """
 
     name: str = Field(..., description="Human label, shown in the CLI.")
     source: Source
-    action: Action = Field(..., discriminator="type")
+    action: ActionT | None = Field(None, description="What to do (all non-hat bindings).")
     transform: Transform = Field(default_factory=Transform)
+    # Detent split: maps the axis range below `split.at` to its own action while
+    # action/transform above cover the detent upwards. Axis sources only.
+    split: AxisSplit | None = Field(None, description="Lower-range mapping below a detent.")
+    # POV hat: per-direction actions; source.code is the hat's X (base) code.
+    hat: HatMap | None = Field(None, description="Direction actions (hat sources only).")
+    # Conditions: ALL must hold (AND) for the binding to fire; empty = always.
+    when: list[Condition] = Field(
+        default_factory=list, description="Only fire while every condition holds."
+    )
 
     @model_validator(mode="after")
     def _buttons_need_value(self) -> Binding:
@@ -587,6 +678,23 @@ class Binding(BaseModel):
         ):
             # A button mapped to an event must send a concrete value on press.
             self.action.value = 1
+        return self
+
+    @model_validator(mode="after")
+    def _split_needs_axis(self) -> Binding:
+        if self.split is not None and self.source.kind is not SourceKind.AXIS:
+            raise ValueError("'split' is only valid on an axis binding.")
+        return self
+
+    @model_validator(mode="after")
+    def _hat_or_action(self) -> Binding:
+        if self.hat is not None:
+            if self.source.kind is not SourceKind.HAT:
+                raise ValueError("'hat' is only valid on a hat binding.")
+            if self.action is not None:
+                raise ValueError("a hat binding maps directions via 'hat', not 'action'.")
+        elif self.action is None:
+            raise ValueError("binding needs an 'action' (or 'hat' for hat sources).")
         return self
 
 
@@ -627,6 +735,35 @@ class DeviceCatalog(BaseModel):
         return next((d for d in self.devices if d.id == device_id), None)
 
 
+class LocalVar(BaseModel):
+    """A user-defined *virtual* variable — sim-independent, held by the bridge.
+
+    Declared per profile so it shows up in the GUI picker alongside A:/K:/L:, and
+    referenced everywhere as ``V:<name>``. It is set with a :class:`SimVarAction`
+    (a ``V:``-prefixed name) and read by subscribing to it, exactly like any other
+    variable — but its value lives in the bridge's value hub, never in the sim.
+    Use it for pure logic/UI state (mode flags, counters, latches) that must
+    survive across flights and stay independent of the aircraft.
+    """
+
+    name: str = Field(..., description="Bare name; referenced as 'V:<name>'.")
+    unit: str = "number"
+    initial: float = Field(0.0, description="Value seeded on connect.")
+    description: str = ""
+    # Snapshot to disk so the value also survives a bridge restart (not just a
+    # flight reload). Off by default — most virtual vars are session state.
+    persist: bool = Field(False, description="Persist across bridge restarts, not just flights.")
+
+    @field_validator("name")
+    @classmethod
+    def _plain_name(cls, value: str) -> str:
+        # No prefix in the declared name (it is added as V: at reference sites),
+        # and the same identifier charset as L:vars so it round-trips cleanly.
+        if not value or not all(c.isalnum() or c == "_" for c in value):
+            raise ValueError(f"LocalVar name '{value}' must be non-empty [A-Za-z0-9_].")
+        return value
+
+
 class Profile(BaseModel):
     """A per-aircraft mapping profile (one YAML file in ``profiles/``)."""
 
@@ -635,9 +772,19 @@ class Profile(BaseModel):
     # Title substrings used to auto-select this profile from the loaded
     # aircraft ('TITLE' SimVar reported by the sim). Case-insensitive.
     aircraft_match: list[str] = Field(default_factory=list)
+    # User-defined virtual variables (see LocalVar). Referenced as V:<name>.
+    local_vars: list[LocalVar] = Field(default_factory=list)
     # device id -> its bindings for this aircraft.
     bindings: dict[str, list[Binding]] = Field(default_factory=dict)
     # device id -> output declarations (e.g. switch-panel gear LEDs). The device
     # must support output (a hidraw panel); SimVar-driven, streamed back from the
     # bridge. Empty for most profiles.
     outputs: dict[str, list[Output]] = Field(default_factory=dict)
+
+    @model_validator(mode="after")
+    def _unique_local_vars(self) -> Profile:
+        names = [lv.name for lv in self.local_vars]
+        dupes = {n for n in names if names.count(n) > 1}
+        if dupes:
+            raise ValueError(f"Duplicate local_vars names: {', '.join(sorted(dupes))}.")
+        return self

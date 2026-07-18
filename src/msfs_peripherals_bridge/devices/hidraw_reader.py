@@ -130,3 +130,39 @@ def read_device(device_id: str, path: str) -> Iterator[DeviceEvent]:
             prev = data
     finally:
         os.close(fd)
+
+
+def live_state_reader(path: str):
+    """Open a hidraw panel for the GUI's live view; ``(read, ranges)`` or ``None``.
+
+    Mirrors :func:`evdev_reader.live_state_reader` so the GUI can treat both
+    transports the same. ``read()`` drains all pending reports non-blocking and
+    returns the current ``{("switch", bit_index): value}`` state (each report is a
+    full snapshot of every switch bit), or ``None`` once the device is gone.
+    ``ranges`` is always empty — panels have no analog axes. Multiple readers may
+    open the same node at once (hidraw fans every report out to each fd), so this
+    coexists with the running mapper.
+    """
+    try:
+        fd = os.open(path, os.O_RDONLY | os.O_NONBLOCK)
+    except OSError:
+        return None
+    state: dict[tuple[str, int], int] = {}
+
+    def read() -> dict[tuple[str, int], int] | None:
+        try:
+            while True:
+                try:
+                    data = os.read(fd, 64)
+                except BlockingIOError:
+                    break
+                if not data:
+                    break
+                for byte_index, byte in enumerate(data):
+                    for bit in range(8):
+                        state[("switch", byte_index * 8 + bit)] = 1 if byte & (1 << bit) else 0
+        except OSError:
+            return None  # unplugged
+        return state
+
+    return read, {}

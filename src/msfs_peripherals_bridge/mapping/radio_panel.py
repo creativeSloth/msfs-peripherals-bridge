@@ -120,6 +120,22 @@ def _step_khz_digit(khz: int, index: int, delta: int, *, lo: int, hi: int) -> in
     return digits[0] * 1000 + digits[1] * 100 + digits[2] * 10 + digits[3]
 
 
+def _adf_khz_from_counters(values: dict, bank: AdfBank) -> int | None:
+    """The KR-85 ADF frequency in kHz from its three digit counters, or None if any
+    counter hasn't streamed yet. ``F = (dig1 + 1)*100 + dig2*10 + dig3`` (see AdfBank).
+    """
+    d1, d2, d3 = (values.get(bank.dig1_var), values.get(bank.dig2_var), values.get(bank.dig3_var))
+    if d1 is None or d2 is None or d3 is None:
+        return None
+    return (int(d1) + 1) * 100 + int(d2) * 10 + int(d3)
+
+
+def _adf_counters_from_khz(khz: int) -> tuple[int, int, int]:
+    """Decompose a kHz frequency into the KR-85 (dig1, dig2, dig3) counters
+    (inverse of :func:`_adf_khz_from_counters`)."""
+    return khz // 100 - 1, (khz // 10) % 10, khz % 10
+
+
 @dataclass
 class _UnitState:
     """Mutable runtime state for one radio unit (selection + view + spin)."""
@@ -202,10 +218,19 @@ class RadioPanelController:
         if bank is None:  # selector parked on an out-of-scope position (ADF/XPDR/…)
             return []
         if isinstance(bank, DmeBank):
-            # DME is display-only: the push cycles NAV1<->NAV2, the encoders do
-            # nothing. No sim command — the manager re-renders from cached values.
-            if role == "swap":
-                st.dme_source = (st.dme_source + 1) % len(bank.sources)
+            # The push cycles the NAV1<->NAV2 source; the encoders do nothing. With a
+            # source_var (the cockpit's DME NAV switch, e.g. L:RIGHT_MISC_dme_nav) the
+            # source *is* that var: the push writes 1-current so the cockpit switch
+            # follows, and the display reads it back (fully bidirectional). Without it
+            # the source is a local-only index the manager re-renders from.
+            if role != "swap":
+                return []
+            if bank.source_var is not None:
+                cur = int(self.values.get(bank.source_var) or 0)
+                new = (cur + 1) % len(bank.sources)
+                self.values[bank.source_var] = float(new)  # local echo -> instant flip
+                return [SetSimVar(name=bank.source_var, unit="number", value=new)]
+            st.dme_source = (st.dme_source + 1) % len(bank.sources)
             return []
         if isinstance(bank, XpdrBank):
             # Digit-at-a-time squawk edit on the top row: the push walks a cursor
@@ -228,18 +253,26 @@ class RadioPanelController:
             # Digit-pair edit: the push toggles a two-digit cursor between the high
             # pair (1000s,100s) and the low pair (10s,1s); the outer knob steps the
             # pair's left digit, the inner its right (0-9 wrap), the whole kHz value
-            # clamped to [min_khz, max_khz]. Two dots mark the active pair.
+            # clamped to [min_khz, max_khz]. Two dots mark the active pair. The new
+            # frequency is written back through the KR-85 digit counters (the real
+            # gauge control), not the decoupled ADF SimVar.
             if role == "swap":
                 st.adf_pair ^= 1
                 return []
-            khz = round((self.values.get(bank.freq) or 0) * bank.scale)
+            khz = _adf_khz_from_counters(self.values, bank)
+            if khz is None:  # counters not streamed yet -> nothing to edit
+                return []
             left = st.adf_pair * 2  # high pair -> digit 0, low pair -> digit 2
             idx = left if role in ("outer_cw", "outer_ccw") else left + 1
             delta = 1 if role in ("outer_cw", "inner_cw") else -1
             new_khz = _step_khz_digit(khz, idx, delta, lo=bank.min_khz, hi=bank.max_khz)
-            raw = new_khz / bank.scale
-            self.values[bank.freq] = raw  # local echo -> instant display
-            return [SetSimVar(name=bank.freq, unit="number", value=raw)]
+            d1, d2, d3 = _adf_counters_from_khz(new_khz)
+            cmds: list[Command] = []
+            for var, new in ((bank.dig1_var, d1), (bank.dig2_var, d2), (bank.dig3_var, d3)):
+                if self.values.get(var) != new:  # only write the counters that changed
+                    self.values[var] = float(new)  # local echo -> instant display
+                    cmds.append(SetSimVar(name=var, unit="number", value=new))
+            return cmds
         if role == "outer_cw":
             st.fine_view = False
             return [SendEvent(name=bank.whole_inc)]
@@ -365,11 +398,21 @@ class RadioPanelController:
         bottom row leads with the 1-based NAV index (which source the push selected)
         then its ground speed (``2  180``). Both stream in via the poll.
         """
-        src = bank.sources[st.dme_source % len(bank.sources)]
+        idx = self._dme_source(bank, st)
+        src = bank.sources[idx]
         top = format_measure(self.values.get(src.distance), decimals=1)
         speed = format_row(self.values.get(src.speed), width=ROW_WIDTH - 2)
-        bottom = [*format_row(st.dme_source + 1, width=1), BLANK, *speed]
+        bottom = [*format_row(idx + 1, width=1), BLANK, *speed]
         return top + bottom
+
+    def _dme_source(self, bank: DmeBank, st: _UnitState) -> int:
+        """The active DME source index: the ``source_var`` value if set and streamed
+        (so a cockpit switch drives it), else the local push-cycled index."""
+        if bank.source_var is not None:
+            v = self.values.get(bank.source_var)
+            if v is not None:
+                return int(v) % len(bank.sources)
+        return st.dme_source % len(bank.sources)
 
     def _render_xpdr(self, bank: XpdrBank, st: _UnitState) -> list[int]:
         """Render an XPDR half: 4-digit squawk on top, altimeter (QNH) below.
@@ -414,15 +457,14 @@ class RadioPanelController:
     def _render_adf(self, bank: AdfBank, st: _UnitState) -> list[int]:
         """Render an ADF half: the 4-digit kHz frequency on top (bottom blank).
 
-        The value is read from ``freq`` and scaled to kHz (``scale``); its four
-        digits fill the top row (leading zeros kept, e.g. ``0350``). Two DOTs mark
-        the digit pair under the cursor (``st.adf_pair``: 0 = 1000s+100s, 1 =
-        10s+1s) — the pair the encoders are currently editing.
+        The value is computed from the KR-85 digit counters; its four digits fill the
+        top row (leading zeros kept, e.g. ``0350``). Two DOTs mark the digit pair
+        under the cursor (``st.adf_pair``: 0 = 1000s+100s, 1 = 10s+1s) — the pair the
+        encoders are currently editing.
         """
-        val = self.values.get(bank.freq)
-        if val is None:
+        khz = _adf_khz_from_counters(self.values, bank)
+        if khz is None:
             return [BLANK] * _HALF_CELLS
-        khz = round(val * bank.scale)
         khz = max(0, min(9999, khz))  # display-width guard
         digits = _khz_digits(khz)
         left = st.adf_pair * 2

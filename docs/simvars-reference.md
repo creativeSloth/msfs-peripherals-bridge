@@ -85,7 +85,7 @@ flowchart LR
 
 ---
 
-## 1. The five kinds of "variable"
+## 1. The five kinds of "variable" (+ our own sixth)
 
 | Prefix | Name | Direction | How we reach it | Needs WASM bridge? |
 |--------|------|-----------|-----------------|:------------------:|
@@ -94,6 +94,15 @@ flowchart LR
 | `L:` | **Local var** (add-on aircraft) | read/write | WASM module (MobiFlight) | **yes** |
 | `H:` | **HTML/JS gauge event** | write (pulse) | WASM module | **yes** |
 | `B:` | **Input Event** (MSFS 2020+) | write (`_SET`) | WASM module | **yes** |
+| `V:` | **Virtual var** (this project) | read/write | bridge-internal value hub — never touches the sim | no |
+
+**`V:` virtual variables** are our own addition: declared per profile
+(`local_vars:`), seeded with their `initial` value when the mapper starts, set
+like any SimVar (`{type: simvar, simvar: "V:mode"}`) and read via subscribe —
+but the value lives in the bridge process (module-level hub, survives sim
+reconnects) and is shared by every client (mapper, GUI monitor, gauges,
+`when:` conditions). Use them for mode flags, latches and other logic state
+that has no sim counterpart.
 
 In this project:
 - a **`{type: event}`** binding sends a `K:` event (the common case for

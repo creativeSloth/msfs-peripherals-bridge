@@ -36,6 +36,55 @@ bindings:
 - `button` - press/release; fires on press (value != 0).
 - `hat`    - directional; treated like a button per direction code.
 
+## Conditions (`when:`)
+Any binding can be gated on live variable values: it only fires while ALL
+listed conditions hold (AND). `var` reads like a subscription name (`A:` bare,
+`L:`/`V:` prefixed); `op` defaults to `==`, `value` to `1`. The runtime
+subscribes every condition var; while a value is still unknown the condition
+counts as NOT met (fail-closed).
+
+```yaml
+    - name: "Gear nur mit Avionik"
+      source: { kind: button, code: 288 }
+      action: { type: event, event: GEAR_TOGGLE, value: 1 }
+      when:
+        - { var: "AVIONICS MASTER SWITCH" }            # == 1
+        - { var: "L:AUTOPILOT_MODE", op: "<", value: 3 }
+```
+
+## POV hat (kind: hat)
+ONE binding covers the whole hat: `source.code` is the X (base) evdev channel
+(left/right); Y (up/down) is implicitly `code + 1`. Each direction gets its own
+action under `hat:` (fired once on entering the direction); `action:` is not
+used on hat bindings. Unset directions do nothing.
+
+```yaml
+    - name: "Trim-Hat"
+      source: { kind: hat, code: 16 }
+      hat:
+        up:    { type: event, event: ELEV_TRIM_UP }
+        down:  { type: event, event: ELEV_TRIM_DN }
+        left:  { type: event, event: AILERON_TRIM_LEFT }
+        right: { type: event, event: AILERON_TRIM_RIGHT }
+```
+
+## Detent split (axis only)
+A lever with a detent (reverse/feather/cutoff) stays ONE binding: `action`/
+`transform` cover the range from the detent up, the optional `split` block maps
+the range below it to its own action. Each part is normalised over its own raw
+span (the detent is out-min of the upper and out-max of the lower part).
+
+```yaml
+    - name: "Throttle mit Reverse"
+      source: { kind: axis, code: 0 }            # full travel from calibration
+      action: { type: event, event: THROTTLE1_SET }
+      transform: { out_min: 0, out_max: 16383 }
+      split:
+        at: 200                                   # raw value of the detent
+        action: { type: simvar, simvar: "TURB ENG REVERSE NOZZLE PERCENT:1" }
+        transform: { invert: true }
+```
+
 ## Action types
 - `event`  - SimConnect client event (K:/H: event). For axes the shaped value
   becomes the event `data`; for buttons a fixed `value` (default 1) is sent.

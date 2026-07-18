@@ -7,6 +7,7 @@ own thread and pushes events onto a shared queue.
 
 from __future__ import annotations
 
+import contextlib
 import logging
 import queue
 import threading
@@ -40,6 +41,53 @@ class Dispatcher(Protocol):
     def send(self, command: Command) -> None: ...
 
 
+class ConditionWatcher:
+    """Thread-safe latest-value store for the ``when:`` condition variables.
+
+    Values arrive from the bridge's state stream (either as a tap on the
+    OutputManager, which owns the socket's ``states()`` iterator, or via a
+    dedicated reader thread when the profile has no outputs). The engine reads
+    through :meth:`get`; unknown names return ``None`` = condition not met.
+    """
+
+    def __init__(self) -> None:
+        self._lock = threading.Lock()
+        self._values: dict[str, object] = {}
+
+    def update(self, name: str, value: object) -> None:
+        with self._lock:
+            self._values[name] = value
+
+    def get(self, name: str) -> object:
+        with self._lock:
+            return self._values.get(name)
+
+
+def condition_vars(profile: Profile) -> set[str]:
+    """Every variable referenced by a ``when:`` condition in the profile."""
+    return {
+        cond.var
+        for bindings in profile.bindings.values()
+        for binding in bindings
+        for cond in binding.when
+    }
+
+
+def seed_local_vars(profile: Profile) -> list[Command]:
+    """Commands seeding the profile's declared V: locals with their initials.
+
+    Sent once at mapper start (the bridge holds the values in its V: hub, the
+    profile stays the single source of the declarations). Restarting the mapper
+    re-seeds — persistence across restarts is the LocalVar.persist follow-up.
+    """
+    from .simconnect.protocol import SetSimVar
+
+    return [
+        SetSimVar(name=f"V:{lv.name}", unit=lv.unit, value=lv.initial)
+        for lv in profile.local_vars
+    ]
+
+
 def run(
     profile: Profile,
     catalog: DeviceCatalog,
@@ -48,14 +96,23 @@ def run(
 ) -> None:
     """Run the mapping loop until ``stop`` is set (or KeyboardInterrupt)."""
     stop = stop or threading.Event()
-    engine = MappingEngine(profile)
     events: queue.Queue[DeviceEvent] = queue.Queue(maxsize=1024)
 
     present = {**evdev_reader.discover(catalog), **hidraw_reader.discover(catalog)}
     if not present:
         raise RuntimeError("None of the catalog devices were found on this system.")
 
-    outputs = _start_outputs(profile, present, dispatcher, stop)
+    # Seed declared V: locals BEFORE conditions/outputs subscribe, so a gate on
+    # a local variable sees its initial value instead of an unknown (=blocked).
+    for command in seed_local_vars(profile):
+        dispatcher.send(command)
+    if profile.local_vars:
+        log.info("Seeded %d local V: variable(s)", len(profile.local_vars))
+
+    watcher = _start_conditions(profile, present, dispatcher, stop)
+    engine = MappingEngine(profile, values=watcher.get if watcher else None)
+    outputs = _start_outputs(profile, present, dispatcher, stop,
+                             state_listener=watcher.update if watcher else None)
 
     for device_id, path in present.items():
         if device_id not in profile.bindings:
@@ -72,19 +129,62 @@ def run(
     last_press: dict[tuple[str, int], float] = {}
     while not stop.is_set():
         try:
-            event = events.get(timeout=0.5)
+            first = events.get(timeout=0.5)
         except queue.Empty:
             continue
-        # The Multi Panel's selector/encoder are owned by its controller (display
-        # + value state); everything else goes through the stateless engine.
-        if outputs is not None and outputs.handles(event.device_id, event.code):
-            commands = outputs.handle_input(event.device_id, event.code, event.value)
-        else:
-            if _bounced(event, last_press):
-                continue
-            commands = engine.resolve(event)
-        for command in commands:
-            dispatcher.send(command)
+        # A moving yoke/rudder floods evdev with hundreds of ABS samples a second,
+        # and each one becomes a synchronous *_SET sent over the socket to a single
+        # serialised SimConnect DLL — so the sim can't keep up, the queue backs up,
+        # and the axis arrives lagged and stuttering. Drain the whole backlog this
+        # pass and drop superseded axis samples, sending only the newest position
+        # per axis. Buttons and switch edges are never dropped (see _coalesce_axes).
+        for event in _coalesce_axes(_drain(events, first)):
+            # The Multi Panel's selector/encoder are owned by its controller (display
+            # + value state); everything else goes through the stateless engine.
+            if outputs is not None and outputs.handles(event.device_id, event.code):
+                commands = outputs.handle_input(event.device_id, event.code, event.value)
+            else:
+                if _bounced(event, last_press):
+                    continue
+                commands = engine.resolve(event)
+            for command in commands:
+                dispatcher.send(command)
+
+
+def _drain(events: queue.Queue[DeviceEvent], first: DeviceEvent) -> list[DeviceEvent]:
+    """``first`` plus every event already buffered on the queue.
+
+    Lets one loop pass see the whole backlog at once so :func:`_coalesce_axes`
+    can collapse a burst of axis samples instead of the loop handling (and
+    sending) each one individually.
+    """
+    batch = [first]
+    while True:
+        try:
+            batch.append(events.get_nowait())
+        except queue.Empty:
+            return batch
+
+
+def _coalesce_axes(batch: list[DeviceEvent]) -> list[DeviceEvent]:
+    """Keep only the newest sample per (device, axis); pass everything else through.
+
+    A yoke/rudder emits far more axis samples than the sim can consume, and every
+    intermediate position is superseded the instant the next arrives — forwarding
+    them all just backs the pipeline up and makes the axis stutter. Collapsing a
+    batch to the last reading per axis sends the current position and drops the
+    stale ones. Non-axis events (buttons, switch edges, encoder detents) are never
+    dropped and keep their order: each edge means something a later one can't undo.
+    """
+    last_index: dict[tuple[str, int], int] = {}
+    for i, event in enumerate(batch):
+        if event.kind is SourceKind.AXIS:
+            last_index[(event.device_id, event.code)] = i
+    return [
+        event
+        for i, event in enumerate(batch)
+        if event.kind is not SourceKind.AXIS or last_index[(event.device_id, event.code)] == i
+    ]
 
 
 def _bounced(
@@ -110,11 +210,54 @@ def _bounced(
     return prev is not None and (now - prev) < _SWITCH_DEBOUNCE_S
 
 
+def _start_conditions(
+    profile: Profile,
+    present: dict[str, str],
+    dispatcher: Dispatcher,
+    stop: threading.Event,
+) -> ConditionWatcher | None:
+    """Subscribe the ``when:`` condition vars and keep their latest values.
+
+    Values ride on the same state stream the outputs use. When an OutputManager
+    will run, it taps its ``on_state`` into the watcher (it owns the socket's
+    ``states()`` iterator); without outputs a small reader thread consumes the
+    stream here. A dispatcher that can't stream (dry-run) leaves the store
+    empty, so gated bindings stay off — fail-closed, and loudly logged.
+    """
+    names = condition_vars(profile)
+    if not names:
+        return None
+    watcher = ConditionWatcher()
+    if not callable(getattr(dispatcher, "states", None)):
+        log.warning(
+            "Profile has when: conditions but this dispatcher can't stream state; "
+            "gated bindings will stay OFF."
+        )
+        return watcher
+    from .simconnect.protocol import Subscribe
+
+    for name in sorted(names):
+        dispatcher.send(Subscribe(name=name))
+        log.info("Condition subscribed to %s", name)
+    if not any(d in profile.outputs for d in present):
+
+        def _pump_states() -> None:
+            with contextlib.suppress(Exception):  # socket closes on shutdown
+                for name, value in dispatcher.states():  # type: ignore[attr-defined]
+                    if stop.is_set():
+                        return
+                    watcher.update(name, value)
+
+        threading.Thread(target=_pump_states, name="conditions", daemon=True).start()
+    return watcher
+
+
 def _start_outputs(
     profile: Profile,
     present: dict[str, str],
     dispatcher: Dispatcher,
     stop: threading.Event,
+    state_listener=None,
 ) -> OutputManager | None:
     """Start the output manager if the profile declares any outputs.
 
@@ -132,7 +275,8 @@ def _start_outputs(
 
     from .outputs import OutputManager
 
-    manager = OutputManager(profile.outputs, output_devices, dispatcher)
+    manager = OutputManager(profile.outputs, output_devices, dispatcher,
+                            state_listener=state_listener)
     threading.Thread(target=manager.run, args=(stop,), daemon=True).start()
     log.info("Output manager started for %d device(s)", len(output_devices))
     return manager

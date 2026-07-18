@@ -1,14 +1,595 @@
 # STATUS — Resume-Anker
 
 > Kurzer Einstiegspunkt: was läuft, was offen ist, wie es weitergeht.
-> Stand: **2026-07-09** (ALT/VS-Mode-Input IN-SIM GEFUNDEN + verdrahtet, Sticky-Wert-Fix
-> für ALT/VS, Barometer geklärt (2 Höhenmesser) — s. 🆕-Abschnitt ganz oben).
-> Multi-Panel ist auf **`main`** gemerged.
-> Aktueller Branch: **`refactor/light-dimmers`**. Diese Session: **ALLES UNCOMMITTED**
-> (Battery-Gating + die 🆕-Threads). **172 Tests grün, ruff clean, 4 Profile valide.**
+> Stand: **2026-07-18 — Connection-Umbau + Settings-Tab + i18n-SPRACHPAKET VOLLSTÄNDIG (DE/EN/ES/FR).**
+> Branch `feat/gauges`, neue Commits …`84915c0`→`1d0feeb` (NICHT gepusht), **317 Tests grün**, ruff clean.
+> **🆕 GUI-Umbau `84915c0`** (visuell UNGEPRÜFT/headless, aber Konstruktions-Smoke DE/EN/ES/FR ok + Prefix-Checks
+> gegen echtes Prefix verifiziert): Connection-Tab neu nach Sinngruppen — Sub-Notebook „Steuerung & Status" /
+> „Bridge-Protokoll" (Log-Terminal ausgelagert), Gruppe „Prozesse" (kompakte Knöpfe, neue Styles Small*),
+> Gruppe „Umgebung & Voraussetzungen": **Prefix-Pfad-Feld** (persistiert `gui-settings.json:prefix_path`,
+> Durchsuchen/Speichern, beim Start geladen, als Env `STEAM_COMPAT_DATA_PATH` an run-bridge.sh injiziert via
+> neuem `ProcessController.env`) + **Voraussetzungs-Checkliste ✓/✗** (Prefix, drive_c, pythonw/python.exe,
+> SimConnect.dll, Proton, run-bridge.sh, bridge.py) mit Initial-Check + „Erneut prüfen" + „Prefix einrichten…".
+> **Settings-Tab neu**: Sprach-Dropdown DE/EN/ES/FR (sofort gespeichert `:language`, Anwenden=os.execv-Neustart).
+> **🆕 i18n-SPRACHPAKET (`567284a`+`18aa321`):** reines `i18n.py` (`tr()`, Fallback DE→Key) + `env_check.py`.
+> **GANZ gui.py gewickelt+übersetzt** (DE/EN/ES/FR): alle text=/label=, _attach_tooltip, messagebox über alle Tabs
+> (Variablen/Mapper/Gauges/Profile, Binding-/Output-Editor, Kachel-Panel, Var-Picker, Statusleiste). Schlüssel =
+> DE-Quelltext (gettext-Stil). Auto-Wrap via Scratch-Skript `wrap_tr.py` (String-Run bleibt in tr() → Key=konkat.
+> Wert). Bewusst NICHT übersetzt (in allen Sprachen gleich): Symbole (…/✓/🪄/min/max/dz/expo/Code/SimVar/RPN) +
+> Roh-Kommando-Tooltips (bash …/killpg …/filedialog …). ruff: per-file-ignore E501 für i18n.py.
+> **✅ i18n VOLLSTÄNDIG (`ceab706`+`1d0feeb`):** auch `gui_mapper.py` — Control-Labels (Achse/Taste/Hat/Schalter),
+> Gerätestatus, describe_*-Ausgaben, FIELD_LABEL, alle ~55 OUTPUT_FIELD_HELP-Felder+Hilfen, _ENTRY_WORD/_SOLO/
+> _GROUP_ROLE + 19 Validierungs-Fehler. `tr()` an Use-Sites (Dicts bleiben DE-Quelle=Key). ~145 Einträge; Tests
+> grün via Default-DE-Fallback. **Scratch-Generatoren** `wrap_tr.py`/`gen_mapper_i18n.py` (Übersetzungen im Skript,
+> Keys aus Import → exakt). **⏳ i18n-Rest bewusst offen:** Anwenden per **GUI-Neustart** (os.execv), kein Live-
+> Retranslation der schon gebauten Widgets. **🔴 GUI weiterhin visuell UNGEPRÜFT** (headless) → beim nächsten
+> Start Connection-Umbau + Sprachumschaltung live sichten.
+> **✅ V: e2e bewiesen** (Seeding 0.0 · Cowl-Switch **Code 6** → 0↔1 · Hub-Runde) via Direkt-Client an
+> Bridge :7842. **GUI-Batch committet** (Details Session unten): Variablen-Tab-Umbau (V:-Übersichtstabelle,
+> Buttons ÜBER die Tabelle, V:-Editor aus Profile RAUS), Panel-Picker + Toggle-Button, Bridge-Log
+> eingebettet, **🪄 Zauberstab hidraw-fähig**, pythonw-Fix. ⚠️ **GUI visuell UNGEPRÜFT** (headless).
+> **🔴 WIEDEREINSTIEG:** (1) **GUI + Mapper + Bridge NEU STARTEN** (neuer Code: pythonw, GUI-Umbau) →
+> alles live sichten; (2) ✅ **tq6-WIP ERLEDIGT** (`f64d979`): 6 Hebel T1/T2/P1/P2/M1/M2 (Motor 1&2),
+> Inversion via `raw_min>raw_max`, „Mixture 1 (Kopie)"→„Mixture 2", Code-Reihenfolge + Kommentare geputzt,
+> valide+Tests grün — **NUR noch in-sim fliegen/prüfen** (bes. ob Motor-2-Events T2/P2/M2 am Arrow gewollt
+> sind, s. Frage unten); (3) pythonw-Fenster-Fix verifizieren (Wine-Konsole weg?); (4) danach
+> Geräte-Explorer / Kette → main. ⚠️ **OFFENE FRAGE:** Arrow ist einmotorig — T2/P2/M2 auf Achse 1/3/5
+> sind am Single-Engine no-ops; falls unerwünscht, die 3 Motor-2-Einträge wieder raus (Commit reverten).
+> Frühere Zeile: 2026-07-16/17 Doppel-Mega (Stufe C, Split, V:-Runtime-Code, Gauges, HAT, ⚑), 2026-07-15/13.
+
+## 🆕 SESSION 2026-07-17 (Abend) — V: e2e IN-SIM + GUI-Batch + hidraw-Zauberstab (Commits `3507407`,`ba8c332`)
+
+**✅ V:-RUNTIME e2e IN-SIM VERIFIZIERT** (war laut STATUS „e2e ungetestet"). MSFS lief, Bridge mit V:-Hub.
+Bewiesen via Direkt-Socket-Client an `127.0.0.1:7842` (Scratchpad, newline-JSON):
+- **Hub-Runde:** set `V:TEST_FLAG`=42/7 → subscribe-Push + read_now liefern zurück (sim-unabhängig).
+- **Seeding:** Mapper-Neustart mit temp `local_vars:[TEST_FLAG init 0]` → Hub-Wert 0.0 (überschrieb die
+  7.0 aus dem Vortest) = `seed_local_vars` läuft beim Mapper-Start.
+- **Hardware→V::** temp Binding `switch code 6 → simvar V:TEST_FLAG` (stateful) → User kippte **Cowl-Schalter**
+  mehrfach → Watcher sah 0↔1 sauber. **Cowl = Switch-Panel Code 6** (Saitek „COWL CLOSE"; freie switch_panel-
+  Codes: 6=Cowl, 9=Nav). Reihenfolge: 0 BAT,1 ALT,2 AVIONICS,3 FUEL PUMP,4 DE-ICE,5 PITOT,**6 COWL**,
+  7 (Panel-Licht→AP master),8 BEACON,10 STROBE,11 TAXI,12 LANDING,13-17 Magneto,18/19 Gear.
+- **Test-Gerüst wieder ENTFERNT** (profile_writer, chirurgisch — NICHT `git checkout`, das hätte die tq6-
+  Arbeit gekillt). `piper_arrow.yaml` = HEAD + nur die tq6-Arbeit (uncommitted).
+- **⚠️ Merker:** Bridge-Port 7842 geht erst NACH SimConnect auf (`connect_sim()` vor `bind()`) → auch reiner
+  V:-Test braucht laufendes MSFS. Shell = **zsh** → `/dev/tcp` geht NICHT (Falsch-„zu"); Port mit `ss`/python.
+
+**🖥️ GROSSER GUI-BATCH (Live-Feedback, 2 Commits, 302 Tests grün, ruff clean; visuell UNGEPRÜFT/headless):**
+1. **Statistik-Tab → „Variablen".** Var-Picker zeigt jetzt **V:-Vars** (Filter „V: lokal" in
+   `_open_var_picker`; `_statistik_catalog` mischt profileigene V: frisch dazu) — greift auch im Mapper-Picker.
+2. **Variablen-Tab-Umbau:** Buttons **ÜBER** der Tabelle (row 1): „Variablen in die Liste holen" +
+   „Variablen aus Liste entfernen" (rot). **V:-Übersicht = eigene Tabelle (row 3)** (Anlegen/Entfernen) —
+   **aus dem Profile-Tab hierher migriert, Profile-V:-Editor ENTFERNT.** (Load deferred via `win.after`, da
+   `load_profile` erst nach dem Tab-Aufbau importiert wird.) „+ V:-Variable"-Dialog wieder raus.
+3. **Kachel-Panel:** eigener **„+ Variable"-Picker** neben „Raster" (`_PanelWindow.catalog_provider`);
+   **„→ Ins Panel" entfernt.** **Panel-Toggle:** Text „Panel öffnen"↔„Panel schließen" + **invertierte Farben**
+   (neuer Style `AccentInv`); `_toggle_panel` zustandsbasiert (`panel_btn`-Holder für Text/Style).
+4. **Connection-Tab: Bridge-Log live eingebettet** (tailt `bridge/bridge.log`, `win.after`-Loop, autoscroll,
+   gedeckelt) → kein loses Bridge-Terminal nötig. GUI-Mapper-Start ist fensterlos (DEVNULL).
+5. **🪄 Zauberstab HIDRAW-FÄHIG** (war evdev-only → „Panels gehen nicht"): neu `hidraw_reader.live_state_reader`
+   (nicht-blockierend, `{("switch",bit):value}`); `_learn_code` wählt Reader nach `ddef.transport`. Panel
+   sendet **KEINEN On-Open-Snapshot** (empirisch) → **Lazy-Baseline** aus 1. Frame → UX: **Schalter HIN UND
+   ZURÜCK** (1. Flip=Baseline, 2.=Code). Kind „switch"=„Schalter". `code=byte·8+bit`.
+6. **pythonw.exe** in `run-bridge.sh` (statt python.exe) → Wine spawnt **kein Konsolenfenster** mehr; Log
+   unberührt (FileHandler). **⚠️ UNGETESTET** — User prüft beim nächsten Bridge-Start. (pythonw.exe liegt im
+   pybridge-Prefix.)
+7. Kleinkram: „+ Panel" → **„+ Saitek-Panel"**; Gauges-Tab nach rechts
+   (**Connection·Mapper·Variablen·Gauges·Profile**); Inline-✕ (Sequence/Bedingung) rot.
+
+**🔴 NÄCHSTES:** GUI+Mapper+Bridge NEU STARTEN & alles live sichten; tq6-WIP im piper_arrow aufräumen+
+committen; pythonw-Fenster prüfen; dann Geräte-Explorer (Wand-hidraw ist der halbe Weg) / Kette → main.
+
+## 🆕 SESSION 2026-07-16 (fortges.) — GAUGES-TAB GEBAUT (Branch `feat/gauges`)
+**Branch `feat/gauges`** (von `feat/mapper-tab` abgezweigt), Commit `c580928`. **284 Tests grün,
+ruff clean, Konstruktions-Smoke ok. Visuell UNGEPRÜFT** (User konnte nicht testen).
+- **`gauge_model.py`** (rein, 11 Tests): Rundinstrument-Mathematik aus den Air-Manager-Luas —
+  `winkel(v) = omega + sweep·((v−v_min)/Δ)^h` (Lua-Form normalisiert: sweep = IMMER der volle
+  Winkel), Ticks (major/minor), Arcs, `polar()` (0°=Norden, im UZS), Dict-Round-Trip für die
+  Persistenz. **Presets aus den Original-Luas vermessen**: „MAP + Fuel Flow" (ZWEI Zeiger — äußere
+  MAP-Skala 10–50/180°/−90°, innere FF-Skala 0–25/165°/+100°, radius 0.58), RPM (0–3500/290°/215°,
+  grün 500–2650), Airspeed (20–190/306°, grün/gelb/blau-Arcs), EGT (1200–1700/100°/−50°),
+  Fuel L/R (0–38.5/100°/−50°), „Eigenes…" (leer).
+- **GUI-Tab „Gauges"** (Position 2, nach Statistik): Canvas-Panel, Gauges im automatischen Raster
+  (Zellengröße maximiert). **User-Flow wie gewünscht:** „+ Gauge" → Menü zeigt **📚 Bibliothek**
+  (bereits gemappte Gauges, per Name wieder aufrufbar) + Vorlagen → **ZUERST Mapping-Dialog**
+  (je Zeiger: Variable über den Var-Picker (readonly-Feld), Faktor, min/max) → „Übernehmen" legt
+  das Gauge aufs Panel UND speichert es in die Bibliothek (`gauge_library` in gui-settings.json;
+  Panel-Inhalt = `gauges_panel`). Klick wählt (blauer Ring), Doppelklick remappt, „✕ Entfernen"
+  nimmt nur vom Panel (Bibliothek bleibt; Löschen aus Bibliothek im Dialog). Zeiger rendern live
+  aus dem geteilten `_ValueMonitor` (Subscription nur bei sichtbarem Tab via `gauge_hook` in
+  `_resubscribe`; Zeiger-Update 150 ms, `canvas.coords`).
+- **Offen:** visuelle Sichtung (Skalen-Optik, Schriftgrößen, Dark-Face); Mehr-Zeiger-Skalen-
+  Beschriftung könnte bei kleinen Zellen gedrängt sein; evtl. loslösbares Gauge-Fenster (wie
+  Kachel-Panel); Arcs/sweep im Dialog editierbar machen (aktuell nur Var/Faktor/min/max);
+  Presets für weitere Vars. Design-Referenz: `docs/gauges-design.md`.
+
+**➕ NACHTRAG 5 (Session-Ende, Commit `1f3dd59`, GEPUSHT): „+ Panel"-Fixes nach Live-Test.**
+User hat live getestet: „+ Panel" erzeugte Blöcke auch auf dem Yoke (2 Test-multi_panel auf yoke
+entstanden!), saß links statt rechts, Löschen ging nicht aus der Tabelle. Fixes: (a) Sperre —
+nur hidraw-Geräte, sonst Meldung; (b) Knopf in die rechte Knopfzeile verschoben; Dropdown sagt
+„Switch Panel"; (c) **„Entfernen" wirkt auf jede markierte Zeile** (Binding / ganzer Panel-Block
+mit Rückfrage / Listeneintrag / optionaler Block) ohne Fenster. `piper_arrow.yaml`: Yoke-Testblöcke
+entfernt, der **einmalige ruamel-Reflow vom ersten GUI-Speichern ist jetzt committet** (bewiesen:
+HEAD~1↔HEAD semantisch identisch — Fliegen sicher; künftige GUI-Saves = saubere Diffs).
+
+**➕ NACHTRAG 4 (gleiche Session, Commits `32aba6c`+`2ee8621`, 302 Tests, GEPUSHT): V:-RUNTIME FERTIG.**
+- **Bridge-V:-Hub** (geparktes Design umgesetzt): `bridge.py` Modul-Level `_VIRTUAL_VARS`+Lock;
+  `set_simvar`/`read_subscribed`/`read_var` erkennen `V:` ZUERST (kein Sim, kein DLL-Lock, Werte
+  überleben Sim-Reconnects); Subscribe/Poll/read_now servieren V: automatisch an alle Clients.
+  **Offline-Stub-Smoke 5/5** (SimConnect-Stub + `object.__new__`; Scratchpad `vhub_smoke.py`).
+- **Seeding**: `runtime.seed_local_vars(profile)` → SetSimVar `V:<name>`=initial beim Mapper-Start,
+  VOR Conditions/Outputs (Bedingung auf V: sieht den Startwert statt unbekannt=blockiert).
+  Mapper-Neustart re-seeded (Persist = LocalVar.persist-Follow-up).
+- **Wires**: GUI `_wire_name` + `gauge_model.wire_name` können V: → Statistik, Kachel-Panel,
+  Gauges und ⚑-Bedingungen beobachten V: live.
+- **V:-Editor-UI im Profile-Tab** (Lücke geschlossen): Labelframe „V: — eigene lokale Variablen"
+  mit Liste + Anlegen (Name/Startwert/Beschreibung) + Entfernen via `profile_writer.set_local_vars`.
+- Doku: simvars-reference §1 hat jetzt die V:-Zeile. **⚠️ In-sim/e2e ungetestet** (Bridge neu
+  starten → V: anlegen → per Binding setzen → in Statistik/Bedingung sehen).
+- **Alle 3 Branches GEPUSHT** (origin: gui-var-monitor, mapper-tab, gauges).
+
+**➕ NACHTRAG 3 (gleiche Session, Commits `211a422`+`0608e7c`, 299 Tests): BEDINGUNGEN + LED-Fixes.**
+- **`when:`-Bedingungen an Bindings** (lang geplant, jetzt KOMPLETT: Modell+Engine+Runtime+UI):
+  `models.Condition {var, op, value}`, Liste = UND; Engine bekommt Value-Provider injiziert,
+  unbekannter Wert = Bedingung NICHT erfüllt (fail-closed, ==/!= mit isclose); Runtime
+  `ConditionWatcher` abonniert alle when:-Vars (Tap auf OutputManager-State-Stream via neuem
+  `state_listener`, ohne Outputs eigener Reader-Thread); Binding-Editor hat eine **optisch
+  abgesetzte „⚑ Bedingung"-Labelframe-Sektion** (Zeilen: Wählen…/readonly Var · Operator · Wert ·
+  ✕, „+ Bedingung"); Tabelle zeigt ⚑n. V:-Vars stecken schon im Format (greifen sobald der
+  Bridge-Hub existiert). Doku `_schema.md`. **⚠️ In-sim ungetestet** (Subscribe+Gating live prüfen).
+- **Gear-LEDs = Solo-Zeilen**: LED Bugrad/links/rechts je eigene Baum-Zeile mit eigenem
+  Mini-Fenster (User: drei Zeilen → immer dasselbe Sammel-Fenster war verwirrend); „Allgemein"
+  behält down_at/power. **Dimmer-Rolle = „Eingabe (Drehrad)"** (User-Korrektur), Ziele =
+  „Anzeige (Licht)". Hat-Binding-Crash im Editor gefixt (action None).
+- **NÄCHSTES FEATURE (Task, noch nicht gebaut): Geräte-Explorer** — je Gerät alle Codes live
+  auslesen, bei Panels Test-Werte je Code/Segment senden (LED/Segment identifizieren,
+  wie tools/panel-scan out_*), Codes umlabeln (Label-Store: devices.yaml vs gui-settings offen).
+
+**➕ NACHTRAG 2 (gleiche Session, Commits `e6d3ca7`+`359628e`, 293 Tests):**
+- **Tab-Reihenfolge:** Connection · Mapper · Gauges · Statistik · Profile (User-Wunsch).
+- **🪄 Code-Anlernen AKTIV** (war Stub): lauscht via `live_state_reader` am Gerät, erkennt
+  Taster/Achse/Hat + Code (Hat → Basis-Code normalisiert), Übernehmen füllt Quelle.
+- **HAT-Support GEBAUT** (war halb kaputt: evdev meldete Hats als Achse, nur eine Richtung hätte
+  je gefeuert): `models.HatMap` (up/down/left/right je eigene Aktion, `Binding.action` jetzt
+  optional, hat XOR action validiert), `source.code` = X-Basis-Kanal (Y implizit +1),
+  evdev_reader klassifiziert ABS_HAT* als HAT, Engine matcht beide Kanäle + feuert je
+  Richtungs-Flanke. Editor: Quelle=Hat zeigt VIER ▲▼◀▶-Slots im selben Fenster.
+  Schema-Doku in `profiles/_schema.md`.
+- **Mapper-Tabelle = echter Struktur-Baum** (User: „Darstellungsbaum output → selektor-mode[x]"):
+  Panel-Controller als Baum-Zeilen (kurze deutsche Labels „Position ALT", „Bank COM1 · freq",
+  „Einheit upper"), **Eingabe/Anzeige-Rolle** in der Control-Spalte (User: LEDs=Anzeige,
+  Drücken/Schalten=Eingabe — beim Radio-Panel am deutlichsten). Abschnitte: „Eingaben — Bindings"
+  / „Panel-Controller".
+- **Output-Kontextfenster = genau EINE Zeile** (User: Fenster mit nochmal Liste = verwirrend):
+  Doppelklick auf Baum-Zeile → Formular NUR für diese Gruppe, konsistent zum Binding-Editor
+  (deutsches Label · Feld · ⓘ, „Wählen…" an Var-Feldern, Übernehmen/Zurücksetzen/Schließen,
+  Danger-Entfernen). Kein Fenster-Baum mehr.
+- **„+ Panel"** unter der Geräteliste: ganzen Panel-Controller aus 3 validierten Block-Vorlagen
+  anlegen (`profile_writer.add_output/remove_output`, leere Stubs aufgeräumt); Wurzel-Fenster
+  kann den ganzen Block entfernen. (User-Einschätzung bestätigt: für die Saiteks selten nötig —
+  hauptsächlich für neue Flugzeug-Profile; bewusst einfach gehalten.)
+
+**➕ NACHTRAG (gleiche Session, Commit `faa91d6`, 286 Tests): Output-Fenster in GRUPPEN statt
+Feld-Baum.** User-Feedback: der rohe Feld-Baum im Output-Editor „sagt nichts" — jetzt links eine
+schlanke Gruppen-Navigation (Allgemein · Selektor-Positionen (je Eintrag ein Knoten) · LEDs ·
+Dimmer · Radio-Einheiten/Bänke …), rechts ein Formular mit **deutschen Feldnamen + ⓘ-Erklärung
+je Feld** (neues `gui_mapper.OUTPUT_FIELD_HELP`, ~50 Felder erklärt, YAML-Name steht in der
+Hilfe). Übernehmen speichert alle geänderten Felder der Gruppe in EINEM validierten Schreibvorgang;
+Listen/optionale Blöcke: „+ Eintrag/Anlegen", „✕ Entfernen"; LED-Zeilen mit ✓/✕ inline. Die
+technischen Output-Detailzeilen im Mapper-Baum sind default **eingeklappt**. **Inputs (Binding-
+Editor) bewusst unverändert** — User: „bei den Inputs schon gut". Reine Helfer
+`output_groups`/`group_fields`/`output_field_help` getestet.
+
+## 🆕 SESSION 2026-07-16 — Stufe C fertig · Achsen-Split · Editor-UX v2 · Live-Spalte · Gauges gesichert
+**Branch `feat/mapper-tab`, 7 neue Commits `f2c10ec`…`cdc7d2f` (NICHT gepusht). 273 Tests grün,
+ruff clean, Konstruktions-Smoke OK (Fenster withdrawn). ⚠️ ALLE neuen GUI-Teile visuell UNGEPRÜFT.**
+
+1. **✈️ FLUG-VERIFIKATION (User will fliegen):** `piper_arrow.yaml` + Runtime-Pfad unverändert
+   gegenüber dem in-sim-verifizierten Stand — Diff vs `main` in Runtime-Dateien ist exakt die am
+   2026-07-11 verifizierte Arbeit (bridge-Streaming, ADF/KR-85, DME source_var, Achsen-Koaleszenz).
+   Die GUI-Arbeit berührt den Mapper-Laufzeitpfad nicht. Profil-Kopien des Users
+   (`piper_arrow_kopie/_sicherung`) behalten, aber `aircraft_match: []` → Auto-Auswahl lädt
+   IMMER das Original. `msfs-bridge piper_arrow` bleibt sowieso explizit.
+2. **Achsen-Split in EINEM Binding** (User-Wunsch statt Duplizieren-Workflow): `models.AxisSplit`
+   (`split: {at, action, transform}` am Binding, nur axis), Engine teilt am Detent (jeder Teil
+   normalisiert über die eigene Roh-Spanne), Editor zeigt bei „Achse am Detent teilen" einen klar
+   abgetrennten zweiten Aktions-Bereich (eigenes Wählen…/Felder/Verarbeitung/Ausgang), Learn-Fenster
+   hat „→ als Detent". Doku `profiles/_schema.md`.
+3. **Editor-UX v2 (Live-Feedback des Users):** (a) **Doppelklick** auf Tabellenzeile öffnet das
+   Editor-Fenster (Einfachklick markiert nur; ✏-Spalte + „Bearbeiten…"-Knopf entfernt);
+   (b) Aktions-Zeile **eingedampft auf EINEN „Wählen…"-Knopf** — kein Typ-Dropdown, kein „…"-Duplikat;
+   Typ folgt der Auswahl (grauer Hinweis), **Sequence = „Mehrschritt"-Haken**, RPN/event_from_var
+   erscheinen nur, wenn das Binding sie schon nutzt (deutsches ⓘ erklärt „was ist RPN");
+   (c) Quelle-Dropdown deutsch: Achse/Taster/Schalter(haltend)/Hat + ⓘ (muss zur Hardware passen);
+   (d) Achsen-Bereich **untereinander** (Eingang/Verarbeitung/Ausgang) mit konsistenten min/max-Labels;
+   (e) Leer-Wert-Hinweise: grauer Kalibrier-Hinweis (leer = raw aus Kalibrierung, konkrete Werte),
+   Event-Wert-ⓘ (leer = auto: Taster 1/Schalter-Zustand/Achsenwert); (f) **Picker-gefüllte Felder
+   readonly** (Event/SimVar/Read/Sequence-Namen), Sequence-Schritte ohne event/simvar-Dropdown.
+4. **Stufe C FERTIG — Panel-Outputs editierbar:** Doppelklick auf Output-Zeile → Editor-Fenster mit
+   modellgetriebenem Feld-Baum (`gui_mapper.output_nodes` läuft generisch über die Pydantic-Modelle:
+   gear_leds/multi_panel/radio_panel inkl. Selektoren, Bänke, bool_leds, Dimmer). Zeile anklicken →
+   passende Edit-Leiste (Entry/Checkbox/Choice/Var-Picker readonly, „+ Eintrag" mit Bank-Vorlagen
+   je Art, „✕ Entfernen", optionale Blöcke wie dimmer/source_toggle anleg-/entfernbar).
+   `profile_writer.set_output_value/add_output_entry/remove_output_entry` = Punkt-Mutationen am
+   Pfad (Kommentare bleiben), jeder Apply validiert VOR dem Schreiben. 13 Tests.
+5. **Live-Spalte im Mapper** (User-Wunsch): gedrückte Tasten ●, Achsen als füllender Balken
+   (`█░`-Zeichen + Rohwert), `evdev_reader.live_state_reader` (non-blocking drain, absinfo-Seed),
+   after-Loop öffnet das gewählte Gerät lazy, Retry ~2 s. Hidraw-Panels bleiben leer (kein evdev).
+   **Profil-Badge**: aktives Profil fett in der Statuszeile + im Fenstertitel.
+   **🐞 Learn-Bugfix:** raw-Learn übergab den VAR-Katalog an `evdev_reader.discover()` (per
+   suppress verschluckt → „nicht lesbar") — jetzt `_device_catalog()`.
+6. **Air-Manager-Gauges GESICHERT** (User-Wunsch, viel Eigenarbeit): `reference/air-manager/` —
+   7 „ES"-Instrumente (MAP+FuelConsumption, RPM, EGT, Airspeed, 3× Fuel), Template, Panel-BG,
+   eigenes Piper-Panel + Dev-Configs (79 MB, größte Datei 14 MB → GitHub-safe). README dort.
+   **Skalierungs-Analyse + Architektur: `docs/gauges-design.md`** (Zeiger-Formel, Presets, Plan).
+
+**🔴 NÄCHSTES:**
+1. **User sichtet die GUI live** (alles neu: Doppelklick-UX, Aktion-Eindampfung, Split-UI,
+   Output-Editor, Live-Spalte, Badge, Theme) → Feedback-Fixes.
+2. **Gauges-Tab** = EIGENES Feature (eigener Branch, `docs/gauges-design.md` liegt bereit):
+   Canvas-Rundinstrumente, Zeiger frei auf Sim-Vars mappbar, Presets aus den Luas.
+3. V:-Runtime-Verdrahtung (Design steht, s. 2026-07-13); HW-Capture „Lernen" für Source-Code
+   (Live-Reader-Infrastruktur existiert jetzt!); Kette (gui-var-monitor + mapper-tab) → main.
+
+## 🆕 SESSION 2026-07-15 (fortges.) — UX-Umbau aus Live-Feedback + modernes Theme
+**Branch `feat/mapper-tab`, 251 Tests grün, ruff clean, Konstruktions-Smoke ok. Commits `9a46bfd`,
+`fbbe9ff` (+`5b1d8c2`,`ece9403` s. u.). NICHT gepusht.** Weiteres Live-Feedback umgesetzt:
+- **Editor = eigenes On-Demand-Fenster** (`ed_win` Toplevel, `withdraw`/`deiconify`): geöffnet per
+  **„✏ Bearbeiten"-Zelle** in der Binding-Zeile, Doppelklick, oder „Bearbeiten…". Fenster-Knöpfe
+  (Übernehmen/Zurücksetzen/Abbrechen) gelten für DAS eine Binding.
+- **Knopf-Zuordnung klar**: Binding-Aktionen (Bearbeiten…/+Neu/Duplizieren/Entfernen) **rechtsbündig
+  unter der Bindings-Tabelle**; Geräte-Rescan links; Profil-Aktionen im Profile-Tab.
+- **Sequence-Schritt-Editor** (war Platzhalter): `gui_mapper.seq_action_to_rows`/`rows_to_seq_action`
+  (rein, getestet) + `seqfr` mit on/off-Schritten (event/simvar, +Schritt/✕). `_ed_apply` baut die
+  Aktion aus `seq_state`.
+- **Aktion folgt der Variable**: prominenter „Wählen…" öffnet den (gefilterten) Var-Picker und setzt
+  den Typ automatisch (K:=event, A:/L:/V:=simvar) — Typ-Dropdown nur noch für RPN/Sequence/event_from_var,
+  ⓘ erklärt. (User wollte, dass man den Typ-Unterschied NICHT verstehen muss.)
+- **Axis-Feldhilfe** auf **per-Feld-ⓘ-Tooltips** (statt Textblock) + **raw-Learn**: „Lernen…" liest die
+  Achse live (`evdev_reader.axis_value_reader`), zeigt den Rohwert, „→ als min/max" übernimmt (Detent
+  finden). Graceful ohne Gerät/evdev.
+- **Profile-Tab** (letzter Tab, statt Dauer-Kopfzeile): Selector + Neu/Duplizieren/Entfernen +
+  **Beschreibung + Auto-Auswahl** editierbar (`profile_writer.set_meta`, getestet).
+- **Modernes Theme** (`clam` + helle Palette, flache Tabs mit Akzent) + **intuitiv gefärbte Knöpfe**:
+  Accent(blau)=primär/Start, Danger(rot)=Stop/Entfernen.
+
+**⚠️ NOCH VISUELL UNGEPRÜFT** (nur Konstruktions-Smoke, kein echtes Rendering): Layout/Optik von Theme,
+Profile-Tab, Editor-Fenster, Sequence-Editor. **User sichtet beim nächsten Öffnen.** Offene Feature-Punkte
+unverändert: Panel-Outputs inline editierbar (Stufe C), V:-Runtime, HW-Capture für Source-**Code**
+(raw-Learn steht; Code-Capture-Stub `b_learn` noch disabled).
+
+## 🆕 SESSION 2026-07-15 — Stufe B live gesichtet: Fixes + Profilverwaltung + Axis + Panel-Viewer
+**Branch `feat/mapper-tab`. 247 Tests grün, ruff clean, py_compile ok. Committet (nicht gepusht).**
+User hat die GUI live getestet, viel Feedback gegeben; alle Punkte umgesetzt (User: „ordentlich fertig,
+ohne Nachfragerei"). **Achtung: GUI-Optik/Layout headless nicht prüfbar** (Xvfb fehlt, `DISPLAY=:0` ist der
+Live-Desktop → kein Fenster ungefragt) — Absicherung war ruff-F821 + py_compile + reine Logik-Tests.
+1. **🐞 „+ Neu"-Crash gefixt** (`gui.py`): rief sofort `form_to_binding(blank_form)` → `ValueError:
+   Event-Name fehlt`. Neu: „+ Neu" geht in einen **„neues Binding"-Modus** (`etgt.index=None`) mit
+   leerem Formular; **Validierung + Anhängen erst bei „Übernehmen"** → nie ein halbfertiger Stub im
+   Profil. `_ed_apply` verzweigt bei `index None` → `add_binding`, sonst `apply_binding_edit`.
+   `_ed_reset`/`_ed_duplicate`/`_ed_remove` gegen den Neu-Modus abgesichert.
+2. **Profilverwaltung (neu, `gui.py` Profil-Zeile)**: Buttons **Neu / Duplizieren / Entfernen** neben
+   dem Profil-Dropdown. `profile_writer.new_profile(name)` = minimales valides Skelett (+Start-Kommentar);
+   Duplizieren = `load`+`name`-Rename+`dump` (Formatierung bleibt); Entfernen mit Bestätigung, letztes
+   Profil geschützt. `_refresh_profiles(select=…)` setzt `profile_var` → Trace lädt Mapper/Statistik neu.
+   Test `test_new_profile_validates_and_round_trips`.
+3. **Axis-Editor erweitert + erklärt** (`gui.py`): Achsen zeigen jetzt **Eingang (roh) min/max**
+   (= `raw_min`/`raw_max`) und **Ausgang (out) out_min/out_max** als Felder + ein **Feld-Glossar +
+   Pipeline-Erklärung + Detent-Split-Anleitung**. **Detent-Split** braucht KEINE neue Modell-Funktion:
+   `normalise()` klemmt Roh außerhalb min…max auf ±1 → zwei Bindings auf demselben Achsen-Code mit
+   komplementären Roh-Bereichen decken „Detent=out 0" (oberer Teil) + „unter Detent = Reverse/Feather/
+   Cutoff" (unterer Teil, eigene Aktion) ab. Workflow = »Duplizieren« + Roh-Bereiche setzen (im Text erklärt).
+4. **Panel-Output-Detailviewer (neu)**: `gui_mapper.describe_output_detail(output)` entfaltet jeden Output
+   in lesbare Kind-Zeilen — Selektor-Bänke, **Encoder-/Swap-Input-Codes**, LED-/Dimmer-Maps, alle Radio-
+   Bank-Arten (freq/DME/ADF/XPDR). Der Mapper-Detailbaum rendert sie als Kinder je Output (`_render_detail`).
+   Damit sind **Outputs UND Inputs der Panels sichtbar** (vorher nur „radio_panel — 37 SimVars"). 3 Tests.
+   ⚠️ Panel-Outputs sind damit **sichtbar, aber noch nicht inline editierbar** (= Stufe C, s. u.).
+5. **Test entkoppelt**: `test_apply_binding_edit_changes_only_the_target` hing an exakter Binding-
+   Reihenfolge von `piper_arrow.yaml` — jetzt Sibling **vorher erfasst** statt hart-codiert (die Mapper-
+   GUI editiert diese Profile ja als Live-Dateien).
+6. **`piper_arrow.yaml` zurückgesetzt** (`git checkout`): der User hatte es beim Live-Testen verändert
+   (Test-Duplikat „Aileron (roll) (Kopie)" + einmaliger Flow-Kollaps der hand-umbrochenen Bänke) — reine
+   Test-Artefakte, zurückgesetzt → Handformatierung wieder da.
+
+**🔴 NÄCHSTES (Reihenfolge):**
+1. **Panel-Outputs inline EDITIERBAR** (Stufe C — jetzt sichtbar, aber read-only): Editor für multi/radio/
+   switch outputs (Selektor-/Bank-/LED-/Dimmer-Felder), Sequence-Editor. **Vorlage = Vor-Mapper-Arrow-Profil**
+   (git-History / alte SPAD-XMLs, s. [[reference-spadnext-profiles]]). Scope mit User klären.
+2. **V:-Runtime-Verdrahtung** (Design steht, geparkt): Bridge = dummer geteilter `V:`-Hub in
+   `bridge/bridge.py` (`set_simvar`/`read_subscribed` erkennen `V:`-Präfix → Dict, **sim-unabhängig**,
+   vor `_check_alive`/DLL-Lock; Subscribe/Poll/read_now laufen dann automatisch). **Seeding** aus
+   `profile.local_vars.initial` in `runtime.run` (Bridge bleibt profil-agnostisch). Reconnect-Reseed +
+   Persist = Follow-up. Tests: Seeding als reine Funktion; Bridge-Store via sys.modules-Stub + `object.
+   __new__`. simvars-reference.md §1 um V: ergänzen.
+3. GUI weiter visuell sichten (Rest Stufe B), dann Kette (gui-var-monitor + mapper-tab) → main.
+> Multi-Panel ist auf **`main`** gemerged. **`feat/gui-var-monitor` liegt vor `main` und ist
+> verifiziert (Streaming/Index-Fix/Multi-Client/ADF/DME in-sim), aber NOCH NICHT nach main
+> gemergt** (offene Enden: 10-Hz-Poll, Panel-Sichtprüfung).
+> Aktueller Branch: **`feat/mapper-tab`** (von `feat/gui-var-monitor` abgezweigt, weil der Mapper
+> die dortige GUI-Basis braucht). **243 Tests grün, ruff clean, 4 Profile valide, py_compile ok.**
 > Ältere „UNCOMMITTED"-Marker weiter unten sind historisch (Code steht/committet).
 
-## 🆕 SESSION 2026-07-09 — ALT/VS-Input gefunden + Sticky-Fix + Barometer (UNCOMMITTED)
+## 🆕 SESSION 2026-07-13 (fortges.) — Mapper Stufe B: Inline-Editor + ruamel-Writer
+**Branch `feat/mapper-tab`. Alles committet + getestet; GUI selbst VISUELL UNGEPRÜFT** (kein Fenster
+ungefragt auf Live-Desktop `:0`). Commits: `f533b3e` Stufe A · `69a050b` V:-Deklaration · `24aa1a8`
+Writer · `531dfef` Inline-Editor.
+
+**User-Entscheidungen umgesetzt:** Edit-UX = **Inline-Editorpanel** (kein Popup); lokale Vars =
+**mapper-interne Virtual-Vars** → als Art **`V:`** im Bridge-Hub geplant (Deklaration steht, Runtime offen).
+
+**Gebaut (Reihenfolge = so morgen prüfen):**
+1. **`profile_writer.py` (committet 24aa1a8)** — `ruamel.yaml`-Dep, kommentar-erhaltender Round-Trip.
+   `_PaddedEmitter` polstert `{ }`-Flow-Maps → cessna_172/152/default **byte-identisch**, piper_arrow
+   semantisch identisch (nur ~12 hand-umbrochene Output-Bänke kollabieren 1×). API: `load/dumps/dump/
+   validate/apply_binding_edit/add_binding/remove_binding/set_local_vars`. 16 Tests.
+2. **Inline-Editor (committet 531dfef)** in `gui.py` Mapper-Tab + reine Transforms in `gui_mapper.py`
+   (`binding_to_form/form_to_binding/blank_binding_form`, 9 Tests): Binding in der Detail-Liste wählen →
+   Panel unten (Name · Quelle kind+code · Aktion-Typ+Felder für event/simvar/event_from_var/rpn ·
+   Transform bei Achsen). **Übernehmen** = `form_to_binding` → `profile_writer` load/apply/**validate**/
+   dump (validate blockt kaputte Edits VOR dem Speichern). Auch **+Neu/Duplizieren/Entfernen**;
+   Var-Picker (`…`) füllt Event/SimVar-Felder inkl. deklarierter `V:`-Vars. `sequence` bleibt erhalten,
+   aber inline (noch) nicht editierbar; **„Lernen" (HW-Capture) = Stub** für später.
+   **E2E-Rauchtest (offline) grün:** Editier-Pipeline an echtem piper_arrow → Event geändert, Kommentar
+   + Flow-Style erhalten, re-parsed sauber.
+
+**🔴 MORGEN — HIER WEITER (Reihenfolge):**
+1. **GUI VISUELL SICHTEN** (das ist der offene Verify-Punkt, headless nicht prüfbar):
+   `uv run python -m msfs_peripherals_bridge.gui` → Tab „Mapper". Prüfen: Binding wählen → Panel füllt
+   sich? Aktions-Typ-Wechsel zeigt richtige Felder (event/simvar/…)? Transform nur bei Achsen sichtbar?
+   `…`-Picker setzt Namen? **Test-Speichern**: ein Binding ändern → Übernehmen → `git diff profiles/…`
+   = nur die eine Zeile geändert (+ ggf. 1× Output-Bank-Kollaps bei piper_arrow, harmlos)? +Neu/
+   Duplizieren/Entfernen? Fenster groß genug (minsize 620x460)? Overrideredirect/WM-Zicken? Falls
+   Event-Kaskaden (dev/detail `<<TreeviewSelect>>`) zicken → `_render_detail`/`_ed_on_detail_select`.
+2. **Virtual-Vars Runtime-Verdrahtung**: Bridge-`V:`-Store + Protokoll (set/subscribe erkennt `V:`,
+   serviert aus dem Hub) + Seeding aus `local_vars.initial` + optional Persist. Mit Bridge verifizieren.
+   Editor-UI für `local_vars` (deklarieren/löschen) fehlt noch — `profile_writer.set_local_vars` steht.
+3. Stufe C: Sequence-Editor, Bedingungen (V:/Sim), CRS/Heading-Bug; „Lernen" (HW-Capture).
+4. **Separat:** `feat/gui-var-monitor` Restpunkte abnehmen → Kette (gui-var-monitor + mapper-tab) → main.
+
+## 🆕 SESSION 2026-07-13 — Mapper-Tab Stufe A (Geräte-Viewer) GEBAUT
+**Branch `feat/mapper-tab`** (neu, von `feat/gui-var-monitor`). **212 Tests grün, ruff clean,
+4 Profile valide, py_compile ok.** Reiner Offline-Code; **GUI visuell UNGEPRÜFT** (kein Fenster
+ungefragt auf den Live-Desktop `:0` geworfen — User sichtet selbst).
+
+**Was gebaut (Stufe A = Nur-Lese-Übersicht, wie im Stufenplan A→B→C):**
+- **Neues reines Logik-Modul `src/.../gui_mapper.py`** (dependency-frei, tkinter-los, testbar):
+  `build_device_rows(catalog, profile, present)` → 1 Zeile je Katalog-Gerät (Transport, Present-
+  Tri-State True/False/None, #bindings, #outputs); `describe_source/action/transform/binding` +
+  `describe_output` (Typ + `len(simvars())`); `device_bindings/device_outputs`. Present-Tri-State:
+  None = Erkennung n/a → Status „?", sonst „verbunden"/„nicht erkannt".
+- **`gui.py` neuer „Mapper"-Tab:** links Geräte-Treeview (Gerät·Bus·Status·Bind·Out), rechts
+  Detail-Treeview (Bindings mit Control/Aktion/Shaping + Outputs-Zusammenfassung) für das
+  gewählte Gerät. Modul-Helfer `_discover_present(catalog)` = evdev+hidraw discovery, beide
+  `contextlib.suppress`-geschützt (python-evdev optional) → None wenn gar nichts scannen konnte.
+  **Discovery ist LAZY** (erst beim ersten Anzeigen des Tabs, `_on_tab_changed`) → Startup bleibt
+  schnell. „Geräte neu erkennen"-Button = force rescan. Profil-Wechsel (`profile_var.trace_add`)
+  lädt die Zeilen neu (ohne Rediscovery). Tab-Wechsel-Bind vereinigt (Statistik-`_resubscribe`
+  + Mapper-Reload).
+- **Tests `tests/test_gui_mapper.py` (12):** Zeilen-Reihenfolge/Zählung, Present-Tri-State,
+  jede Action-Formatierung, Sequence-Summary, Transform (inkl. Expo-Kurve faltet Stärke ein —
+  kein doppeltes „expo, expo=0.25"), Output-Summary. Plus Real-Profil-Smoke (piper_arrow):
+  yoke 7 binds, switch_panel 17+gear_leds, multi 11+„13 SimVars", radio 0+„37 SimVars".
+
+**🧩 USER-ENTSCHEIDUNGEN 2026-07-13 (für Stufe B/C):**
+- **Edit-UX = Inline-Editorpanel** (kein Popup/Kontextmenü): Binding wählen → Felder erscheinen
+  fest unter/neben der Detail-Liste (Name, Quelle kind+code + „Lernen", Aktions-Typ + typ-Felder,
+  Transform bei Achsen), „Übernehmen"/„Zurücksetzen". „Lernen" (HW-Capture) = eigener späterer Schritt.
+- **Lokale/eigene Variablen = mapper-interne Virtual-Vars** (User-Wahl: sim-unabhängig + persistent).
+  Umsetzung als neue Var-Art **`V:`**, Werte **im Bridge-Werte-Hub** (nie in der Sim) → damit „setzen/
+  auslesen wie jede andere Variable" für ALLE Clients gilt (inkl. GUI-Monitor). Set via `simvar`-Aktion
+  mit `V:`-Namen, Read via Subscribe. ⚠️ Falls User strikt mapper-privat (für andere Tools unsichtbar)
+  will → nur die Runtime-Verdrahtung ändert sich, das Deklarations-Modell bleibt.
+
+**🆕 GEBAUT (Virtual-Var-Basis, committet 69a050b):** `models.LocalVar` (name[A-Za-z0-9_], unit,
+initial, persist, description) + `Profile.local_vars` + Uniqueness-Validator; `gui_catalog.KIND_VIRTUAL
+="V:"` + `local_var_catalog(local_vars)` speist deklarierte Vars in den Picker (settable). Tests
+`tests/test_local_vars.py` (6). **Storage-agnostisch** — Speicherort erst bei der Runtime-Verdrahtung.
+
+**🆕 GEBAUT (kommentar-erhaltender Writer, committet 24aa1a8):** `ruamel.yaml`-Dep + neues
+`src/.../profile_writer.py`. Round-Trip erhält Kommentare/Quotes/Flow-Style; `_PaddedEmitter` polstert
+Flow-**Map**-Klammern (`{ kind: axis }`) → **cessna_172/152/default byte-identisch**, piper_arrow
+**semantisch** identisch (nur die ~12 hand-umbrochenen Output-Bank-Flow-Maps kollabieren einmalig auf
+je 1 Zeile — Bindings/Kommentare byte-exakt; ruamel bewahrt keine manuellen Umbrüche IN Flow-Collections).
+Flow-**Sequenzen** bewusst NICHT gepolstert (sonst `[]`→`[  ]`). Edits: `_sync` (in-place, erhält
+Kommentare/Style, pruned entfernte Keys), `_node` (neue Nodes, Flow für all-scalar). API: `load/dumps/
+dump/validate/apply_binding_edit/add_binding/remove_binding/set_local_vars`. Tests `test_profile_writer.py`
+(16): byte+semantisch Round-Trip, Edits, Kommentar/Flow-Erhalt, local_vars, Validierungs-Guard.
+
+**🔴 NÄCHSTE SESSION:**
+1. **GUI visuell sichten** (`uv run python -m msfs_peripherals_bridge.gui` → Tab „Mapper"):
+   Geräte-Liste + Detail lesbar? Status stimmt (Panels angesteckt → „verbunden")? „Neu erkennen"
+   aktualisiert? Profil-Dropdown-Wechsel lädt die Liste um?
+2. **Stufe B Inline-Editorpanel** (Writer STEHT): Panel unter der Detail-Liste — Binding wählen →
+   Felder (Name, Quelle kind+code, Aktion-Typ + typ-Felder, Transform bei Achsen), „Übernehmen" ruft
+   `profile_writer.apply_binding_edit` + `validate` + `dump`, dann Mapper-Reload. Add/Remove/Duplizieren.
+   Var-Auswahl über `_open_var_picker` (jetzt inkl. V:). „Lernen" (HW-Capture) = eigener späterer Schritt.
+3. **Virtual-Vars Runtime-Verdrahtung** (nach dem Panel): Bridge-`V:`-Store + Protokoll (set/subscribe
+   erkennt `V:`-Präfix, serviert aus dem Hub) + Seeding aus `local_vars.initial` + optional Persist-
+   Snapshot. Mit Bridge zu verifizieren. simvars-reference.md §1 um V: ergänzen.
+4. Danach Stufe C (Sonderfunktionen: Bedingungen aus V:/Sim-Vars, CRS/Heading-Bug, Sequence-Editor).
+5. **Separat (nicht Mapper):** `feat/gui-var-monitor` offene Enden abnehmen (10-Hz-Poll,
+   Panel-overrideredirect-Sicht) → dann diese ganze Kette (gui-var-monitor + mapper-tab) nach main.
+
+## 🆕 SESSION 2026-07-11 (spät) — Streaming IN-SIM VERIFIZIERT + Index-Kollisions-Regression GEFIXT
+**Branch `feat/gui-var-monitor`.** Der Streaming-Push aus dem Abschnitt unten wurde committet
+(`e258e8a`) und **diese Session in-sim bestätigt:** Yoke glatt + Multi-Panel-Werte gut (User),
+ADF- + Barometer-Displays gut, `Streaming SimVar …`-Zeilen im Log, keine AV/Reconnect-Flut.
+`POLL_INTERVAL`-→-0.1-Schritt (10 Hz) ist noch **offen** (kann jetzt gemacht werden, s. u.).
+
+**🔴 REGRESSION gefunden + behoben (committet):** Streaming ließ **COM2/NAV2 die COM1/NAV1-Werte
+anzeigen** (User: „radio com1/2 + nav1/2 werden nicht korrekt angezeigt, im Sim aber richtig
+eingestellt"). Ursache: python-simconnect löst **jeden Index** einer SimVar (`COM ACTIVE
+FREQUENCY:1/:2`, alle `NAV …:1/:2`) auf **ein geteiltes Request-Objekt** auf (`find()` setzt nur
+den Index um). Der alte Pull-Read setzte den Index pro Read neu → korrekt; der neue **stehende
+Stream** registriert ihn nur einmal → `:1` und `:2` teilten sich Request-ID + `outData` → beide
+lasen den zuletzt registrierten Index. Deshalb liefen ADF (`:1` only) + Baro (kein Index) sauber,
+nur die Mehrfach-Index-Paare kaputt. **Fix (`bridge/bridge.py` `_resolve_request`):** indexierte
+Vars bekommen eine **eigene dedizierte `Request`** (eigene Req-/Def-ID, kanonische Einheit aus dem
+Predefined-Eintrag); nicht-indexierte unverändert. Neuer Cache `_stream_var_requests`. **Belege:**
+ruff+py_compile grün, 200 Tests grün; Offline-Stub-Test (`resolve_smoke.py` im Session-Scratchpad,
+7/7 PASS); **live:** getrennte Req-IDs (COM 9/10, NAV 20/21 …) UND getrennte korrekte Werte
+(COM1 123.815 ≠ COM2 135.235, NAV1 114.6 ≠ NAV2 111.0 — vorher beide identisch).
+
+**✅ 1+2 FERTIG (Code + committet `b16699a` + am Panel in-sim verifiziert 2026-07-11):
+ADF-Encoder tunt die echte Frequenz, DME-Push kippt den Cockpit-Schalter. Nur noch ③ (CRS-Anzeige) offen.**
+
+**🚧 THREADS — Mechaniken IN-SIM GEKNACKT (2026-07-11):**
+1. **✅ ADF — GELÖST via KR-85-LVars (nicht „ADF"-benannt!), VERDRAHTET+VERIFIZIERT.** Der JF-Arrow-ADF ist ein **KR-85**;
+   die Frequenz liegt in **`L:KR85_dig1_counter/dig2_counter/dig3_counter`** (gefunden per
+   727-LVar-**Vorher/Nachher-Diff**, während User die 3 Cockpit-Knöpfe drehte — mein „adf"-Grep
+   fand sie nie). **Schreibbar + Gauge folgt visuell bestätigt** (Write dig3=5 → Anzeige 0247→245).
+   **Formel: `F_kHz = (dig1+1)·100 + dig2·10 + dig3`**; Setzen: `dig1=F//100−1, dig2=(F//10)%10,
+   dig3=F%10` (in-sim mit 468 verifiziert). Bereich 190–1799 → dig1 0–16, dig2/dig3 0–9. Andere KR85:
+   `left_knob/mode_knob/right_inner_knob/right_outer_knob/vol_knob`, `RADIO_ANIM_KR85`.
+   ⚠️ Die Standard-A:-SimVars `ADF ACTIVE/STANDBY FREQUENCY:1` + alle ADF-Events/SetData sind
+   **entkoppelter Schrott** (Beweis: mein Write fror ACTIVE auf 1200 ein, Gauge zeigte 1516) → NICHT nutzen.
+   **TODO Code:** `AdfBank` von `ADF STANDBY FREQUENCY:1`+SetSimVar auf die 3 KR85-Counter umbauen
+   (KR85 ist Direkt-Tune, KEIN Standby/Swap; 3 Ziffern). simvars-reference.md ADF-Zeile korrigieren.
+2. **DME-Bezug — GELÖST via `L:RIGHT_MISC_dme_nav`** (0=NAV1, 1=NAV2). **Bidirektional bestätigt:**
+   lesen = Anzeige folgt Cockpit; schreiben (0↔1) = **Cockpit-Schalter springt sichtbar mit** (User
+   bestätigt). **TODO Code:** `DmeBank.source_var` = `L:RIGHT_MISC_dme_nav`; render liest ihn für den
+   Index, Push schreibt `1−current`, subscriben; lokalen `_UnitState.dme_source` raus.
+3. **CRS-Quellen-Anzeige (NAV1/2) am Multi-Panel — ⛔ GEPARKT (2026-07-11, User „bin müde,
+   parke wie den Cabin-Dimmer").** Hardware-Grenze bestätigt: die **linkeste Top-Ziffer ist
+   tot** (dunkel/Halb-Ziffer — Software sendet `[1,␣,␣,9,0]`, kommt nicht an) UND die **zweite
+   Display-Zeile ist am Panel physisch verdeckt**. Beide Wege (Ziffer links / andere Zeile)
+   scheitern an der HW. **De-facto-Indikator, den der User akzeptiert:** die **Gradzahl selbst
+   wechselt** beim 291-Umschalten zwischen NAV1-OBS und NAV2-OBS („kurswert switcht sauber") →
+   reicht ihm, um zu sehen welchen OBS er dreht. CRS-Render bleibt auf dem committeten Stand
+   (Index in Zelle 0 = unsichtbar, aber harmlos). Falls je gewünscht: Punkt-Indikator am Kurs
+   (DOT auf einer Ziffer = NAV2) wäre der einzige HW-taugliche Weg — nicht gebaut.
+- **Methoden-Merker:** Frisch-Read pro Verbindung (Persistent-Read staled!); unbekannte JF-Var per
+  727-LVar-Diff finden; JF nutzt Instrumenten-Namen (KR85/KR62/KMA20/RIGHT_MISC), nicht generische.
+
+## 🆕 IN ARBEIT (2026-07-11) — Yoke-Stutter: A:-Reads von Pull auf PUSH (Thread-Opt, Option 1)
+**Branch `feat/gui-var-monitor`. Nur `bridge/bridge.py` geändert (+123/−6), UNCOMMITTED.
+200 Tests grün, ruff clean, py_compile ok.** Offline-Stub-Smoke-Test grün (5 Checks:
+Setup, Warm-up-Fallback, lock-freier Cache-Hit, Stream-Reuse, korrekte periodische Args,
+L:-Routing, `:index`-Var) — liegt im Session-Scratchpad `stream_smoke.py` (bridge.py ist
+auf Linux nicht importierbar → nicht in der Suite; Test stubbt das `SimConnect`-Paket).
+
+**Warum:** Rest-Stutter seit Multi-Client kam von der **Read-Seite**: A:-Var-Polls
+(`requests.get()` = `RequestDataOnSimObjectType` + Spin-Wait in `get_data`) hielten den
+`_PriorityLock` über den **ganzen Wine-Roundtrip** → der nächste Achsen-`*_SET` wartete
+dahinter. L:-Reads waren schon billig (MobiFlight-Async-Callback → Dict-Lookup). User will
+**Yoke-Auflösung/Rate NICHT** anfassen → Nebenläufigkeit optimieren statt Datenrate.
+
+**Was gebaut (Option 1 = Pull→Push, EINE Connection):** jede abonnierte A:-Var wird
+**einmal** als stehende periodische `RequestDataOnSimObject` registriert (`_start_stream`);
+der Sim **pusht** den Wert auf den Dispatch-Thread → Basis-`handle_simobject_event` füllt
+`Request.outData`. Dafür fängt `_ReadingSimConnect.my_dispatch_proc` jetzt `dwID==8`
+(`SIMCONNECT_RECV_ID_SIMOBJECT_DATA`) ab (Basis behandelt nur BYTYPE) und routet es durch
+dieselbe Methode. **Poll-Read = lock-freier `outData`-Zugriff** (`read_subscribed` neu),
+konkurriert nie mehr mit Writes um den DLL-Lock. `_resolve_request` erhält die **kanonische
+Einheit** (predefined `AircraftRequests.find` zuerst, beide Schreibweisen) → identisches
+Verhalten wie alt. **Fallback eingebaut:** solange `outData is None` (Warm-up) ODER falls
+Streaming unter Wine nicht liefert → alter Pull (`_read_pull`, greift auf DASSELBE Request-
+Objekt zu) → **kein Funktionsverlust möglich**, nur weniger Contention sobald der Stream läuft.
+Lifecycle sauber: `_stream_reqs` lebt auf der `SimConnectBridge` (frisch pro Sim-Connection,
+beim Reconnect neu). **Periode = `SIM_FRAME`(3) + `CHANGED`(1)** (`_STREAM_PERIOD/_STREAM_FLAG`):
+Cache ist frame-frisch → Output-Latenz bleibt Poll-gebunden (~1s wie vorher, KEINE Regression)
+und `read_now` (Radio-Echo nach Tuning) liest wieder frisch. **Warum nicht `PERIOD_SECOND`:**
+das hätte ein zweites 1s-Stadium addiert (Push-Takt + Poll) → alle A:-Displays/LEDs bis ~2s
+langsamer, und `read_now` bekäme einen bis 1s alten Cache (Radio-Echo würde ruckeln). Fast alle
+piper_arrow-Displays/LEDs sind A:-Vars (Gear-LEDs, AP-Ref-Werte ALT/VS/IAS/HDG/CRS, AP-Master-
+LED, Battery-Gates, ganzes Radio-Display COM/NAV/DME/XPDR/ADF/Baro) → sie alle liefen sonst
+langsamer. L:-Vars (`L:AUTOPILOT_MODE`, `L:JF_PA28_AP_alt/_vs` = Mode/Hold-LEDs) unberührt
+(MobiFlight). t0-Wert deckt der Warm-up-Pull ab, also ist change-driven ok. Change-driven hält
+die Dispatch-Last klein (Arrow-Output-Vars meist diskret + still im Idle).
+
+**🔴 NÄCHSTE SESSION = IN-SIM VERIFIZIEREN (das ist der Spike-Zweck, offline nicht prüfbar):**
+1. **Bridge MUSS neu starten** (lädt neues `bridge.py`): `msfs-bridge piper_arrow` (oder nur
+   `setsid bash bridge/run-bridge.sh &` + Mapper). MSFS an, JF Arrow.
+2. **Fliegen + GUI-Panel/Statistik offen** (das war die Stutter-Quelle): laggt das Yoke noch?
+   Erwartung: glatt, weil die Panel-Reads jetzt lock-frei aus dem Push-Cache kommen.
+3. **`bridge/bridge.log` prüfen:** `Streaming SimVar <name> …`-Zeilen erscheinen (Setup ok);
+   Panel-Werte + LEDs updaten weiter (≤~1s, wie vorher); **keine** AV/`SimConnect lost`/
+   Reconnect-Flut. Wenn Werte **blank bleiben** → Push liefert nicht unter Wine → Fallback
+   hält's funktional, aber Contention bleibt → **auf Option 2 (2. SimConnect-Connection nur
+   für Reads) schwenken.** Wenn Werte da UND Yoke glatt → committen.
+4. **DANACH (User-Entscheidung „erst verifizieren, dann 10 Hz", 2026-07-11): `POLL_INTERVAL`
+   in `bridge/bridge.py` von `1.0` auf `0.1` setzen → ~10 Hz an Displays/LEDs.** Das ist JETZT
+   sicher, weil der Poll-Read lock-frei aus dem Cache liest (10 Hz = 10× billige Cache-Reads,
+   NICHT 10× lock-haltende Pulls). **Zwingend erst NACH dem Streaming-Verify:** liefert
+   Streaming unter Wine nicht, bleibt alles im `_read_pull`-Fallback (lock-haltend) — ein
+   10-Hz-Poll würde den Lock dann 10× härter hämmern und die Achsen SCHLIMMER stottern lassen.
+   User will ~10 Hz (nicht 60); reicht völlig. (Cache selbst ist via SIM_FRAME schon frame-frisch.)
+5. Optional: Suppress-unchanged/Deadband (Write-Seite, vom User zurückgestellt — Auflösung/Rate
+   des Yokes NICHT anfassen), Stub-Smoke-Test als Repo-Test aufnehmen.
+
+## 🚧 IN ARBEIT (2026-07-10) — GUI Statistik-Politur + volle Var-Liste + Kachel-Panel
+**Branch `feat/gui-var-monitor`. 194 Tests grün, ruff clean, py_compile ok.** Alles Offline-Code
+(kein Sim nötig); GUI VISUELL UNGEPRÜFT (kein Display/Xvfb in der Session) — User muss sichten.
+
+**Committet (cf0a161) — Statistik-Politur:**
+- Spalten `Typ · Variable · Wert · Einheit` (Wert vor Einheit getauscht).
+- **Auswahl persistent** über Sessions: `config.gui_settings_file()`
+  (`~/.config/msfs-peripherals-bridge/gui-settings.json`), Speichern bei Add/Remove, Restore beim Start.
+- **Volle SDK-Var-Liste** statt kuratiert: `tools/gen_simconnect_catalog.py` parst Python-SimConnect
+  (MIT) → `src/.../data/simconnect_catalog.json` = **850 A:** (Einheit+settable) + **987 K:** Events
+  (je Kategorie). `gui_catalog.py` lädt daraus; L: (692) weiter aus simvars-reference.md. Picker ~2529.
+  `:index`→`:1` normalisiert. Tests test_gui_catalog.py.
+
+**Kachel-Panel (committet fff3f45 = Grid-Basis; Politur fc-neu):** `_PanelWindow`.
+- **Grid-Basis (fff3f45):** loslösbares Fenster, Kacheln **rasten in Zellen ein**, Drop auf besetzte
+  Zelle **tauscht**. Rastergröße Spinboxen **Spalten x Zeilen, max 20x20** (`PANEL_MAX`). Rechtsklick
+  entfernt. Live über denselben `_ValueMonitor` (Subscription = Statistik ∪ **sichtbares** Panel).
+  Reine Grid-Logik `_panel_first_free/_cell_from_point/_fit_tiles` unit-getestet (test_panel_grid.py).
+- **Politur (User-Feedback nach Sicht, „Einrasten super"):** (a) Kacheln **kompakter** (2-Zeilen-
+  Layout, Value 18→13, Unit inline) → ~halbe Höhe schrumpfbar; (b) Fenster **rahmenlos**
+  (`overrideredirect`) — kein Titel/X: oben Zieh-Balken (bewegt via `_move_*`) + Spinboxen, Ecke
+  unten rechts = Größe (`_resize_*`), minsize 160x80.
+- **Close-Fix (User: „kann Panel nicht mehr schließen"):** `withdraw` auf overrideredirect-Fenstern
+  zickte → **an/aus = ERZEUGEN/ZERSTÖREN** des Fensters (zuverlässig auf jedem WM). Gesteuert über
+  **Toggle-Button in der Statistik-Leiste** (`ttk.Checkbutton style=Toolbutton "Panel"`, gedrückt =
+  sichtbar; Menü „Ansicht" entfernt). „→ Ins Panel" öffnet nur noch (schließt nicht). run()-Helfer
+  `_show_panel`/`_hide_panel`/`_toggle_panel`/`_persist_visible`; `visible`-Flag in `panel`
+  persistiert → Panel öffnet beim Start wieder, wenn zuletzt an. `_PanelWindow` hat kein
+  `show/hide/visible` mehr; Subscription = Statistik ∪ (Panel wenn `alive()`).
+- **⏳ User MUSS visuell prüfen (riskant: overrideredirect ist WM-abhängig!):** erscheint/verschwindet
+  das Fenster über den „Panel"-Button? Zieh-Balken bewegt? Ecke resized? Spinboxen klickbar (Fokus
+  auf override-Fenstern zickt manchmal)? Kachel-Kompaktheit ok? Falls override-Fenster gar nicht
+  geht → Plan B „Titelleiste behalten, X blendet aus".
+
+**Danach offen:** Mapper-Tab (Stufe A Geräte-Viewer → B Editor+**ruamel.yaml**-Writer, Entscheidung
+gesetzt). Community-Release (Prefix-Auswahl/Installer/Auto-Geräte-Erkennung) = weit hinten.
+Details in Auto-Memory `project-process-gui`.
+
+## 🚧 IN ARBEIT (2026-07-09 spät) — GUI-Live-Monitor + Bridge MULTI-CLIENT
+**Branch `feat/gui-var-monitor`** (von `main` nach dem Merge). **174 Tests grün, ruff clean,
+py_compile ok.** Geändert: `src/.../gui.py`, `bridge/bridge.py`.
+**✅ MULTI-CLIENT IN-SIM VERIFIZIERT (2026-07-09):** zwei gleichzeitige Bridge-Verbindungen
+bekamen BEIDE `state`-Frames (Test-Snippet: A=2/B=2, „MULTIT-CLIENT OK"). Der Bridge-Umbau steht.
+**Offen nur noch:** GUI+Mapper VISUELL zusammen prüfen (Statistik-Werte updaten live, während der
+Mapper läuft) — dann nach `main` mergen. GUI-Monitor subscribt gleich (L:-Präfix), sollte greifen.
+
+**Was gebaut wurde:**
+- **GUI Statistik-Live-Monitor** (`gui.py`): neue `_ValueMonitor`-Klasse = Hintergrund-Thread,
+  der dauerhaft subscribed und `{wire_name: value}` hält; `refresh()` updatet die Tabelle 1×/s.
+  Snapshot-Button raus. **L:-Präfix-Fix** (das war der „Strich": L:Vars müssen als `L:<name>`
+  subscribt werden, A: bar, K: = kein Wert). set_names bei Add/Remove, Reconnect bei Listen-Änderung.
+- **Bridge MULTI-CLIENT** (`bridge/bridge.py` `main()`): `listen(1)`→`listen(8)`, **Thread pro
+  Client** (`handle_client`) + **Reconnect-Manager-Thread** (statt inline). DLL-Zugriffe bleiben
+  durch `SimConnectBridge._lock` (RLock) serialisiert — **auditiert:** send_event/set_simvar/
+  _mf_exec/read_lvar/read_var/read_simvar/list_lvars/close alle unter `_lock` → parallele Clients
+  safe. Reconnect-Manager wirft einen **gesunden** Sim nicht weg (prüft `_check_alive()`).
+  Damit können **Mapper UND GUI-Monitor gleichzeitig** subscriben (das war der User-Wunsch).
+
+**🔴 NÄCHSTE SESSION = ERST VERIFIZIEREN, bevor man dem Multi-Client traut (fragile Wine-Komp.):**
+1. Bridge neu starten (`msfs-bridge`/`run-bridge.sh` — lädt neuen `bridge.py`).
+2. **Multi-Client-Test:** ZWEI gleichzeitige Verbindungen (z.B. 2× `tools/probe_altvs.py` in
+   getrennten Terminals, oder das Snippet aus dem Session-Scratchpad `mc_test.py`) → BEIDE müssen
+   `state`-Frames bekommen. Wenn nur eine kriegt was → Multi-Client greift nicht.
+3. **GUI+Mapper gleichzeitig:** Mapper starten, GUI „Statistik" → Variablen adden → Werte müssen
+   **live updaten, während der Mapper läuft** (kein „Strich" mehr, kein Connect/Reset-Geflacker
+   im bridge.log). Falls AV/Crash im Log → Lock-Audit vertiefen.
+4. Wenn stabil → nach `main` mergen. **Offen:** Tests für `gui_catalog`/Monitor fehlen noch.
+
+**Ebenfalls offen (Konzept, wartet auf 2 User-Antworten):** Mapping-Tab (Geräte/Tasten mappen +
+Sonderfunktionen). Stufenplan A(Viewer)/B(Editor+Learn+Speichern)/C(Sonderfunktions-Editoren).
+Fragen: (1) `ruamel.yaml` als Dep ok (kommentarerhaltendes Speichern)? (2) Stufe A oder A+B zuerst?
+`msfs-gui`-Launcher liegt user-lokal in `~/.local/bin` (nicht im Repo).
+
+## 🆕 SESSION 2026-07-09 — ALT/VS-Input gefunden + Sticky-Fix + Barometer (gemerged nach main)
 Bridge (nur, ohne Mapper) live am JF Arrow; per neuem Tool `tools/probe_altvs.py` (subscribe +
 optional Write/RPN auf 1 Verbindung, stdout line-buffered) getrieben. **172 Tests grün, ruff
 clean, 4 Profile valid.** MSFS ist einmal mittendrin **abgestürzt (CTD)**, vom User neu gestartet;

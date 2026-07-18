@@ -30,7 +30,7 @@ import os
 import socket
 import threading
 import time
-from collections.abc import Callable
+from collections.abc import Callable, Iterator
 
 # Python-SimConnect bundles SimConnect.dll, so no MSFS SDK is needed. The
 # import only works under Windows/Wine where that DLL can load.
@@ -53,6 +53,16 @@ try:
 except ImportError:  # pragma: no cover - depends on the installed lib version
     SIMCONNECT_RECV_CLIENT_DATA = None
 
+try:
+    # The reply struct the sim pushes periodic SimVar data on (RECV_ID_SIMOBJECT_DATA).
+    # Subscribed A: vars are registered as standing per-second requests so their values
+    # arrive here (pushed onto the dispatch thread) instead of being pulled under the
+    # DLL lock — see _start_stream. Absent on old lib builds, in which case reads simply
+    # stay on the on-demand pull path (no crash, just the old contention).
+    from SimConnect.Enum import SIMCONNECT_RECV_SIMOBJECT_DATA
+except ImportError:  # pragma: no cover - depends on the installed lib version
+    SIMCONNECT_RECV_SIMOBJECT_DATA = None
+
 log = logging.getLogger("bridge")
 
 
@@ -72,6 +82,18 @@ POLL_INTERVAL = 1.0  # seconds between subscribed-variable polls (e.g. TITLE)
 # SimVar prefixes that standard SimConnect cannot set; they are routed through
 # the MobiFlight WASM channel below. Plain writable A: vars go through SetData.
 _LOCAL_PREFIXES = {"L", "H", "B"}
+
+# Virtual (V:) variables — a sim-independent value hub shared by every client.
+# The mapper's profiles declare them (local_vars) and seed their initial values
+# on start; any client can then set them (op "simvar" with a "V:" name) and read
+# them back via subscribe/read_now like any other variable. Values live at
+# MODULE level, so they survive sim reconnects; they are never sent to the sim.
+_VIRTUAL_LOCK = threading.Lock()
+_VIRTUAL_VARS: dict[str, object] = {}
+
+
+def _is_virtual(name: str) -> bool:
+    return name[:2].upper() == "V:"
 
 # MobiFlight WASM module command channel. Writing `MF.SimVars.Set.<rpn>` to the
 # "MobiFlight.Command" ClientData area makes the module run <rpn> as calculator
@@ -115,6 +137,27 @@ _MF_RESPONSE_REQ_ID = 0x4D4A0001  # far from _MF_LVAR_REQ_BASE (0x4D480000+idx)
 _MF_LVARS_LIST_START = "MF.LVars.List.Start"
 _MF_LVARS_LIST_END = "MF.LVars.List.End"
 
+# Streamed SimVar READ channel. The stock read is a synchronous
+# RequestDataOnSimObjectType + spin-wait (SimConnect.get_data) that holds the DLL lock
+# across the whole Wine round-trip, so a polling client stalls the mapper's real-time
+# axis writes. Instead we register each subscribed A: var *once* as a standing periodic
+# RequestDataOnSimObject: the sim then pushes its value onto the library's dispatch
+# thread (filling Request.outData), and the poll read becomes a lock-free attribute
+# read that never competes with a write for the lock. Per SIM_FRAME + change-driven:
+# the sim re-pushes a var only when it actually changes, within a frame of the change,
+# so the cache stays as fresh as the old on-demand read — the poll loop's forward to
+# the client keeps the same ~1 s latency, and an off-cycle read_now (the Radio Panel's
+# post-tune echo) still sees the just-changed value. A once-per-second cadence
+# (PERIOD_SECOND=4, flag=0) would instead add a second stage of up to 1 s and hand
+# read_now a stale value, so the displays/LEDs would lag — hence per-frame. The first
+# value (before any change) is covered by the warm-up pull fallback, so change-driven
+# needing an actual change to emit is fine. Change-driven keeps traffic low: the Arrow's
+# output vars are mostly discrete (gear, AP master, frequencies) and stay silent when idle.
+_RECV_ID_SIMOBJECT_DATA = 8  # SIMCONNECT_RECV_ID_SIMOBJECT_DATA
+_SIMOBJECT_ID_USER = 0  # SIMCONNECT_OBJECT_ID_USER
+_STREAM_PERIOD = 3  # SIMCONNECT_PERIOD_SIM_FRAME — push when it changes, within a frame
+_STREAM_FLAG = 1  # SIMCONNECT_DATA_REQUEST_FLAG_CHANGED — only on change (warm-up pull covers t0)
+
 
 class _ReadingSimConnect(SimConnect):
     """SimConnect that also delivers ``RECV_ID_CLIENT_DATA`` to a callback.
@@ -138,7 +181,18 @@ class _ReadingSimConnect(SimConnect):
         super().__init__(*args, **kwargs)
 
     def my_dispatch_proc(self, pData, cbData, pContext):
-        if pData.contents.dwID == _RECV_ID_CLIENT_DATA and SIMCONNECT_RECV_CLIENT_DATA is not None:
+        dwID = pData.contents.dwID
+        if dwID == _RECV_ID_SIMOBJECT_DATA and SIMCONNECT_RECV_SIMOBJECT_DATA is not None:
+            # A streamed SimVar push (a standing periodic RequestDataOnSimObject we set
+            # up). The base proc fills Request.outData only for the one-shot BYTYPE
+            # reply; route the periodic reply through the very same handler so the value
+            # lands in the matching Request.outData, turning the poll read into a
+            # lock-free attribute read. Runs on the dispatch thread and must not call
+            # back into the DLL — handle_simobject_event only does dict/ctypes work.
+            obj = ctypes.cast(pData, ctypes.POINTER(SIMCONNECT_RECV_SIMOBJECT_DATA)).contents
+            self.handle_simobject_event(obj)
+            return None
+        if dwID == _RECV_ID_CLIENT_DATA and SIMCONNECT_RECV_CLIENT_DATA is not None:
             recv = ctypes.cast(
                 pData, ctypes.POINTER(SIMCONNECT_RECV_CLIENT_DATA)
             ).contents
@@ -158,6 +212,69 @@ class _ReadingSimConnect(SimConnect):
         return super().my_dispatch_proc(pData, cbData, pContext)
 
 
+class _PriorityLock:
+    """Mutual exclusion over the DLL that lets writers preempt readers.
+
+    SimConnect.dll must be touched by one thread at a time, so reads and writes
+    are mutually exclusive. But the mapper's real-time control *writes* (events,
+    SimVar sets) must not be starved by a client's continuous background *reads*
+    (the per-session poll loop). With one client that was harmless — the mapper
+    was the only one polling — but once a second client (the GUI value monitor)
+    polls concurrently, its steady stream of SimVar reads kept grabbing the lock
+    between the yoke/rudder writes, so the axes arrived choppy.
+
+    A waiting writer is therefore served before any waiting reader, and readers
+    take turns (``_read_turnstile``) so at most one is ever queued on the mutex
+    ahead of a writer. A control write thus waits at most one in-flight read (a
+    few ms) instead of a whole poll cycle. The write side is reentrant
+    (``set_simvar`` nests ``_mf_exec``); both sides are exclusive. Readers may be
+    deferred while writes keep coming — correct here: fresh control beats a
+    slightly stale telemetry/LED read, and coalesced axis writes leave gaps.
+    """
+
+    def __init__(self) -> None:
+        self._mutex = threading.RLock()  # the actual DLL guard (writer-reentrant)
+        self._gate = threading.Condition(threading.Lock())
+        self._writers_waiting = 0
+        self._read_turnstile = threading.Lock()
+        self._read_owner: int | None = None  # thread inside read(), for reentrancy
+
+    @contextlib.contextmanager
+    def write(self) -> Iterator[None]:
+        # Reentrant via the RLock mutex (set_simvar nests _mf_exec); the counter
+        # simply stays >0 across the nesting, which keeps readers deferred.
+        with self._gate:
+            self._writers_waiting += 1
+        try:
+            with self._mutex:
+                yield
+        finally:
+            with self._gate:
+                self._writers_waiting -= 1
+                if self._writers_waiting == 0:
+                    self._gate.notify_all()
+
+    @contextlib.contextmanager
+    def read(self) -> Iterator[None]:
+        me = threading.get_ident()
+        if self._read_owner == me:
+            # Reentrant read (read_var falls back to read_simvar); this thread
+            # already holds the mutex, so pass straight through — re-taking the
+            # non-reentrant turnstile here would self-deadlock.
+            yield
+            return
+        with self._read_turnstile:  # one reader queues on the mutex at a time
+            with self._gate:
+                while self._writers_waiting:
+                    self._gate.wait()
+            with self._mutex:
+                self._read_owner = me
+                try:
+                    yield
+                finally:
+                    self._read_owner = None
+
+
 class SimConnectBridge:
     """Thin façade over Python-SimConnect for the three protocol verbs."""
 
@@ -167,18 +284,31 @@ class SimConnectBridge:
         self.sc.on_client_data = self._on_client_data
         # _time=0 disables the request cache so polled values are always fresh.
         self.requests = AircraftRequests(self.sc, _time=0)
-        # SimConnect.dll is NOT safe to call from two threads at once. Two of our
-        # threads do: the session's poll loop reads SimVars while the dispatch
-        # loop fires events / sets vars. Under a burst (e.g. pulling the yoke =
+        # SimConnect.dll is NOT safe to call from two threads at once. Several of
+        # our threads do: each session's poll loop reads SimVars while dispatch
+        # loops fire events / set vars. Under a burst (e.g. pulling the yoke =
         # a stream of ELEVATOR_SET, plus gear/flaps) an overlapping read+write
         # access-violates the DLL (writing 0x10) and drops the link. Serialise
-        # every DLL touch through this reentrant lock so calls never overlap.
-        self._lock = threading.RLock()
+        # every DLL touch through this lock so calls never overlap — and let the
+        # real-time control *writes* preempt background poll *reads* so a second
+        # client's polling can't make the axes stutter (see _PriorityLock).
+        self._lock = _PriorityLock()
         self._events: dict[str, Event] = {}
         # Cache explicit-unit Request objects by (name, unit): building one
         # registers a SimConnect data definition, so we must not leak one per
         # button press.
         self._var_requests: dict[tuple[str, str], object] = {}
+        # Streamed SimVar reads: subscribed-name -> the Request whose .outData the sim
+        # now pushes into (see _start_stream / read_subscribed). Shared across client
+        # poll threads; setup is guarded by the write lock, and .outData is an atomic
+        # single-reference read, so steady-state reads take no lock and never stall a
+        # control write.
+        self._stream_reqs: dict[str, object] = {}
+        # Dedicated per-name Request objects for *indexed* streamed vars. Indexed
+        # SimVars (COM ACTIVE FREQUENCY:1 / :2) all resolve to one shared predefined
+        # Request in python-simconnect, so each index needs its own object to stream
+        # independently (see _resolve_request). Keyed by full name (with index).
+        self._stream_var_requests: dict[str, object] = {}
         # Lazily-mapped MobiFlight command channel (see _ensure_mobiflight).
         self._mf_ready = False
         # MobiFlight LVar READ channel state. Registration (DLL calls) happens on
@@ -220,7 +350,7 @@ class SimConnectBridge:
 
     def send_event(self, name: str, data: int) -> None:
         """Map (once) and transmit a SimConnect client event by name."""
-        with self._lock:
+        with self._lock.write():
             self._check_alive()
             try:
                 event = self._events.get(name)
@@ -234,7 +364,11 @@ class SimConnectBridge:
                 self._mark_lost(exc)
 
     def set_simvar(self, name: str, value: float) -> None:
-        with self._lock:
+        if _is_virtual(name):  # V: hub write — no sim, no DLL lock involved
+            with _VIRTUAL_LOCK:
+                _VIRTUAL_VARS[name] = value
+            return
+        with self._lock.write():
             self._check_alive()
             prefix = name.split(":", 1)[0].upper() if ":" in name else ""
             if prefix in _LOCAL_PREFIXES:
@@ -297,7 +431,7 @@ class SimConnectBridge:
 
     def _mf_exec(self, code: str) -> None:
         """Run RPN/calculator code in the sim via MobiFlight (fire-and-forget)."""
-        with self._lock:
+        with self._lock.write():
             self._check_alive()
             if self._mf_command("MF.SimVars.Set." + code):
                 log.info("MobiFlight exec: %s", code)
@@ -378,7 +512,7 @@ class SimConnectBridge:
         MobiFlight channel isn't available), so the LEDs stay dark rather than
         guess — same contract as read_simvar.
         """
-        with self._lock:
+        with self._lock.read():
             self._check_alive()
             if name not in self._lvar_index:
                 self._register_lvar(name)
@@ -445,7 +579,7 @@ class SimConnectBridge:
         if the channel isn't available or nothing arrived in time. One-shot
         discovery helper — safe to call while the value stream is also running.
         """
-        with self._lock:
+        with self._lock.read():
             self._check_alive()
             if not self._ensure_response_area():
                 return []
@@ -463,19 +597,124 @@ class SimConnectBridge:
     def read_subscribed(self, name: str, unit: str = "number") -> object | None:
         """Read a subscribed var: L:/H:/B: via the MobiFlight stream, else SimConnect.
 
-        For plain SimVars the predefined ``read_simvar`` list is tried first (it
-        keeps each var's canonical unit, so the mapper's known vars are unchanged).
-        Anything it can't resolve — indexed simvars like ``LIGHT POTENTIOMETER:2``
-        or ``NAV OBS:2`` — falls back to the explicit-unit ``read_var`` path, which
-        builds a Request for any name/unit.
+        Plain SimVars are served from a standing per-frame, change-driven push (see
+        :meth:`_start_stream`): the first read for a name sets the stream up (under the
+        write lock), and every later read is a lock-free ``Request.outData`` access that
+        no longer competes with the mapper's real-time axis writes for the DLL lock.
+        Until the first value has been pushed — or if streaming isn't delivering on this
+        Wine build — it falls back to the old synchronous pull, so a value is always
+        returned and the change is only that steady-state reads stop taking the lock.
         """
+        if _is_virtual(name):  # V: hub read — no sim, no DLL lock involved
+            with _VIRTUAL_LOCK:
+                return _VIRTUAL_VARS.get(name)
         prefix = name.split(":", 1)[0].upper() if ":" in name else ""
         if prefix in _LOCAL_PREFIXES:
             return self.read_lvar(name)
+        req = self._stream_reqs.get(name)
+        if req is None:
+            with self._lock.write():
+                self._check_alive()
+                req = self._stream_reqs.get(name)  # another poll thread may have set it up
+                if req is None:
+                    req = self._start_stream(name, unit)
+                    if req is not None:
+                        self._stream_reqs[name] = req
+            if req is None:
+                return self._read_pull(name, unit)  # streaming unavailable for this var
+        out = req.outData
+        if out is None:
+            return self._read_pull(name, unit)  # no push yet (warming up) or not delivering
+        if isinstance(out, bytes):
+            return out.decode("utf-8", "replace").rstrip("\x00")
+        return out
+
+    def _read_pull(self, name: str, unit: str) -> object | None:
+        """The old on-demand read: predefined canonical-unit list first, then an
+        explicit-unit Request. Used as the streaming fallback (warm-up / undelivered);
+        it targets the *same* Request object the stream feeds, so the two stay in sync.
+        """
         value = self.read_simvar(name)
         if value is None:
             value = self.read_var(name, unit)
         return value
+
+    def _resolve_request(self, name: str, unit: str) -> object | None:
+        """The Request a streamed read should feed into.
+
+        Non-indexed predefined vars map to a unique Request, reused directly (the pull
+        fallback reads the very same object, so the two stay in sync). Indexed vars are
+        the catch: python-simconnect resolves *every* index of ``COM ACTIVE FREQUENCY``
+        to one shared Request (``find`` merely re-sets its index), which is fine for the
+        pull path — it re-sets the index and re-reads on each call — but wrong for a
+        *standing* stream: ``:1`` and ``:2`` would share one request/definition id and
+        push into one ``outData``, so both would read the index registered last. Give
+        every index its OWN dedicated Request. Returns None if this lib build lacks
+        ``Request`` so the caller stays on the pull path.
+        """
+        indexed = ":" in name and name.rsplit(":", 1)[1].isdigit()
+        if not indexed:
+            for candidate in (name, name.strip().upper().replace(" ", "_")):
+                found = self.requests.find(candidate)
+                if found is not None:
+                    return found
+        if Request is None:
+            return None
+        if indexed:
+            req = self._stream_var_requests.get(name)
+            if req is None:
+                # Recover the predefined canonical unit so the streamed value matches
+                # read_simvar's pull (find() has substituted the concrete index into
+                # definitions[0]); fall back to the caller's unit for unknown names.
+                deff = (name.encode("ascii"), (unit or "number").encode("ascii"))
+                for candidate in (name, name.strip().upper().replace(" ", "_")):
+                    found = self.requests.find(candidate)
+                    if found is not None:
+                        deff = (
+                            bytes(found.definitions[0][0]),
+                            bytes(found.definitions[0][1]),
+                        )
+                        break
+                req = Request(deff, self.sc, _time=0)
+                self._stream_var_requests[name] = req
+            return req
+        key = (name, unit or "number")
+        req = self._var_requests.get(key)
+        if req is None:
+            deff = (name.encode("ascii"), (unit or "number").encode("ascii"))
+            req = Request(deff, self.sc, _time=0)
+            self._var_requests[key] = req
+        return req
+
+    def _start_stream(self, name: str, unit: str) -> object | None:
+        """Register ``name`` as a standing periodic push and return its Request.
+
+        Caller holds the write lock. Defines the data (a quick ``AddToDataDefinition``,
+        no spin-wait) and starts a repeating ``RequestDataOnSimObject`` so the sim pushes
+        the value onto the dispatch thread from now on. Returns None (caller falls back
+        to a pull) if the var can't be defined — an unresolved ``:index`` placeholder or
+        a name SimConnect rejects.
+        """
+        req = self._resolve_request(name, unit)
+        if req is None or not req._deff_test():
+            return None
+        try:
+            hr = self.sc.dll.RequestDataOnSimObject(
+                self.sc.hSimConnect,
+                req.DATA_REQUEST_ID.value,
+                req.DATA_DEFINITION_ID.value,
+                _SIMOBJECT_ID_USER,
+                _STREAM_PERIOD,
+                _STREAM_FLAG,
+                0, 0, 0,
+            )
+        except OSError as exc:
+            self._mark_lost(exc)  # raises SimDisconnected
+        if hr != 0:
+            log.error("stream setup failed (0x%08X) for %s [%s]", hr & 0xFFFFFFFF, name, unit)
+            return None
+        log.info("Streaming SimVar %s [%s] (req %d)", name, unit, req.DATA_REQUEST_ID.value)
+        return req
 
     def read_var(self, name: str, unit: str) -> object | None:
         """Read a SimVar with an explicit unit (e.g. heading in 'degrees').
@@ -484,7 +723,10 @@ class SimConnectBridge:
         predefined list) and the unit is honoured. Falls back to the predefined
         ``read_simvar`` path if this build of the library lacks ``Request``.
         """
-        with self._lock:
+        if _is_virtual(name):  # V: hub read (event_from_var/read paths too)
+            with _VIRTUAL_LOCK:
+                return _VIRTUAL_VARS.get(name)
+        with self._lock.read():
             self._check_alive()
             if Request is None:
                 return self.read_simvar(name)
@@ -532,7 +774,7 @@ class SimConnectBridge:
         with spaces (``AUTOPILOT HEADING LOCK DIR``). Try the name as given,
         then the normalised form, so either spelling works.
         """
-        with self._lock:
+        with self._lock.read():
             self._check_alive()
             value = None
             for candidate in (name, name.strip().upper().replace(" ", "_")):
@@ -552,7 +794,7 @@ class SimConnectBridge:
             return value
 
     def close(self) -> None:
-        with self._lock, contextlib.suppress(Exception):
+        with self._lock.write(), contextlib.suppress(Exception):
             self.sc.exit()
 
 
@@ -759,31 +1001,58 @@ def main() -> None:
     server = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
     server.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
     server.bind((args.host, args.port))
-    server.listen(1)
+    server.listen(8)  # multi-client: the mapper + monitors/tools subscribe at once
     log.info("Bridge listening on %s:%s", args.host, args.port)
+
+    # One sim handle, shared by every client session and swapped out on a
+    # reconnect. All DLL access goes through SimConnectBridge._lock (an RLock), so
+    # concurrent sessions are serialized at the sim level — no extra locking here.
+    sim_box = {"sim": sim}
+    reconnect = threading.Event()
+
+    def handle_client(conn: socket.socket, addr: object) -> None:
+        log.info("Linux app connected from %s", addr)
+        sim_lost = False
+        try:
+            sim_lost = ClientSession(conn, sim_box["sim"]).serve()
+        except Exception:
+            log.exception("Session from %s ended with an error", addr)
+        finally:
+            with contextlib.suppress(OSError):
+                conn.close()
+            log.info("Client %s disconnected", addr)
+        # A sim CTD/shutdown leaves SimConnect dead — ask the manager to re-attach.
+        if sim_lost:
+            reconnect.set()
+
+    def reconnect_manager() -> None:
+        while True:
+            reconnect.wait()
+            reconnect.clear()
+            try:
+                sim_box["sim"]._check_alive()
+                continue  # stale signal from an ending session — handle still healthy
+            except SimDisconnected:
+                pass
+            log.warning("Reconnecting to SimConnect (waiting for MSFS)…")
+            with contextlib.suppress(Exception):
+                sim_box["sim"].close()
+            sim_box["sim"] = connect_sim()
+            log.info("Reconnected to SimConnect; ready for clients")
+
+    threading.Thread(target=reconnect_manager, name="sim-reconnect", daemon=True).start()
+
     try:
         while True:
             conn, addr = server.accept()
-            log.info("Linux app connected from %s", addr)
-            sim_lost = False
-            try:
-                sim_lost = ClientSession(conn, sim).serve()
-            except Exception:
-                log.exception("Session ended with an error; waiting for next client")
-            finally:
-                conn.close()
-            # A sim CTD/shutdown leaves SimConnect dead; drop the old handle and
-            # wait for MSFS to come back so the bridge re-attaches on its own.
-            if sim_lost or getattr(sim.sc, "quit", 0):
-                log.warning("Reconnecting to SimConnect (waiting for MSFS)…")
-                sim.close()
-                sim = connect_sim()
-            log.info("Ready for next client on %s:%s", args.host, args.port)
+            threading.Thread(
+                target=handle_client, args=(conn, addr), name="client", daemon=True
+            ).start()
     except KeyboardInterrupt:
         log.info("Shutting down")
     finally:
         server.close()
-        sim.close()
+        sim_box["sim"].close()
 
 
 if __name__ == "__main__":
