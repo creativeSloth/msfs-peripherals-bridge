@@ -984,7 +984,7 @@ def run() -> None:
     # On/off state of the (borderless) Panel window, mirrored by the toolbar
     # toggle button below. The panel is created when on and destroyed when off.
     panel_on = tk.BooleanVar(value=False)
-    panel_btn_text = tk.StringVar(value="🖥  Panel öffnen")
+    panel_btn_text = tk.StringVar(value="🖥  " + tr("Panel öffnen"))
     panel_btn: dict = {"w": None}  # holds the toggle button once built (for text/style)
 
     profile_var = tk.StringVar(value=default_profile)
@@ -1296,14 +1296,14 @@ def run() -> None:
     stab.rowconfigure(2, weight=1)  # the value table grows (buttons above it in row 1)
     stab.columnconfigure(0, weight=1)
 
-    ttk.Label(stab, text="Live-Wertliste — Variablen zum Beobachten zusammenstellen:"
+    ttk.Label(stab, text=tr("Live-Wertliste — Variablen zum Beobachten zusammenstellen:")
               ).grid(row=0, column=0, columnspan=4, sticky="w")
 
     tree = ttk.Treeview(stab, columns=("kind", "name", "value", "unit"),
                         show="headings", height=10)
     for col, head, w, anchor in (
-        ("kind", "Typ", 44, "center"), ("name", "Variable", 260, "w"),
-        ("value", "Wert", 90, "center"), ("unit", "Einheit", 74, "center"),
+        ("kind", tr("Typ"), 44, "center"), ("name", tr("Variable"), 260, "w"),
+        ("value", tr("Wert"), 90, "center"), ("unit", tr("Einheit"), 74, "center"),
     ):
         tree.heading(col, text=head)
         tree.column(col, width=w, anchor=anchor)
@@ -1375,7 +1375,7 @@ def run() -> None:
         for iid in tree.get_children(""):
             kind = tree.set(iid, "kind")
             if kind == "K:":
-                tree.set(iid, "value", "(Event)")
+                tree.set(iid, "value", tr("(Event)"))
                 continue
             w = _wire_name(kind, tree.set(iid, "name"))
             tree.set(iid, "value", _fmt_value(vals[w]) if w in vals else "—")
@@ -1386,7 +1386,7 @@ def run() -> None:
         save_panel_state(st)
 
     def _panel_btn_open(is_open: bool):
-        panel_btn_text.set("🖥  Panel schließen" if is_open else "🖥  Panel öffnen")
+        panel_btn_text.set("🖥  " + (tr("Panel schließen") if is_open else tr("Panel öffnen")))
         if panel_btn["w"] is not None:
             panel_btn["w"].config(style="AccentInv.TButton" if is_open else "Accent.TButton")
 
@@ -1446,9 +1446,9 @@ def run() -> None:
 
     sbtn = ttk.Frame(stab)
     sbtn.grid(row=1, column=0, columnspan=4, sticky="ew", pady=(2, 4))
-    b_add = ttk.Button(sbtn, text="Variablen in die Liste holen",
+    b_add = ttk.Button(sbtn, text=tr("Variablen in die Liste holen"),
                        command=lambda: _open_var_picker(win, _statistik_catalog(), add_var))
-    b_rm = ttk.Button(sbtn, text="Variablen aus Liste entfernen", style="Danger.TButton",
+    b_rm = ttk.Button(sbtn, text=tr("Variablen aus Liste entfernen"), style="Danger.TButton",
                       command=remove_selected)
     b_toggle = ttk.Button(sbtn, textvariable=panel_btn_text, style="Accent.TButton",
                           command=_toggle_panel)
@@ -1458,32 +1458,32 @@ def run() -> None:
     b_toggle.pack(side="left", padx=6)
     mon_state = ttk.Label(sbtn, text="", foreground="#666")
     mon_state.pack(side="right")
-    _attach_tooltip(b_add, "Popup: nach Typ (A:/K:/L:/V:) filtern + Namen suchen")
-    _attach_tooltip(b_toggle, "Loslösbares Kachel-Panel öffnen/schließen (mit eigenem Picker)")
+    _attach_tooltip(b_add, tr("Popup: nach Typ (A:/K:/L:/V:) filtern + Namen suchen"))
+    _attach_tooltip(b_toggle, tr("Loslösbares Kachel-Panel öffnen/schließen (mit eigenem Picker)"))
 
     # --- V: overview: declare / remove the profile's own virtual variables --- #
     # Sits below the value table. Values live in the bridge's V: hub (seeded with
     # `initial` at mapper start); declared vars show up in every var-picker.
-    vfr = ttk.Labelframe(stab, text="Eigene V:-Variablen (Bridge-Hub, sim-unabhängig)",
+    vfr = ttk.Labelframe(stab, text=tr("Eigene V:-Variablen (Bridge-Hub, sim-unabhängig)"),
                          padding=6)
     vfr.grid(row=3, column=0, columnspan=4, sticky="ew", pady=(10, 0))
     v_list = ttk.Treeview(vfr, columns=("initial", "desc"), show="tree headings",
                           height=4, selectmode="browse")
-    v_list.heading("#0", text="Name (V:…)")
+    v_list.heading("#0", text=tr("Name (V:…)"))
     v_list.column("#0", width=180, anchor="w")
-    v_list.heading("initial", text="Startwert")
+    v_list.heading("initial", text=tr("Startwert"))
     v_list.column("initial", width=80, anchor="w")
-    v_list.heading("desc", text="Beschreibung")
+    v_list.heading("desc", text=tr("Beschreibung"))
     v_list.column("desc", width=320, anchor="w")
     v_list.pack(fill="x")
     vrow = ttk.Frame(vfr)
     vrow.pack(anchor="w", pady=(6, 0))
     v_name, v_init, v_desc = tk.StringVar(), tk.StringVar(value="0"), tk.StringVar()
-    ttk.Label(vrow, text="Name").pack(side="left")
+    ttk.Label(vrow, text=tr("Name")).pack(side="left")
     ttk.Entry(vrow, textvariable=v_name, width=16).pack(side="left", padx=(2, 8))
-    ttk.Label(vrow, text="Startwert").pack(side="left")
+    ttk.Label(vrow, text=tr("Startwert")).pack(side="left")
     ttk.Entry(vrow, textvariable=v_init, width=7).pack(side="left", padx=(2, 8))
-    ttk.Label(vrow, text="Beschreibung").pack(side="left")
+    ttk.Label(vrow, text=tr("Beschreibung")).pack(side="left")
     ttk.Entry(vrow, textvariable=v_desc, width=22).pack(side="left", padx=(2, 8))
     v_status = ttk.Label(vfr, text="", foreground=MUTED)
     v_status.pack(anchor="w", pady=(4, 0))
@@ -1505,9 +1505,9 @@ def run() -> None:
             profile_writer.set_local_vars(data, local_vars)
             profile_writer.validate(data)
             profile_writer.dump(data, path)
-            v_status.config(text="Gespeichert ✓", foreground="#15803d")
+            v_status.config(text=tr("Gespeichert") + " ✓", foreground="#15803d")
         except Exception as exc:
-            v_status.config(text=f"Fehler: {exc}", foreground=DANGER)
+            v_status.config(text=f"{tr('dialog.error')}: {exc}", foreground=DANGER)
         _vlist_load()
 
     def _vlist_current():
@@ -1520,12 +1520,12 @@ def run() -> None:
     def _vlist_add():
         name = v_name.get().strip()
         if not name:
-            v_status.config(text="Name fehlt.", foreground=DANGER)
+            v_status.config(text=tr("Name fehlt."), foreground=DANGER)
             return
         try:
             initial = float(v_init.get() or 0)
         except ValueError:
-            v_status.config(text="Startwert muss eine Zahl sein.", foreground=DANGER)
+            v_status.config(text=tr("Startwert muss eine Zahl sein."), foreground=DANGER)
             return
         entry: dict = {"name": name}
         if initial:
@@ -1540,13 +1540,13 @@ def run() -> None:
     def _vlist_remove():
         sel = v_list.selection()
         if not sel:
-            v_status.config(text="Erst eine V:-Variable markieren.", foreground=DANGER)
+            v_status.config(text=tr("Erst eine V:-Variable markieren."), foreground=DANGER)
             return
         _vlist_save([lv for lv in _vlist_current() if lv["name"] != sel[0]])
 
-    ttk.Button(vrow, text="Anlegen", style="Accent.TButton",
+    ttk.Button(vrow, text=tr("Anlegen"), style="Accent.TButton",
                command=_vlist_add).pack(side="left", padx=(4, 4))
-    ttk.Button(vrow, text="Entfernen", style="Danger.TButton",
+    ttk.Button(vrow, text=tr("Entfernen"), style="Danger.TButton",
                command=_vlist_remove).pack(side="left")
     profile_var.trace_add("write", _vlist_load)
     win.after(400, _vlist_load)  # deferred: load_profile is imported just below

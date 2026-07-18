@@ -220,4 +220,70 @@ _STRINGS: dict[str, dict[str, str]] = {
     "conn.setup_title": {
         "de": "Prefix-Einrichtung", "en": "Prefix setup",
         "es": "Configuración del prefijo", "fr": "Configuration du préfixe"},
+
+    # ===================================================================== #
+    # Bulk GUI strings, keyed by their German source text (gettext-msgid style):
+    # a missing "de" entry means tr() returns the key itself. Only en/es/fr are
+    # supplied. Grouped roughly by tab, but many are shared across tabs.
+    # ===================================================================== #
+
+    # ----- shared words --------------------------------------------------- #
+    "Name": {"en": "Name", "es": "Nombre", "fr": "Nom"},
+    "Startwert": {"en": "Initial value", "es": "Valor inicial", "fr": "Valeur initiale"},
+    "Beschreibung": {"en": "Description", "es": "Descripción", "fr": "Description"},
+    "Anlegen": {"en": "Create", "es": "Crear", "fr": "Créer"},
+    "Entfernen": {"en": "Remove", "es": "Quitar", "fr": "Retirer"},
+    "Hinzufügen": {"en": "Add", "es": "Añadir", "fr": "Ajouter"},
+    "Duplizieren": {"en": "Duplicate", "es": "Duplicar", "fr": "Dupliquer"},
+    "Übernehmen": {"en": "Apply", "es": "Aplicar", "fr": "Appliquer"},
+    "Zurücksetzen": {"en": "Reset", "es": "Restablecer", "fr": "Réinitialiser"},
+    "Schließen": {"en": "Close", "es": "Cerrar", "fr": "Fermer"},
+    "Abbrechen": {"en": "Cancel", "es": "Cancelar", "fr": "Annuler"},
+    "Wählen…": {"en": "Choose…", "es": "Elegir…", "fr": "Choisir…"},
+    "Typ": {"en": "Type", "es": "Tipo", "fr": "Type"},
+    "Variable": {"en": "Variable", "es": "Variable", "fr": "Variable"},
+    "Wert": {"en": "Value", "es": "Valor", "fr": "Valeur"},
+    "Einheit": {"en": "Unit", "es": "Unidad", "fr": "Unité"},
+    "Gerät": {"en": "Device", "es": "Dispositivo", "fr": "Périphérique"},
+    "Status": {"en": "Status", "es": "Estado", "fr": "État"},
+    "Aktion": {"en": "Action", "es": "Acción", "fr": "Action"},
+    "Gespeichert": {"en": "Saved", "es": "Guardado", "fr": "Enregistré"},
+    "Suche": {"en": "Search", "es": "Buscar", "fr": "Rechercher"},
+
+    # ----- Variables (Statistik) tab -------------------------------------- #
+    "Live-Wertliste — Variablen zum Beobachten zusammenstellen:": {
+        "en": "Live value list — assemble variables to watch:",
+        "es": "Lista de valores en vivo: reúne variables para observar:",
+        "fr": "Liste de valeurs en direct — rassemblez les variables à observer :"},
+    "(Event)": {"en": "(event)", "es": "(evento)", "fr": "(événement)"},
+    "Panel öffnen": {"en": "Open panel", "es": "Abrir panel", "fr": "Ouvrir le panneau"},
+    "Panel schließen": {"en": "Close panel", "es": "Cerrar panel", "fr": "Fermer le panneau"},
+    "Variablen in die Liste holen": {
+        "en": "Add variables to the list", "es": "Añadir variables a la lista",
+        "fr": "Ajouter des variables à la liste"},
+    "Variablen aus Liste entfernen": {
+        "en": "Remove variables from list", "es": "Quitar variables de la lista",
+        "fr": "Retirer des variables de la liste"},
+    "Popup: nach Typ (A:/K:/L:/V:) filtern + Namen suchen": {
+        "en": "Popup: filter by type (A:/K:/L:/V:) + search names",
+        "es": "Ventana: filtrar por tipo (A:/K:/L:/V:) + buscar nombres",
+        "fr": "Fenêtre : filtrer par type (A:/K:/L:/V:) + rechercher des noms"},
+    "Loslösbares Kachel-Panel öffnen/schließen (mit eigenem Picker)": {
+        "en": "Open/close the detachable tile panel (with its own picker)",
+        "es": "Abrir/cerrar el panel de mosaicos (con su propio selector)",
+        "fr": "Ouvrir/fermer le panneau de tuiles détachable (avec son sélecteur)"},
+    "Eigene V:-Variablen (Bridge-Hub, sim-unabhängig)": {
+        "en": "Own V: variables (bridge hub, sim-independent)",
+        "es": "Variables V: propias (concentrador del puente, independiente del sim)",
+        "fr": "Variables V: propres (concentrateur du pont, indépendant du sim)"},
+    "Name (V:…)": {"en": "Name (V:…)", "es": "Nombre (V:…)", "fr": "Nom (V:…)"},
+    "Name fehlt.": {"en": "Name is missing.", "es": "Falta el nombre.", "fr": "Nom manquant."},
+    "Startwert muss eine Zahl sein.": {
+        "en": "Initial value must be a number.",
+        "es": "El valor inicial debe ser un número.",
+        "fr": "La valeur initiale doit être un nombre."},
+    "Erst eine V:-Variable markieren.": {
+        "en": "Select a V: variable first.",
+        "es": "Primero seleccione una variable V:.",
+        "fr": "Sélectionnez d'abord une variable V:."},
 }

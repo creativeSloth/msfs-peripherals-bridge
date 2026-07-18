@@ -15,13 +15,16 @@ def _reset_language():
     i18n.set_language(i18n.DEFAULT_LANG)
 
 
-def test_every_key_defines_all_four_languages():
-    langs = set(i18n.LANGUAGES)
-    assert langs == {"de", "en", "es", "fr"}
+def test_every_key_defines_the_non_default_languages():
+    # German is optional per entry: a key may BE the German source string
+    # (gettext-msgid style), in which case tr() falls back to it. But every
+    # entry must translate the three non-default languages.
+    assert set(i18n.LANGUAGES) == {"de", "en", "es", "fr"}
+    required = {"en", "es", "fr"}
     missing = {
-        key: langs - set(entry)
+        key: required - set(entry)
         for key, entry in i18n._STRINGS.items()
-        if langs - set(entry)
+        if required - set(entry)
     }
     assert not missing, f"keys missing translations: {missing}"
 
