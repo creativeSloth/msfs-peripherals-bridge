@@ -551,4 +551,32 @@ _STRINGS: dict[str, dict[str, str]] = {
         "en": "No gauges yet.\n“+ Gauge” → pick a template/library → map needles to variables → onto the panel.",
         "es": "Aún no hay instrumentos.\n«+ Instrumento» → elija plantilla/biblioteca → asigne agujas a variables → al panel.",
         "fr": "Pas encore d'instruments.\n« + Instrument » → choisir un modèle/bibliothèque → mapper les aiguilles → sur le panneau."},
+
+    # ----- gui_mapper.py: device/detail tree labels (describe_* + kinds) --- #
+    "Achse": {"en": "Axis", "es": "Eje", "fr": "Axe"},
+    "Taste": {"en": "Button", "es": "Botón", "fr": "Bouton"},
+    "Hat": {"en": "Hat", "es": "Hat", "fr": "Hat"},
+    "Schalter": {"en": "Switch", "es": "Interruptor", "fr": "Interrupteur"},
+    "verbunden": {"en": "connected", "es": "conectado", "fr": "connecté"},
+    "nicht erkannt": {"en": "not detected", "es": "no detectado", "fr": "non détecté"},
+    "unter": {"en": "below", "es": "debajo", "fr": "sous"},
+    "Rad-LEDs": {"en": "Gear LEDs", "es": "LED de tren", "fr": "LED de train"},
+    "grün ab Position": {
+        "en": "green from position", "es": "verde desde posición",
+        "fr": "vert à partir de la position"},
+    "Power-Gate": {
+        "en": "Power gate", "es": "Puerta de alimentación", "fr": "Porte d'alimentation"},
+    "Schritt": {"en": "Step", "es": "Paso", "fr": "Pas"},
+    "schnell": {"en": "fast", "es": "rápido", "fr": "rapide"},
+    "SimVar-Write": {"en": "SimVar write", "es": "escritura de SimVar", "fr": "écriture SimVar"},
+    "Selektor": {"en": "Selector", "es": "Selector", "fr": "Sélecteur"},
+    "Zeile": {"en": "row", "es": "fila", "fr": "ligne"},
+    "Alt-Quelle": {"en": "Alt source", "es": "Fuente alt.", "fr": "Source alt."},
+    "AP-Master-LED": {"en": "AP master LED", "es": "LED maestro AP", "fr": "LED maître PA"},
+    "Mode-Var": {"en": "Mode var", "es": "Variable de modo", "fr": "Variable de mode"},
+    "Quellen-Umschalter": {
+        "en": "Source toggle", "es": "Conmutador de fuente", "fr": "Bascule de source"},
+    "Dimmer": {"en": "Dimmer", "es": "Regulador", "fr": "Variateur"},
+    "nur Anzeige": {"en": "display only", "es": "solo lectura", "fr": "affichage seul"},
+    "Quellen": {"en": "Sources", "es": "Fuentes", "fr": "Sources"},
 }

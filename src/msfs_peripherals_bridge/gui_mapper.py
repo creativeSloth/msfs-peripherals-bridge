@@ -15,6 +15,7 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 
+from .i18n import tr
 from .models import (
     Action,
     AdfBank,
@@ -66,7 +67,7 @@ class DeviceRow:
         """Human status word for the ``present`` tri-state."""
         if self.present is None:
             return "?"
-        return "verbunden" if self.present else "nicht erkannt"
+        return tr("verbunden") if self.present else tr("nicht erkannt")
 
 
 @dataclass(frozen=True)
@@ -108,7 +109,7 @@ def build_device_rows(
 
 def describe_source(source: Source) -> str:
     """Short label for a physical control, e.g. ``Taste 288`` / ``Achse 0``."""
-    return f"{_KIND_LABEL.get(source.kind, str(source.kind))} {source.code}"
+    return f"{tr(_KIND_LABEL.get(source.kind, str(source.kind)))} {source.code}"
 
 
 def describe_action(action: Action) -> str:
@@ -158,11 +159,12 @@ def describe_binding(binding: Binding) -> BindingRow:
                  for sym, a in (("▲", binding.hat.up), ("▼", binding.hat.down),
                                 ("◀", binding.hat.left), ("▶", binding.hat.right))
                  if a is not None]
-        action = "Hat: " + " · ".join(parts)
+        action = tr("Hat") + ": " + " · ".join(parts)
     else:
         action = describe_action(binding.action)
         if binding.split is not None:
-            action += f" · unter {binding.split.at}: {describe_action(binding.split.action)}"
+            action += (f" · {tr('unter')} {binding.split.at}: "
+                       f"{describe_action(binding.split.action)}")
     if binding.when:  # gated bindings are recognisable in the table
         action = f"⚑{len(binding.when)} · " + action
     return BindingRow(
@@ -185,19 +187,20 @@ def describe_output(output: Output) -> str:
 
 def _describe_gear_leds(o: GearLedOutput) -> list[str]:
     return [
-        f"Rad-LEDs: nose={o.nose}, left={o.left}, right={o.right}",
-        f"grün ab Position {o.down_at:g}",
-        f"Power-Gate: {o.power}" if o.power else "Power-Gate: —",
+        f"{tr('Rad-LEDs')}: nose={o.nose}, left={o.left}, right={o.right}",
+        f"{tr('grün ab Position')} {o.down_at:g}",
+        f"{tr('Power-Gate')}: {o.power}" if o.power else tr("Power-Gate") + ": —",
     ]
 
 
 def _describe_selector(e: SelectorEntry) -> str:
-    step = f"Schritt {e.step:g}" + (f"/schnell {e.fast_step:g}" if e.fast_step else "")
-    target = f"event {e.set_event}" if e.set_event else "SimVar-Write"
+    step = f"{tr('Schritt')} {e.step:g}" + (f"/{tr('schnell')} {e.fast_step:g}"
+                                            if e.fast_step else "")
+    target = f"event {e.set_event}" if e.set_event else tr("SimVar-Write")
     flags = [f for f, on in (("rollover", e.rollover), ("sticky", e.sticky)) if on]
     tail = (", " + ", ".join(flags)) if flags else ""
-    return (f"Selektor {e.code} {e.label}: {e.simvar} "
-            f"[{step}, {e.min:g}…{e.max:g}, {target}, Zeile {e.display_row}{tail}]")
+    return (f"{tr('Selektor')} {e.code} {e.label}: {e.simvar} "
+            f"[{step}, {e.min:g}…{e.max:g}, {target}, {tr('Zeile')} {e.display_row}{tail}]")
 
 
 def _describe_multi(o: MultiPanelOutput) -> list[str]:
@@ -206,17 +209,19 @@ def _describe_multi(o: MultiPanelOutput) -> list[str]:
         lines.append(_describe_selector(e))
         for s in e.alt_sources:
             evt = f" (event {s.set_event})" if s.set_event else ""
-            lines.append(f"    ↳ Alt-Quelle {s.simvar}{evt}")
-    lines.append(f"AP-Master-LED: {o.ap_master}")
-    lines.append(f"Mode-Var: {o.mode_var}")
+            lines.append(f"    ↳ {tr('Alt-Quelle')} {s.simvar}{evt}")
+    lines.append(f"{tr('AP-Master-LED')}: {o.ap_master}")
+    lines.append(f"{tr('Mode-Var')}: {o.mode_var}")
     lines += [f"LED {btn} ← {var}" for btn, var in o.bool_leds.items()]
     if o.source_toggle is not None:
-        lines.append(f"Quellen-Umschalter: {o.source_toggle.device} code {o.source_toggle.code}")
+        lines.append(f"{tr('Quellen-Umschalter')}: "
+                     f"{o.source_toggle.device} code {o.source_toggle.code}")
     if o.dimmer is not None:
         tgts = ", ".join((t.var or t.event or "?") for t in o.dimmer.targets)
-        lines.append(f"Dimmer (cw {o.dimmer.cw}/ccw {o.dimmer.ccw}, {o.dimmer.step:g}%): {tgts}")
+        lines.append(f"{tr('Dimmer')} (cw {o.dimmer.cw}/ccw {o.dimmer.ccw}, "
+                     f"{o.dimmer.step:g}%): {tgts}")
     if o.power:
-        lines.append(f"Power-Gate: {o.power}")
+        lines.append(f"{tr('Power-Gate')}: {o.power}")
     return lines
 
 
@@ -228,7 +233,7 @@ def _describe_bank(b: object) -> str:
     if isinstance(b, DmeBank):
         srcs = "/".join(s.label for s in b.sources)
         sv = f", src-var {b.source_var}" if b.source_var else ""
-        return f"{b.code} {b.label} (DME, nur Anzeige): Quellen {srcs}{sv}"
+        return f"{b.code} {b.label} (DME, {tr('nur Anzeige')}): {tr('Quellen')} {srcs}{sv}"
     if isinstance(b, AdfBank):
         return (f"{b.code} {b.label} (ADF): {b.dig1_var}, {b.dig2_var}, {b.dig3_var} "
                 f"[{b.min_khz}…{b.max_khz} kHz]")
@@ -241,11 +246,11 @@ def _describe_bank(b: object) -> str:
 def _describe_radio(o: RadioPanelOutput) -> list[str]:
     lines: list[str] = []
     for u in o.units:
-        lines.append(f"Einheit {u.name} ({u.row}): Encoder outer {u.outer_cw}/{u.outer_ccw}, "
-                     f"inner {u.inner_cw}/{u.inner_ccw}, swap {u.swap}")
+        lines.append(f"{tr('Einheit')} {u.name} ({u.row}): Encoder outer "
+                     f"{u.outer_cw}/{u.outer_ccw}, inner {u.inner_cw}/{u.inner_ccw}, swap {u.swap}")
         lines += ["    " + _describe_bank(b) for b in u.banks]
     if o.power:
-        lines.append(f"Power-Gate: {o.power}")
+        lines.append(f"{tr('Power-Gate')}: {o.power}")
     return lines
 
 
