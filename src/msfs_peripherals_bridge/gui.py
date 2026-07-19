@@ -2607,7 +2607,9 @@ def run() -> None:
     # detail tree; double-clicking a row opens the settings for exactly that
     # group — a form with German labels + ⓘ help per field. No second list
     # inside the window (per user: a context window refers to ONE row).
-    def _open_output_editor(device_id, out_index, group_path=()):
+    def _open_output_editor(device_id, out_index, group_path=(), focus=None):
+        # focus = a subset of the group's field names -> a FOCUSED context window
+        # (each radio element opens just its own field(s), not the whole bank).
         prof = mstate["profile"]
         outs = prof.outputs.get(device_id, []) if prof else []
         if not (0 <= out_index < len(outs)):
@@ -2624,7 +2626,7 @@ def run() -> None:
         form.pack(fill="both", expand=True, pady=(8, 0))
         o_status = ttk.Label(frm, text=tr(""), foreground="#666")
         o_status.pack(anchor="w", pady=(6, 0))
-        ost = {"output": None, "nodes": [], "group": None}
+        ost = {"output": None, "nodes": [], "group": None, "focus": focus}
 
         def _status(msg, error=False):
             o_status.config(
@@ -2678,8 +2680,13 @@ def run() -> None:
             return getter
 
         def _fields_form(group):
-            """The group's scalar fields + Übernehmen; returns the button row."""
+            """The group's scalar fields + Übernehmen; returns the button row.
+
+            When a ``focus`` was given, only those fields are shown — so clicking
+            one radio element opens JUST its own setting, not the whole bank."""
             fields = gui_mapper.group_fields(ost["nodes"], group.path)
+            if ost["focus"]:
+                fields = [n for n in fields if n.path and n.path[-1] in ost["focus"]]
             getters = [(node, _field_row(row, node)) for row, node in enumerate(fields)]
             if not fields:
                 ttk.Label(form, foreground="#666", wraplength=430, justify="left",
@@ -2907,7 +2914,11 @@ def run() -> None:
                                 "ganze Panel-Blöcke markieren."))
 
     def _open_row(row):
-        """Open the editor for a detail row: bind:<i> or out:<i>[:<group-path>]."""
+        """Open the editor for a detail row: bind:<i> or out:<i>[:<path>][|<fields>].
+
+        A trailing ``|field,field`` (from a panel element's ref) opens a FOCUSED
+        output window showing only those fields — so each radio display/encoder/
+        swap gets its own context menu instead of the whole bank's."""
         dev = _sel(dev_tree)
         if dev is None or not row:
             return
@@ -2915,10 +2926,12 @@ def run() -> None:
         if sid.startswith("bind:"):
             _open_editor(dev, int(sid.split(":")[1]))
         elif sid.startswith("out:"):
-            parts = sid.split(":", 2)
+            body, _, foc = sid.partition("|")
+            focus = [f for f in foc.split(",") if f] or None
+            parts = body.split(":", 2)
             gpath = tuple(int(s) if s.isdigit() else s
                           for s in parts[2].split("/")) if len(parts) > 2 else ()
-            _open_output_editor(dev, int(parts[1]), gpath)
+            _open_output_editor(dev, int(parts[1]), gpath, focus)
 
     def _on_detail_activate(_e=None):
         """Keyboard (Return) on a selected row -> open its settings window."""

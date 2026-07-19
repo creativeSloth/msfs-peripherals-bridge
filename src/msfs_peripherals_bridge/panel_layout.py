@@ -428,6 +428,34 @@ def _bank_display_text(bank) -> tuple[str, str, str]:
     return bank.label, "", ""
 
 
+def _radio_focus(bank) -> dict[str, list[str] | None]:
+    """Per bank type: which model fields each row element maps (None = whole bank).
+
+    So each element's ref carries just its own fields and opens a FOCUSED editor
+    (top display -> the ACTIVE var, outer knob -> the whole-MHz events, …)."""
+    kind = getattr(bank, "kind", "")
+    if kind == "freq":
+        return {"active": ["active"], "standby": ["standby"], "swap": ["swap_event"],
+                "outer": ["whole_inc", "whole_dec"], "inner": ["fract_inc", "fract_dec"],
+                "dot": ["fine_view"]}
+    if kind == "dme":
+        return {"active": ["source_var"], "standby": None, "swap": ["source_var"],
+                "outer": None, "inner": None, "dot": None}
+    if kind == "adf":
+        return {"active": ["dig1_var", "dig2_var", "dig3_var"],
+                "standby": ["min_khz", "max_khz"], "swap": None, "outer": None,
+                "inner": None, "dot": None}
+    if kind == "xpdr":
+        return {"active": ["code_var", "set_event"], "standby": ["baro_var", "baro_scale"],
+                "swap": None, "outer": ["baro_inc", "baro_dec"], "inner": None, "dot": None}
+    return {k: None for k in ("active", "standby", "swap", "outer", "inner", "dot")}
+
+
+def _focus_ref(base: str, fields: list[str] | None) -> str:
+    """``base|f1,f2`` when fields are given, else ``base`` (the whole group)."""
+    return f"{base}|{','.join(fields)}" if fields else base
+
+
 def _radio_panel(binds, outs) -> list[PanelElement]:
     """Per selector unit, a column of mode-rows; each row = 2 displays + dot (left)
     and 2 encoders + swap (right), displays and controls kept apart. Every element
@@ -448,28 +476,33 @@ def _radio_panel(binds, outs) -> list[PanelElement]:
         y += 0.058
         els.append(PanelElement(
             ENCODER, f"Encoder-/Swap-Codes {unit.name}", margin, y, 1.0 - 2 * margin,
-            row_h * 0.8, name=unit.name, ref=uref, mapped=True,
+            row_h * 0.8, name=unit.name, mapped=True,
+            ref=_focus_ref(uref, ["outer_cw", "outer_ccw", "inner_cw", "inner_ccw", "swap"]),
             action=(f"Hardware-CODES {unit.name}: außen {unit.outer_cw}/{unit.outer_ccw} "
                     f"· innen {unit.inner_cw}/{unit.inner_ccw} · swap {unit.swap}")))
         y += row_h * 0.8 + gap
         for b, bank in enumerate(unit.banks):
             bref = f"out:{idx}:units/{u}/banks/{b}"
             top, bot, det = _bank_display_text(bank)
+            f = _radio_focus(bank)  # each element opens ONLY its own field(s)
             # displays (LEFT) + decimal/cursor dot
-            els.append(PanelElement(SEGMENT, f"{bank.label} · {top}", margin, y,
-                                    0.29, row_h, ref=bref, mapped=True, action=det))
+            els.append(PanelElement(SEGMENT, f"{bank.label} · {top}", margin, y, 0.29,
+                                    row_h, ref=_focus_ref(bref, f["active"]),
+                                    mapped=True, action=det))
             els.append(PanelElement(SEGMENT, bot, 0.31, y, 0.20, row_h,
-                                    ref=bref, mapped=True, action=det))
+                                    ref=_focus_ref(bref, f["standby"]), mapped=True,
+                                    action=det))
             els.append(PanelElement(
-                DOT, ".", 0.525, y + row_h * 0.25, 0.045, row_h * 0.5, ref=bref,
-                mapped=True, action="Dezimalpunkt / Cursor (springt bei ADF/XPDR über Push)"))
+                DOT, ".", 0.525, y + row_h * 0.25, 0.045, row_h * 0.5,
+                ref=_focus_ref(bref, f["dot"]), mapped=True,
+                action="Dezimalpunkt / Cursor (springt bei ADF/XPDR über Push)"))
             # controls (RIGHT) — separated from the displays by the gap
             els.append(PanelElement(ENCODER, "außen", 0.60, y, 0.11, row_h,
-                                    ref=bref, mapped=True, action=det))
+                                    ref=_focus_ref(bref, f["outer"]), mapped=True, action=det))
             els.append(PanelElement(ENCODER, "innen", 0.72, y, 0.11, row_h,
-                                    ref=bref, mapped=True, action=det))
+                                    ref=_focus_ref(bref, f["inner"]), mapped=True, action=det))
             els.append(PanelElement(BUTTON, "SWAP", 0.84, y, 0.145, row_h,
-                                    ref=bref, mapped=True, action=det))
+                                    ref=_focus_ref(bref, f["swap"]), mapped=True, action=det))
             y += row_h + gap
     return els
 

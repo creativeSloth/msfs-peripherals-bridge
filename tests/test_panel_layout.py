@@ -250,11 +250,19 @@ RADIO_PROFILE = Profile.model_validate({
 
 def test_radio_panel_mode_row_has_two_displays_two_encoders_swap_and_dot():
     els = panel_layout(RADIO_PROFILE, "radio_panel")
-    row = [e for e in els if e.ref == "out:0:units/0/banks/0"]  # the COM1 mode-row
+    # all COM1-row elements target that bank (the |focus suffix differs per element)
+    row = [e for e in els if e.ref and e.ref.split("|")[0] == "out:0:units/0/banks/0"]
     assert sorted(e.kind for e in row) == sorted(
         [SEGMENT, SEGMENT, DOT, ENCODER, ENCODER, BUTTON])
-    # every mode-row element opens the SAME bank editor (out:i:units/u/banks/b)
-    assert all(e.ref == "out:0:units/0/banks/0" for e in row)
+    by_kind = {}
+    for e in row:
+        by_kind.setdefault(e.kind, []).append(e)
+    # each element opens its OWN focused field(s), not the whole bank
+    assert by_kind[BUTTON][0].ref == "out:0:units/0/banks/0|swap_event"  # swap
+    active = next(e for e in by_kind[SEGMENT] if e.ref.endswith("|active"))
+    assert active.ref == "out:0:units/0/banks/0|active"  # top display -> ACTIVE var
+    outer = next(e for e in by_kind[ENCODER] if "whole" in e.ref)
+    assert outer.ref == "out:0:units/0/banks/0|whole_inc,whole_dec"  # outer knob
     # a group heading names the selector unit
     assert any(e.kind == HEADER and "upper" in e.label for e in els)
 
