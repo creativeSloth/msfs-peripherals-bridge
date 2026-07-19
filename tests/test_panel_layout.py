@@ -4,7 +4,10 @@ from msfs_peripherals_bridge.models import Profile
 from msfs_peripherals_bridge.panel_layout import (
     AXIS,
     BUTTON,
+    DOT,
+    ENCODER,
     HAT,
+    HEADER,
     LED,
     SEGMENT,
     SWITCH,
@@ -121,7 +124,7 @@ def test_all_positions_within_unit_square():
 
 
 def test_device_layout_one_element_per_binding_with_right_kinds():
-    els = panel_layout(PROFILE, "yoke")
+    els = [e for e in panel_layout(PROFILE, "yoke") if e.kind != HEADER]
     assert len(els) == 5  # one per binding (2 axes, 2 buttons, 1 hat)
     by_name = {e.name: e for e in els}
     assert by_name["Aileron"].kind == AXIS
@@ -175,8 +178,9 @@ def test_flaps_up_down_become_two_stacked_bars():
     assert up.label == "Flaps up" and dn.label == "Flaps down"
     assert dn.ref == "bind:1"
     assert up.y + up.h <= dn.y + 1e-9  # up stacks above down within one cell
-    # the unrelated AP switch stays its own single tile
-    assert len(els) == 3 and els[-1].label == "AP master"
+    # the unrelated AP switch stays its own single tile (ignoring group headings)
+    tiles = [e for e in els if e.kind != HEADER]
+    assert len(tiles) == 3 and tiles[-1].label == "AP master"
 
 
 OUT_PROFILE = Profile.model_validate({
@@ -222,6 +226,37 @@ def test_controls_and_displays_are_separated_into_zones():
     assert controls and displays
     # every control sits above every display (separate zones, clear gap)
     assert max(e.y + e.h for e in controls) <= min(e.y for e in displays) + 1e-9
+
+
+RADIO_PROFILE = Profile.model_validate({
+    "name": "R2",
+    "outputs": {"radio_panel": [{
+        "type": "radio_panel",
+        "units": [{
+            "name": "upper", "row": "upper",
+            "outer_cw": 0, "outer_ccw": 1, "inner_cw": 2, "inner_ccw": 3, "swap": 4,
+            "banks": [
+                {"kind": "freq", "code": 0, "label": "COM1", "active": "A", "standby": "S",
+                 "swap_event": "SW", "whole_inc": "WI", "whole_dec": "WD",
+                 "fract_inc": "FI", "fract_dec": "FD"},
+                {"kind": "freq", "code": 1, "label": "NAV1", "active": "A2", "standby": "S2",
+                 "swap_event": "SW2", "whole_inc": "WI2", "whole_dec": "WD2",
+                 "fract_inc": "FI2", "fract_dec": "FD2"},
+            ],
+        }],
+    }]},
+})
+
+
+def test_radio_panel_mode_row_has_two_displays_two_encoders_swap_and_dot():
+    els = panel_layout(RADIO_PROFILE, "radio_panel")
+    row = [e for e in els if e.ref == "out:0:units/0/banks/0"]  # the COM1 mode-row
+    assert sorted(e.kind for e in row) == sorted(
+        [SEGMENT, SEGMENT, DOT, ENCODER, ENCODER, BUTTON])
+    # every mode-row element opens the SAME bank editor (out:i:units/u/banks/b)
+    assert all(e.ref == "out:0:units/0/banks/0" for e in row)
+    # a group heading names the selector unit
+    assert any(e.kind == HEADER and "upper" in e.label for e in els)
 
 
 def test_unknown_device_is_empty():

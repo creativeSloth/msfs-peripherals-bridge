@@ -1618,6 +1618,11 @@ def run() -> None:
                              highlightbackground="#d1d5db")
     panel_canvas.grid(row=1, column=1, sticky="nsew", pady=6)
     panel_canvas.grid_remove()
+    # Vertical scrollbar for tall reconstructions (radio panel scrolls row by row).
+    panel_vsb = ttk.Scrollbar(mtab, orient="vertical", command=panel_canvas.yview)
+    panel_vsb.grid(row=1, column=2, sticky="ns", pady=6)
+    panel_vsb.grid_remove()
+    panel_canvas.configure(yscrollcommand=panel_vsb.set)
     pcanvas: dict = {"by_index": {}, "live": {}, "device": None, "hint": None}
 
     # discovery is lazy (only when the tab is first shown) so startup stays fast.
@@ -3118,6 +3123,12 @@ def run() -> None:
                       outline="#607d8b", width=2, tags=(tag,))
         c.create_line(cx2, cy2, cx2, cy2 - r, fill="#37474f", width=2, tags=(tag,))
 
+    def _draw_header(c, tag, el, x0, y0, x1, y1):
+        # a group heading: bold accent title + a separator line under it
+        c.create_text(x0 + 2, (y0 + y1) / 2, anchor="w", text=el.label, fill=ACCENT,
+                      font=("TkDefaultFont", 9, "bold"), tags=(tag,))
+        c.create_line(x0, y1 - 1, x1, y1 - 1, fill="#94a3b8", width=1, tags=(tag,))
+
     def _draw_block(c, tag, el, x0, y0, x1, y1):
         fill, edge = _panel_fill(el)
         _round_rect(c, x0, y0, x1, y1, 8, fill=fill, outline=edge, width=2, tags=(tag,))
@@ -3132,7 +3143,7 @@ def run() -> None:
                    panel_layout.BUTTON: _draw_button, panel_layout.HAT: _draw_hat,
                    panel_layout.LED: _draw_led, panel_layout.SEGMENT: _draw_segment,
                    panel_layout.BUTTON_LIGHT: _draw_button_light, panel_layout.DOT: _draw_dot,
-                   panel_layout.ENCODER: _draw_encoder}
+                   panel_layout.ENCODER: _draw_encoder, panel_layout.HEADER: _draw_header}
 
     def _render_panel_canvas(device_id):
         c = panel_canvas
@@ -3148,20 +3159,28 @@ def run() -> None:
         if cw < 40 or ch < 40:
             return  # not laid out yet — the <Configure> bind re-renders once sized
         pad = 8
-        W, H = cw - 2 * pad, ch - 2 * pad
         els = panel_layout.panel_layout(prof, device_id)
         if not els:
+            c.configure(scrollregion=(0, 0, cw, ch))
             c.create_text(pad, pad, anchor="nw", fill=MUTED,
                           text=tr("Für dieses Gerät gibt es noch keinen Nachbau."))
             return
+        # y is in "viewport" units (1.0 = one canvas height): a layout taller than
+        # 1.0 (the radio panel) becomes scrollable content below the fold.
+        content = max(1.0, max(el.y + el.h for el in els))
+        W, H = cw - 2 * pad, ch - 2 * pad
         for n, el in enumerate(els):
             tag = f"pel:{n}"
             pcanvas["by_index"][n] = el
             x0, y0 = pad + el.x * W, pad + el.y * H
             x1, y1 = x0 + el.w * W, y0 + el.h * H
             _PANEL_DRAW.get(el.kind, _draw_block)(c, tag, el, x0, y0, x1, y1)
+        content_px = pad + content * H + pad
+        c.configure(scrollregion=(0, 0, cw, content_px))
+        if content <= 1.0:
+            c.yview_moveto(0.0)  # nothing to scroll
         pcanvas["hint"] = c.create_text(
-            pad, ch - 4, anchor="sw", fill=MUTED, font=("TkDefaultFont", 8),
+            pad, content_px - 4, anchor="sw", fill=MUTED, font=("TkDefaultFont", 8),
             text=tr("Klick: gemappt → Editor, leerer Platzhalter → neu mappen · "
                     "Schalter/Achsen live"))
 
@@ -3198,6 +3217,8 @@ def run() -> None:
         if el is None:
             txt = tr("Klick: gemappt → Editor, leerer Platzhalter → neu mappen · "
                      "Schalter/Achsen live")
+        elif el.kind == panel_layout.HEADER:
+            txt = el.label  # a group heading, not a control
         elif el.mapped:
             txt = f"{el.label} — {el.name or el.action}"
             if el.name and el.action:
@@ -3214,12 +3235,24 @@ def run() -> None:
             detail.grid_remove()
             dsb.grid_remove()
             panel_canvas.grid()
+            panel_vsb.grid()
             view_btn.config(text=tr("Tabelle"))
         else:
             panel_canvas.grid_remove()
+            panel_vsb.grid_remove()
             detail.grid()
             dsb.grid()
             view_btn.config(text=tr("Nachbau"))
+
+    def _panel_wheel(event):
+        # scroll the tall reconstructions (radio); Linux = Button-4/5, else delta
+        if event.num == 5 or event.delta < 0:
+            panel_canvas.yview_scroll(1, "units")
+        elif event.num == 4 or event.delta > 0:
+            panel_canvas.yview_scroll(-1, "units")
+
+    for _seq in ("<MouseWheel>", "<Button-4>", "<Button-5>"):
+        panel_canvas.bind(_seq, _panel_wheel)
 
     def _toggle_view():
         mstate["view"] = "table" if mstate["view"] == "panel" else "panel"

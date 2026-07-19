@@ -22,7 +22,7 @@ from dataclasses import dataclass
 from math import ceil, sqrt
 
 from .gui_mapper import describe_action, output_groups, output_nodes
-from .models import GearLedOutput, Profile
+from .models import GearLedOutput, Profile, RadioPanelOutput
 
 # --- element kinds (what the canvas draws) --------------------------------- #
 SWITCH = "switch"  # two-position toggle / momentary — highlights when live-on
@@ -33,6 +33,7 @@ LEVER = "lever"  # gear lever and the like — two momentary edges in one elemen
 AXIS = "axis"  # analog control — drawn as a live-filling bar with a value readout
 HAT = "hat"  # POV hat — one element grouping its direction actions
 ENCODER = "encoder"  # a rotary encoder knob (radio outer/inner + mode selector)
+HEADER = "header"  # a group heading (title + separator line) — not interactive
 # --- output/display element types (driven BY the sim, mapped like inputs) ---- #
 SEGMENT = "segment"  # a 7-seg display cell (selector/bank value)
 DOT = "dot"  # a display decimal-point / annunciator dot
@@ -163,11 +164,13 @@ def _stacked_bars(x: float, y: float, w: float, h: float,
 
 
 def _switch_panel(binds, outs) -> list[PanelElement]:
-    """Hand-drawn Saitek Switch Panel: toggle row + magneto rotary + gear."""
+    """Hand-drawn Saitek Switch Panel: toggle row + magneto rotary + gear, each in
+    a titled group (Schalter / Magnetos / Fahrwerk) so the layout reads clearly."""
     by_code = _index_bindings(binds)
     els: list[PanelElement] = []
 
-    # 13 toggle switches evenly spread across the top row.
+    # 13 toggle switches evenly spread across the top row, under a group heading.
+    els.append(PanelElement(HEADER, "Schalter", 0.02, 0.005, 0.55, 0.045, mapped=True))
     n = len(_SP_TOGGLES)
     margin, gap = 0.02, 0.006
     cw = (1.0 - 2 * margin - (n - 1) * gap) / n
@@ -176,6 +179,8 @@ def _switch_panel(binds, outs) -> list[PanelElement]:
         els.append(_switch_element(hw, x, 0.07, cw, 0.30, code, by_code.get(code)))
 
     # Magneto rotary (bottom-left): each of the 5 detents its own clickable bar.
+    els.append(PanelElement(HEADER, "Magnetos", 0.05, 0.46, 0.42, 0.045, mapped=True))
+    els.append(PanelElement(HEADER, "Fahrwerk", 0.60, 0.42, 0.37, 0.045, mapped=True))
     els += _stacked_bars(0.05, 0.52, 0.42, 0.38, _SP_MAGNETO, by_code)
 
     # Gear indicator LEDs (three lamps) — driven by a gear_leds output if present.
@@ -379,21 +384,98 @@ def _device_layout(binds, outs) -> list[PanelElement]:
                 + [("hat", i, b) for i, b in hats] + ctrl_out)
     displays = disp_out
 
+    def _zone(title, items, y0, y1):  # a titled group + its tiles
+        if not items or (y1 - y0) < 0.06:
+            els.extend(_lay_tiles(items, margin, y0, 1.0 - margin, y1))
+            return
+        els.append(PanelElement(HEADER, title, margin, y0, 1.0 - 2 * margin, 0.05,
+                                mapped=True))
+        els.extend(_lay_tiles(items, margin, y0 + 0.058, 1.0 - margin, y1))
+
     top = y + (gap if axes else 0.0)
     bottom = 1.0 - margin
-    if controls and displays:  # split remaining space: controls up, displays down
+    if controls and displays:  # separate titled zones: controls up, displays down
         nc, nd = len(controls), len(displays)
-        split = top + (bottom - top) * (nc / (nc + nd))
-        split = min(max(split, top + 0.12), bottom - 0.12)
-        els += _lay_tiles(controls, margin, top, 1.0 - margin, split - gap)
-        els += _lay_tiles(displays, margin, split + gap, 1.0 - margin, bottom)
+        split = min(max(top + (bottom - top) * nc / (nc + nd), top + 0.18), bottom - 0.18)
+        _zone("Bedienelemente", controls, top, split - gap)
+        _zone("Anzeigen", displays, split + gap, bottom)
     else:
-        els += _lay_tiles(controls or displays, margin, top, 1.0 - margin, bottom)
+        _zone("Bedienelemente" if controls else "Anzeigen",
+              controls or displays, top, bottom)
+    return els
+
+
+# --------------------------------------------------------------------------- #
+# Saitek Pro Flight Radio Panel — faithful hand layout (scrolls when tall)
+# --------------------------------------------------------------------------- #
+def _bank_display_text(bank) -> tuple[str, str, str]:
+    """(top-row caption, bottom-row caption, hover detail) per bank type."""
+    kind = getattr(bank, "kind", "")
+    if kind == "freq":
+        return ("ACT", "STBY", f"ACT {bank.active} · STBY {bank.standby} · "
+                f"außen {bank.whole_inc}/{bank.whole_dec} · innen "
+                f"{bank.fract_inc}/{bank.fract_dec} · swap {bank.swap_event}")
+    if kind == "dme":
+        srcs = ", ".join(s.label for s in bank.sources)
+        return "DME", srcs, f"DME (Anzeige) · Quellen {srcs} · Push wechselt"
+    if kind == "adf":
+        return ("ADF kHz", "cursor", f"ADF-Ziffern {bank.dig1_var} / {bank.dig2_var} / "
+                f"{bank.dig3_var} · Punkt markiert aktive Ziffer (Push/Swap)")
+    if kind == "xpdr":
+        return ("SQUAWK", "QNH" if bank.baro_var else "—",
+                f"XPDR {bank.code_var} (Punkt = aktive Ziffer, Push/Swap) · "
+                f"QNH {bank.baro_var or '—'} auf außen")
+    return bank.label, "", ""
+
+
+def _radio_panel(binds, outs) -> list[PanelElement]:
+    """Per selector unit, a column of mode-rows; each row = 2 displays + dot (left)
+    and 2 encoders + swap (right), displays and controls kept apart. Every element
+    opens its bank/unit editor. The content is taller than the viewport (y > 1) so
+    the canvas scrolls it row by row."""
+    idx = next((i for i, oo in enumerate(outs) if isinstance(oo, RadioPanelOutput)), None)
+    if idx is None:
+        return _device_layout(binds, outs)
+    o = outs[idx]
+    els: list[PanelElement] = []
+    margin, row_h, gap = 0.015, 0.11, 0.02
+    y = margin
+    for u, unit in enumerate(o.units):
+        uref = f"out:{idx}:units/{u}"
+        # group heading for this selector unit (full width) + its hardware CODES
+        els.append(PanelElement(HEADER, f"Selektor {unit.name} — Mode-Zeilen",
+                                margin, y, 1.0 - 2 * margin, 0.05, mapped=True))
+        y += 0.058
+        els.append(PanelElement(
+            ENCODER, f"Encoder-/Swap-Codes {unit.name}", margin, y, 1.0 - 2 * margin,
+            row_h * 0.8, name=unit.name, ref=uref, mapped=True,
+            action=(f"Hardware-CODES {unit.name}: außen {unit.outer_cw}/{unit.outer_ccw} "
+                    f"· innen {unit.inner_cw}/{unit.inner_ccw} · swap {unit.swap}")))
+        y += row_h * 0.8 + gap
+        for b, bank in enumerate(unit.banks):
+            bref = f"out:{idx}:units/{u}/banks/{b}"
+            top, bot, det = _bank_display_text(bank)
+            # displays (LEFT) + decimal/cursor dot
+            els.append(PanelElement(SEGMENT, f"{bank.label} · {top}", margin, y,
+                                    0.29, row_h, ref=bref, mapped=True, action=det))
+            els.append(PanelElement(SEGMENT, bot, 0.31, y, 0.20, row_h,
+                                    ref=bref, mapped=True, action=det))
+            els.append(PanelElement(
+                DOT, ".", 0.525, y + row_h * 0.25, 0.045, row_h * 0.5, ref=bref,
+                mapped=True, action="Dezimalpunkt / Cursor (springt bei ADF/XPDR über Push)"))
+            # controls (RIGHT) — separated from the displays by the gap
+            els.append(PanelElement(ENCODER, "außen", 0.60, y, 0.11, row_h,
+                                    ref=bref, mapped=True, action=det))
+            els.append(PanelElement(ENCODER, "innen", 0.72, y, 0.11, row_h,
+                                    ref=bref, mapped=True, action=det))
+            els.append(PanelElement(BUTTON, "SWAP", 0.84, y, 0.145, row_h,
+                                    ref=bref, mapped=True, action=det))
+            y += row_h + gap
     return els
 
 
 # Device id -> hand-layout builder. Everything else uses the generic layout.
-_HAND_LAYOUTS = {"switch_panel": _switch_panel}
+_HAND_LAYOUTS = {"switch_panel": _switch_panel, "radio_panel": _radio_panel}
 
 
 def has_hand_layout(device_id: str) -> bool:
