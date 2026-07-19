@@ -94,8 +94,9 @@ _SP_MAGNETO: tuple[tuple[int, str], ...] = (
 )
 # Gear lever edges.
 _SP_GEAR: tuple[tuple[int, str], ...] = ((18, "UP"), (19, "DN"))
-# Gear indicator lamps, driven by a gear_leds output (nose/left/right).
-_SP_GEAR_LEDS: tuple[str, ...] = ("N", "L", "R")
+# Gear indicator lamps: (caption, gear_leds field) — each maps its OWN SimVar via
+# the output's solo field (nose/left/right), so every LED is mapped individually.
+_SP_GEAR_LEDS: tuple[tuple[str, str], ...] = (("N", "nose"), ("L", "left"), ("R", "right"))
 
 
 def _index_bindings(binds) -> dict[int, tuple[int, object]]:
@@ -170,13 +171,14 @@ def _switch_panel(binds, outs) -> list[PanelElement]:
     # Gear indicator LEDs (three lamps) — driven by a gear_leds output if present.
     gear_out = next(((k, o) for k, o in enumerate(outs)
                      if isinstance(o, GearLedOutput)), None)
-    for j, lbl in enumerate(_SP_GEAR_LEDS):
+    for j, (lbl, field) in enumerate(_SP_GEAR_LEDS):
         x = 0.60 + j * 0.13
         els.append(PanelElement(
             LED, lbl, x, 0.49, 0.11, 0.15,
-            name=("Fahrwerks-LEDs" if gear_out else ""),
-            action=("gear_leds" if gear_out else ""),
-            ref=(f"out:{gear_out[0]}" if gear_out else None),
+            name=(f"LED {field}" if gear_out else ""),
+            action=(f"gear_leds · {field}" if gear_out else ""),
+            # ref targets the output's SOLO field -> click opens THAT LED's mapping
+            ref=(f"out:{gear_out[0]}:{field}" if gear_out else None),
             mapped=gear_out is not None,
         ))
 

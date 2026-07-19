@@ -93,11 +93,12 @@ def test_magneto_detents_are_individually_clickable_bars():
     assert off.mapped is False and off.live_key == ("switch", 13)
 
 
-def test_gear_leds_reference_the_output():
-    els = _by_label(panel_layout(PROFILE, "switch_panel"))
-    leds = [els[k] for k in ("N", "L", "R")]
-    assert all(e.kind == LED for e in leds)
-    assert all(e.mapped and e.ref == "out:0" for e in leds)
+def test_gear_leds_map_each_field_individually():
+    leds = [e for e in panel_layout(PROFILE, "switch_panel") if e.kind == LED]
+    assert len(leds) == 3
+    # each LED opens its OWN gear_leds field (solo path), not the whole output
+    assert {e.ref for e in leds} == {"out:0:nose", "out:0:left", "out:0:right"}
+    assert all(e.mapped for e in leds)
 
 
 def test_gear_lever_positions_are_individual_bars():
