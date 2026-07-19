@@ -1,8 +1,18 @@
 # STATUS — Resume-Anker
 
 > Kurzer Einstiegspunkt: was läuft, was offen ist, wie es weitergeht.
-> Stand: **2026-07-19 (spät) — Nachbau-Politur + HAT-MODELL + Flaps-Wippe. GEPUSHT bis `439e941`.**
-> **▶ NÄCHSTE SESSION HIER STARTEN — HAT-CAPTURE-UI (User-Auftrag, frische Session):** pro Hat-Richtung
+> Stand: **2026-07-19 (spät) — Nachbau-Politur + HAT-MODELL + Mehrstellungs-Stapelbalken. GEPUSHT bis `cef74f5`.**
+> **🆕 SEITHER:** Flaps/(on)-off-(on) + **Magneto (5 Detents) + GEAR (up/down) jetzt als EINZELN mappbare
+> Stapelbalken** (`_stacked_bars`: K Balken im Platz eines Schalters, jeder eigenes Mapping/Klick/Live;
+> `source_kind` trägt physische Quelle=switch trotz BUTTON-Optik); ROCKER/SELECTOR/LEVER-Einzelelemente abgelöst.
+> **„AP mode X"-Bindings → „X"** umbenannt (piper_arrow). 335 Tests grün.
+> **🔴 OFFEN (User mehrfach angemahnt) — NÄCHSTES GROSSES PAKET = HAND-LAYOUTS multi_panel + radio_panel:**
+> **(x) Radio-Panel-Nachbau existiert NICHT** (fällt auf Auto-Raster zurück); **(y) Radio-OUTPUT im Nachbau fehlt**;
+> **(z) Multi-OUTPUT im Nachbau fehlt** (Display/Selektor-Werte zuordnen). → Hand-Layout je Panel in `panel_layout`
+> (wie `_switch_panel`) mit **Output-Elementen** (Display-Zellen/Selektor/Encoder) analog `_stacked_bars`; HID-Maps in
+> docs/memory/multi-panel-hid.md + radio-panel-hid.md. Panel-Output-Modelle: MultiPanelOutput/RadioPanelOutput.
+> ---
+> **▶ ODER (User-Auftrag: frische Session) — HAT-CAPTURE-UI:** pro Hat-Richtung
 > Code+Wert per 🪄 aufnehmen, damit ein Hat für JEDEN Yoke ohne Code-Wissen anlegbar ist. **Modell+Engine stehen
 > schon** (Commit `cd2b700`: `models.HatDirection` mit optional `code`/`value`; `HatMap.entries()/codes()`; Engine
 > matcht Hat auf HAT+BUTTON-Events über (code,value)). **Nur der Editor fehlt.** Zu ändern:
