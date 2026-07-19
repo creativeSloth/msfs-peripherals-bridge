@@ -32,6 +32,7 @@ LED = "led"  # indicator lamp driven by an output (glow-from-sim = later)
 LEVER = "lever"  # gear lever and the like — two momentary edges in one element
 AXIS = "axis"  # analog control — drawn as a live-filling bar with a value readout
 HAT = "hat"  # POV hat — one element grouping its direction actions
+ROCKER = "rocker"  # momentary (on)-off-(on) up/down pair shown as ONE control
 
 
 @dataclass(frozen=True)
@@ -52,6 +53,11 @@ class PanelElement:
     live_key: tuple[str, int] | None = None  # ("switch"/"button"/"axis", code) for the overlay
     raw_min: int | None = None  # AXIS only: calibrated bar range (None -> live range/default)
     raw_max: int | None = None
+    # ROCKER only: the second (down) direction — its own code/binding/live key/label
+    code2: int | None = None
+    ref2: str | None = None
+    live_key2: tuple[str, int] | None = None
+    label2: str = ""
 
 
 def _live_key(kind: str, code: int) -> tuple[str, int] | None:
@@ -194,8 +200,51 @@ def _axis_element(i: int, b, x: float, y: float, w: float, h: float) -> PanelEle
     )
 
 
+# Direction words at the END of a binding name pair a momentary (on)-off-(on)
+# rocker (e.g. "Flaps up" / "Flaps down"); same base + opposite word = one rocker.
+_UP_WORDS = ("up", "auf", "hoch", "inc", "incr", "+")
+_DOWN_WORDS = ("down", "dn", "ab", "runter", "dec", "decr", "-")
+
+
+def _direction_of(name: str) -> tuple[str, str] | None:
+    """(base, 'up'|'down') if ``name`` ends in a direction word, else None."""
+    words = name.strip().lower().split()
+    if not words:
+        return None
+    last = words[-1]
+    base = " ".join(words[:-1])
+    if not base:
+        return None  # a bare "up"/"down" has no base to pair on
+    if last in _UP_WORDS:
+        return (base, "up")
+    if last in _DOWN_WORDS:
+        return (base, "down")
+    return None
+
+
+def _pair_rockers(keys):
+    """Merge 'X up' / 'X down' momentary button pairs into (up, down) rockers.
+
+    Returns (rockers, singles) preserving order; a control only pairs when the
+    SAME base has both an up- and a down-named binding."""
+    by_base: dict[str, dict[str, tuple]] = {}
+    for i, b in keys:
+        d = _direction_of(b.name)
+        if d is not None:
+            by_base.setdefault(d[0], {})[d[1]] = (i, b)
+    paired_ids = set()
+    rockers = []
+    for dirs in by_base.values():
+        if "up" in dirs and "down" in dirs:
+            rockers.append((dirs["up"], dirs["down"]))
+            paired_ids.add(id(dirs["up"][1]))
+            paired_ids.add(id(dirs["down"][1]))
+    singles = [(i, b) for i, b in keys if id(b) not in paired_ids]
+    return rockers, singles
+
+
 def _device_layout(binds, outs) -> list[PanelElement]:
-    """Axes as stacked live bars (top) + buttons/switches/hats as a tile grid."""
+    """Axes as stacked live bars (top) + buttons/switches/hats/rockers as tiles."""
     axes = [(i, b) for i, b in enumerate(binds) if str(b.source.kind) == "axis"]
     hats = [(i, b) for i, b in enumerate(binds) if str(b.source.kind) == "hat"]
     keys = [(i, b) for i, b in enumerate(binds)
@@ -217,21 +266,35 @@ def _device_layout(binds, outs) -> list[PanelElement]:
             els.append(_axis_element(i, b, margin, yy, 1.0 - 2 * margin, ah))
         y = margin + len(axes) * (ah + gap)
 
-    # Buttons/switches/hats: a tile grid filling the space under the axes.
-    rest = keys + hats
-    if rest:
+    # Buttons/switches (up/down pairs merged to rockers) + hats as a tile grid.
+    rockers, singles = _pair_rockers(keys)
+    items = ([("rocker", u, d) for u, d in rockers]
+             + [("key", i, b) for i, b in singles]
+             + [("hat", i, b) for i, b in hats])
+    if items:
         gy0 = y + (gap if axes else 0.0)
-        cells = _grid_cells(len(rest), margin, gy0, 1.0 - margin, 1.0 - margin)
-        for (x0, y0, w, h), (i, b) in zip(cells, rest, strict=True):
+        cells = _grid_cells(len(items), margin, gy0, 1.0 - margin, 1.0 - margin)
+        for (x0, y0, w, h), it in zip(cells, items, strict=True):
+            if it[0] == "rocker":
+                (ui, ub), (di, db) = it[1], it[2]
+                base = _direction_of(ub.name)[0] or ub.name
+                els.append(PanelElement(
+                    ROCKER, base, x0, y0, w, h, name=base,
+                    action=f"▲ {_action_summary(ub)} · ▼ {_action_summary(db)}",
+                    code=ub.source.code, ref=f"bind:{ui}", mapped=True,
+                    live_key=_live_key(str(ub.source.kind), ub.source.code),
+                    code2=db.source.code, ref2=f"bind:{di}", label2=db.name,
+                    live_key2=_live_key(str(db.source.kind), db.source.code)))
+                continue
+            _, i, b = it
             k = str(b.source.kind)
-            kind = HAT if k == "hat" else (BUTTON if k == "button" else SWITCH)
+            kind = HAT if it[0] == "hat" else (BUTTON if k == "button" else SWITCH)
             els.append(PanelElement(
                 kind, b.name or f"#{i}", x0, y0, w, h,
                 name=b.name, action=_action_summary(b), code=b.source.code,
                 ref=f"bind:{i}", mapped=True,
                 # hats report as two -1/0/+1 axes — no simple on/off overlay yet
-                live_key=(None if k == "hat" else _live_key(k, b.source.code)),
-            ))
+                live_key=(None if k == "hat" else _live_key(k, b.source.code))))
     return els
 
 

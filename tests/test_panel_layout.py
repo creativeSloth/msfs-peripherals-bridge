@@ -7,6 +7,7 @@ from msfs_peripherals_bridge.panel_layout import (
     HAT,
     LED,
     LEVER,
+    ROCKER,
     SELECTOR,
     SWITCH,
     has_hand_layout,
@@ -143,6 +144,32 @@ def test_axes_stack_above_the_button_tiles():
     tiles = [e for e in els if e.kind in (BUTTON, HAT)]
     # every axis bar sits above every button/hat tile
     assert max(e.y + e.h for e in axes) <= min(e.y for e in tiles) + 1e-9
+
+
+ROCKER_PROFILE = Profile.model_validate({
+    "name": "R",
+    "bindings": {"multi_panel": [
+        {"name": "Flaps up", "source": {"kind": "switch", "code": 16},
+         "action": {"type": "event", "event": "FLAPS_DECR", "value": 1}},
+        {"name": "Flaps down", "source": {"kind": "switch", "code": 17},
+         "action": {"type": "event", "event": "FLAPS_INCR", "value": 1}},
+        {"name": "AP master", "source": {"kind": "switch", "code": 7},
+         "action": {"type": "event", "event": "AP_MASTER", "value": 1}},
+    ]},
+})
+
+
+def test_flaps_up_down_merge_into_one_rocker():
+    els = panel_layout(ROCKER_PROFILE, "multi_panel")
+    rockers = [e for e in els if e.kind == ROCKER]
+    assert len(rockers) == 1  # the up/down pair became ONE element
+    r = rockers[0]
+    assert r.label == "flaps"  # common base
+    assert r.live_key == ("switch", 16) and r.live_key2 == ("switch", 17)
+    assert r.ref == "bind:0" and r.ref2 == "bind:1"
+    # the unrelated AP switch stays its own tile; no stray extra rocker
+    others = [e for e in els if e.kind != ROCKER]
+    assert len(els) == 2 and [e.kind for e in others] == [SWITCH]
 
 
 def test_unknown_device_is_empty():

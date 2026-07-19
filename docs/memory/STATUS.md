@@ -12,11 +12,15 @@
 > ABS_HAT-Konvention um `source.code`), `HatMap.entries()/codes()`; Engine matcht Hat auf HAT **und** BUTTON-Events
 > (Button-Hats!), Auflösung über (code,value); **rückwärtskompatibel** (alte flache `up:{type:event,…}`-Form lädt
 > via before-Validator). 2 neue Engine-Tests. `_schema.md` erweitert. GUI-Editor läuft weiter über die Konvention.
-> **🔴 OFFEN / NÄCHSTE SCHRITTE (in dieser Reihenfolge angefragt):** (a) **Hat-Capture-UI** — pro Richtung Code+Wert
-> per 🪄 aufnehmen (Modell/Engine stehen schon; nur noch Editor `_hat_fields`/`_form_hat`/gui.py-Hat-Slots +
-> Lern-Knopf); (b) **Flaps als (on)-off-(on)-Wippe** statt 2 Schalter; (c) **Multi-Panel-Nachbau inkl. Output**
-> (Werte/Display zuordnen); (d) **Radio-Panel-Nachbau** — (b/c/d am besten zusammen = Hand-Layouts für multi_panel
-> + radio_panel mit Rocker-Element + Output-Elementen). ⚠️ **Ganzer Nachbau + Gauges visuell weiterhin UNGEPRÜFT.**
+> **✅ (b) FLAPS-WIPPE ERLEDIGT:** `panel_layout` fasst „X up"/„X down"-Momentpaare (per Namens-Richtungswort,
+> DE+EN) zu EINEM `ROCKER`-Element zusammen ((on)-off-(on): Kapsel mit oberer+unterer Lampe, beide Codes im
+> Live-Overlay); `_pair_rockers`/`_direction_of` rein+getestet, `_draw_rocker` gerendert. Greift generisch (Flaps
+> im multi_panel etc.). **🔴 OFFEN / NÄCHSTE SCHRITTE:** (a) **Hat-Capture-UI** — pro Richtung Code+Wert per 🪄
+> aufnehmen (Modell/Engine stehen schon; nur noch Editor `_hat_fields`/`_form_hat`/gui.py-Hat-Slots + Lern-Knopf;
+> ACHTUNG Trigger-Wert vs. Action-Wert nicht verwechseln → neues Formfeld, nested `{code,value,action}`);
+> (c) **Multi-Panel-Nachbau inkl. Output** (Werte/Display zuordnen); (d) **Radio-Panel-Nachbau** — (c/d am besten
+> zusammen = Hand-Layouts für multi_panel + radio_panel mit Output-Elementen). ⚠️ **Ganzer Nachbau + Gauges
+> visuell weiterhin UNGEPRÜFT.**
 > ---
 > Stand davor: **2026-07-19 (später) — GAUGES-REWORK: lua-treue Skalierung + Formen + Regler-Parametrierung.**
 > **🆕 GAUGES (uncommitted, 334 Tests grün, ruff clean):** **FIX der ignorierten Skalierung** — Fuel-Flow-Zeiger
