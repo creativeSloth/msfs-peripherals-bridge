@@ -3079,12 +3079,16 @@ def run() -> None:
                       font=("TkDefaultFont", 8, "bold"), tags=(tag,))
 
     def _draw_segment(c, tag, el, x0, y0, x1, y1):
-        # a display cell (7-seg look): dark face, green readout
-        _round_rect(c, x0 + 2, y0 + 2, x1 - 2, y1 - 2, 4, fill="#07160e",
-                    outline="#1f7a4d", width=2, tags=(tag,))
-        c.create_text((x0 + x1) / 2, (y0 + y1) / 2, text=el.label, fill="#3ee08a",
-                      font=("TkFixedFont", 8, "bold"),
-                      width=max(30.0, x1 - x0 - 8), tags=(tag,))
+        # a digital DISPLAY — unmistakably NOT a button: rectangular metal bezel,
+        # black screen, amber 7-seg-style readout (sharp corners, no pill shape).
+        c.create_rectangle(x0 + 2, y0 + 2, x1 - 2, y1 - 2, fill="#1c1c1c",
+                           outline="#6b7280", width=1, tags=(tag,))  # metal bezel
+        sx0, sy0, sx1, sy1 = x0 + 5, y0 + 5, x1 - 5, y1 - 5
+        c.create_rectangle(sx0, sy0, sx1, sy1, fill="#050805", outline="#000000",
+                           width=1, tags=(tag,))  # black screen
+        c.create_text((x0 + x1) / 2, (y0 + y1) / 2, text=el.label, fill="#ffb000",
+                      font=("TkFixedFont", 9, "bold"),
+                      width=max(26.0, sx1 - sx0 - 4), tags=(tag,))
 
     def _draw_button_light(c, tag, el, x0, y0, x1, y1):
         # a button backlight (amber), pill-shaped like a button
