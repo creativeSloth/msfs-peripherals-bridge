@@ -1,7 +1,22 @@
 # STATUS — Resume-Anker
 
 > Kurzer Einstiegspunkt: was läuft, was offen ist, wie es weitergeht.
-> Stand: **2026-07-19 — Branch `feat/mapper-panel-nachbau`: NACHBAU jetzt für ALLE Geräte + Default-Ansicht (uncommitted).**
+> Stand: **2026-07-19 (später) — GAUGES-REWORK: lua-treue Skalierung + Formen + Regler-Parametrierung (uncommitted).**
+> **🆕 GAUGES (uncommitted, 334 Tests grün, ruff clean):** **FIX der ignorierten Skalierung** — Fuel-Flow-Zeiger
+> ist **potenz-gestaucht** (lua `h=1.8`: `Alpha=(ZWEI_PI/Δ·v)^1.8+100`), Preset hatte `h=1` (linear). Modell-
+> Formel `omega+sweep·frac^h` reproduziert die Lua **exakt** (Test: 165·(v/25)^1.8+100; bei 12.5 GPH 147° statt
+> linear 182°). MAP selbst ist linear+korrekt. **FORMEN:** `GaugeSpec.aspect` (1=rund, 6=Cluster) + `NeedleSpec.cx/cy`
+> (eigene Zentren) → neues Preset **„Fuel L/R + Druck (Cluster)"** (1536×256 = 6:1, 3 Teil-Skalen bei cx=1/6,1/2,5/6,
+> aus `arrow-fuel-lr-fuelpressure`); Rendering `_g_paint` formbewusst (rund=Kreis, breit=Rechteck+Teil-Ringe).
+> **PARAMETRIERUNG 100% in der GUI:** `_g_config` neu = **Regler** (ttk.Scale) für Winkelbereich(sweep)/
+> Startwinkel(omega)/Skalen-Verzerrung(h)/Radius + Entries min/max/Haupt/Neben/Faktor/Mitte X-Y/Form, **Live-
+> Vorschau-Canvas** (Nadel bei 65 %, redraw bei jeder Änderung), Abbrechen restauriert aus Snapshot. Nadel jetzt
+> mit Gegen-Stummel. **✅ VALIDIERT:** 16 gauge_model-Tests (inkl. FF-Potenzskala/Cluster/aspect) · GUI-Konstruktions-
+> Smoke · isolierte tkinter-Draw/Widget-API (arc/line/Scale/Notebook/trace). **🔴 VISUELL UNGEPRÜFT** (Pixel-Optik +
+> Regler-Interaktion + Vorschau brauchen gemapptes Fenster). **⏳ evtl. später:** Cluster-Layout (breite Zellen statt
+> Letterbox in quadratischer Zelle), Gauges in den Geräte-Nachbau einbetten (falls „Form für Nachbau" so gemeint war).
+> ---
+> Stand davor: **2026-07-19 — Branch `feat/mapper-panel-nachbau`: NACHBAU jetzt für ALLE Geräte + Default-Ansicht (uncommitted).**
 > **🆕 PANEL-NACHBAU (uncommitted, 330 Tests grün, ruff clean):** reines Modul `panel_layout.py`
 > (`panel_layout(profile, device_id)` → positionierte `PanelElement`s in normierten 0..1-Koords, tkinter-frei,
 > 13 Tests). **Hand-Layout Switch-Panel** (13 Kippschalter codes 0..12 mit HW-Silkscreen BAT/ALT/…, Magneto-

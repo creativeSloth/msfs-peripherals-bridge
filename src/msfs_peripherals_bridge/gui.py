@@ -3439,39 +3439,68 @@ def run() -> None:
                 best = (cols, cell)
         return best
 
-    def _g_draw_one(g, cx, cy, radius, selected):
-        gcv.create_oval(cx - radius, cy - radius, cx + radius, cy + radius,
-                        fill="#161616", outline="#64b5f6" if selected else "#4a4a4a",
-                        width=3 if selected else 2)
-        gcv.create_text(cx, cy - radius * 0.38, text=g.name, fill="#9e9e9e",
-                        font=("TkDefaultFont", max(7, int(radius * 0.09))))
+    def _g_paint(canvas, g, x, y, w, h, selected=False, sample=None):
+        """Draw gauge ``g`` into (x, y, w, h); return per-needle live tuples.
+
+        Shape-aware: aspect 1 = round face; wider = a cluster of sub-scales each
+        at its own centre (cx/cy). ``sample`` (0..1) parks the needle at that
+        fraction for the config preview; ``None`` parks it at v_min so the live
+        loop moves it. Reused for the panel AND the parametrisation preview.
+        """
+        aspect = getattr(g, "aspect", 1.0) or 1.0
+        if w / max(h, 1) > aspect:  # letterbox the face to its aspect inside the cell
+            fw, fh = h * aspect, float(h)
+        else:
+            fw, fh = float(w), w / max(aspect, 0.01)
+        fx, fy = x + (w - fw) / 2, y + (h - fh) / 2
+        base_R = fh * 0.47
+        round_face = abs(aspect - 1.0) < 0.05
+        edge = "#64b5f6" if selected else "#3a3a3a"
+        if round_face:
+            mx, my = fx + fw / 2, fy + fh / 2
+            canvas.create_oval(mx - base_R, my - base_R, mx + base_R, my + base_R,
+                               fill="#141414", outline=edge, width=3 if selected else 2)
+        else:
+            canvas.create_rectangle(fx + 2, fy + 2, fx + fw - 2, fy + fh - 2,
+                                    fill="#141414", outline=edge, width=3 if selected else 2)
+        canvas.create_text(fx + fw / 2, fy + fh * 0.055, text=g.name, fill="#9e9e9e",
+                           font=("TkDefaultFont", max(7, int(fh * 0.045))))
         needles = []
         for idx, n in enumerate(g.needles):
-            r = radius * n.radius * 0.92
+            ncx, ncy = fx + n.cx * fw, fy + n.cy * fh
+            r = base_R * n.radius
+            if not round_face:  # each sub-scale gets its own faint ring
+                canvas.create_oval(ncx - r * 1.05, ncy - r * 1.05, ncx + r * 1.05,
+                                   ncy + r * 1.05, outline="#2b2b2b", width=1)
             for arc in n.arcs:
                 a1, a2 = gauge_model.arc_angles(n, arc)
-                rr = r * 0.99
-                gcv.create_arc(cx - rr, cy - rr, cx + rr, cy + rr,
-                               start=90 - a2, extent=a2 - a1, style="arc",
-                               outline=arc.color, width=max(3, int(radius * 0.035)))
+                canvas.create_arc(ncx - r, ncy - r, ncx + r, ncy + r,
+                                  start=90 - a2, extent=a2 - a1, style="arc",
+                                  outline=arc.color, width=max(3, int(r * 0.07)))
             for value, ang, major in gauge_model.ticks(n):
-                ln = r * (0.16 if major else 0.08)
-                gcv.create_line(*gauge_model.polar(cx, cy, r - ln, ang),
-                                *gauge_model.polar(cx, cy, r, ang),
-                                fill="#e0e0e0", width=2 if major else 1)
+                ln = r * (0.15 if major else 0.08)
+                canvas.create_line(*gauge_model.polar(ncx, ncy, r - ln, ang),
+                                   *gauge_model.polar(ncx, ncy, r, ang),
+                                   fill="#e8e8e8", width=2 if major else 1)
                 if major:
-                    gcv.create_text(*gauge_model.polar(cx, cy, r - ln - radius * 0.09, ang),
-                                    text=f"{value:g}", fill="#e0e0e0",
-                                    font=("TkDefaultFont", max(6, int(radius * 0.075))))
-            line = gcv.create_line(cx, cy, *gauge_model.polar(cx, cy, r * 0.8, n.omega),
-                                   fill=n.color, width=max(2, int(radius * 0.03)),
-                                   capstyle="round")
-            text = gcv.create_text(cx, cy + radius * (0.3 + 0.16 * idx),
-                                   text=f"{n.label} —", fill=n.color,
-                                   font=("TkDefaultFont", max(7, int(radius * 0.085))))
-            needles.append((n, line, text, cx, cy, r))
-        hub = radius * 0.05
-        gcv.create_oval(cx - hub, cy - hub, cx + hub, cy + hub, fill="#9e9e9e", outline="")
+                    canvas.create_text(
+                        *gauge_model.polar(ncx, ncy, r - ln - r * 0.13, ang),
+                        text=f"{value:g}", fill="#d0d0d0",
+                        font=("TkDefaultFont", max(6, int(r * 0.11))))
+            frac = None if sample is None else max(0.0, min(1.0, sample))
+            ang0 = n.omega + n.sweep * (frac ** n.h) if frac is not None \
+                else gauge_model.angle_for(n, n.v_min)
+            line = canvas.create_line(
+                *gauge_model.polar(ncx, ncy, r * 0.14, ang0 + 180),
+                *gauge_model.polar(ncx, ncy, r * 0.82, ang0),
+                fill=n.color, width=max(2, int(r * 0.045)), capstyle="round")
+            ry = ncy + r * (0.5 + 0.15 * idx) if round_face else ncy + r * 0.55
+            text = canvas.create_text(ncx, ry, text=f"{n.label} —", fill=n.color,
+                                      font=("TkDefaultFont", max(7, int(r * 0.13))))
+            hub = max(2.0, r * 0.05)
+            canvas.create_oval(ncx - hub, ncy - hub, ncx + hub, ncy + hub,
+                               fill="#bdbdbd", outline="")
+            needles.append((n, line, text, ncx, ncy, r))
         return needles
 
     def _g_redraw(_e=None):
@@ -3485,10 +3514,9 @@ def run() -> None:
             return
         cols, cell = _g_layout()
         for i, g in enumerate(specs):
-            cx = (i % cols) * cell + cell / 2
-            cy = (i // cols) * cell + cell / 2
+            x, y = (i % cols) * cell, (i // cols) * cell
             g_state["items"].append(
-                _g_draw_one(g, cx, cy, cell * 0.46, selected=(i == g_state["sel"]))
+                _g_paint(gcv, g, x, y, cell, cell, selected=(i == g_state["sel"]))
             )
 
     def _g_tick():
@@ -3501,7 +3529,8 @@ def run() -> None:
                         value = vals.get(wire) if wire else None
                         if isinstance(value, (int, float)) and not isinstance(value, bool):
                             ang = gauge_model.angle_for(n, float(value))
-                            gcv.coords(line, cx, cy, *gauge_model.polar(cx, cy, r * 0.8, ang))
+                            gcv.coords(line, *gauge_model.polar(cx, cy, r * 0.14, ang + 180),
+                                       *gauge_model.polar(cx, cy, r * 0.82, ang))
                             shown = gauge_model.display_value(n, float(value))
                             gcv.itemconfigure(text, text=f"{n.label} {n.fmt.format(shown)}")
                         else:
@@ -3546,66 +3575,153 @@ def run() -> None:
         g_hint.config(text=tr("Gauge vom Panel entfernt (Bibliothek unberührt)."))
 
     def _g_config(spec, existing_index=None):
-        """Map the needles of ``spec`` to variables, then add/update the panel.
-
-        Mapping comes FIRST (user flow): a new gauge lands on the panel only
-        after Übernehmen — which also saves the gauge by name into the library
-        so it can be called up again later.
+        """Parametrise ``spec``: map each needle's variable AND shape its scale +
+        needle via sliders, with a live preview. A new gauge lands on the panel
+        only on Übernehmen (which also saves it to the library by name); Abbrechen
+        restores the gauge unchanged.
         """
+        snapshot = gauge_model.to_dict(spec)  # for a faithful cancel/restore
         dlg = tk.Toplevel(win)
-        dlg.title(f"Gauge mappen — {spec.name}")
+        dlg.title(f"Gauge parametrieren — {spec.name}")
         dlg.transient(win)
-        frm = ttk.Frame(dlg, padding=12)
-        frm.pack(fill="both", expand=True)
+        outer = ttk.Frame(dlg, padding=12)
+        outer.pack(fill="both", expand=True)
+        left = ttk.Frame(outer)
+        left.grid(row=0, column=0, sticky="nsew")
+        right = ttk.Frame(outer)
+        right.grid(row=0, column=1, sticky="n", padx=(14, 0))
+
+        # live preview (right) — redrawn on every change, needle parked mid-scale
+        pcv = tk.Canvas(right, width=300, height=300, background="#232323",
+                        highlightthickness=0)
+        pcv.pack()
+        ttk.Label(right, text=tr("Live-Vorschau (Nadel bei ~65 %)"),
+                  foreground="#666").pack(pady=(4, 0))
+
+        def _preview(*_a):
+            pcv.delete("all")
+            w = max(pcv.winfo_width(), 300)
+            h = max(pcv.winfo_height(), 300)
+            _g_paint(pcv, spec, 6, 6, w - 12, h - 12, sample=0.65)
+
+        pcv.bind("<Configure>", _preview)
+
         name_var = tk.StringVar(value=spec.name)
-        ttk.Label(frm, text=tr("Name")).grid(row=0, column=0, sticky="w", pady=(0, 6))
-        ttk.Entry(frm, textvariable=name_var, width=26).grid(
-            row=0, column=1, sticky="w", padx=4, pady=(0, 6))
+        top = ttk.Frame(left)
+        top.grid(row=0, column=0, sticky="ew", pady=(0, 8))
+        ttk.Label(top, text=tr("Name")).pack(side="left")
+        ttk.Entry(top, textvariable=name_var, width=24).pack(side="left", padx=6)
+
+        # one tab per needle; sliders mutate the needle live -> preview refreshes
+        nbk = ttk.Notebook(left)
+        nbk.grid(row=1, column=0, sticky="nsew")
         rows = []
-        for r, n in enumerate(spec.needles, start=1):
-            ttk.Label(frm, text=f"Zeiger „{n.label}“").grid(row=r, column=0, sticky="w", pady=2)
-            fr = ttk.Frame(frm)
-            fr.grid(row=r, column=1, sticky="w", pady=2)
+
+        def _num_entry(parent, label, get, setter, width=7):
+            """Labelled entry that writes ``setter`` on every valid keystroke."""
+            ttk.Label(parent, text=tr(label)).pack(side="left", padx=(6, 1))
+            var = tk.StringVar(value=f"{get():g}")
+
+            def _on_write(*_a):
+                try:
+                    setter(float(var.get()))
+                except ValueError:
+                    return
+                _preview()
+            var.trace_add("write", _on_write)
+            ttk.Entry(parent, textvariable=var, width=width).pack(side="left")
+            return var
+
+        def _slider(parent, label, lo, hi, get, setter, fmt="{:.0f}"):
+            fr = ttk.Frame(parent)
+            fr.pack(fill="x", pady=3)
+            ttk.Label(fr, text=tr(label), width=14).pack(side="left")
+            val = ttk.Label(fr, text=fmt.format(get()), width=6, foreground="#2563eb")
+            val.pack(side="right")
+            sc = ttk.Scale(fr, from_=lo, to=hi, value=get())
+
+            def _cmd(v):
+                fv = float(v)
+                setter(fv)
+                val.config(text=fmt.format(fv))
+                _preview()
+            sc.config(command=_cmd)
+            sc.pack(side="left", fill="x", expand=True, padx=6)
+
+        for n in spec.needles:
+            tabf = ttk.Frame(nbk, padding=8)
+            nbk.add(tabf, text=n.label or tr("Zeiger"))
+            # --- variable + factor ---------------------------------------- #
+            vrow = ttk.Frame(tabf)
+            vrow.pack(fill="x", pady=(0, 4))
             v_kind = tk.StringVar(value=n.kind)
             v_var = tk.StringVar(value=n.var)
             v_factor = tk.StringVar(value=f"{n.factor:g}")
-            v_lo = tk.StringVar(value=f"{n.v_min:g}")
-            v_hi = tk.StringVar(value=f"{n.v_max:g}")
-            ttk.Entry(fr, textvariable=v_var, width=30,
-                      state="readonly").pack(side="left")
+            ttk.Entry(vrow, textvariable=v_var, width=24, state="readonly").pack(side="left")
 
             def _pick(vk=v_kind, vv=v_var):
-                def on_pick(v):
-                    vk.set(v.kind)
-                    vv.set(v.name)
-                _open_var_picker(win, catalog, on_pick)
-
-            ttk.Button(fr, text=tr("Wählen…"), style="Accent.TButton",
+                _open_var_picker(win, catalog, lambda v: (vk.set(v.kind), vv.set(v.name)))
+            ttk.Button(vrow, text=tr("Wählen…"), style="Accent.TButton",
                        command=_pick).pack(side="left", padx=4)
-            ttk.Label(fr, text=tr("Faktor")).pack(side="left", padx=(8, 0))
-            ttk.Entry(fr, textvariable=v_factor, width=7).pack(side="left", padx=(2, 2))
-            _info(fr, "Rohwert mal Faktor = angezeigter Wert (z. B. 0.001 für Hz → kHz). "
-                      "Leer/1 = unverändert.")
-            ttk.Label(fr, text=tr("min")).pack(side="left", padx=(6, 0))
-            ttk.Entry(fr, textvariable=v_lo, width=7).pack(side="left", padx=2)
-            ttk.Label(fr, text=tr("max")).pack(side="left")
-            ttk.Entry(fr, textvariable=v_hi, width=7).pack(side="left", padx=2)
-            rows.append((n, v_kind, v_var, v_factor, v_lo, v_hi))
-        g_status = ttk.Label(frm, text=tr(""), foreground="#c62828")
-        g_status.grid(row=len(spec.needles) + 1, column=0, columnspan=2, sticky="w")
-        btns = ttk.Frame(frm)
-        btns.grid(row=len(spec.needles) + 2, column=0, columnspan=2,
-                  sticky="ew", pady=(8, 0))
+            ttk.Label(vrow, text=tr("Faktor")).pack(side="left", padx=(6, 1))
+            ttk.Entry(vrow, textvariable=v_factor, width=6).pack(side="left")
+            # --- value range + ticks (entries) ---------------------------- #
+            r1 = ttk.Frame(tabf)
+            r1.pack(fill="x", pady=2)
+
+            def _set(attr, nn=n):
+                return lambda val: setattr(nn, attr, val)
+            _num_entry(r1, "min", lambda nn=n: nn.v_min, _set("v_min"))
+            _num_entry(r1, "max", lambda nn=n: nn.v_max, _set("v_max"))
+            _num_entry(r1, "Haupt", lambda nn=n: nn.major, _set("major"))
+            _num_entry(r1, "Neben", lambda nn=n: nn.minor, _set("minor"))
+            # --- scale + needle sliders (the core wish) ------------------- #
+            _slider(tabf, "Winkelbereich", 20, 360, lambda nn=n: nn.sweep,
+                    _set("sweep"), "{:.0f}°")
+            _slider(tabf, "Startwinkel", -180, 360, lambda nn=n: nn.omega,
+                    _set("omega"), "{:.0f}°")
+            _slider(tabf, "Skalen-Verzerrung", 0.3, 3.0, lambda nn=n: nn.h,
+                    _set("h"), "{:.2f}")
+            _slider(tabf, "Radius (Nadel)", 0.2, 1.0, lambda nn=n: nn.radius,
+                    _set("radius"), "{:.2f}")
+            # --- placement inside a cluster face -------------------------- #
+            r2 = ttk.Frame(tabf)
+            r2.pack(fill="x", pady=2)
+            _num_entry(r2, "Mitte X", lambda nn=n: nn.cx, _set("cx"))
+            _num_entry(r2, "Mitte Y", lambda nn=n: nn.cy, _set("cy"))
+            rows.append((n, v_kind, v_var, v_factor))
+
+        # shape (whole gauge)
+        srow = ttk.Frame(left)
+        srow.grid(row=2, column=0, sticky="w", pady=(8, 0))
+        _num_entry(srow, "Form (Breite:Höhe)", lambda: spec.aspect,
+                   lambda v: setattr(spec, "aspect", v or 1.0))
+        _info(srow, "1 = rund, 6 = breiter Cluster (Fuel L/R+Druck). Nadeln über "
+                    "Mitte X/Y platzieren.")
+
+        g_status = ttk.Label(left, text=tr(""), foreground="#c62828")
+        g_status.grid(row=3, column=0, sticky="w", pady=(6, 0))
+        btns = ttk.Frame(left)
+        btns.grid(row=4, column=0, sticky="ew", pady=(8, 0))
+
+        def _restore():
+            r = gauge_model.from_dict(snapshot)
+            spec.name, spec.aspect = r.name, r.aspect
+            spec.needles[:] = r.needles  # keep the spec object identity
+
+        def _cancel():
+            if existing_index is not None:
+                _restore()
+                _g_redraw()
+            dlg.destroy()
 
         def _apply():
             try:
-                for n, vk, vv, vf, vlo, vhi in rows:
-                    lo, hi = float(vlo.get() or 0), float(vhi.get() or 0)
-                    if lo >= hi:
+                for n, vk, vv, vf in rows:
+                    if n.v_min >= n.v_max:
                         raise ValueError(f"Zeiger „{n.label}“: min muss < max sein.")
                     n.kind, n.var = vk.get(), vv.get().strip()
                     n.factor = float(vf.get() or 1) or 1.0
-                    n.v_min, n.v_max = lo, hi
             except ValueError as exc:
                 g_status.config(text=str(exc))
                 return
@@ -3621,13 +3737,15 @@ def run() -> None:
 
         ttk.Button(btns, text=tr("Übernehmen"), style="Accent.TButton",
                    command=_apply).pack(side="left")
-        ttk.Button(btns, text=tr("Abbrechen"), command=dlg.destroy).pack(side="left", padx=6)
+        ttk.Button(btns, text=tr("Abbrechen"), command=_cancel).pack(side="left", padx=6)
         if spec.name in _g_library():
             def _unlib():
                 _g_lib_delete(name_var.get().strip() or spec.name)
                 g_status.config(text=tr("Aus der Bibliothek gelöscht (Panel unberührt)."))
             ttk.Button(btns, text=tr("Aus Bibliothek löschen"), style="Danger.TButton",
                        command=_unlib).pack(side="left", padx=6)
+        dlg.protocol("WM_DELETE_WINDOW", _cancel)
+        dlg.after(50, _preview)
         dlg.lift()
         dlg.focus_set()
 

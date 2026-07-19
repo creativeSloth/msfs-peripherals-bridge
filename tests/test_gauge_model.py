@@ -111,3 +111,39 @@ def test_presets_are_sane():
 def test_wire_name_virtual():
     assert gm.wire_name(_needle(kind="V:", var="mode")) == "V:mode"
     assert gm.wire_name(_needle(kind="V:", var="V:mode")) == "V:mode"
+
+
+# --------------------------------------------------------------------------- #
+# faithful Air Manager scaling: the Fuel-Flow power-law scale + cluster shape
+# --------------------------------------------------------------------------- #
+def test_fuel_flow_preset_matches_lua_power_law():
+    # lua: Alpha = (ZWEI_PI/Δ · v)^1.8 + 100 with ZWEI_PI = 165^(1/1.8),
+    # i.e. Alpha(v) = 165·(v/25)^1.8 + 100. This is what h=1.8 must reproduce.
+    ff = next(n for n in gm.presets()["MAP + Fuel Flow"].needles if n.label == "FF")
+    assert ff.h == pytest.approx(1.8)
+    for v in (0, 5, 12.5, 20, 25):
+        assert gm.angle_for(ff, v) == pytest.approx(165 * (v / 25) ** 1.8 + 100)
+    # and it is genuinely compressed low — mid-scale sits well below the linear mid
+    assert gm.angle_for(ff, 12.5) < 100 + 165 * 0.5 - 20
+
+
+def test_cluster_shape_and_centres():
+    g = gm.presets()["Fuel L/R + Druck (Cluster)"]
+    assert g.aspect == pytest.approx(6.0)
+    assert [round(n.cx, 3) for n in g.needles] == [0.167, 0.5, 0.833]
+    assert all(n.cy == pytest.approx(0.5) for n in g.needles)
+
+
+def test_aspect_and_centres_roundtrip():
+    g = gm.presets()["Fuel L/R + Druck (Cluster)"]
+    back = gm.from_dict(gm.to_dict(g))
+    assert back == g
+    assert back.aspect == pytest.approx(6.0)
+
+
+def test_from_dict_tolerates_unknown_needle_keys():
+    # a persisted gauge from an older/newer schema must still load
+    d = {"name": "X", "aspect": 1.0,
+         "needles": [{"label": "A", "v_min": 0, "v_max": 10, "bogus": 7}]}
+    g = gm.from_dict(d)
+    assert g.needles[0].label == "A" and g.needles[0].cx == 0.5

@@ -55,7 +55,9 @@ class NeedleSpec:
     major: float = 10.0  # major tick step in display units (0 = none)
     minor: float = 0.0  # minor tick step (0 = none)
     arcs: list[Arc] = field(default_factory=list)
-    radius: float = 1.0  # scale radius relative to the face (inner scales < 1)
+    radius: float = 0.92  # scale radius as a fraction of the face's base radius
+    cx: float = 0.5  # needle centre X as a fraction of the face width
+    cy: float = 0.5  # needle centre Y as a fraction of the face height
     fmt: str = "{:.0f}"  # digital readout format
     color: str = "#e53935"  # needle colour
 
@@ -66,10 +68,17 @@ class NeedleSpec:
 
 @dataclass
 class GaugeSpec:
-    """One instrument: a face with 1..n needles."""
+    """One instrument: a face with 1..n needles.
+
+    ``aspect`` is the face's width/height ratio: 1.0 = round; the fuel cluster is
+    a wide 6:1 face carrying three sub-scales side by side (each needle placed by
+    its own ``cx``/``cy``). Keeping the aspect lets non-round instruments keep
+    their shape on the panel and in the reconstruction.
+    """
 
     name: str
     needles: list[NeedleSpec] = field(default_factory=list)
+    aspect: float = 1.0  # face width / height (1 = round, 6 = wide fuel cluster)
 
 
 # --------------------------------------------------------------------------- #
@@ -143,11 +152,13 @@ def to_dict(g: GaugeSpec) -> dict:
 
 def from_dict(d: dict) -> GaugeSpec:
     needles = []
+    known = set(NeedleSpec.__dataclass_fields__)
     for nd in d.get("needles", []):
-        nd = dict(nd)
+        nd = {k: v for k, v in nd.items() if k in known}  # tolerate schema drift
         nd["arcs"] = [Arc(**a) for a in nd.get("arcs", [])]
         needles.append(NeedleSpec(**nd))
-    return GaugeSpec(name=str(d.get("name", "Gauge")), needles=needles)
+    return GaugeSpec(name=str(d.get("name", "Gauge")), needles=needles,
+                     aspect=float(d.get("aspect", 1.0)) or 1.0)
 
 
 # --------------------------------------------------------------------------- #
@@ -156,14 +167,17 @@ def from_dict(d: dict) -> GaugeSpec:
 # --------------------------------------------------------------------------- #
 def presets() -> dict[str, GaugeSpec]:
     return {
+        # MAP outer scale is linear; the Fuel-Flow inner scale is power-law
+        # compressed (h = 1.8 in the lua) — the crux the user flagged. sweep 165 /
+        # omega 100 with h 1.8 reproduces the lua's (ZWEI_PI/Δ·v)^1.8 + 100 exactly.
         "MAP + Fuel Flow": GaugeSpec("MAP + Fuel Flow", [
             NeedleSpec(label="MAP", var="ENG MANIFOLD PRESSURE:1", unit="inHg",
-                       v_min=10, v_max=50, sweep=180, omega=-90, major=5, minor=1,
-                       arcs=[Arc(10, 41)], fmt="{:.1f}"),
+                       v_min=10, v_max=50, sweep=180, omega=-90, h=1.0, major=5, minor=1,
+                       arcs=[Arc(10, 41)], radius=0.95, fmt="{:.1f}"),
             NeedleSpec(label="FF", var="ENG FUEL FLOW GPH:1", unit="GPH",
-                       v_min=0, v_max=25, sweep=165, omega=100, major=5, minor=1,
+                       v_min=0, v_max=25, sweep=165, omega=100, h=1.8, major=5, minor=1,
                        arcs=[Arc(0, 24), Arc(21.5, 24, "#66bb6a")],
-                       radius=0.58, color="#fbc02d", fmt="{:.1f}"),
+                       radius=0.62, color="#fbc02d", fmt="{:.1f}"),
         ]),
         "RPM": GaugeSpec("RPM", [
             NeedleSpec(label="RPM", var="GENERAL ENG RPM:1", unit="rpm",
@@ -191,6 +205,19 @@ def presets() -> dict[str, GaugeSpec]:
                        v_min=0, v_max=38.5, sweep=100, omega=-50, major=10, minor=2,
                        fmt="{:.1f}"),
         ]),
+        # Wide 6:1 cluster: L tank / fuel pressure / R tank, three sub-scales at
+        # their own centres (cx = 1/6, 1/2, 5/6) — the non-round shape kept 1:1.
+        "Fuel L/R + Druck (Cluster)": GaugeSpec("Fuel L/R + Druck", [
+            NeedleSpec(label="FUEL L", var="FUEL LEFT QUANTITY", unit="gal",
+                       v_min=0, v_max=38.5, sweep=100, omega=-50, major=10, minor=2,
+                       cx=1 / 6, cy=0.5, fmt="{:.1f}"),
+            NeedleSpec(label="PRESS", var="GENERAL ENG FUEL PRESSURE:1", unit="PSI",
+                       v_min=0, v_max=50, sweep=100, omega=-50, major=25, minor=5,
+                       cx=0.5, cy=0.5, color="#fbc02d", fmt="{:.0f}"),
+            NeedleSpec(label="FUEL R", var="FUEL RIGHT QUANTITY", unit="gal",
+                       v_min=0, v_max=38.5, sweep=100, omega=-50, major=10, minor=2,
+                       cx=5 / 6, cy=0.5, fmt="{:.1f}"),
+        ], aspect=6.0),
         "Eigenes…": GaugeSpec("Neues Gauge", [
             NeedleSpec(label="WERT", var="", v_min=0, v_max=100,
                        sweep=270, omega=-135, major=10, fmt="{:.0f}"),
