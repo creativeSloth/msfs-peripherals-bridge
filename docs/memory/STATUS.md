@@ -1,7 +1,22 @@
 # STATUS — Resume-Anker
 
 > Kurzer Einstiegspunkt: was läuft, was offen ist, wie es weitergeht.
-> Stand: **2026-07-19 (spät) — Nachbau: Stapelbalken + OUTPUTS als getippte Elemente. GEPUSHT bis `d4adb6a`.**
+> Stand: **2026-07-19 (spät) — Nachbau: Zonen-Trennung + Radio-Controls + saubere Labels. GEPUSHT bis `be47002`.**
+> **🆕 GANZ NEU:** **Knöpfe/Anzeigen GETRENNT** (`_device_layout`: Controls-Zone oben, Displays-Zone unten,
+> `_lay_tiles`/`_output_items`→(controls,displays)); **Radio-Controls** pro Einheit = 1 ENCODER + 1 Swap-BUTTON
+> (`_draw_encoder`); **saubere Display-Labels** (COM1/NAV1/ADF/DME/XPDR bzw. ALT/HDG — kein „Bank"/Kleinschreibung/
+> SimVar; Anzeige-Var+Setz-Event im Hover). 337 Tests grün.
+> **▶ NÄCHSTER FOKUS-SCHRITT — FAITHFUL RADIO-LAYOUT (User sehr detailliert, eigene Session empfohlen):**
+> eigenes `_radio_panel`-Hand-Layout statt Auto-Grid. Pro **Mode-Zeile je Selektor**: **2 Displays (active/standby)**
+> + **2 Encoder (außen/innen)** + **1 Swap-Button**. **Verschiebbarer PUNKT** (Dezimalpunkt) je Display — springt bei
+> **ADF & XPDR** über den Swap; muss **direkt einstellbar** sein (eigenes DOT-Element, mappbar). **2 Selektoren
+> (upper/lower)** getrennt mappbar (aktuell identisch). **Zeilenweise logische Gruppen, untereinander, SCROLLBAR**
+> (gui.py: Canvas `scrollregion`+Scrollbar+Mausrad; `_render_panel_canvas` auf Content-Höhe statt Viewport
+> normalisieren). Modell: **RadioPanelOutput.units[].banks[]** (active/standby-Vars, dot?), `outer_cw/ccw/inner_cw/
+> ccw/swap` je Unit. Editor adressiert `out:i:units/u` + `.../banks/b`. **DANACH:** Glow-aus-Sim (Outputs live vom
+> Sim), Hat-Capture-UI. HID-Maps in docs/memory/{multi,radio}-panel-hid.md.
+> ---
+> Stand davor: **2026-07-19 (spät) — Nachbau: Stapelbalken + OUTPUTS als getippte Elemente.**
 > **🆕 SEITHER:** Magneto/GEAR/Flaps als EINZELN mappbare **Stapelbalken** (`_stacked_bars`, klare Binding-Namen als
 > Label, leuchten grün beim Drücken am Gerät via live_key — headless verifiziert). **OUTPUTS = getippte Elemente wie
 > Inputs** (`_classify_output`+`_output_items`, Typen LED/SEGMENT/BUTTON_LIGHT/DOT, je `ref=out:i:<pfad>` → Klick
