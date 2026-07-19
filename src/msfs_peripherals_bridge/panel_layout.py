@@ -21,7 +21,7 @@ from __future__ import annotations
 from dataclasses import dataclass
 from math import ceil, sqrt
 
-from .gui_mapper import describe_action
+from .gui_mapper import describe_action, output_groups, output_nodes
 from .models import GearLedOutput, Profile
 
 # --- element kinds (what the canvas draws) --------------------------------- #
@@ -32,6 +32,10 @@ LED = "led"  # indicator lamp driven by an output (glow-from-sim = later)
 LEVER = "lever"  # gear lever and the like — two momentary edges in one element
 AXIS = "axis"  # analog control — drawn as a live-filling bar with a value readout
 HAT = "hat"  # POV hat — one element grouping its direction actions
+# --- output element types (driven BY the sim, mapped like inputs) ----------- #
+SEGMENT = "segment"  # a 7-seg display cell (selector/bank value)
+DOT = "dot"  # a display decimal-point / annunciator dot
+BUTTON_LIGHT = "button_light"  # a button's backlight LED (bool_leds)
 
 
 @dataclass(frozen=True)
@@ -258,13 +262,44 @@ def _pair_rockers(keys):
     return rockers, singles
 
 
+def _classify_output(path) -> str | None:
+    """Physical output-element type for an addressable output group (None = skip).
+
+    Maps the profile's output structure onto the panel's physical outputs the
+    same way inputs map to controls: a display cell = SEGMENT, a button backlight
+    = BUTTON_LIGHT, an indicator lamp = LED. Container/config rows are skipped."""
+    if not path:
+        return None
+    if len(path) == 1 and path[0] in ("nose", "left", "right"):
+        return LED  # gear indicator lamps
+    if path[0] == "bool_leds":
+        return BUTTON_LIGHT  # var-driven button backlights
+    if len(path) == 2 and path[0] == "selector":
+        return SEGMENT  # multi-panel display value per selector position
+    if len(path) == 4 and path[0] == "units" and path[2] == "banks":
+        return SEGMENT  # radio-panel display value per bank
+    return None
+
+
+def _output_items(outs) -> list[tuple]:
+    """('out', out_index, group, element_kind) per mappable physical output."""
+    items: list[tuple] = []
+    for k, o in enumerate(outs):
+        for g in output_groups(output_nodes(o)):
+            okind = _classify_output(g.path)
+            if okind is not None:
+                items.append(("out", k, g, okind))
+    return items
+
+
 def _device_layout(binds, outs) -> list[PanelElement]:
-    """Axes as stacked live bars (top) + buttons/switches/hats/rockers as tiles."""
+    """Axes as stacked live bars (top) + inputs AND typed outputs as clickable tiles."""
     axes = [(i, b) for i, b in enumerate(binds) if str(b.source.kind) == "axis"]
     hats = [(i, b) for i, b in enumerate(binds) if str(b.source.kind) == "hat"]
     keys = [(i, b) for i, b in enumerate(binds)
             if str(b.source.kind) in ("button", "switch")]
-    if not (axes or hats or keys):
+    out_items = _output_items(outs)
+    if not (axes or hats or keys or out_items):
         return []
     els: list[PanelElement] = []
     margin, gap = 0.03, 0.018
@@ -281,11 +316,13 @@ def _device_layout(binds, outs) -> list[PanelElement]:
             els.append(_axis_element(i, b, margin, yy, 1.0 - 2 * margin, ah))
         y = margin + len(axes) * (ah + gap)
 
-    # Buttons/switches (up/down pairs merged to rockers) + hats as a tile grid.
+    # Inputs (up/down pairs merged to rockers) + typed OUTPUT tiles in one grid —
+    # outputs work just like inputs, only their type is led/segment/button-light.
     rockers, singles = _pair_rockers(keys)
     items = ([("rocker", u, d) for u, d in rockers]
              + [("key", i, b) for i, b in singles]
-             + [("hat", i, b) for i, b in hats])
+             + [("hat", i, b) for i, b in hats]
+             + out_items)
     if items:
         gy0 = y + (gap if axes else 0.0)
         cells = _grid_cells(len(items), margin, gy0, 1.0 - margin, 1.0 - margin)
@@ -299,6 +336,13 @@ def _device_layout(binds, outs) -> list[PanelElement]:
                 local = {ub.source.code: (ui, ub), db.source.code: (di, db)}
                 els += _stacked_bars(x0, y0, w, h, positions, local,
                                      src_kind=str(ub.source.kind))
+                continue
+            if it[0] == "out":  # a typed output element -> opens its own mapping
+                _, k, g, okind = it
+                path = "/".join(map(str, g.path))
+                els.append(PanelElement(
+                    okind, g.label, x0, y0, w, h, name=g.label,
+                    action=str(g.value), ref=f"out:{k}:{path}", mapped=True))
                 continue
             _, i, b = it
             k = str(b.source.kind)

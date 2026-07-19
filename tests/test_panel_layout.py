@@ -6,6 +6,7 @@ from msfs_peripherals_bridge.panel_layout import (
     BUTTON,
     HAT,
     LED,
+    SEGMENT,
     SWITCH,
     has_hand_layout,
     panel_layout,
@@ -173,6 +174,28 @@ def test_flaps_up_down_become_two_stacked_bars():
     assert up.y + up.h <= dn.y + 1e-9  # up stacks above down within one cell
     # the unrelated AP switch stays its own single tile
     assert len(els) == 3 and els[-1].label == "AP master"
+
+
+OUT_PROFILE = Profile.model_validate({
+    "name": "O",
+    "outputs": {"multi_panel": [{
+        "type": "multi_panel",
+        "selector": [
+            {"code": 0, "label": "ALT", "simvar": "AUTOPILOT ALTITUDE LOCK VAR",
+             "min": 0, "max": 99999},
+            {"code": 1, "label": "VS", "simvar": "AUTOPILOT VERTICAL HOLD VAR",
+             "min": -9999, "max": 9999},
+        ],
+    }]},
+})
+
+
+def test_outputs_become_typed_clickable_elements_like_inputs():
+    els = panel_layout(OUT_PROFILE, "multi_panel")  # a device with ONLY outputs
+    segs = [e for e in els if e.kind == SEGMENT]
+    assert len(segs) == 2  # one display cell per selector position
+    assert {e.ref for e in segs} == {"out:0:selector/0", "out:0:selector/1"}
+    assert all(e.mapped for e in segs)  # click opens THAT output field's mapping
 
 
 def test_unknown_device_is_empty():

@@ -3078,6 +3078,31 @@ def run() -> None:
         c.create_text((x0 + x1) / 2, (y0 + y1) / 2, text=el.label, fill="#e2e8f0",
                       font=("TkDefaultFont", 8, "bold"), tags=(tag,))
 
+    def _draw_segment(c, tag, el, x0, y0, x1, y1):
+        # a display cell (7-seg look): dark face, green readout
+        _round_rect(c, x0 + 2, y0 + 2, x1 - 2, y1 - 2, 4, fill="#07160e",
+                    outline="#1f7a4d", width=2, tags=(tag,))
+        c.create_text((x0 + x1) / 2, (y0 + y1) / 2, text=el.label, fill="#3ee08a",
+                      font=("TkFixedFont", 8, "bold"),
+                      width=max(30.0, x1 - x0 - 8), tags=(tag,))
+
+    def _draw_button_light(c, tag, el, x0, y0, x1, y1):
+        # a button backlight (amber), pill-shaped like a button
+        bx0, by0, bx1, by1 = x0 + 3, y0 + 3, x1 - 3, y1 - 3
+        _round_rect(c, bx0, by0, bx1, by1, (by1 - by0) / 2, fill="#3a2f10",
+                    outline="#d4a418", width=2, tags=(tag,))
+        c.create_text((bx0 + bx1) / 2, (by0 + by1) / 2, text=el.label, fill="#ffd45e",
+                      font=("TkDefaultFont", 8, "bold"),
+                      width=max(30.0, bx1 - bx0 - 8), tags=(tag,))
+
+    def _draw_dot(c, tag, el, x0, y0, x1, y1):
+        r = min(x1 - x0, y1 - y0) * 0.18
+        cx2, cy2 = (x0 + x1) / 2, (y0 + y1) / 2
+        c.create_oval(cx2 - r, cy2 - r, cx2 + r, cy2 + r, fill="#3ee08a",
+                      outline="#1f7a4d", width=1, tags=(tag,))
+        c.create_text(cx2, cy2 + r + 7, text=el.label, fill=MUTED,
+                      font=("TkDefaultFont", 7), tags=(tag,))
+
     def _draw_block(c, tag, el, x0, y0, x1, y1):
         fill, edge = _panel_fill(el)
         _round_rect(c, x0, y0, x1, y1, 8, fill=fill, outline=edge, width=2, tags=(tag,))
@@ -3090,7 +3115,8 @@ def run() -> None:
 
     _PANEL_DRAW = {panel_layout.AXIS: _draw_axis, panel_layout.SWITCH: _draw_switch,
                    panel_layout.BUTTON: _draw_button, panel_layout.HAT: _draw_hat,
-                   panel_layout.LED: _draw_led}
+                   panel_layout.LED: _draw_led, panel_layout.SEGMENT: _draw_segment,
+                   panel_layout.BUTTON_LIGHT: _draw_button_light, panel_layout.DOT: _draw_dot}
 
     def _render_panel_canvas(device_id):
         c = panel_canvas
