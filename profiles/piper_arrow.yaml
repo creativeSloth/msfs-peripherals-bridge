@@ -55,12 +55,23 @@ bindings:
         read: "PLANE HEADING DEGREES MAGNETIC"
         unit: degrees
         event: HEADING_BUG_SET
+    # POV hat -> look around the cockpit (head movement). ONE binding covers the
+    # whole hat: source.code = X (base) channel 16, Y implicitly 17. The PAN_*
+    # events nudge the active camera up/down/left/right, like turning your head.
+    - name: "Blick schwenken (Kopfbewegung)"
+      source: { kind: hat, code: 16 }
+      hat:
+        up:    { type: event, event: PAN_UP }
+        down:  { type: event, event: PAN_DOWN }
+        left:  { type: event, event: PAN_LEFT }
+        right: { type: event, event: PAN_RIGHT }
     # 291 (left rocker down) flips the Multi Panel CRS source NAV1<->NAV2 — wired
     # via the multi_panel output's `source_toggle` below, not as a yoke binding.
     # NOT mapped yet:
     #   292/293 right grip black (lower/upper): unassigned.
-    #   hat 16/17: unassigned (also needs direction-aware hat mapping).
-    # Verify in-sim: ATC window event name may differ in MSFS 2024.
+    # Verify in-sim: PAN_* pan the *active* camera — if the hat scrolls a UI
+    # window instead, switch the active view back to the cockpit. ATC window
+    # event name may differ in MSFS 2024.
 
   # --- VirtualFly TQ6+ : 6 levers -> Throttle / Prop / Mixture, engines 1 & 2 ---
   # codes 0..5 left->right = T1,T2,P1,P2,M1,M2. Raw ~0 = lever fully FORWARD
