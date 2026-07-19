@@ -1,7 +1,29 @@
 # STATUS — Resume-Anker
 
 > Kurzer Einstiegspunkt: was läuft, was offen ist, wie es weitergeht.
-> Stand: **2026-07-18 (spät) — `feat/gauges` → `main` GEMERGT + GEPUSHT; neuer Branch `feat/mapper-panel-nachbau`.**
+> Stand: **2026-07-19 — Branch `feat/mapper-panel-nachbau`: NACHBAU jetzt für ALLE Geräte + Default-Ansicht (uncommitted).**
+> **🆕 PANEL-NACHBAU (uncommitted, 330 Tests grün, ruff clean):** reines Modul `panel_layout.py`
+> (`panel_layout(profile, device_id)` → positionierte `PanelElement`s in normierten 0..1-Koords, tkinter-frei,
+> 13 Tests). **Hand-Layout Switch-Panel** (13 Kippschalter codes 0..12 mit HW-Silkscreen BAT/ALT/…, Magneto-
+> Selektor 13-17, Fahrwerkshebel 18/19, 3 Gear-LEDs aus gear_leds-Output). **🆕 GENERISCHES Geräte-Layout**
+> (`_device_layout`) für Yoke/TQ6/Trim/Pedale/Multi/Radio: **Achsen = gestapelte Live-Balken oben** (mit Wert-
+> Anzeige, Skala aus source.raw_min/max bzw. Live-Range), **Buttons/Schalter/Hats = Kachel-Raster unten** —
+> konsistente Optik über ALLE Gerätetypen (Wunsch des Users, „weg von der Tabelle"). **GUI (`gui.py` Mapper):**
+> **NACHBAU = STANDARDANSICHT** (`mstate["view"]="panel"`, `_apply_view()`), Header-Toggle „Tabelle"↔„Nachbau"
+> NON-destruktiv (Tabelle bleibt einen Klick entfernt). `_render_panel_canvas` + `_draw_axis` zeichnen; Klick→
+> `_open_row(el.ref)` (bestehender Editor); **Live-Overlay:** Schalter glühen grün, **Achsen-Balken füllen live**
+> (`_live_tick`, `pcanvas["live"]` als onoff/axis-Dicts, aus demselben evdev/hidraw-State wie die Live-Spalte).
+> **✅ VALIDIERT:** 13 Layout-Unit-Tests · voller GUI-Konstruktions-Smoke · Mapper-Reload+Toggle-Round-Trip · alle
+> tkinter-Zeichen-API-Aufrufe isoliert geprüft (withdrawn, KEIN Fenster gepoppt). **🔴 VISUELL/HW UNGEPRÜFT:**
+> Canvas-Pixel-Geometrie (Balkenfüllung/Kachelgröße) + Live brauchen gemapptes Fenster + Gerät → beim Start:
+> GUI→Mapper→Gerät wählen (Yoke/Switch-Panel) → Achse bewegen/Schalter kippen: füllt der Balken / glüht es?
+> **⏳ NÄCHSTE INKREMENTE:** LED-Glühen-aus-Sim (via `_ValueMonitor`, gear_leds/AP-Mode) + Display-Werte
+> (Multi/Radio) = „Schritt 2"; Hats live (melden als 2 Achsen -1/0/+1, aktuell kein Overlay); Hand-Layouts auch
+> für Multi/Radio. **Installer-Frage des Users: BEREITS INTEGRIERT** — Connection-Tab hat Prefix-Feld +
+> Voraussetzungs-Checkliste (grün/rot, `env_check.py`) + Button „Setup Prefix" der `setup-prefix.sh`
+> (Windows-Python + SimConnect) mit Live-Log-Fenster startet und danach neu prüft. Nichts zu bauen; ggf. UX-Feinschliff.
+> ---
+> Stand davor: **2026-07-18 (spät) — `feat/gauges` → `main` GEMERGT + GEPUSHT; neuer Branch `feat/mapper-panel-nachbau`.**
 > **🟢 MERGE:** `feat/gauges` (61 Commits: Mapper/Gauges/V:-Runtime/Connection-Umbau/i18n) via `--no-ff` in `main`
 > (`3159ef0`) und **nach origin gepusht**. `feat/gauges` bleibt als Branch stehen.
 > **🆕 AKTUELLER BRANCH `feat/mapper-panel-nachbau`** (von main, Commit `d263322`, **gepusht**, 318 Tests, ruff clean):

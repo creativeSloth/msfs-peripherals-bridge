@@ -1555,7 +1555,7 @@ def run() -> None:
     win.after(400, _vlist_load)  # deferred: load_profile is imported just below
 
     # ===== Mapper tab (device viewer + inline binding editor) ============== #
-    from . import gui_mapper, profile_writer
+    from . import gui_mapper, panel_layout, profile_writer
     from .mapping.loader import load_device_catalog, load_profile
 
     mtab = ttk.Frame(nb, padding=10)
@@ -1569,6 +1569,15 @@ def run() -> None:
     ttk.Label(mhdr, text=tr("Geräte im Profil — was ist worauf gemappt:")).pack(side="left")
     m_state = ttk.Label(mhdr, text=tr(""), foreground="#666")
     m_state.pack(side="right")
+    # View toggle: the detail table, or a panel *reconstruction* (switches/LEDs at
+    # ~their physical position). Non-destructive — flips which of the two shares
+    # the right-hand cell. Text flips with the mode; wired below where the canvas
+    # and its renderer are defined.
+    view_btn = ttk.Button(mhdr, text=tr("Nachbau"),
+                          command=lambda: _toggle_view())
+    view_btn.pack(side="right", padx=(0, 8))
+    _attach_tooltip(view_btn, tr("Zwischen Tabelle und Panel-Nachbau umschalten "
+                                 "(Schalter/LEDs an ihrer physischen Position)."))
 
     # left: one row per catalog device (bus, connected?, #bindings, #outputs)
     dev_tree = ttk.Treeview(mtab, columns=("bus", "status", "b", "o"),
@@ -1601,8 +1610,19 @@ def run() -> None:
     dsb.grid(row=1, column=2, sticky="ns", pady=6)
     detail.configure(yscrollcommand=dsb.set)
 
+    # Panel reconstruction: a canvas sharing the detail's cell (shown instead of
+    # the table in "panel" view). Elements are drawn from the pure panel_layout;
+    # `pcanvas` maps canvas items back to elements for click->editor + the live
+    # switch overlay. Starts hidden (grid_remove) — the table is the default view.
+    panel_canvas = tk.Canvas(mtab, background=SURFACE, highlightthickness=1,
+                             highlightbackground="#d1d5db")
+    panel_canvas.grid(row=1, column=1, sticky="nsew", pady=6)
+    panel_canvas.grid_remove()
+    pcanvas: dict = {"by_index": {}, "live": {}, "device": None, "hint": None}
+
     # discovery is lazy (only when the tab is first shown) so startup stays fast.
-    mstate: dict[str, object] = {"present": None, "discovered": False, "profile": None}
+    mstate: dict[str, object] = {"present": None, "discovered": False, "profile": None,
+                                 "view": "panel"}  # reconstruction is the default view
 
     def _current_profile():
         try:
@@ -2954,6 +2974,146 @@ def run() -> None:
             idx = min(reselect_index, len(binds) - 1)
             detail.selection_set(f"bind:{idx}")
             detail.see(f"bind:{idx}")
+        if mstate["view"] == "panel":  # keep the reconstruction in sync
+            _render_panel_canvas(device_id)
+
+    # --- panel reconstruction view (canvas drawn from panel_layout) -------- #
+    _PANEL_ON = "#22c55e"  # live "switch on" highlight (green)
+
+    def _panel_fill(el):
+        """(fill, outline) for an element in its resting (not-live) state."""
+        if el.kind == panel_layout.LED:
+            return "#334155", "#0f172a"
+        if not el.mapped:
+            return "#eceff1", "#cbd5e1"  # physical control the profile doesn't map
+        if el.kind == panel_layout.SELECTOR:
+            return "#eef2ff", ACCENT
+        if el.kind == panel_layout.LEVER:
+            return "#e2e8f0", "#94a3b8"
+        if el.kind == panel_layout.HAT:
+            return "#eef2f7", "#64748b"
+        return SURFACE, "#94a3b8"  # mapped switch/button
+
+    def _draw_axis(c, tag, el, x0, y0, x1, y1):
+        """An axis as a track + a live-filling bar + a numeric readout."""
+        c.create_rectangle(x0, y0, x1, y1, fill="#eef2f7", outline="#94a3b8",
+                           width=1, tags=(tag,))
+        fill_id = c.create_rectangle(x0, y0, x0, y1, fill=ACCENT, outline="",
+                                     tags=(tag,))  # width grows with the live value
+        c.create_text(x0 + 6, (y0 + y1) / 2, anchor="w", text=el.name or el.label,
+                      fill=TEXT, font=("TkDefaultFont", 8, "bold"), tags=(tag,))
+        val_id = c.create_text(x1 - 6, (y0 + y1) / 2, anchor="e", text="—",
+                               fill=MUTED, font=("TkDefaultFont", 8), tags=(tag,))
+        if el.live_key is not None:
+            pcanvas["live"].setdefault(el.live_key, []).append(
+                {"kind": "axis", "fill": fill_id, "text": val_id,
+                 "x0": x0, "y0": y0, "x1": x1, "y1": y1,
+                 "lo": el.raw_min, "hi": el.raw_max})
+
+    def _render_panel_canvas(device_id):
+        c = panel_canvas
+        c.delete("all")
+        pcanvas["by_index"].clear()
+        pcanvas["live"].clear()
+        pcanvas["device"] = device_id
+        pcanvas["hint"] = None
+        prof = mstate["profile"]
+        if prof is None or not device_id:
+            return
+        cw, ch = c.winfo_width(), c.winfo_height()
+        if cw < 40 or ch < 40:
+            return  # not laid out yet — the <Configure> bind re-renders once sized
+        pad = 8
+        W, H = cw - 2 * pad, ch - 2 * pad
+        els = panel_layout.panel_layout(prof, device_id)
+        if not els:
+            c.create_text(pad, pad, anchor="nw", fill=MUTED,
+                          text=tr("Für dieses Gerät gibt es noch keinen Nachbau."))
+            return
+        for n, el in enumerate(els):
+            tag = f"pel:{n}"
+            pcanvas["by_index"][n] = el
+            x0, y0 = pad + el.x * W, pad + el.y * H
+            x1, y1 = x0 + el.w * W, y0 + el.h * H
+            if el.kind == panel_layout.AXIS:
+                _draw_axis(c, tag, el, x0, y0, x1, y1)
+                continue
+            fill, outline = _panel_fill(el)
+            if el.kind == panel_layout.LED:
+                rect = c.create_oval(x0, y0, x1, y1, fill=fill, outline=outline,
+                                     width=2, tags=(tag,))
+                c.create_text((x0 + x1) / 2, (y0 + y1) / 2, text=el.label,
+                              fill="#e2e8f0", font=("TkDefaultFont", 8, "bold"),
+                              tags=(tag,))
+            else:
+                rect = c.create_rectangle(x0, y0, x1, y1, fill=fill, outline=outline,
+                                          width=2, tags=(tag,))
+                c.create_text((x0 + x1) / 2, y0 + 11, text=el.label,
+                              fill=(TEXT if el.mapped else MUTED),
+                              font=("TkDefaultFont", 8, "bold"), tags=(tag,))
+                if el.name and (y1 - y0) > 30:
+                    c.create_text((x0 + x1) / 2, (y0 + y1) / 2 + 6, text=el.name,
+                                  fill=MUTED, font=("TkDefaultFont", 7),
+                                  width=max(30.0, x1 - x0 - 4), tags=(tag,))
+            if el.live_key is not None:  # switch/button rects glow on the live overlay
+                pcanvas["live"].setdefault(el.live_key, []).append(
+                    {"kind": "onoff", "rect": rect, "off": fill})
+        pcanvas["hint"] = c.create_text(
+            pad, ch - 4, anchor="sw", fill=MUTED, font=("TkDefaultFont", 8),
+            text=tr("Klick öffnet den Editor · Schalter & Achsen reagieren live"))
+
+    def _panel_el_at(_event):
+        """The PanelElement under the cursor, via the shared per-element tag."""
+        for t in panel_canvas.gettags("current"):
+            if t.startswith("pel:"):
+                return pcanvas["by_index"].get(int(t.split(":")[1]))
+        return None
+
+    def _panel_click(event):
+        el = _panel_el_at(event)
+        if el is not None and el.ref:
+            _open_row(el.ref)
+
+    def _panel_hover(event):
+        if pcanvas["hint"] is None:
+            return
+        el = _panel_el_at(event)
+        if el is None:
+            txt = tr("Klick öffnet den Editor · Schalter & Achsen reagieren live")
+        elif el.mapped:
+            txt = f"{el.label} — {el.name or el.action}"
+            if el.name and el.action:
+                txt += f"  ({el.action})"
+        else:
+            txt = f"{el.label} — " + tr("nicht gemappt")
+        panel_canvas.itemconfigure(pcanvas["hint"], text=txt)
+
+    def _apply_view():
+        """Show whichever of the table / reconstruction the current mode selects."""
+        if mstate["view"] == "panel":
+            detail.grid_remove()
+            dsb.grid_remove()
+            panel_canvas.grid()
+            view_btn.config(text=tr("Tabelle"))
+        else:
+            panel_canvas.grid_remove()
+            detail.grid()
+            dsb.grid()
+            view_btn.config(text=tr("Nachbau"))
+
+    def _toggle_view():
+        mstate["view"] = "table" if mstate["view"] == "panel" else "panel"
+        _apply_view()
+        if mstate["view"] == "panel":
+            _render_panel_canvas(_sel(dev_tree))
+
+    panel_canvas.bind("<Button-1>", _panel_click)
+    panel_canvas.bind("<Motion>", _panel_hover)
+    panel_canvas.bind(
+        "<Configure>",
+        lambda _e: _render_panel_canvas(pcanvas["device"] or _sel(dev_tree))
+        if mstate["view"] == "panel" else None)
+    _apply_view()  # reconstruction is the default view (table stays a click away)
 
     def _mapper_reload(rediscover: bool = False, keep_device=None):
         prof = _current_profile()
@@ -3058,6 +3218,26 @@ def run() -> None:
                     for iid in iids:
                         if detail.exists(iid):
                             detail.set(iid, "live", txt)
+                if mstate["view"] == "panel":  # switches glow, axis bars fill live
+                    for key, entries in pcanvas["live"].items():
+                        val = state.get(key)
+                        if val is None:
+                            continue
+                        for e in entries:
+                            if e["kind"] == "onoff":
+                                if panel_canvas.type(e["rect"]) is not None:
+                                    panel_canvas.itemconfigure(
+                                        e["rect"], fill=_PANEL_ON if val else e["off"])
+                            elif panel_canvas.type(e["fill"]) is not None:  # axis bar
+                                lo, hi = e["lo"], e["hi"]
+                                if lo is None or hi is None:
+                                    lo, hi = live["ranges"].get(key[1], (0, 255))
+                                span = (hi - lo) or 1
+                                frac = min(1.0, max(0.0, (val - lo) / span))
+                                panel_canvas.coords(
+                                    e["fill"], e["x0"], e["y0"],
+                                    e["x0"] + frac * (e["x1"] - e["x0"]), e["y1"])
+                                panel_canvas.itemconfigure(e["text"], text=f"{val:g}")
         finally:
             win.after(100, _live_tick)
 
