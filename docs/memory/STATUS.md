@@ -1,7 +1,18 @@
 # STATUS — Resume-Anker
 
 > Kurzer Einstiegspunkt: was läuft, was offen ist, wie es weitergeht.
-> Stand: **2026-07-19 (spät) — Nachbau-Politur + HAT-MODELL generalisiert. GEPUSHT bis hier.**
+> Stand: **2026-07-19 (spät) — Nachbau-Politur + HAT-MODELL + Flaps-Wippe. GEPUSHT bis `439e941`.**
+> **▶ NÄCHSTE SESSION HIER STARTEN — HAT-CAPTURE-UI (User-Auftrag, frische Session):** pro Hat-Richtung
+> Code+Wert per 🪄 aufnehmen, damit ein Hat für JEDEN Yoke ohne Code-Wissen anlegbar ist. **Modell+Engine stehen
+> schon** (Commit `cd2b700`: `models.HatDirection` mit optional `code`/`value`; `HatMap.entries()/codes()`; Engine
+> matcht Hat auf HAT+BUTTON-Events über (code,value)). **Nur der Editor fehlt.** Zu ändern:
+> `gui_mapper.py` `_blank_hat_fields`/`_hat_fields`/`_form_hat` (~Z.422-465) + `gui.py` Hat-Slots (~Z.2080-2115).
+> **⚠️ STOLPERFALLE:** das bestehende Formfeld `hat_{d}_value` = **Action**-Sendewert (EventAction.value), NICHT der
+> Trigger-Wert! Für die Capture braucht es NEUE Felder `hat_{d}_code` + `hat_{d}_trigval`, und `_form_hat` muss dann
+> die **nested** Form `{code, value, action:{…}}` erzeugen (nur wenn Code gesetzt; sonst flache Form = Konvention,
+> bleibt rückwärtskompatibel). **🪄 je Richtung:** `gui.py._learn_code` (~Z.2196) als Vorlage — es öffnet den
+> Live-Reader (evdev/hidraw) und nimmt die stärkste Änderung; für eine Hat-Richtung Code UND Wert (±1 bzw. 1)
+> erfassen und in die neuen Felder schreiben. Danach: gui_mapper-Round-Trip-Test + Konstruktions-Smoke.
 > **🆕 DIESE SESSION (mehrere Commits, 334 Tests grün ohne die 2 bekannten test_read_command-ENV-Fehler):**
 > (1) **Nachbau-Typ-Formen** — jedes Control eigene Form (Achse=Slider m. Griff, Knopf=Pille, Schalter=vertikaler
 > Kippschalter, Hat=Raute, LED=Scheibe, Selektor/Hebel=Block), Live: Knob springt/grünt, Achsen-Griff gleitet;
