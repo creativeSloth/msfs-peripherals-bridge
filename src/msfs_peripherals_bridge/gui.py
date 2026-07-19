@@ -2994,21 +2994,108 @@ def run() -> None:
             return "#eef2f7", "#64748b"
         return SURFACE, "#94a3b8"  # mapped switch/button
 
+    def _round_rect(c, x0, y0, x1, y1, rad, **kw):
+        """A rounded rectangle / capsule as a smoothed polygon."""
+        rad = max(0.0, min(rad, (x1 - x0) / 2, (y1 - y0) / 2))
+        pts = [x0 + rad, y0, x1 - rad, y0, x1, y0, x1, y0 + rad, x1, y1 - rad,
+               x1, y1, x1 - rad, y1, x0 + rad, y1, x0, y1, x0, y1 - rad,
+               x0, y0 + rad, x0, y0]
+        return c.create_polygon(pts, smooth=True, **kw)
+
+    # Each control kind gets its OWN shape so the type reads at a glance (user:
+    # "man erkennt nicht was es ist"): axis = slider w/ handle, button = pill,
+    # switch = vertical toggle, hat = diamond, LED = disc, selector/lever = block.
     def _draw_axis(c, tag, el, x0, y0, x1, y1):
-        """An axis as a track + a live-filling bar + a numeric readout."""
-        c.create_rectangle(x0, y0, x1, y1, fill="#eef2f7", outline="#94a3b8",
-                           width=1, tags=(tag,))
-        fill_id = c.create_rectangle(x0, y0, x0, y1, fill=ACCENT, outline="",
-                                     tags=(tag,))  # width grows with the live value
-        c.create_text(x0 + 6, (y0 + y1) / 2, anchor="w", text=el.name or el.label,
+        midy = (y0 + y1) / 2 + 5
+        trh = min((y1 - y0) * 0.45, 15)
+        ty0, ty1 = midy - trh / 2, midy + trh / 2
+        _round_rect(c, x0, ty0, x1, ty1, trh / 2, fill="#e2e8f0", outline="#94a3b8",
+                    width=1, tags=(tag,))
+        fill_id = c.create_rectangle(x0, ty0, x0, ty1, fill=ACCENT, outline="", tags=(tag,))
+        hr = trh * 0.72
+        handle = c.create_oval(x0 - hr, midy - hr, x0 + hr, midy + hr,
+                               fill="#475569", outline="#f8fafc", width=1, tags=(tag,))
+        c.create_text(x0 + 2, y0 + 7, anchor="w", text="⇔ " + (el.name or el.label),
                       fill=TEXT, font=("TkDefaultFont", 8, "bold"), tags=(tag,))
-        val_id = c.create_text(x1 - 6, (y0 + y1) / 2, anchor="e", text="—",
-                               fill=MUTED, font=("TkDefaultFont", 8), tags=(tag,))
+        val_id = c.create_text(x1 - 3, y0 + 7, anchor="e", text="—", fill=MUTED,
+                               font=("TkDefaultFont", 8), tags=(tag,))
         if el.live_key is not None:
             pcanvas["live"].setdefault(el.live_key, []).append(
-                {"kind": "axis", "fill": fill_id, "text": val_id,
-                 "x0": x0, "y0": y0, "x1": x1, "y1": y1,
+                {"kind": "axis", "fill": fill_id, "text": val_id, "handle": handle,
+                 "x0": x0, "y0": ty0, "x1": x1, "y1": ty1, "midy": midy, "hr": hr,
                  "lo": el.raw_min, "hi": el.raw_max})
+
+    def _draw_switch(c, tag, el, x0, y0, x1, y1):
+        muted = not el.mapped
+        body = "#eceff1" if muted else SURFACE
+        edge = "#cbd5e1" if muted else "#94a3b8"
+        c.create_text((x0 + x1) / 2, y0 + 7, text=el.label, fill=MUTED if muted else TEXT,
+                      font=("TkDefaultFont", 8, "bold"), tags=(tag,))
+        cxm = (x0 + x1) / 2
+        bw = min((x1 - x0) * 0.55, 24)
+        by0, by1 = y0 + 15, y1 - (13 if el.name else 4)
+        _round_rect(c, cxm - bw / 2, by0, cxm + bw / 2, by1, bw / 2, fill=body,
+                    outline=edge, width=1, tags=(tag,))
+        kr = bw * 0.40
+        y_off, y_on = by1 - kr - 2, by0 + kr + 2
+        knob = c.create_oval(cxm - kr, y_off - kr, cxm + kr, y_off + kr,
+                             fill="#cfd8dc" if muted else "#78909c", outline="", tags=(tag,))
+        if el.name:
+            c.create_text(cxm, y1 - 5, text=el.name, fill=MUTED,
+                          font=("TkDefaultFont", 7), width=max(28.0, x1 - x0 - 2), tags=(tag,))
+        if el.live_key is not None:
+            pcanvas["live"].setdefault(el.live_key, []).append(
+                {"kind": "toggle", "knob": knob, "cx": cxm, "kr": kr,
+                 "y_off": y_off, "y_on": y_on,
+                 "off": "#cfd8dc" if muted else "#78909c"})
+
+    def _draw_button(c, tag, el, x0, y0, x1, y1):
+        muted = not el.mapped
+        fill = "#eceff1" if muted else SURFACE
+        edge = "#cbd5e1" if muted else "#94a3b8"
+        c.create_text((x0 + x1) / 2, y0 + 7, text=el.label, fill=MUTED if muted else TEXT,
+                      font=("TkDefaultFont", 8, "bold"), tags=(tag,))
+        bx0, by0, bx1, by1 = x0 + 4, y0 + 14, x1 - 4, y1 - 4
+        rect = _round_rect(c, bx0, by0, bx1, by1, (by1 - by0) / 2, fill=fill,
+                           outline=edge, width=2, tags=(tag,))
+        if el.name and (by1 - by0) > 16:
+            c.create_text((bx0 + bx1) / 2, (by0 + by1) / 2, text=el.name,
+                          fill=MUTED if muted else TEXT, font=("TkDefaultFont", 7),
+                          width=max(28.0, bx1 - bx0 - 6), tags=(tag,))
+        if el.live_key is not None:
+            pcanvas["live"].setdefault(el.live_key, []).append(
+                {"kind": "onoff", "rect": rect, "off": fill})
+
+    def _draw_hat(c, tag, el, x0, y0, x1, y1):
+        muted = not el.mapped
+        cxm, cym = (x0 + x1) / 2, (y0 + y1) / 2 + 5
+        rr = min(x1 - x0, y1 - y0) * 0.34
+        c.create_polygon(cxm, cym - rr, cxm + rr, cym, cxm, cym + rr, cxm - rr, cym,
+                         fill="#eceff1" if muted else "#eef2f7",
+                         outline="#cbd5e1" if muted else "#64748b", width=2, tags=(tag,))
+        c.create_text(cxm, y0 + 7, text="✛ " + el.label, fill=MUTED if muted else TEXT,
+                      font=("TkDefaultFont", 8, "bold"), tags=(tag,))
+
+    def _draw_led(c, tag, el, x0, y0, x1, y1):
+        fill, edge = _panel_fill(el)
+        c.create_oval(x0, y0, x1, y1, fill=fill, outline=edge, width=2, tags=(tag,))
+        c.create_text((x0 + x1) / 2, (y0 + y1) / 2, text=el.label, fill="#e2e8f0",
+                      font=("TkDefaultFont", 8, "bold"), tags=(tag,))
+
+    def _draw_block(c, tag, el, x0, y0, x1, y1):
+        fill, edge = _panel_fill(el)
+        _round_rect(c, x0, y0, x1, y1, 8, fill=fill, outline=edge, width=2, tags=(tag,))
+        glyph = "⟳" if el.kind == panel_layout.SELECTOR else "⭥"
+        c.create_text((x0 + x1) / 2, y0 + 11, text=f"{glyph} {el.label}",
+                      fill=TEXT if el.mapped else MUTED,
+                      font=("TkDefaultFont", 8, "bold"), tags=(tag,))
+        if el.name and (y1 - y0) > 30:
+            c.create_text((x0 + x1) / 2, (y0 + y1) / 2 + 6, text=el.name, fill=MUTED,
+                          font=("TkDefaultFont", 7), width=max(30.0, x1 - x0 - 4), tags=(tag,))
+
+    _PANEL_DRAW = {panel_layout.AXIS: _draw_axis, panel_layout.SWITCH: _draw_switch,
+                   panel_layout.BUTTON: _draw_button, panel_layout.HAT: _draw_hat,
+                   panel_layout.LED: _draw_led}
 
     def _render_panel_canvas(device_id):
         c = panel_canvas
@@ -3035,32 +3122,11 @@ def run() -> None:
             pcanvas["by_index"][n] = el
             x0, y0 = pad + el.x * W, pad + el.y * H
             x1, y1 = x0 + el.w * W, y0 + el.h * H
-            if el.kind == panel_layout.AXIS:
-                _draw_axis(c, tag, el, x0, y0, x1, y1)
-                continue
-            fill, outline = _panel_fill(el)
-            if el.kind == panel_layout.LED:
-                rect = c.create_oval(x0, y0, x1, y1, fill=fill, outline=outline,
-                                     width=2, tags=(tag,))
-                c.create_text((x0 + x1) / 2, (y0 + y1) / 2, text=el.label,
-                              fill="#e2e8f0", font=("TkDefaultFont", 8, "bold"),
-                              tags=(tag,))
-            else:
-                rect = c.create_rectangle(x0, y0, x1, y1, fill=fill, outline=outline,
-                                          width=2, tags=(tag,))
-                c.create_text((x0 + x1) / 2, y0 + 11, text=el.label,
-                              fill=(TEXT if el.mapped else MUTED),
-                              font=("TkDefaultFont", 8, "bold"), tags=(tag,))
-                if el.name and (y1 - y0) > 30:
-                    c.create_text((x0 + x1) / 2, (y0 + y1) / 2 + 6, text=el.name,
-                                  fill=MUTED, font=("TkDefaultFont", 7),
-                                  width=max(30.0, x1 - x0 - 4), tags=(tag,))
-            if el.live_key is not None:  # switch/button rects glow on the live overlay
-                pcanvas["live"].setdefault(el.live_key, []).append(
-                    {"kind": "onoff", "rect": rect, "off": fill})
+            _PANEL_DRAW.get(el.kind, _draw_block)(c, tag, el, x0, y0, x1, y1)
         pcanvas["hint"] = c.create_text(
             pad, ch - 4, anchor="sw", fill=MUTED, font=("TkDefaultFont", 8),
-            text=tr("Klick öffnet den Editor · Schalter & Achsen reagieren live"))
+            text=tr("Klick: gemappt → Editor, leerer Platzhalter → neu mappen · "
+                    "Schalter/Achsen live"))
 
     def _panel_el_at(_event):
         """The PanelElement under the cursor, via the shared per-element tag."""
@@ -3071,19 +3137,36 @@ def run() -> None:
 
     def _panel_click(event):
         el = _panel_el_at(event)
-        if el is not None and el.ref:
+        if el is None:
+            return
+        if el.ref:  # mapped -> open its editor
             _open_row(el.ref)
+            return
+        # empty placeholder with a physical code -> create a binding FOR it, with
+        # the source (kind + code) pre-filled so the switch/button can be mapped.
+        dev = _sel(dev_tree)
+        if dev and el.code is not None and el.kind in (panel_layout.SWITCH,
+                                                       panel_layout.BUTTON):
+            _open_editor(dev, None)
+            ev["kind"].set(el.kind)  # "switch"/"button" are valid source kinds
+            ev["code"].set(str(el.code))
+            ev["name"].set(el.label or tr("Neues Binding"))
+            _ed_show_fields()
+            ed_win.title(f"Neu mappen — {dev} · {el.label} (Code {el.code})")
 
     def _panel_hover(event):
         if pcanvas["hint"] is None:
             return
         el = _panel_el_at(event)
         if el is None:
-            txt = tr("Klick öffnet den Editor · Schalter & Achsen reagieren live")
+            txt = tr("Klick: gemappt → Editor, leerer Platzhalter → neu mappen · "
+                     "Schalter/Achsen live")
         elif el.mapped:
             txt = f"{el.label} — {el.name or el.action}"
             if el.name and el.action:
                 txt += f"  ({el.action})"
+        elif el.code is not None and el.kind in (panel_layout.SWITCH, panel_layout.BUTTON):
+            txt = f"{el.label} — " + tr("leer · Klick zum Mappen")
         else:
             txt = f"{el.label} — " + tr("nicht gemappt")
         panel_canvas.itemconfigure(pcanvas["hint"], text=txt)
@@ -3218,7 +3301,7 @@ def run() -> None:
                     for iid in iids:
                         if detail.exists(iid):
                             detail.set(iid, "live", txt)
-                if mstate["view"] == "panel":  # switches glow, axis bars fill live
+                if mstate["view"] == "panel":  # switches toggle, axis handles slide
                     for key, entries in pcanvas["live"].items():
                         val = state.get(key)
                         if val is None:
@@ -3228,15 +3311,24 @@ def run() -> None:
                                 if panel_canvas.type(e["rect"]) is not None:
                                     panel_canvas.itemconfigure(
                                         e["rect"], fill=_PANEL_ON if val else e["off"])
-                            elif panel_canvas.type(e["fill"]) is not None:  # axis bar
+                            elif e["kind"] == "toggle":
+                                if panel_canvas.type(e["knob"]) is not None:
+                                    yy, kr = (e["y_on"] if val else e["y_off"]), e["kr"]
+                                    panel_canvas.coords(e["knob"], e["cx"] - kr, yy - kr,
+                                                        e["cx"] + kr, yy + kr)
+                                    panel_canvas.itemconfigure(
+                                        e["knob"], fill=_PANEL_ON if val else e["off"])
+                            elif panel_canvas.type(e["fill"]) is not None:  # axis slider
                                 lo, hi = e["lo"], e["hi"]
                                 if lo is None or hi is None:
                                     lo, hi = live["ranges"].get(key[1], (0, 255))
                                 span = (hi - lo) or 1
                                 frac = min(1.0, max(0.0, (val - lo) / span))
-                                panel_canvas.coords(
-                                    e["fill"], e["x0"], e["y0"],
-                                    e["x0"] + frac * (e["x1"] - e["x0"]), e["y1"])
+                                fx = e["x0"] + frac * (e["x1"] - e["x0"])
+                                panel_canvas.coords(e["fill"], e["x0"], e["y0"], fx, e["y1"])
+                                hr = e["hr"]
+                                panel_canvas.coords(e["handle"], fx - hr, e["midy"] - hr,
+                                                    fx + hr, e["midy"] + hr)
                                 panel_canvas.itemconfigure(e["text"], text=f"{val:g}")
         finally:
             win.after(100, _live_tick)
