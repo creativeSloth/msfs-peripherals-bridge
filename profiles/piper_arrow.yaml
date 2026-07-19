@@ -61,9 +61,9 @@ bindings:
     - name: "Blick schwenken (Kopfbewegung)"
       source: { kind: hat, code: 16 }
       hat:
-        up:    { type: event, event: PAN_UP }
-        down:  { type: event, event: PAN_DOWN }
-        left:  { type: event, event: PAN_LEFT }
+        up: { type: event, event: PAN_UP }
+        down: { type: event, event: PAN_DOWN }
+        left: { type: event, event: PAN_LEFT }
         right: { type: event, event: PAN_RIGHT }
     # 291 (left rocker down) flips the Multi Panel CRS source NAV1<->NAV2 — wired
     # via the multi_panel output's `source_toggle` below, not as a yoke binding.
@@ -296,25 +296,25 @@ bindings:
     # L:AUTOPILOT_HDG (SPAD did, but that fought the cockpit's own HDG switch).
     # NOTE: the button LEDs still need an L:AUTOPILOT_MODE *read* (LVar-read path,
     # not built yet) — so these engage the modes but don't light up yet.
-    - name: "AP mode HDG"
+    - name: "HDG"
       source: { kind: switch, code: 8 }
       action:
         type: sequence
         on_edge:
           - { simvar: "L:AUTOPILOT_MODE", value: 2 }
-    - name: "AP mode NAV"
+    - name: "NAV"
       source: { kind: switch, code: 9 }
       action:
         type: sequence
         on_edge:
           - { simvar: "L:AUTOPILOT_MODE", value: 0 }
-    - name: "AP mode APR"
+    - name: "APR"
       source: { kind: switch, code: 13 }
       action:
         type: sequence
         on_edge:
           - { simvar: "L:AUTOPILOT_MODE", value: 3 }
-    - name: "AP mode REV"
+    - name: "REV"
       source: { kind: switch, code: 14 }
       action:
         type: sequence
@@ -323,7 +323,7 @@ bindings:
     # OMNI mode (L:AUTOPILOT_MODE=1) on the otherwise-free IAS button (code 10).
     # OMNI = auto-intercept & track a VOR radial (the Arrow's "hidden" coupler
     # mode, SPAD reached it via NAV long-press / slow blink).
-    - name: "AP mode OMNI (IAS button)"
+    - name: "OMNI (IAS button)"
       source: { kind: switch, code: 10 }
       action:
         type: sequence
@@ -341,13 +341,13 @@ bindings:
     # again) or writing 0 does NOT disengage (both verified in-sim). To drop the
     # vertical mode use the AP master button or switch to the other mode. A true
     # on/off toggle would need the JF H: clickspot event, not yet identified.
-    - name: "AP mode ALT hold"
+    - name: "ALT hold"
       source: { kind: switch, code: 11 }
       action:
         type: sequence
         on_edge:
           - { simvar: "L:AUTOPILOT_alt", value: 1 }
-    - name: "AP mode VS hold"
+    - name: "VS hold"
       source: { kind: switch, code: 12 }
       action:
         type: sequence
