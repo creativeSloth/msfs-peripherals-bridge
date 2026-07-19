@@ -155,7 +155,7 @@ def describe_transform(t: Transform) -> str:
 def describe_binding(binding: Binding) -> BindingRow:
     """Flatten one :class:`Binding` into its four display columns."""
     if binding.hat is not None:
-        parts = [f"{sym} {describe_action(a)}"
+        parts = [f"{sym} {describe_action(a.action)}"
                  for sym, a in (("▲", binding.hat.up), ("▼", binding.hat.down),
                                 ("◀", binding.hat.left), ("▶", binding.hat.right))
                  if a is not None]
@@ -432,7 +432,8 @@ def _hat_fields(hat) -> dict:
     """Editor fields for a hat map (event/simvar per direction)."""
     form = _blank_hat_fields()
     for d, _sym in HAT_DIRECTIONS:
-        a = getattr(hat, d, None) if hat is not None else None
+        dirn = getattr(hat, d, None) if hat is not None else None
+        a = dirn.action if dirn is not None else None  # unwrap HatDirection
         if a is None:
             continue
         if a.type == "event":

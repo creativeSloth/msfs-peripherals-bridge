@@ -159,27 +159,79 @@ class Condition(BaseModel):
     value: float = Field(1.0, description="Comparison value (canonical unit).")
 
 
-class HatMap(BaseModel):
-    """Direction actions of a POV hat — ONE binding covers the whole hat.
+class HatDirection(BaseModel):
+    """One direction of a POV hat: which input fires it + the action.
 
-    evdev reports a hat as two ±1 axes: ``ABS_HATnX`` (left -1 / right +1) and
-    ``ABS_HATnY`` (up -1 / down +1), always a consecutive pair. The binding's
-    ``source.code`` is the **X (base) code**; Y is implicitly ``base + 1`` — so
-    declaring which codes belong to the hat is automatic. Each direction maps
-    to its own action (fired once on entering that direction); unset directions
-    do nothing.
+    A hat is just a button with several inputs, so each direction carries its own
+    trigger — the evdev ``code`` and the ``value`` on that code meaning "engaged".
+    This covers ANY hat, however the hardware reports it: two ±1 axes
+    (``ABS_HATnX/Y`` — shared codes, values ∓1) OR discrete buttons (a distinct
+    code per direction, value 1). Both are captured the same way, by flicking the
+    hat in the editor.
+
+    ``code``/``value`` may be omitted (older, code-less profiles): they then fall
+    back to the ABS_HAT convention around the binding's base ``source.code`` — X
+    (base) for left/right, base+1 for up/down, value ∓1 by direction.
     """
 
-    up: ActionT | None = None
-    down: ActionT | None = None
-    left: ActionT | None = None
-    right: ActionT | None = None
+    action: ActionT
+    code: int | None = Field(None, description="evdev code that fires this direction.")
+    value: int | None = Field(None, description="Value on that code meaning 'engaged'.")
+
+    @model_validator(mode="before")
+    @classmethod
+    def _accept_bare_action(cls, data):
+        # Back-compat + ergonomics: a bare action (dict without 'action', or an
+        # Action instance) IS the action; the trigger stays convention-derived.
+        if isinstance(data, cls):
+            return data
+        if isinstance(data, dict):
+            return data if "action" in data else {"action": data}
+        return {"action": data}
+
+
+# direction -> (code offset from the base X code, engaged value) for the ABS_HAT
+# convention used when a direction carries no explicit code/value.
+_HAT_CONVENTION = {"up": (1, -1), "down": (1, 1), "left": (0, -1), "right": (0, 1)}
+
+
+class HatMap(BaseModel):
+    """Direction triggers+actions of a POV hat — ONE binding covers the whole hat.
+
+    Each mapped direction is a :class:`HatDirection` (its own code/value + action),
+    fired once on entering that direction; unset directions do nothing. A code-less
+    direction falls back to the ABS_HAT convention around ``source.code``.
+    """
+
+    up: HatDirection | None = None
+    down: HatDirection | None = None
+    left: HatDirection | None = None
+    right: HatDirection | None = None
 
     @model_validator(mode="after")
     def _at_least_one(self) -> HatMap:
         if not any((self.up, self.down, self.left, self.right)):
             raise ValueError("hat needs at least one mapped direction")
         return self
+
+    def entries(self, base_code: int) -> list[tuple[int, int, Action]]:
+        """(effective code, engaged value, action) for each mapped direction.
+
+        Explicit code/value win; otherwise the ABS_HAT convention around
+        ``base_code`` fills them in (back-compat with code-less hats)."""
+        out: list[tuple[int, int, Action]] = []
+        for name, (off, sign) in _HAT_CONVENTION.items():
+            d: HatDirection | None = getattr(self, name)
+            if d is None:
+                continue
+            code = d.code if d.code is not None else base_code + off
+            value = d.value if d.value is not None else sign
+            out.append((code, value, d.action))
+        return out
+
+    def codes(self, base_code: int) -> set[int]:
+        """Every evdev code this hat listens on (for routing events to it)."""
+        return {c for c, _, _ in self.entries(base_code)}
 
 
 class AxisSplit(BaseModel):

@@ -356,6 +356,39 @@ def test_hat_directions_resolve_on_both_channels():
     assert engine.resolve(DeviceEvent("yoke", SourceKind.HAT, 18, 1)) == []
 
 
+def test_button_hat_with_learned_codes_resolves_from_button_events():
+    """A foreign hat that reports as discrete BUTTONs: each direction carries its
+    own learned (code, value); events arrive as BUTTON kind, distinct codes."""
+    from msfs_peripherals_bridge.models import HatDirection
+
+    prof = Profile(name="t", bindings={"stick": [
+        Binding(
+            name="View", source=Source(kind=SourceKind.HAT, code=300),
+            hat=HatMap(
+                up=HatDirection(code=300, value=1, action=EventAction(event="PAN_UP", value=1)),
+                down=HatDirection(code=301, value=1,
+                                  action=EventAction(event="PAN_DOWN", value=1)),
+            ),
+        )
+    ]})
+    engine = MappingEngine(prof)
+    assert engine.resolve(DeviceEvent("stick", SourceKind.BUTTON, 300, 1)) == [
+        SendEvent(name="PAN_UP", data=1)]
+    assert engine.resolve(DeviceEvent("stick", SourceKind.BUTTON, 301, 1)) == [
+        SendEvent(name="PAN_DOWN", data=1)]
+    assert engine.resolve(DeviceEvent("stick", SourceKind.BUTTON, 300, 0)) == []  # release
+    assert engine.resolve(DeviceEvent("stick", SourceKind.BUTTON, 999, 1)) == []  # unrelated
+
+
+def test_hat_backcompat_flat_action_still_loads():
+    """The old flat direction form ({type: event, ...}) parses via convention."""
+    b = Binding(name="h", source=Source(kind=SourceKind.HAT, code=16),
+                hat=HatMap.model_validate({"up": {"type": "event", "event": "PAN_UP"}}))
+    assert b.hat.up.action.event == "PAN_UP"
+    assert b.hat.up.code is None  # -> convention: base+1 = 17, value -1
+    assert b.hat.entries(16) == [(17, -1, EventAction(event="PAN_UP"))]
+
+
 def test_hat_model_validation():
     with pytest.raises(ValidationError):  # hat only on hat sources
         Binding(name="x", source=Source(kind=SourceKind.BUTTON, code=1),

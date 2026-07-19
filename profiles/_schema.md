@@ -53,12 +53,19 @@ counts as NOT met (fail-closed).
 ```
 
 ## POV hat (kind: hat)
-ONE binding covers the whole hat: `source.code` is the X (base) evdev channel
-(left/right); Y (up/down) is implicitly `code + 1`. Each direction gets its own
-action under `hat:` (fired once on entering the direction); `action:` is not
-used on hat bindings. Unset directions do nothing.
+A hat is just a button with several inputs. ONE binding covers the whole hat;
+each direction under `hat:` gets its own action (fired once on entering it),
+`action:` is not used, unset directions do nothing.
+
+Each direction may carry its OWN trigger — the evdev `code` and the `value` on
+that code meaning "engaged" (nest the action under `action:`). This covers ANY
+hat: two ±1 axes (shared codes, values ∓1) OR discrete buttons (a distinct code
+per direction, value 1). Omit `code`/`value` and they fall back to the ABS_HAT
+convention around `source.code`: X (base) for left/right, `code + 1` for up/down,
+value ∓1 by direction — so the short form below still works.
 
 ```yaml
+    # short form (ABS_HAT convention around source.code):
     - name: "Trim-Hat"
       source: { kind: hat, code: 16 }
       hat:
@@ -66,6 +73,13 @@ used on hat bindings. Unset directions do nothing.
         down:  { type: event, event: ELEV_TRIM_DN }
         left:  { type: event, event: AILERON_TRIM_LEFT }
         right: { type: event, event: AILERON_TRIM_RIGHT }
+
+    # explicit per-direction trigger (learned) — e.g. a hat that reports as buttons:
+    - name: "View-Hat"
+      source: { kind: hat, code: 300 }
+      hat:
+        up:   { code: 300, value: 1, action: { type: event, event: PAN_UP } }
+        down: { code: 301, value: 1, action: { type: event, event: PAN_DOWN } }
 ```
 
 ## Detent split (axis only)

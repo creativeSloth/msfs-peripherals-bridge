@@ -24,7 +24,6 @@ from ..models import (
     RpnAction,
     SequenceAction,
     SimVarAction,
-    Source,
     SourceKind,
     WriteStep,
 )
@@ -51,12 +50,18 @@ def _condition_holds(cond: Condition, value: object) -> bool:
     return _OPS[cond.op](v, cond.value)
 
 
-def _source_matches(source: Source, event: DeviceEvent) -> bool:
+def _source_matches(binding: Binding, event: DeviceEvent) -> bool:
+    source = binding.source
+    if source.kind is SourceKind.HAT:
+        # A hat may report as ABS_HAT axes (event kind HAT) OR as discrete buttons
+        # (event kind BUTTON) — accept either, on any code this hat listens on.
+        if event.kind not in (SourceKind.HAT, SourceKind.BUTTON):
+            return False
+        codes = (binding.hat.codes(source.code) if binding.hat is not None
+                 else {source.code, source.code + 1})
+        return event.code in codes
     if source.kind is not event.kind:
         return False
-    if event.kind is SourceKind.HAT:
-        # a hat binding's code is its X (base) channel; Y is implicitly base+1
-        return event.code in (source.code, source.code + 1)
     return source.code == event.code
 
 
@@ -88,7 +93,7 @@ class MappingEngine:
         bindings = self.profile.bindings.get(event.device_id, [])
         commands: list[Command] = []
         for binding in bindings:
-            if not _source_matches(binding.source, event):
+            if not _source_matches(binding, event):
                 continue
             if binding.when and not self._conditions_met(binding):
                 continue
@@ -123,17 +128,16 @@ class MappingEngine:
             value = shape_axis(event.value, raw_min, raw_max, binding.transform)
             return [self._command_for(binding.action, value)]
 
-        if event.kind is SourceKind.HAT and binding.hat is not None:
-            # Direction-aware hat: fire the entered direction's action once;
-            # centring back (value 0) does nothing. evdev sign convention:
-            # X +1 = right / -1 = left, Y +1 = down / -1 = up.
+        if binding.source.kind is SourceKind.HAT and binding.hat is not None:
+            # Direction-aware hat: fire the entered direction once; centring /
+            # release (value 0) does nothing. Each direction matches its own
+            # (code, value) — explicit (learned) or the ABS_HAT convention.
             if event.value == 0:
                 return []
-            on_y = event.code == binding.source.code + 1
-            direction = ("down" if event.value > 0 else "up") if on_y \
-                else ("right" if event.value > 0 else "left")
-            action = getattr(binding.hat, direction)
-            return [self._command_for(action, 1.0)] if action is not None else []
+            for code, value, action in binding.hat.entries(binding.source.code):
+                if event.code == code and event.value == value:
+                    return [self._command_for(action, 1.0)]
+            return []
 
         if isinstance(binding.action, SequenceAction):
             return self._resolve_sequence(binding.action, event)

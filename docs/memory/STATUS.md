@@ -1,7 +1,24 @@
 # STATUS — Resume-Anker
 
 > Kurzer Einstiegspunkt: was läuft, was offen ist, wie es weitergeht.
-> Stand: **2026-07-19 (später) — GAUGES-REWORK: lua-treue Skalierung + Formen + Regler-Parametrierung (uncommitted).**
+> Stand: **2026-07-19 (spät) — Nachbau-Politur + HAT-MODELL generalisiert. GEPUSHT bis hier.**
+> **🆕 DIESE SESSION (mehrere Commits, 334 Tests grün ohne die 2 bekannten test_read_command-ENV-Fehler):**
+> (1) **Nachbau-Typ-Formen** — jedes Control eigene Form (Achse=Slider m. Griff, Knopf=Pille, Schalter=vertikaler
+> Kippschalter, Hat=Raute, LED=Scheibe, Selektor/Hebel=Block), Live: Knob springt/grünt, Achsen-Griff gleitet;
+> (2) **leere Platzhalter anklickbar** → Klick auf ungemappten Schalter/Knopf öffnet Editor mit vorbelegter Quelle
+> (kind+code+Name); (3) **nur EIN Label je Kachel** (Doppelbelegung raus, Rest im Hover/Editor); (4) **Yoke-Hat →
+> Cockpit-Blick** (PAN_UP/DOWN/LEFT/RIGHT) im piper_arrow; (5) **HAT-MODELL GENERALISIERT** (User-Entscheid:
+> „Hat = Knopf mit gelernten Codes"): neues `models.HatDirection` (pro Richtung optional `code`+`value`, sonst
+> ABS_HAT-Konvention um `source.code`), `HatMap.entries()/codes()`; Engine matcht Hat auf HAT **und** BUTTON-Events
+> (Button-Hats!), Auflösung über (code,value); **rückwärtskompatibel** (alte flache `up:{type:event,…}`-Form lädt
+> via before-Validator). 2 neue Engine-Tests. `_schema.md` erweitert. GUI-Editor läuft weiter über die Konvention.
+> **🔴 OFFEN / NÄCHSTE SCHRITTE (in dieser Reihenfolge angefragt):** (a) **Hat-Capture-UI** — pro Richtung Code+Wert
+> per 🪄 aufnehmen (Modell/Engine stehen schon; nur noch Editor `_hat_fields`/`_form_hat`/gui.py-Hat-Slots +
+> Lern-Knopf); (b) **Flaps als (on)-off-(on)-Wippe** statt 2 Schalter; (c) **Multi-Panel-Nachbau inkl. Output**
+> (Werte/Display zuordnen); (d) **Radio-Panel-Nachbau** — (b/c/d am besten zusammen = Hand-Layouts für multi_panel
+> + radio_panel mit Rocker-Element + Output-Elementen). ⚠️ **Ganzer Nachbau + Gauges visuell weiterhin UNGEPRÜFT.**
+> ---
+> Stand davor: **2026-07-19 (später) — GAUGES-REWORK: lua-treue Skalierung + Formen + Regler-Parametrierung.**
 > **🆕 GAUGES (uncommitted, 334 Tests grün, ruff clean):** **FIX der ignorierten Skalierung** — Fuel-Flow-Zeiger
 > ist **potenz-gestaucht** (lua `h=1.8`: `Alpha=(ZWEI_PI/Δ·v)^1.8+100`), Preset hatte `h=1` (linear). Modell-
 > Formel `omega+sweep·frac^h` reproduziert die Lua **exakt** (Test: 165·(v/25)^1.8+100; bei 12.5 GPH 147° statt
