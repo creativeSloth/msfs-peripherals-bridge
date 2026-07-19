@@ -3029,20 +3029,18 @@ def run() -> None:
         muted = not el.mapped
         body = "#eceff1" if muted else SURFACE
         edge = "#cbd5e1" if muted else "#94a3b8"
+        # single caption above the toggle (full name is on hover / in the editor)
         c.create_text((x0 + x1) / 2, y0 + 7, text=el.label, fill=MUTED if muted else TEXT,
                       font=("TkDefaultFont", 8, "bold"), tags=(tag,))
         cxm = (x0 + x1) / 2
         bw = min((x1 - x0) * 0.55, 24)
-        by0, by1 = y0 + 15, y1 - (13 if el.name else 4)
+        by0, by1 = y0 + 15, y1 - 4
         _round_rect(c, cxm - bw / 2, by0, cxm + bw / 2, by1, bw / 2, fill=body,
                     outline=edge, width=1, tags=(tag,))
         kr = bw * 0.40
         y_off, y_on = by1 - kr - 2, by0 + kr + 2
         knob = c.create_oval(cxm - kr, y_off - kr, cxm + kr, y_off + kr,
                              fill="#cfd8dc" if muted else "#78909c", outline="", tags=(tag,))
-        if el.name:
-            c.create_text(cxm, y1 - 5, text=el.name, fill=MUTED,
-                          font=("TkDefaultFont", 7), width=max(28.0, x1 - x0 - 2), tags=(tag,))
         if el.live_key is not None:
             pcanvas["live"].setdefault(el.live_key, []).append(
                 {"kind": "toggle", "knob": knob, "cx": cxm, "kr": kr,
@@ -3053,15 +3051,13 @@ def run() -> None:
         muted = not el.mapped
         fill = "#eceff1" if muted else SURFACE
         edge = "#cbd5e1" if muted else "#94a3b8"
-        c.create_text((x0 + x1) / 2, y0 + 7, text=el.label, fill=MUTED if muted else TEXT,
-                      font=("TkDefaultFont", 8, "bold"), tags=(tag,))
-        bx0, by0, bx1, by1 = x0 + 4, y0 + 14, x1 - 4, y1 - 4
+        bx0, by0, bx1, by1 = x0 + 3, y0 + 3, x1 - 3, y1 - 3
         rect = _round_rect(c, bx0, by0, bx1, by1, (by1 - by0) / 2, fill=fill,
                            outline=edge, width=2, tags=(tag,))
-        if el.name and (by1 - by0) > 16:
-            c.create_text((bx0 + bx1) / 2, (by0 + by1) / 2, text=el.name,
-                          fill=MUTED if muted else TEXT, font=("TkDefaultFont", 7),
-                          width=max(28.0, bx1 - bx0 - 6), tags=(tag,))
+        # single caption centred on the button (full name is on hover)
+        c.create_text((bx0 + bx1) / 2, (by0 + by1) / 2, text=el.label,
+                      fill=MUTED if muted else TEXT, font=("TkDefaultFont", 8, "bold"),
+                      width=max(28.0, bx1 - bx0 - 6), tags=(tag,))
         if el.live_key is not None:
             pcanvas["live"].setdefault(el.live_key, []).append(
                 {"kind": "onoff", "rect": rect, "off": fill})
@@ -3086,12 +3082,11 @@ def run() -> None:
         fill, edge = _panel_fill(el)
         _round_rect(c, x0, y0, x1, y1, 8, fill=fill, outline=edge, width=2, tags=(tag,))
         glyph = "⟳" if el.kind == panel_layout.SELECTOR else "⭥"
-        c.create_text((x0 + x1) / 2, y0 + 11, text=f"{glyph} {el.label}",
+        # single caption (full detail on hover), centred in the block
+        c.create_text((x0 + x1) / 2, (y0 + y1) / 2, text=f"{glyph} {el.label}",
                       fill=TEXT if el.mapped else MUTED,
-                      font=("TkDefaultFont", 8, "bold"), tags=(tag,))
-        if el.name and (y1 - y0) > 30:
-            c.create_text((x0 + x1) / 2, (y0 + y1) / 2 + 6, text=el.name, fill=MUTED,
-                          font=("TkDefaultFont", 7), width=max(30.0, x1 - x0 - 4), tags=(tag,))
+                      font=("TkDefaultFont", 8, "bold"),
+                      width=max(30.0, x1 - x0 - 6), tags=(tag,))
 
     _PANEL_DRAW = {panel_layout.AXIS: _draw_axis, panel_layout.SWITCH: _draw_switch,
                    panel_layout.BUTTON: _draw_button, panel_layout.HAT: _draw_hat,
