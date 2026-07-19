@@ -1,7 +1,24 @@
 # STATUS — Resume-Anker
 
 > Kurzer Einstiegspunkt: was läuft, was offen ist, wie es weitergeht.
-> Stand: **2026-07-19 (spät) — Nachbau: Zonen-Trennung + Radio-Controls + saubere Labels. GEPUSHT bis `be47002`.**
+> Stand: **2026-07-19 (spät) — RADIO-NACHBAU faithful + scrollbar + Gruppen. GEPUSHT bis `886a896`.**
+> **✅ RADIO-LAYOUT FERTIG:** `_radio_panel`-Handlayout, pro Selektor-Einheit Gruppe (HEADER) + Encoder-/Swap-CODES;
+> **pro Mode-Zeile: 2 Displays (act/stby) + Punkt links | 2 Encoder + Swap rechts** (Anzeige/Bedienung getrennt),
+> je Element → Bank-/Unit-Editor (`out:i:units/u[/banks/b]`). **SCROLLBAR** (Canvas `scrollregion`, Content y>1,
+> Scrollbar+Mausrad). **HEADER-Element** (Titel+Trennlinie) → **Gruppen-Überschriften + optische Trenner in ALLEN
+> Panels** (Switch: Schalter/Magnetos/Fahrwerk; Multi/generisch: Bedienelemente/Anzeigen; Radio: Selektor upper/
+> lower) → klar was Display vs. Knopf ist. Encoder als Drehknopf, Segment=LCD, Button=Pille. 338 Tests grün.
+> **▶ NÄCHSTER BATCH — EDITOR/MAPPING-FUNKTIONEN (User mehrfach angefragt):**
+> **(1) LERNFUNKTION (🪄) auch für OUTPUTS** (nicht nur die Binding-Source): im Output-Editor Codes/Vars per Gerät
+> aufnehmen (Vorlage `gui.py._learn_code` ~Z.2196). **(2) SEGMENTE EINZELN setzbar „wie bei DME, ordentlich über
+> die GUI"** — active/standby/dot je Bank direkt (evtl. Output-Editor feiner adressierbar: bank-Skalarfelder als
+> eigene Gruppen). **(3) KNOPF-BELEUCHTUNG mappbar für ALLE Multi-Knöpfe** (bool_leds je Knopf + ap_master +
+> mode_var; NICHT als Sammel-Kachel, sondern pro Knopf). **(4) GLOW-AUS-SIM:** Output-Elemente (LED/Segment/Button-
+> Light) live vom `_ValueMonitor`-Wert einfärben/beschriften (Inputs glimmen schon von der Hardware). **(5) Hat-
+> Capture-UI** (Modell/Engine stehen). Modelle: MultiPanelOutput(ap_master/mode_var/bool_leds/selector),
+> RadioPanelOutput(units[].banks[] active/standby/…). Output-Editor: `_open_output_editor`/`group_fields` (gui_mapper).
+> ---
+> Stand davor: **2026-07-19 (spät) — Nachbau: Zonen-Trennung + Radio-Controls + saubere Labels.**
 > **🆕 GANZ NEU:** **Knöpfe/Anzeigen GETRENNT** (`_device_layout`: Controls-Zone oben, Displays-Zone unten,
 > `_lay_tiles`/`_output_items`→(controls,displays)); **Radio-Controls** pro Einheit = 1 ENCODER + 1 Swap-BUTTON
 > (`_draw_encoder`); **saubere Display-Labels** (COM1/NAV1/ADF/DME/XPDR bzw. ALT/HDG — kein „Bank"/Kleinschreibung/
