@@ -3062,28 +3062,6 @@ def run() -> None:
             pcanvas["live"].setdefault(el.live_key, []).append(
                 {"kind": "onoff", "rect": rect, "off": fill})
 
-    def _draw_rocker(c, tag, el, x0, y0, x1, y1):
-        # momentary (on)-off-(on): a capsule with a top + bottom lamp that glow
-        # while their direction fires (both codes wired into the live overlay).
-        muted = not el.mapped
-        edge = "#cbd5e1" if muted else "#94a3b8"
-        c.create_text((x0 + x1) / 2, y0 + 7, text=el.label, fill=MUTED if muted else TEXT,
-                      font=("TkDefaultFont", 8, "bold"), tags=(tag,))
-        cxm = (x0 + x1) / 2
-        bw = min((x1 - x0) * 0.5, 22)
-        by0, by1 = y0 + 15, y1 - 4
-        _round_rect(c, cxm - bw / 2, by0, cxm + bw / 2, by1, bw / 2,
-                    fill="#eceff1" if muted else SURFACE, outline=edge, width=1, tags=(tag,))
-        kr = bw * 0.34
-        top = c.create_oval(cxm - kr, by0 + 3, cxm + kr, by0 + 3 + 2 * kr,
-                            fill="#cfd8dc", outline="", tags=(tag,))
-        bot = c.create_oval(cxm - kr, by1 - 3 - 2 * kr, cxm + kr, by1 - 3,
-                            fill="#cfd8dc", outline="", tags=(tag,))
-        for key, dot in ((el.live_key, top), (el.live_key2, bot)):
-            if key is not None:
-                pcanvas["live"].setdefault(key, []).append(
-                    {"kind": "onoff", "rect": dot, "off": "#cfd8dc"})
-
     def _draw_hat(c, tag, el, x0, y0, x1, y1):
         muted = not el.mapped
         cxm, cym = (x0 + x1) / 2, (y0 + y1) / 2 + 5
@@ -3112,7 +3090,7 @@ def run() -> None:
 
     _PANEL_DRAW = {panel_layout.AXIS: _draw_axis, panel_layout.SWITCH: _draw_switch,
                    panel_layout.BUTTON: _draw_button, panel_layout.HAT: _draw_hat,
-                   panel_layout.LED: _draw_led, panel_layout.ROCKER: _draw_rocker}
+                   panel_layout.LED: _draw_led}
 
     def _render_panel_canvas(device_id):
         c = panel_canvas
@@ -3162,10 +3140,10 @@ def run() -> None:
         # empty placeholder with a physical code -> create a binding FOR it, with
         # the source (kind + code) pre-filled so the switch/button can be mapped.
         dev = _sel(dev_tree)
-        if dev and el.code is not None and el.kind in (panel_layout.SWITCH,
-                                                       panel_layout.BUTTON):
+        src = el.source_kind or el.kind  # physical source kind may differ from visual
+        if dev and el.code is not None and src in ("switch", "button", "axis", "hat"):
             _open_editor(dev, None)
-            ev["kind"].set(el.kind)  # "switch"/"button" are valid source kinds
+            ev["kind"].set(src)
             ev["code"].set(str(el.code))
             ev["name"].set(el.label or tr("Neues Binding"))
             _ed_show_fields()
@@ -3182,7 +3160,7 @@ def run() -> None:
             txt = f"{el.label} — {el.name or el.action}"
             if el.name and el.action:
                 txt += f"  ({el.action})"
-        elif el.code is not None and el.kind in (panel_layout.SWITCH, panel_layout.BUTTON):
+        elif el.code is not None and (el.source_kind or el.kind) in ("switch", "button"):
             txt = f"{el.label} — " + tr("leer · Klick zum Mappen")
         else:
             txt = f"{el.label} — " + tr("nicht gemappt")

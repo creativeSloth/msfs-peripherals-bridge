@@ -32,7 +32,6 @@ LED = "led"  # indicator lamp driven by an output (glow-from-sim = later)
 LEVER = "lever"  # gear lever and the like — two momentary edges in one element
 AXIS = "axis"  # analog control — drawn as a live-filling bar with a value readout
 HAT = "hat"  # POV hat — one element grouping its direction actions
-ROCKER = "rocker"  # momentary (on)-off-(on) up/down pair shown as ONE control
 
 
 @dataclass(frozen=True)
@@ -53,11 +52,10 @@ class PanelElement:
     live_key: tuple[str, int] | None = None  # ("switch"/"button"/"axis", code) for the overlay
     raw_min: int | None = None  # AXIS only: calibrated bar range (None -> live range/default)
     raw_max: int | None = None
-    # ROCKER only: the second (down) direction — its own code/binding/live key/label
-    code2: int | None = None
-    ref2: str | None = None
-    live_key2: tuple[str, int] | None = None
-    label2: str = ""
+    # Source kind to pre-fill when an EMPTY element is clicked to create a binding.
+    # "" = derive from `kind`; set explicitly where the visual kind differs from the
+    # physical source (e.g. a magneto detent drawn as a bar but sourced as a switch).
+    source_kind: str = ""
 
 
 def _live_key(kind: str, code: int) -> tuple[str, int] | None:
@@ -122,6 +120,37 @@ def _switch_element(hw_label: str, x: float, y: float, w: float, h: float,
     )
 
 
+def _stacked_bars(x: float, y: float, w: float, h: float,
+                  positions, by_code, src_kind: str = "switch") -> list[PanelElement]:
+    """K stacked, INDIVIDUALLY clickable sub-bars filling (x, y, w, h).
+
+    One bar per ``(code, label)`` position of a multi-position control (magneto
+    detents, gear up/down, a flaps rocker) — so every switch position gets its own
+    mapping / click target instead of the whole control sharing one. A mapped
+    position opens its binding; an empty one is a placeholder to map (its physical
+    ``src_kind`` is carried so the created binding has the right source kind)."""
+    out: list[PanelElement] = []
+    n = len(positions)
+    if n == 0:
+        return out
+    gap = 0.008
+    bh = (h - gap * (n - 1)) / n
+    for k, (code, label) in enumerate(positions):
+        yy = y + k * (bh + gap)
+        hit = by_code.get(code)
+        if hit is None:
+            out.append(PanelElement(BUTTON, label, x, yy, w, bh, code=code,
+                                    mapped=False, source_kind=src_kind,
+                                    live_key=_live_key(src_kind, code)))
+        else:
+            idx, b = hit
+            out.append(PanelElement(
+                BUTTON, label, x, yy, w, bh, name=b.name,
+                action=_action_summary(b), code=code, ref=f"bind:{idx}",
+                mapped=True, source_kind=src_kind, live_key=_live_key(src_kind, code)))
+    return out
+
+
 def _switch_panel(binds, outs) -> list[PanelElement]:
     """Hand-drawn Saitek Switch Panel: toggle row + magneto rotary + gear."""
     by_code = _index_bindings(binds)
@@ -135,16 +164,8 @@ def _switch_panel(binds, outs) -> list[PanelElement]:
         x = margin + j * (cw + gap)
         els.append(_switch_element(hw, x, 0.07, cw, 0.30, code, by_code.get(code)))
 
-    # Magneto rotary (bottom-left): one wide element covering all five detents.
-    mag_hits = [(lbl, by_code.get(code)) for code, lbl in _SP_MAGNETO]
-    mag_mapped = [h for _, h in mag_hits if h is not None]
-    els.append(PanelElement(
-        SELECTOR, "MAGNETOS", 0.05, 0.52, 0.42, 0.38,
-        name=" · ".join(lbl for _code, lbl in _SP_MAGNETO),
-        action=", ".join(f"{lbl}: {_action_summary(h[1])}" for lbl, h in mag_hits if h),
-        ref=(f"bind:{mag_mapped[0][0]}" if mag_mapped else None),
-        mapped=bool(mag_mapped),
-    ))
+    # Magneto rotary (bottom-left): each of the 5 detents its own clickable bar.
+    els += _stacked_bars(0.05, 0.52, 0.42, 0.38, _SP_MAGNETO, by_code)
 
     # Gear indicator LEDs (three lamps) — driven by a gear_leds output if present.
     gear_out = next(((k, o) for k, o in enumerate(outs)
@@ -159,16 +180,8 @@ def _switch_panel(binds, outs) -> list[PanelElement]:
             mapped=gear_out is not None,
         ))
 
-    # Gear lever (bottom-right): up/down momentary edges in one element.
-    gear_hits = [(lbl, by_code.get(code)) for code, lbl in _SP_GEAR]
-    gear_mapped = [h for _, h in gear_hits if h is not None]
-    els.append(PanelElement(
-        LEVER, "GEAR", 0.60, 0.68, 0.37, 0.23,
-        name="Fahrwerkshebel",
-        action=", ".join(f"{lbl}: {_action_summary(h[1])}" for lbl, h in gear_hits if h),
-        ref=(f"bind:{gear_mapped[0][0]}" if gear_mapped else None),
-        mapped=bool(gear_mapped),
-    ))
+    # Gear lever (bottom-right): up + down each its own clickable bar.
+    els += _stacked_bars(0.60, 0.68, 0.37, 0.23, _SP_GEAR, by_code)
     return els
 
 
@@ -276,15 +289,14 @@ def _device_layout(binds, outs) -> list[PanelElement]:
         cells = _grid_cells(len(items), margin, gy0, 1.0 - margin, 1.0 - margin)
         for (x0, y0, w, h), it in zip(cells, items, strict=True):
             if it[0] == "rocker":
+                # a momentary up/down pair -> two stacked clickable bars in ONE
+                # cell (same footprint as a single tile), each its own mapping.
                 (ui, ub), (di, db) = it[1], it[2]
-                base = _direction_of(ub.name)[0] or ub.name
-                els.append(PanelElement(
-                    ROCKER, base, x0, y0, w, h, name=base,
-                    action=f"▲ {_action_summary(ub)} · ▼ {_action_summary(db)}",
-                    code=ub.source.code, ref=f"bind:{ui}", mapped=True,
-                    live_key=_live_key(str(ub.source.kind), ub.source.code),
-                    code2=db.source.code, ref2=f"bind:{di}", label2=db.name,
-                    live_key2=_live_key(str(db.source.kind), db.source.code)))
+                base = ub.name.rsplit(" ", 1)[0] or ub.name
+                positions = [(ub.source.code, f"▲ {base}"), (db.source.code, f"▼ {base}")]
+                local = {ub.source.code: (ui, ub), db.source.code: (di, db)}
+                els += _stacked_bars(x0, y0, w, h, positions, local,
+                                     src_kind=str(ub.source.kind))
                 continue
             _, i, b = it
             k = str(b.source.kind)

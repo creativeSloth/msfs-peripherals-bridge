@@ -6,9 +6,6 @@ from msfs_peripherals_bridge.panel_layout import (
     BUTTON,
     HAT,
     LED,
-    LEVER,
-    ROCKER,
-    SELECTOR,
     SWITCH,
     has_hand_layout,
     panel_layout,
@@ -84,12 +81,16 @@ def test_unmapped_toggle_is_muted_but_still_live_capable():
     assert cowl.live_key == ("switch", 6)  # still highlights when flicked
 
 
-def test_magneto_is_one_selector_referencing_its_mapped_detent():
-    mag = _by_label(panel_layout(PROFILE, "switch_panel"))["MAGNETOS"]
-    assert mag.kind == SELECTOR
-    assert mag.mapped is True  # code 16 (BOTH) is mapped
-    assert mag.ref == "bind:2"
-    assert "BOTH" in mag.name
+def test_magneto_detents_are_individually_clickable_bars():
+    # (looked up by code — the gear LEDs reuse the "L"/"R" labels by position)
+    detents = [e for e in panel_layout(PROFILE, "switch_panel")
+               if e.kind == BUTTON and e.code in range(13, 18)]
+    assert {e.code for e in detents} == set(range(13, 18))  # codes 13..17
+    assert all(e.source_kind == "switch" for e in detents)
+    both = next(e for e in detents if e.code == 16)
+    assert both.mapped and both.ref == "bind:2"  # code 16 (BOTH) is mapped
+    off = next(e for e in detents if e.code == 13)
+    assert off.mapped is False and off.live_key == ("switch", 13)
 
 
 def test_gear_leds_reference_the_output():
@@ -99,11 +100,12 @@ def test_gear_leds_reference_the_output():
     assert all(e.mapped and e.ref == "out:0" for e in leds)
 
 
-def test_gear_lever_present():
-    gear = _by_label(panel_layout(PROFILE, "switch_panel"))["GEAR"]
-    assert gear.kind == LEVER
-    assert gear.mapped is True  # gear-up (code 18) is mapped
-    assert gear.ref == "bind:3"
+def test_gear_lever_positions_are_individual_bars():
+    els = _by_label(panel_layout(PROFILE, "switch_panel"))
+    up, dn = els["UP"], els["DN"]
+    assert up.code == 18 and up.mapped and up.ref == "bind:3"  # gear-up mapped
+    assert dn.code == 19 and dn.mapped is False  # gear-down unmapped placeholder
+    assert up.source_kind == "switch"
 
 
 def test_all_positions_within_unit_square():
@@ -159,17 +161,17 @@ ROCKER_PROFILE = Profile.model_validate({
 })
 
 
-def test_flaps_up_down_merge_into_one_rocker():
+def test_flaps_up_down_become_two_stacked_bars():
     els = panel_layout(ROCKER_PROFILE, "multi_panel")
-    rockers = [e for e in els if e.kind == ROCKER]
-    assert len(rockers) == 1  # the up/down pair became ONE element
-    r = rockers[0]
-    assert r.label == "flaps"  # common base
-    assert r.live_key == ("switch", 16) and r.live_key2 == ("switch", 17)
-    assert r.ref == "bind:0" and r.ref2 == "bind:1"
-    # the unrelated AP switch stays its own tile; no stray extra rocker
-    others = [e for e in els if e.kind != ROCKER]
-    assert len(els) == 2 and [e.kind for e in others] == [SWITCH]
+    flaps = [e for e in els if "Flaps" in e.label]
+    assert len(flaps) == 2  # the up/down pair -> two stacked bars, not two tiles
+    up = next(e for e in flaps if e.label.startswith("▲"))
+    dn = next(e for e in flaps if e.label.startswith("▼"))
+    assert up.code == 16 and up.ref == "bind:0" and up.source_kind == "switch"
+    assert dn.code == 17 and dn.ref == "bind:1"
+    assert up.y + up.h <= dn.y + 1e-9  # up stacks above down within one cell
+    # the unrelated AP switch stays its own single tile
+    assert len(els) == 3 and els[-1].label == "AP master"
 
 
 def test_unknown_device_is_empty():
