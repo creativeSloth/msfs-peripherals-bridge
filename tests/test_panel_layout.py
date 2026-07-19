@@ -103,11 +103,13 @@ def test_gear_leds_map_each_field_individually():
 
 
 def test_gear_lever_positions_are_individual_bars():
-    els = _by_label(panel_layout(PROFILE, "switch_panel"))
-    up, dn = els["UP"], els["DN"]
-    assert up.code == 18 and up.mapped and up.ref == "bind:3"  # gear-up mapped
-    assert dn.code == 19 and dn.mapped is False  # gear-down unmapped placeholder
-    assert up.source_kind == "switch"
+    gears = [e for e in panel_layout(PROFILE, "switch_panel")
+             if e.source_kind == "switch" and e.code in (18, 19)]
+    up = next(e for e in gears if e.code == 18)
+    dn = next(e for e in gears if e.code == 19)
+    assert up.mapped and up.ref == "bind:3" and up.label == "Gear up"  # clear label
+    assert up.live_key == ("switch", 18)  # lights when pressed at the device
+    assert dn.mapped is False and dn.live_key == ("switch", 19)
 
 
 def test_all_positions_within_unit_square():
@@ -165,12 +167,13 @@ ROCKER_PROFILE = Profile.model_validate({
 
 def test_flaps_up_down_become_two_stacked_bars():
     els = panel_layout(ROCKER_PROFILE, "multi_panel")
-    flaps = [e for e in els if "Flaps" in e.label]
+    flaps = [e for e in els if "Flaps" in e.label]  # labels = binding names now
     assert len(flaps) == 2  # the up/down pair -> two stacked bars, not two tiles
-    up = next(e for e in flaps if e.label.startswith("▲"))
-    dn = next(e for e in flaps if e.label.startswith("▼"))
-    assert up.code == 16 and up.ref == "bind:0" and up.source_kind == "switch"
-    assert dn.code == 17 and dn.ref == "bind:1"
+    up = next(e for e in flaps if e.code == 16)
+    dn = next(e for e in flaps if e.code == 17)
+    assert up.ref == "bind:0" and up.source_kind == "switch"
+    assert up.label == "Flaps up" and dn.label == "Flaps down"
+    assert dn.ref == "bind:1"
     assert up.y + up.h <= dn.y + 1e-9  # up stacks above down within one cell
     # the unrelated AP switch stays its own single tile
     assert len(els) == 3 and els[-1].label == "AP master"

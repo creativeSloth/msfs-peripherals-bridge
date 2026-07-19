@@ -149,8 +149,10 @@ def _stacked_bars(x: float, y: float, w: float, h: float,
                                     live_key=_live_key(src_kind, code)))
         else:
             idx, b = hit
+            # mapped bars show the clear binding name (not the terse detent code);
+            # live_key lights the bar when that position is pressed at the device.
             out.append(PanelElement(
-                BUTTON, label, x, yy, w, bh, name=b.name,
+                BUTTON, b.name or label, x, yy, w, bh, name=b.name,
                 action=_action_summary(b), code=code, ref=f"bind:{idx}",
                 mapped=True, source_kind=src_kind, live_key=_live_key(src_kind, code)))
     return out
@@ -268,12 +270,13 @@ def _classify_output(path) -> str | None:
     Maps the profile's output structure onto the panel's physical outputs the
     same way inputs map to controls: a display cell = SEGMENT, a button backlight
     = BUTTON_LIGHT, an indicator lamp = LED. Container/config rows are skipped."""
+    # Only PHYSICAL panel elements — buttons + displays + indicator lamps. Abstract
+    # config groups (bool_leds, alt_sources, dimmer, source_toggle) are NOT shown;
+    # their vars are mapped inside the element's editor, not as their own tile.
     if not path:
         return None
     if len(path) == 1 and path[0] in ("nose", "left", "right"):
         return LED  # gear indicator lamps
-    if path[0] == "bool_leds":
-        return BUTTON_LIGHT  # var-driven button backlights
     if len(path) == 2 and path[0] == "selector":
         return SEGMENT  # multi-panel display value per selector position
     if len(path) == 4 and path[0] == "units" and path[2] == "banks":
