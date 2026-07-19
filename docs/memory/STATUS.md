@@ -1,15 +1,18 @@
 # STATUS — Resume-Anker
 
 > Kurzer Einstiegspunkt: was läuft, was offen ist, wie es weitergeht.
-> Stand: **2026-07-19 (spät) — Nachbau-Politur + HAT-MODELL + Mehrstellungs-Stapelbalken. GEPUSHT bis `cef74f5`.**
-> **🆕 SEITHER:** Flaps/(on)-off-(on) + **Magneto (5 Detents) + GEAR (up/down) jetzt als EINZELN mappbare
-> Stapelbalken** (`_stacked_bars`: K Balken im Platz eines Schalters, jeder eigenes Mapping/Klick/Live;
-> `source_kind` trägt physische Quelle=switch trotz BUTTON-Optik); ROCKER/SELECTOR/LEVER-Einzelelemente abgelöst.
-> **„AP mode X"-Bindings → „X"** umbenannt (piper_arrow). 335 Tests grün.
-> **🔴 OFFEN (User mehrfach angemahnt) — NÄCHSTES GROSSES PAKET = HAND-LAYOUTS multi_panel + radio_panel:**
-> **(x) Radio-Panel-Nachbau existiert NICHT** (fällt auf Auto-Raster zurück); **(y) Radio-OUTPUT im Nachbau fehlt**;
-> **(z) Multi-OUTPUT im Nachbau fehlt** (Display/Selektor-Werte zuordnen). → Hand-Layout je Panel in `panel_layout`
-> (wie `_switch_panel`) mit **Output-Elementen** (Display-Zellen/Selektor/Encoder) analog `_stacked_bars`; HID-Maps in
+> Stand: **2026-07-19 (spät) — Nachbau: Stapelbalken + OUTPUTS als getippte Elemente. GEPUSHT bis `d4adb6a`.**
+> **🆕 SEITHER:** Magneto/GEAR/Flaps als EINZELN mappbare **Stapelbalken** (`_stacked_bars`, klare Binding-Namen als
+> Label, leuchten grün beim Drücken am Gerät via live_key — headless verifiziert). **OUTPUTS = getippte Elemente wie
+> Inputs** (`_classify_output`+`_output_items`, Typen LED/SEGMENT/BUTTON_LIGHT/DOT, je `ref=out:i:<pfad>` → Klick
+> öffnet das eigene Output-Feld). **Radio-Panel-Nachbau existiert jetzt** (14 Display-Segmente, war vorher LEER);
+> **Multi** = Knöpfe + 5 Selektor-Segmente. **Nur PHYSISCHES** wird gezeigt (Konfig-Container bool_leds/alt_sources/
+> dimmer NICHT als Kachel — Var-Mapping nur im Editor). Segmente als schwarz-bernstein **LCD-Screen** (klar ≠ Knopf).
+> „AP mode X"→„X". 336 Tests grün, ruff clean, GUI-Smoke ok.
+> **🔴 OFFEN — NÄCHSTES:** **(1) GLOW-AUS-SIM** (User gefragt!): Output-Elemente (LED/Segment) leuchten/zeigen noch
+> NICHT den gelesenen Sim-Wert — jedes Output-Element seine Var über `_ValueMonitor` abonnieren (wie Gauges) +
+> Kachel live einfärben/beschriften (Inputs glimmen schon von der Hardware). **(2) Hat-Capture-UI** (Modell/Engine
+> stehen). **(3) evtl. faithful physische Hand-Layouts** für multi/radio (aktuell Auto-Grid). HID-Maps in
 > docs/memory/multi-panel-hid.md + radio-panel-hid.md. Panel-Output-Modelle: MultiPanelOutput/RadioPanelOutput.
 > ---
 > **▶ ODER (User-Auftrag: frische Session) — HAT-CAPTURE-UI:** pro Hat-Richtung
