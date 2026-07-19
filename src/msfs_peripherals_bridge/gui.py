@@ -3107,6 +3107,17 @@ def run() -> None:
         c.create_text(cx2, cy2 + r + 7, text=el.label, fill=MUTED,
                       font=("TkDefaultFont", 7), tags=(tag,))
 
+    def _draw_encoder(c, tag, el, x0, y0, x1, y1):
+        # a rotary encoder knob: a disc with a pointer notch, caption above
+        c.create_text((x0 + x1) / 2, y0 + 7, text="⟳ " + el.label, fill=TEXT,
+                      font=("TkDefaultFont", 8, "bold"),
+                      width=max(30.0, x1 - x0 - 6), tags=(tag,))
+        cx2, cy2 = (x0 + x1) / 2, (y0 + y1) / 2 + 6
+        r = min(x1 - x0, y1 - y0) * 0.28
+        c.create_oval(cx2 - r, cy2 - r, cx2 + r, cy2 + r, fill="#cfd8dc",
+                      outline="#607d8b", width=2, tags=(tag,))
+        c.create_line(cx2, cy2, cx2, cy2 - r, fill="#37474f", width=2, tags=(tag,))
+
     def _draw_block(c, tag, el, x0, y0, x1, y1):
         fill, edge = _panel_fill(el)
         _round_rect(c, x0, y0, x1, y1, 8, fill=fill, outline=edge, width=2, tags=(tag,))
@@ -3120,7 +3131,8 @@ def run() -> None:
     _PANEL_DRAW = {panel_layout.AXIS: _draw_axis, panel_layout.SWITCH: _draw_switch,
                    panel_layout.BUTTON: _draw_button, panel_layout.HAT: _draw_hat,
                    panel_layout.LED: _draw_led, panel_layout.SEGMENT: _draw_segment,
-                   panel_layout.BUTTON_LIGHT: _draw_button_light, panel_layout.DOT: _draw_dot}
+                   panel_layout.BUTTON_LIGHT: _draw_button_light, panel_layout.DOT: _draw_dot,
+                   panel_layout.ENCODER: _draw_encoder}
 
     def _render_panel_canvas(device_id):
         c = panel_canvas

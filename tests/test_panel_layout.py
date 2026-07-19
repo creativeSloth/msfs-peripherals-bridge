@@ -198,7 +198,30 @@ def test_outputs_become_typed_clickable_elements_like_inputs():
     segs = [e for e in els if e.kind == SEGMENT]
     assert len(segs) == 2  # one display cell per selector position
     assert {e.ref for e in segs} == {"out:0:selector/0", "out:0:selector/1"}
+    assert {e.label for e in segs} == {"ALT", "VS"}  # short mode name, no simvar/BANK
     assert all(e.mapped for e in segs)  # click opens THAT output field's mapping
+
+
+ZONE_PROFILE = Profile.model_validate({
+    "name": "Z",
+    "bindings": {"multi_panel": [
+        {"name": "AP master", "source": {"kind": "switch", "code": 7},
+         "action": {"type": "event", "event": "AP_MASTER", "value": 1}},
+    ]},
+    "outputs": {"multi_panel": [{
+        "type": "multi_panel",
+        "selector": [{"code": 0, "label": "ALT", "simvar": "X", "min": 0, "max": 9}],
+    }]},
+})
+
+
+def test_controls_and_displays_are_separated_into_zones():
+    els = panel_layout(ZONE_PROFILE, "multi_panel")
+    controls = [e for e in els if e.kind == SWITCH]  # the AP-master button
+    displays = [e for e in els if e.kind == SEGMENT]  # the ALT display cell
+    assert controls and displays
+    # every control sits above every display (separate zones, clear gap)
+    assert max(e.y + e.h for e in controls) <= min(e.y for e in displays) + 1e-9
 
 
 def test_unknown_device_is_empty():

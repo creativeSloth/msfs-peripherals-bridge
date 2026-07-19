@@ -32,10 +32,14 @@ LED = "led"  # indicator lamp driven by an output (glow-from-sim = later)
 LEVER = "lever"  # gear lever and the like — two momentary edges in one element
 AXIS = "axis"  # analog control — drawn as a live-filling bar with a value readout
 HAT = "hat"  # POV hat — one element grouping its direction actions
-# --- output element types (driven BY the sim, mapped like inputs) ----------- #
+ENCODER = "encoder"  # a rotary encoder knob (radio outer/inner + mode selector)
+# --- output/display element types (driven BY the sim, mapped like inputs) ---- #
 SEGMENT = "segment"  # a 7-seg display cell (selector/bank value)
 DOT = "dot"  # a display decimal-point / annunciator dot
 BUTTON_LIGHT = "button_light"  # a button's backlight LED (bool_leds)
+
+# Element kinds shown in the DISPLAY zone (everything else = the controls zone).
+_DISPLAY_KINDS = frozenset({LED, SEGMENT, DOT, BUTTON_LIGHT})
 
 
 @dataclass(frozen=True)
@@ -264,98 +268,127 @@ def _pair_rockers(keys):
     return rockers, singles
 
 
-def _classify_output(path) -> str | None:
-    """Physical output-element type for an addressable output group (None = skip).
+def _output_element_text(o, path, g) -> tuple[str, str]:
+    """(SHORT tile label, hover detail) for a display element. The label is just
+    the mode/bank name (no "Bank", no lowercase kind); the detail explains WHICH
+    var is shown + HOW it changes (read-var = display + encoder base)."""
+    try:
+        if len(path) == 2 and path[0] == "selector":
+            e = o.selector[path[1]]
+            setter = e.set_event or f"SimVar {e.simvar} direkt schreiben"
+            extra = ("  · Quellen: " + ", ".join([e.simvar]
+                     + [s.simvar for s in e.alt_sources])) if e.alt_sources else ""
+            return e.label, (f"Anzeige liest {e.simvar} ({e.unit}) · ändern via "
+                             f"{setter} (±{e.step:g}, {e.min:g}..{e.max:g}){extra}")
+        if len(path) == 4 and path[0] == "units" and path[2] == "banks":
+            bank = o.units[path[1]].banks[path[3]]
+            return getattr(bank, "label", g.label), g.label
+    except (IndexError, AttributeError, TypeError):
+        pass
+    return g.label, str(g.value)
 
-    Maps the profile's output structure onto the panel's physical outputs the
-    same way inputs map to controls: a display cell = SEGMENT, a button backlight
-    = BUTTON_LIGHT, an indicator lamp = LED. Container/config rows are skipped."""
-    # Only PHYSICAL panel elements — buttons + displays + indicator lamps. Abstract
-    # config groups (bool_leds, alt_sources, dimmer, source_toggle) are NOT shown;
-    # their vars are mapped inside the element's editor, not as their own tile.
-    if not path:
-        return None
-    if len(path) == 1 and path[0] in ("nose", "left", "right"):
-        return LED  # gear indicator lamps
-    if len(path) == 2 and path[0] == "selector":
-        return SEGMENT  # multi-panel display value per selector position
-    if len(path) == 4 and path[0] == "units" and path[2] == "banks":
-        return SEGMENT  # radio-panel display value per bank
-    return None
 
+def _output_items(outs) -> tuple[list, list]:
+    """(control_items, display_items) — encoders/swap vs displays/lamps.
 
-def _output_items(outs) -> list[tuple]:
-    """('out', out_index, group, element_kind) per mappable physical output."""
-    items: list[tuple] = []
+    Each item is ('out', out_index, path, kind, label, detail). The two lists are
+    laid in SEPARATE zones so buttons and displays are shown apart. Abstract config
+    groups (bool_leds/alt_sources/dimmer) are skipped — mapped in the editor."""
+    controls: list = []
+    displays: list = []
     for k, o in enumerate(outs):
         for g in output_groups(output_nodes(o)):
-            okind = _classify_output(g.path)
-            if okind is not None:
-                items.append(("out", k, g, okind))
-    return items
+            p = g.path
+            if len(p) == 1 and p[0] in ("nose", "left", "right"):
+                displays.append(("out", k, p, LED, g.label, str(g.value)))
+            elif (len(p) == 2 and p[0] == "selector") or (
+                    len(p) == 4 and p[0] == "units" and p[2] == "banks"):
+                lbl, det = _output_element_text(o, p, g)  # display cell (segment)
+                displays.append(("out", k, p, SEGMENT, lbl, det))
+            elif len(p) == 2 and p[0] == "units":  # a radio unit's controls
+                try:
+                    name = o.units[p[1]].name
+                except (IndexError, AttributeError):
+                    name = str(p[1])
+                controls.append(("out", k, p, ENCODER, f"Encoder {name}",
+                                 f"Außen-/Innen-Drehknopf + Mode-Selektor · Einheit {name}"))
+                controls.append(("out", k, p, BUTTON, f"Swap {name}",
+                                 f"ACT/STBY-Swap-Taste · Einheit {name}"))
+    return controls, displays
+
+
+def _lay_tiles(items, x0: float, y0: float, x1: float, y1: float) -> list[PanelElement]:
+    """Grid ``items`` into the box (x0,y0)-(x1,y1); return the built elements."""
+    out: list[PanelElement] = []
+    if not items or (y1 - y0) < 0.02 or (x1 - x0) < 0.02:
+        return out
+    for (cx0, cy0, w, h), it in zip(_grid_cells(len(items), x0, y0, x1, y1),
+                                    items, strict=True):
+        if it[0] == "rocker":
+            (ui, ub), (di, db) = it[1], it[2]
+            base = ub.name.rsplit(" ", 1)[0] or ub.name
+            positions = [(ub.source.code, base), (db.source.code, base)]
+            local = {ub.source.code: (ui, ub), db.source.code: (di, db)}
+            out += _stacked_bars(cx0, cy0, w, h, positions, local,
+                                 src_kind=str(ub.source.kind))
+        elif it[0] == "out":
+            _, k, p, okind, label, detail = it
+            out.append(PanelElement(okind, label, cx0, cy0, w, h, action=detail,
+                                    ref=f"out:{k}:" + "/".join(map(str, p)), mapped=True))
+        else:  # key / hat binding
+            _, i, b = it
+            kk = str(b.source.kind)
+            kind = HAT if it[0] == "hat" else (BUTTON if kk == "button" else SWITCH)
+            out.append(PanelElement(
+                kind, b.name or f"#{i}", cx0, cy0, w, h, name=b.name,
+                action=_action_summary(b), code=b.source.code, ref=f"bind:{i}",
+                mapped=True, live_key=(None if kk == "hat" else _live_key(kk, b.source.code))))
+    return out
 
 
 def _device_layout(binds, outs) -> list[PanelElement]:
-    """Axes as stacked live bars (top) + inputs AND typed outputs as clickable tiles."""
+    """Axes (top bars) + a CONTROLS zone and a SEPARATE DISPLAYS zone.
+
+    Buttons/switches/rockers/encoders/swap live in the controls zone; segments and
+    lamps in the displays zone below it — kept apart (user: buttons and displays
+    shown separately) with a clear gap between."""
     axes = [(i, b) for i, b in enumerate(binds) if str(b.source.kind) == "axis"]
     hats = [(i, b) for i, b in enumerate(binds) if str(b.source.kind) == "hat"]
     keys = [(i, b) for i, b in enumerate(binds)
             if str(b.source.kind) in ("button", "switch")]
-    out_items = _output_items(outs)
-    if not (axes or hats or keys or out_items):
+    ctrl_out, disp_out = _output_items(outs)
+    if not (axes or hats or keys or ctrl_out or disp_out):
         return []
     els: list[PanelElement] = []
     margin, gap = 0.03, 0.018
 
-    # Axes: full-width horizontal bars, stacked from the top. Cap the zone so the
-    # tiles keep room; the bar height shrinks to fit when there are many axes.
+    # Axes: full-width horizontal live bars stacked at the very top.
     y = margin
     if axes:
-        zone_bottom = 0.62 if (hats or keys) else (1.0 - margin)
+        zone_bottom = 0.55 if (hats or keys or ctrl_out or disp_out) else (1.0 - margin)
         avail = zone_bottom - margin
         ah = max(0.05, min(0.11, (avail - gap * (len(axes) - 1)) / len(axes)))
         for j, (i, b) in enumerate(axes):
-            yy = margin + j * (ah + gap)
-            els.append(_axis_element(i, b, margin, yy, 1.0 - 2 * margin, ah))
+            els.append(_axis_element(i, b, margin, margin + j * (ah + gap),
+                                     1.0 - 2 * margin, ah))
         y = margin + len(axes) * (ah + gap)
 
-    # Inputs (up/down pairs merged to rockers) + typed OUTPUT tiles in one grid —
-    # outputs work just like inputs, only their type is led/segment/button-light.
     rockers, singles = _pair_rockers(keys)
-    items = ([("rocker", u, d) for u, d in rockers]
-             + [("key", i, b) for i, b in singles]
-             + [("hat", i, b) for i, b in hats]
-             + out_items)
-    if items:
-        gy0 = y + (gap if axes else 0.0)
-        cells = _grid_cells(len(items), margin, gy0, 1.0 - margin, 1.0 - margin)
-        for (x0, y0, w, h), it in zip(cells, items, strict=True):
-            if it[0] == "rocker":
-                # a momentary up/down pair -> two stacked clickable bars in ONE
-                # cell (same footprint as a single tile), each its own mapping.
-                (ui, ub), (di, db) = it[1], it[2]
-                base = ub.name.rsplit(" ", 1)[0] or ub.name
-                positions = [(ub.source.code, f"▲ {base}"), (db.source.code, f"▼ {base}")]
-                local = {ub.source.code: (ui, ub), db.source.code: (di, db)}
-                els += _stacked_bars(x0, y0, w, h, positions, local,
-                                     src_kind=str(ub.source.kind))
-                continue
-            if it[0] == "out":  # a typed output element -> opens its own mapping
-                _, k, g, okind = it
-                path = "/".join(map(str, g.path))
-                els.append(PanelElement(
-                    okind, g.label, x0, y0, w, h, name=g.label,
-                    action=str(g.value), ref=f"out:{k}:{path}", mapped=True))
-                continue
-            _, i, b = it
-            k = str(b.source.kind)
-            kind = HAT if it[0] == "hat" else (BUTTON if k == "button" else SWITCH)
-            els.append(PanelElement(
-                kind, b.name or f"#{i}", x0, y0, w, h,
-                name=b.name, action=_action_summary(b), code=b.source.code,
-                ref=f"bind:{i}", mapped=True,
-                # hats report as two -1/0/+1 axes — no simple on/off overlay yet
-                live_key=(None if k == "hat" else _live_key(k, b.source.code))))
+    controls = ([("rocker", u, d) for u, d in rockers]
+                + [("key", i, b) for i, b in singles]
+                + [("hat", i, b) for i, b in hats] + ctrl_out)
+    displays = disp_out
+
+    top = y + (gap if axes else 0.0)
+    bottom = 1.0 - margin
+    if controls and displays:  # split remaining space: controls up, displays down
+        nc, nd = len(controls), len(displays)
+        split = top + (bottom - top) * (nc / (nc + nd))
+        split = min(max(split, top + 0.12), bottom - 0.12)
+        els += _lay_tiles(controls, margin, top, 1.0 - margin, split - gap)
+        els += _lay_tiles(displays, margin, split + gap, 1.0 - margin, bottom)
+    else:
+        els += _lay_tiles(controls or displays, margin, top, 1.0 - margin, bottom)
     return els
 
 
