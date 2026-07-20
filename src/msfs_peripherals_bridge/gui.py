@@ -3526,13 +3526,15 @@ def run() -> None:
 
     def _draw_segment(c, tag, el, x0, y0, x1, y1):
         # a digital DISPLAY — unmistakably NOT a button: rectangular metal bezel,
-        # black screen, amber 7-seg-style readout (sharp corners, no pill shape).
+        # black screen, 7-seg-style readout (sharp corners, no pill shape). The
+        # Radio Panel's display is RED, the Multi Panel's amber (per hardware).
+        ink = "#ff3b30" if pcanvas.get("device") == "radio_panel" else "#ffb000"
         c.create_rectangle(x0 + 2, y0 + 2, x1 - 2, y1 - 2, fill="#1c1c1c",
                            outline="#6b7280", width=1, tags=(tag,))  # metal bezel
         sx0, sy0, sx1, sy1 = x0 + 5, y0 + 5, x1 - 5, y1 - 5
-        c.create_rectangle(sx0, sy0, sx1, sy1, fill="#050805", outline="#000000",
-                           width=1, tags=(tag,))  # black screen
-        c.create_text((x0 + x1) / 2, (y0 + y1) / 2, text=el.label, fill="#ffb000",
+        c.create_rectangle(sx0, sy0, sx1, sy1, fill="#0a0202" if ink == "#ff3b30"
+                           else "#050805", outline="#000000", width=1, tags=(tag,))
+        c.create_text((x0 + x1) / 2, (y0 + y1) / 2, text=el.label, fill=ink,
                       font=("TkFixedFont", 9, "bold"),
                       width=max(26.0, sx1 - sx0 - 4), tags=(tag,))
 
@@ -3546,10 +3548,13 @@ def run() -> None:
                       width=max(30.0, bx1 - bx0 - 8), tags=(tag,))
 
     def _draw_dot(c, tag, el, x0, y0, x1, y1):
+        # the decimal point / cursor — red on the Radio Panel to match its display.
+        glow, ring = (("#ff3b30", "#7a1f1f") if pcanvas.get("device") == "radio_panel"
+                      else ("#3ee08a", "#1f7a4d"))
         r = min(x1 - x0, y1 - y0) * 0.18
         cx2, cy2 = (x0 + x1) / 2, (y0 + y1) / 2
-        c.create_oval(cx2 - r, cy2 - r, cx2 + r, cy2 + r, fill="#3ee08a",
-                      outline="#1f7a4d", width=1, tags=(tag,))
+        c.create_oval(cx2 - r, cy2 - r, cx2 + r, cy2 + r, fill=glow,
+                      outline=ring, width=1, tags=(tag,))
         c.create_text(cx2, cy2 + r + 7, text=el.label, fill=MUTED,
                       font=("TkDefaultFont", 7), tags=(tag,))
 
