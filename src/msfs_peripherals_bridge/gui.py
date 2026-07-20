@@ -2808,33 +2808,69 @@ def run() -> None:
                 _info(cell, help_text)
             return getter
 
-        def _encoder_block(row, group_path, enc_nodes):
-            """One consolidated 'Doppelencoder' row: current codes + Anlernen button."""
+        def _capture_spec(field_names):
+            """Capture recipe for a rotary control inside this output group, or None.
+
+            Covers the Radio dual-encoder (five codes) and the Multi trim wheel
+            (dimmer, two). ``steps`` = the guided (field, instruction) walk;
+            ``inverts`` = per-ring CW/CCW swap toggles; ``summary`` renders the
+            current codes. Encoder detents are transient, hence edge-counting."""
+            if "outer_cw" in field_names:  # Radio dual-concentric encoder
+                return {
+                    "title": tr("Doppelencoder"),
+                    "steps": [
+                        ("outer_cw", tr("den ÄUSSEREN Ring mehrmals IM Uhrzeigersinn drehen")),
+                        ("outer_ccw", tr("den ÄUSSEREN Ring mehrmals GEGEN den "
+                                         "Uhrzeigersinn drehen")),
+                        ("inner_cw", tr("den INNEREN Ring mehrmals IM Uhrzeigersinn drehen")),
+                        ("inner_ccw", tr("den INNEREN Ring mehrmals GEGEN den "
+                                         "Uhrzeigersinn drehen")),
+                        ("swap", tr("den Encoder mehrmals DRÜCKEN")),
+                    ],
+                    "inverts": [(tr("außen"), "outer_cw", "outer_ccw"),
+                                (tr("innen"), "inner_cw", "inner_ccw")],
+                    "summary": lambda c: (f"{tr('außen')} {c('outer_cw')}/{c('outer_ccw')}  ·  "
+                                          f"{tr('innen')} {c('inner_cw')}/{c('inner_ccw')}  ·  "
+                                          f"{tr('Druck')} {c('swap')}"),
+                }
+            if "cw" in field_names and "ccw" in field_names:  # Multi trim wheel (dimmer)
+                return {
+                    "title": tr("Trimmrad"),
+                    "steps": [
+                        ("cw", tr("das Trimmrad mehrmals nach oben / im Uhrzeigersinn drehen")),
+                        ("ccw", tr("das Trimmrad mehrmals nach unten / gegen den "
+                                   "Uhrzeigersinn drehen")),
+                    ],
+                    "inverts": [(tr("Richtung"), "cw", "ccw")],
+                    "summary": lambda c: f"{tr('hoch')} {c('cw')}  ·  {tr('runter')} {c('ccw')}",
+                }
+            return None
+
+        def _encoder_block(row, group_path, spec, enc_nodes):
+            """One consolidated capture row: current codes summary + Anlernen button."""
             codes = {n.path[-1]: n.value for n in enc_nodes}
 
-            def _fmt(k):
+            def c(k):
                 return codes.get(k, "—") or "—"
 
             box = ttk.Frame(form)
             box.grid(row=row, column=0, columnspan=3, sticky="w", pady=(8, 2))
-            ttk.Label(box, text=tr("Doppelencoder"),
+            ttk.Label(box, text=spec["title"],
                       font=("TkDefaultFont", 9, "bold")).pack(anchor="w")
-            ttk.Label(box, foreground="#555",
-                      text=(f"{tr('außen')} {_fmt('outer_cw')}/{_fmt('outer_ccw')}  ·  "
-                            f"{tr('innen')} {_fmt('inner_cw')}/{_fmt('inner_ccw')}  ·  "
-                            f"{tr('Druck')} {_fmt('swap')}")).pack(anchor="w")
+            ttk.Label(box, foreground="#555", text=spec["summary"](c)).pack(anchor="w")
             ttk.Button(box, text=tr("🎚 Anlernen…"), style="Accent.TButton",
-                       command=lambda: _open_encoder_capture(group_path)).pack(anchor="w",
-                                                                               pady=(3, 0))
+                       command=lambda: _open_encoder_capture(group_path, spec)).pack(
+                           anchor="w", pady=(3, 0))
 
-        def _open_encoder_capture(group_path):
-            """Guided capture of a dual-encoder's five codes (#2, edge-counting).
+        def _open_encoder_capture(group_path, spec):
+            """Guided capture of a rotary control's codes (#2, edge-counting).
 
-            Walks outer/inner ring each way plus the push, recording each hardware
-            bit by counting rising edges while the user turns/presses it — so
-            transient detents the state view misses are caught, and turning a few
-            detents makes the intended bit the clear winner (also shakes off
-            bounce). Per-ring invert swaps its CW/CCW; all five write at once.
+            Walks ``spec['steps']`` (each ring's direction, plus a push if any),
+            recording each hardware bit by counting rising edges while the user
+            turns/presses it — so transient detents the state view misses are
+            caught, and turning a few detents makes the intended bit the clear
+            winner (also shakes off bounce). Per-ring invert swaps its CW/CCW; all
+            codes write at once.
             """
             from .devices import hidraw_reader
 
@@ -2844,18 +2880,12 @@ def run() -> None:
             if path is None:
                 _status(f"„{device_id}“ nicht gefunden — angesteckt?", error=True)
                 return
-            steps = [
-                ("outer_cw", tr("den ÄUSSEREN Ring mehrmals IM Uhrzeigersinn drehen")),
-                ("outer_ccw", tr("den ÄUSSEREN Ring mehrmals GEGEN den Uhrzeigersinn drehen")),
-                ("inner_cw", tr("den INNEREN Ring mehrmals IM Uhrzeigersinn drehen")),
-                ("inner_ccw", tr("den INNEREN Ring mehrmals GEGEN den Uhrzeigersinn drehen")),
-                ("swap", tr("den Encoder mehrmals DRÜCKEN")),
-            ]
+            steps = spec["steps"]
             cap: dict[str, int] = {}
             stt: dict = {"i": 0, "read": None, "close": None, "winner": None}
             cw = tk.Toplevel(ow)
             cw.transient(ow)
-            cw.title(f"{tr('Doppelencoder anlernen')} — {device_id}")
+            cw.title(f"{spec['title']} {tr('anlernen')} — {device_id}")
             frm = ttk.Frame(cw, padding=12)
             frm.pack(fill="both", expand=True)
             instr = ttk.Label(frm, font=("TkDefaultFont", 11, "bold"),
@@ -2865,15 +2895,17 @@ def run() -> None:
             found.pack(anchor="w", pady=(4, 2))
             summ = ttk.Label(frm, foreground="#555", wraplength=390, justify="left")
             summ.pack(anchor="w", pady=(2, 6))
-            inv_o, inv_i = tk.BooleanVar(), tk.BooleanVar()
+            inv_vars: dict[tuple[str, str], object] = {}
             invfr = ttk.Frame(frm)
             invfr.pack(anchor="w")
-            ttk.Checkbutton(invfr, text=tr("außen invertieren"),
-                            variable=inv_o).pack(side="left")
-            ttk.Checkbutton(invfr, text=tr("innen invertieren"),
-                            variable=inv_i).pack(side="left", padx=8)
-            _info(invfr, tr("Falls im/gegen UZS vertauscht sind — tauscht die beiden "
-                            "Codes des Rings beim Speichern."))
+            for label, fa, fb in spec["inverts"]:
+                v = tk.BooleanVar()
+                inv_vars[(fa, fb)] = v
+                ttk.Checkbutton(invfr, text=f"{label} {tr('invertieren')}",
+                                variable=v).pack(side="left", padx=(0, 8))
+            if spec["inverts"]:
+                _info(invfr, tr("Falls die Drehrichtungen vertauscht sind — tauscht "
+                                "die beiden Codes beim Speichern."))
             btnrow = ttk.Frame(frm)
             btnrow.pack(anchor="w", pady=(8, 0))
 
@@ -2926,12 +2958,9 @@ def run() -> None:
 
             def _apply():
                 codes = dict(cap)
-                if inv_o.get():
-                    codes["outer_cw"], codes["outer_ccw"] = (codes.get("outer_ccw"),
-                                                             codes.get("outer_cw"))
-                if inv_i.get():
-                    codes["inner_cw"], codes["inner_ccw"] = (codes.get("inner_ccw"),
-                                                             codes.get("inner_cw"))
+                for (fa, fb), v in inv_vars.items():
+                    if v.get():
+                        codes[fa], codes[fb] = codes.get(fb), codes.get(fa)
                 codes = {f: int(v) for f, v in codes.items() if v is not None}
                 if not codes:
                     _status("Nichts erfasst.", error=True)
@@ -2975,20 +3004,23 @@ def run() -> None:
             fields = gui_mapper.group_fields(ost["nodes"], group.path)
             if ost["focus"]:
                 fields = [n for n in fields if n.path and n.path[-1] in ost["focus"]]
-            # A Radio unit's five encoder code fields are shown as ONE "Doppelencoder"
-            # capture block (below), not five raw code rows (per user).
-            enc_nodes = [n for n in fields
-                         if n.path and n.path[-1] in gui_mapper.ENCODER_FIELDS]
-            fields = [n for n in fields if n not in enc_nodes]
+            # A rotary control's direction codes (Radio dual-encoder, Multi trim
+            # wheel) are shown as ONE capture block (below), not raw code rows (per
+            # user: one setting per encoder). Detected from the fields present.
+            spec = _capture_spec({n.path[-1] for n in fields if n.path})
+            enc_nodes = []
+            if spec:
+                cons = {f for f, _ in spec["steps"]}
+                enc_nodes = [n for n in fields if n.path and n.path[-1] in cons]
+                fields = [n for n in fields if n not in enc_nodes]
             getters = [(node, _field_row(row, node)) for row, node in enumerate(fields)]
             if not fields and not enc_nodes:
                 ttk.Label(form, foreground="#666", wraplength=430, justify="left",
                           text=tr("Diese Gruppe hat keine direkten Felder — die "
                                "Untergruppen stehen im Baum der Haupttabelle.")
                           ).grid(row=0, column=0, columnspan=2, sticky="w")
-            enc_row = len(fields)
             if enc_nodes:
-                _encoder_block(enc_row, group.path, enc_nodes)
+                _encoder_block(len(fields), group.path, spec, enc_nodes)
 
             def _apply():
                 changes = []

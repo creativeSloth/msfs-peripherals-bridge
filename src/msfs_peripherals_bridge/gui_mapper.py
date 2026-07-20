@@ -786,12 +786,6 @@ OUTPUT_FIELD_HELP: dict[str, tuple[str, str]] = {
 }
 
 
-# The five inputs of a Radio unit's dual-concentric encoder. The output editor
-# consolidates them into ONE "Doppelencoder" capture block (per user: one setting
-# per encoder, not five raw code fields) instead of listing each code field.
-ENCODER_FIELDS = frozenset({"outer_cw", "outer_ccw", "inner_cw", "inner_ccw", "swap"})
-
-
 def output_field_help(path: tuple) -> str:
     """German explanation for the leaf at ``path`` (plus its YAML name), or ''."""
     name = path[-1] if path else ""

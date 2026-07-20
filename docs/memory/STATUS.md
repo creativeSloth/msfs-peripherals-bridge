@@ -62,8 +62,11 @@
 > (3) **Konsolidiert:** die 5 Codefelder sind im Unit-Editor durch EINEN **„Doppelencoder"-Block** ersetzt (Zusammenfassung
 > außen/innen/Druck + „🎚 Anlernen…"), `gui_mapper.ENCODER_FIELDS`. **🔴 HW-TEST NÖTIG:** GUI→Radio-Panel→Unit-Editor→
 > „🎚 Anlernen…"→je Richtung drehen→wird der richtige Code erkannt? (Reader liest parallel zum Mapper, hidraw fanned out.)
-> **⏳ FOLGE (User): Multi-Trim-Wheel + Multi-Encoder** (dimmer cw/ccw, ENCODER_CW/CCW) brauchen dieselbe Capture — die
-> Sequenz-Fn ist dafür wiederverwendbar (nur andere steps/Zielfelder). **⚠️ TECHNISCHER
+> **✅ VERALLGEMEINERT:** `_capture_spec(field_names)` treibt die Capture generisch — **Radio-Doppelencoder** (5 Codes, 2
+> Invert-Ringe) UND **Multi-Trimmrad** (dimmer cw/ccw, 2 Schritte + 1 Invert). Der Dimmer-Editor zeigt jetzt einen
+> **„Trimmrad"-Block** (cw/ccw konsolidiert + „🎚 Anlernen…"). ⚠️ Trimmrad = dimmer-Block (optional) → falls im Profil noch
+> kein `dimmer`, erst anlegen. **Multi-Value-Encoder** (ENCODER_CW/CCW=5/6) ist HARTVERDRAHTET (kein Modellfeld) → nicht
+> capturebar; nur relevant, falls man das je konfigurierbar machen will (dann Modell-Änderung). HW-Test weiter offen. **⚠️ TECHNISCHER
 > BLOCKER:** `hidraw_reader.live_state_reader` ist ZUSTANDS-basiert (letzter Wert je Bit) → eine Encoder-Rastung ist ein
 > transienter ~8 ms-Impuls (Bit 1→0), der beim 80 ms-Tick verschluckt wird (Schalter=stabiler Zustand=ok, Encoder=Impuls=verloren).
 > Braucht einen **flanken-fangenden Capture-Reader** (`iter_bit_changes`-Stil, akkumuliert geänderte Bits) — NICHT mit dem
