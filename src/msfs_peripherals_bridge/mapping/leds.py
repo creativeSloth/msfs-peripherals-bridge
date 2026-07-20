@@ -58,15 +58,14 @@ MULTI_LED_BUTTONS = frozenset(_MULTI_BUTTON_BIT)
 # where a stable left-to-right walk matters, e.g. the panel LED test-send.
 MULTI_BUTTON_ORDER: tuple[str, ...] = tuple(_MULTI_BUTTON_BIT)
 _MULTI_AP_BIT = _MULTI_BUTTON_BIT["ap"]
-_MULTI_IAS_BIT = _MULTI_BUTTON_BIT["ias"]  # IAS button LED — blinks to flag OMNI
-# JF Arrow autopilot mode (L:AUTOPILOT_MODE, from SPAD Arrow profile) -> lit LED
-# bit. The mode enum carries one lateral mode at a time; the ALT/VS *hold* modes
-# coexist with it and so are lit separately from their own bools (bool_leds).
-_MULTI_MODE_BIT = {0: 2, 1: 2, 2: 1, 3: 6, 4: 7}  # NAV, OMNI(=NAV), HDG, APR, REV
-# OMNI (mode 1) tracks like NAV but must be tellable apart from plain NAV
-# (mode 0): light NAV solid AND blink the IAS LED. Maps mode -> the extra bit
-# that blinks, on top of that mode's solid _MULTI_MODE_BIT entry.
-_MULTI_MODE_BLINK_BIT = {1: _MULTI_IAS_BIT}
+# Default JF Arrow map: L:AUTOPILOT_MODE value -> lit button NAME. The mode enum
+# carries one lateral mode at a time; the ALT/VS *hold* modes coexist with it and
+# so are lit separately from their own bools (bool_leds). Overridable per aircraft
+# via MultiPanelOutput.mode_leds / .mode_blink_leds (name-based, panel-agnostic).
+DEFAULT_MODE_LEDS = {0: "nav", 1: "nav", 2: "hdg", 3: "apr", 4: "rev"}
+# OMNI (mode 1) tracks like NAV but must be tellable apart from plain NAV (mode 0):
+# light NAV solid AND blink the IAS button on top. Maps mode -> the blinking button.
+DEFAULT_MODE_BLINK_LEDS = {1: "ias"}
 
 
 def multi_button_led_byte(
@@ -74,29 +73,36 @@ def multi_button_led_byte(
     mode: int | None,
     blink_on: bool = True,
     bool_leds: Mapping[str, bool] | None = None,
+    mode_leds: Mapping[int, str] | None = None,
+    mode_blink_leds: Mapping[int, str] | None = None,
 ) -> int:
     """Map autopilot master + active mode to the Multi Panel LED byte.
 
-    The AP light tracks the master switch. The active-mode light (NAV/HDG/APR/REV)
-    tracks ``L:AUTOPILOT_MODE`` *independently of the master*, so the selected mode
-    stays visible with the AP off — feedback on which mode the buttons have armed.
-    OMNI (mode 1) additionally blinks the IAS LED (``blink_on`` is the current
-    blink phase) so it reads differently from plain NAV.
+    The AP light tracks the master switch. The active-mode light tracks
+    ``L:AUTOPILOT_MODE`` *independently of the master*, so the selected mode stays
+    visible with the AP off. ``mode_leds`` maps the mode value to the lit button
+    NAME (defaults to the JF Arrow map); ``mode_blink_leds`` maps a mode to a button
+    that also BLINKS (``blink_on`` is the phase) — e.g. OMNI blinks IAS. Both are
+    per-aircraft configurable so the LEDs work on any autopilot.
 
     ``bool_leds`` lights extra buttons straight from their own bool state (button
     name -> on) — for the ALT/VS *hold* modes, which coexist with a lateral mode
     and so can't ride the single-value mode enum. Their bit is OR'd on top.
     """
+    if mode_leds is None:
+        mode_leds = DEFAULT_MODE_LEDS
+    if mode_blink_leds is None:
+        mode_blink_leds = DEFAULT_MODE_BLINK_LEDS
     byte = 0
     if ap_master:
         byte |= 1 << _MULTI_AP_BIT
     if mode is not None:
-        solid = _MULTI_MODE_BIT.get(mode)
+        solid = mode_leds.get(mode)
         if solid is not None:
-            byte |= 1 << solid
-        blink = _MULTI_MODE_BLINK_BIT.get(mode)
+            byte |= 1 << _MULTI_BUTTON_BIT[solid]
+        blink = mode_blink_leds.get(mode)
         if blink is not None and blink_on:
-            byte |= 1 << blink
+            byte |= 1 << _MULTI_BUTTON_BIT[blink]
     if bool_leds:
         for name, on in bool_leds.items():
             if on:

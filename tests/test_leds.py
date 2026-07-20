@@ -95,3 +95,39 @@ def test_bool_leds_light_alt_vs_on_top_of_mode():
     # A false/absent bool lights nothing extra.
     assert multi_button_led_byte(ap_master=True, mode=None, bool_leds={"alt": False}) == AP
     assert multi_button_led_byte(ap_master=True, mode=None, bool_leds={}) == AP
+
+
+# --- configurable AP-mode LED map ------------------------------------------
+
+def test_mode_leds_default_matches_jf_arrow():
+    # default map: 0/1=NAV(bit2), 2=HDG(bit1), 3=APR(bit6), 4=REV(bit7)
+    assert multi_button_led_byte(ap_master=False, mode=3) == (1 << 6)
+    assert multi_button_led_byte(ap_master=False, mode=4) == (1 << 7)
+
+
+def test_mode_leds_override_lights_a_different_button():
+    # a different autopilot: mode 2 lights NAV instead of HDG
+    custom = {2: "nav"}
+    assert multi_button_led_byte(ap_master=False, mode=2, mode_leds=custom) == (1 << 2)
+    # a mode absent from the map lights nothing
+    assert multi_button_led_byte(ap_master=False, mode=3, mode_leds=custom) == 0
+
+
+def test_mode_blink_leds_configurable():
+    byte_on = multi_button_led_byte(ap_master=False, mode=2, mode_leds={2: "hdg"},
+                                    mode_blink_leds={2: "apr"}, blink_on=True)
+    byte_off = multi_button_led_byte(ap_master=False, mode=2, mode_leds={2: "hdg"},
+                                     mode_blink_leds={2: "apr"}, blink_on=False)
+    assert byte_on == (1 << 1) | (1 << 6)  # HDG solid + APR blink
+    assert byte_off == (1 << 1)            # blink phase off -> only HDG
+
+
+def test_mode_leds_reject_unknown_button():
+    import pytest
+
+    from msfs_peripherals_bridge.models import MultiPanelOutput, SelectorEntry
+    with pytest.raises(ValueError, match="unknown Multi Panel LED button"):
+        MultiPanelOutput(
+            selector=[SelectorEntry(code=0, label="ALT", simvar="X", min=0, max=9)],
+            mode_leds={0: "bogus"},
+        )

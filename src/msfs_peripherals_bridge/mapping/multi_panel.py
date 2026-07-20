@@ -287,7 +287,8 @@ class MultiPanelController:
             for name, var in self.config.bool_leds.items()
         }
         led = multi_button_led_byte(
-            ap_master, int(mode) if mode is not None else None, blink_on, bool_leds
+            ap_master, int(mode) if mode is not None else None, blink_on, bool_leds,
+            mode_leds=self.config.mode_leds, mode_blink_leds=self.config.mode_blink_leds,
         )
         return bytes([_REPORT_ID, *cells, led, 0x00])
 

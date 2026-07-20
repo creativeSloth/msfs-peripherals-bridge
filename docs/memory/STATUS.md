@@ -72,9 +72,12 @@
 > zeigt gelesenen Wert im Label (User: „falls vorhanden"; „nur kühe"?? = unklar, evtl. „nur Kür"=optisch — NACHFRAGEN).
 > **4 · Radio-Nachbau optisch treu** — ROTE 7-Segment-artige Schrift, PUNKT als Pointer/Selektor sichtbar, ADF-
 > Doppelpunkt, DME-Bindestrich korrekt (Canvas-Rendering). **5 · ALLES per Profil konfigurierbar (großer Brocken,
-> Umfang mit User klären):** heute HARTVERDRAHTET → AP-Mode-LED-Map (`leds.py _MULTI_MODE_BIT={0:2,1:2,2:1,3:6,4:7}`),
-> DME-Layout (`_render_dme`, Bindestrich=BLANK-Spacer, „Konstante auf bestimmtem Segment" gewünscht), ADF-Zwei-Punkt-
-> Paar (`_render_adf`) → ins Modell heben + GUI-Editoren. Lohnt v. a. für FREMDE Flugzeuge (s. u.). **Alles intuitiv.**
+> Umfang mit User klären):** ✅ **AP-Mode-LED-Map ERLEDIGT** — `MultiPanelOutput.mode_leds` (Mode→Button-Name) +
+> `mode_blink_leds`, name-basiert & per-Flugzeug, Default = JF-Arrow-Map (kein Verhaltenswechsel); `multi_button_led_byte`
+> nimmt beide Maps; im Editor read-only-Zusammenfassung (GUI-Editor dafür = Follow-up). NOCH HARTVERDRAHTET: DME-Layout
+> (`_render_dme`, Bindestrich=BLANK-Spacer, „Konstante auf bestimmtem Segment" gewünscht), ADF-Zwei-Punkt-Paar
+> (`_render_adf`) → ins Modell heben + Editoren; **jede Display-Ziffer einzeln mappbar** (s. #5 unten). Lohnt v. a. für
+> FREMDE Flugzeuge. **Alles intuitiv.**
 > **📌 SEPARAT ANGEFRAGT, ZURÜCKGESTELLT (User wählte erst STATUS-Batch):** (a) **Geräte-Registrierung für unbekannte
 > Geräte** (fremde Rechner): heute nur statisch in `config/devices.yaml` (Vendor/Product), KEINE GUI zum Anlegen,
 > `discover()` zeigt nur bekannte; geplant = Enumerator aller USB-Geräte + GUI „Neues Gerät" + user-schreibbarer

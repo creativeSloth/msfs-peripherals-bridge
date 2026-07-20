@@ -422,6 +422,18 @@ class MultiPanelOutput(BaseModel):
     bool_leds: dict[str, str] = Field(
         default_factory=dict, description="Button name -> bool var lit directly."
     )
+    # Which button LED lights for each active-mode value (mode_var). Name-based and
+    # per-aircraft so the mode LEDs work on any autopilot, not just the JF Arrow;
+    # the default is the Arrow map (0/1=NAV, 2=HDG, 3=APR, 4=REV). mode_blink_leds
+    # names a button that additionally BLINKS for a mode (OMNI blinks IAS).
+    mode_leds: dict[int, str] = Field(
+        default_factory=lambda: {0: "nav", 1: "nav", 2: "hdg", 3: "apr", 4: "rev"},
+        description="Active-mode value -> lit button name.",
+    )
+    mode_blink_leds: dict[int, str] = Field(
+        default_factory=lambda: {1: "ias"},
+        description="Active-mode value -> button that also blinks (e.g. OMNI->ias).",
+    )
     # Off-panel button that steps the active source of a selector position with
     # alt_sources (e.g. a yoke rocker flipping the CRS knob between NAV1/NAV2 OBS).
     source_toggle: AuxInput | None = Field(
@@ -437,17 +449,27 @@ class MultiPanelOutput(BaseModel):
         None, description="Bool var gating the display/LEDs (None = always on)."
     )
 
-    @field_validator("bool_leds")
-    @classmethod
-    def _known_led_buttons(cls, v: dict[str, str]) -> dict[str, str]:
+    @staticmethod
+    def _check_led_buttons(names) -> None:
         from .mapping.leds import MULTI_LED_BUTTONS
 
-        unknown = set(v) - MULTI_LED_BUTTONS
+        unknown = set(names) - MULTI_LED_BUTTONS
         if unknown:
             raise ValueError(
                 f"unknown Multi Panel LED button(s) {sorted(unknown)}; "
                 f"known: {sorted(MULTI_LED_BUTTONS)}"
             )
+
+    @field_validator("bool_leds")
+    @classmethod
+    def _known_led_buttons(cls, v: dict[str, str]) -> dict[str, str]:
+        cls._check_led_buttons(v)  # bool_leds KEYS are button names
+        return v
+
+    @field_validator("mode_leds", "mode_blink_leds")
+    @classmethod
+    def _known_mode_led_buttons(cls, v: dict[int, str]) -> dict[int, str]:
+        cls._check_led_buttons(v.values())  # mode_*_leds VALUES are button names
         return v
 
     def simvars(self) -> list[str]:

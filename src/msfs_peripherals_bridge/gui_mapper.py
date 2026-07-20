@@ -685,11 +685,18 @@ UNSET = object()  # sentinel: "remove this key from the YAML" (fall back to defa
 # str fields that are labels/units, NOT variable/event names -> no var picker
 _NOT_PICKABLE = {"label", "name", "unit", "row", "display_row", "kind", "type", "device"}
 
+# Dict fields keyed by mode VALUE (not a button name) -> shown read-only in the
+# editor (they are per-aircraft maps configured in YAML; a dedicated GUI editor is
+# a follow-up). Rendering them as the bool_leds var-dict would mis-key them.
+_RO_DICTS = {"mode_leds", "mode_blink_leds"}
+
 # German blurbs for the container fields, shown as tree tooltips/labels.
 FIELD_LABEL = {
     "selector": "Selektor-Positionen",
     "alt_sources": "Alternativ-Quellen",
     "bool_leds": "LEDs (Var-gesteuert)",
+    "mode_leds": "Mode-LED-Zuordnung",
+    "mode_blink_leds": "Mode-Blink-LED",
     "dimmer": "Dimmer",
     "source_toggle": "Quellen-Umschalter",
     "targets": "Dimmer-Ziele",
@@ -923,8 +930,13 @@ def _walk_output(model, path: tuple, nodes: list[OutputNode]) -> None:
                                         "", "entry", removable=True))
                 _walk_output(item, (*fpath, i), nodes)
             continue
-        if origin is dict:  # bool_leds: button name -> var
-            nodes.append(OutputNode(fpath, tr(FIELD_LABEL.get(name, name)),
+        if origin is dict:
+            if name in _RO_DICTS:  # mode->button maps: value-keyed, YAML-configured
+                summary = ", ".join(f"{k}:{v}" for k, v in val.items()) or "—"
+                nodes.append(OutputNode(fpath, tr(FIELD_LABEL.get(name, name)),
+                                        summary, "ro"))
+                continue
+            nodes.append(OutputNode(fpath, tr(FIELD_LABEL.get(name, name)),  # bool_leds
                                     f"({len(val)})", "dict", addable=name))
             for key, v in val.items():
                 nodes.append(OutputNode((*fpath, key), key, str(v), "str",
