@@ -35,9 +35,12 @@
 > _radio_panel` neu: oberes Element WEG; je Unit „außen"/„innen" (ENCODER, focus outer_cw/ccw bzw. inner_cw/ccw) +
 > „SWAP-Taster" (BUTTON, focus swap); **Mode-Spalte links** (SELECTOR, ref=ganze Bank, Selektor-Code im `action`/Tooltip);
 > Display **„Act"/„Stby"** (SEGMENT, focus active/standby); DOT. (c) Test in 2 gesplittet (mode-row + unit-rings/swap).
-> **🔴 NOCH OFFEN aus diesem Block:** #4 **Selektor-Positionen als Taster capturebar** (mode-selector-Code anlernen wie
-> Swap — `edge_count_reader` „auf Position drehen"); Multi-Panel-Knöpfe konsistente Capture-Menüs (die meisten sind Taster).
-> **`edge_count_reader` ist die Basis für ALLE Captures** (Encoder-Ringe, Swap, Multi-Knöpfe, Selektor).
+> **✅ SELEKTOR-CAPTURE GEBAUT:** jedes `code`-Feld (Selektor-Position, außer source_toggle) hat einen **„🎚 anlernen"**-Knopf
+> → `_capture_code_into` (Ein-Code via `edge_count_reader`, „auf Position drehen"→Gewinner, setzt das Entry, Speichern mit dem
+> Formular). Bank bleibt Display-Kontext (🔦 sichtbar), da `code` weiter ein Feld ist. **🔴 NOCH OFFEN:** **Multi-Panel-Knöpfe**
+> (AP/HDG/NAV… = Bindings im binding-Editor) sollten dieselbe robuste Capture bekommen — d. h. `gui.py._learn_code` (nutzt noch
+> den ZUSTANDS-`live_state_reader`, verschluckt transiente Tastendrücke) auf `edge_count_reader` umstellen.
+> **`edge_count_reader` ist die Basis für ALLE Captures** (Encoder-Ringe, Swap, Selektor, künftig Multi-Knöpfe/Bindings).
 > **🆕 #5 PRÄZISIERT (User): JEDE EINZELNE DISPLAY-ZIFFER/ZELLE muss mappbar sein** — nicht nur bank-weise active/standby,
 > sondern pro Zelle (inkl. Konstante wie DME-Bindestrich + Punkt-als-Pointer). Das ist der große „Render-Logik→Modell"-Umbau
 > (heute `_render_dme/_render_adf/_render_xpdr` + `format_*` hartverdrahtet). Test-Send (`panel_probe`) adressiert schon

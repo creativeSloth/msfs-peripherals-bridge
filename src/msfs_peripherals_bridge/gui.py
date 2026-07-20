@@ -2776,6 +2776,68 @@ def run() -> None:
             _mapper_reload(rediscover=False, keep_device=device_id)
             _status(ok_msg)
 
+        def _capture_code_into(var, instruction):
+            """Capture ONE hardware code (edge-counting) and write it into ``var``.
+
+            For single-code input fields (a selector position): the user actuates
+            the control a few times, the most-pulsed bit wins, Übernehmen fills the
+            entry (saved with the rest of the form). Reads the panel = ``device_id``.
+            """
+            from .devices import hidraw_reader
+
+            path = None
+            with contextlib.suppress(Exception):
+                path = hidraw_reader.discover(_device_catalog()).get(device_id)
+            opened = hidraw_reader.edge_count_reader(path) if path else None
+            if opened is None:
+                _status(f"„{device_id}“ nicht live lesbar — angesteckt?", error=True)
+                return
+            read, close = opened
+            cw = tk.Toplevel(ow)
+            cw.transient(ow)
+            cw.title(f"{tr('Anlernen')} — {device_id}")
+            frm = ttk.Frame(cw, padding=12)
+            frm.pack(fill="both", expand=True)
+            ttk.Label(frm, text=instruction, wraplength=360, justify="left").pack(anchor="w")
+            found = tk.StringVar(value=tr("— warte auf Bewegung —"))
+            ttk.Label(frm, textvariable=found,
+                      font=("TkDefaultFont", 12, "bold")).pack(anchor="w", pady=6)
+            st = {"w": None}
+
+            def _poll():
+                if not cw.winfo_exists():
+                    return
+                counts = read()
+                if counts is None:
+                    found.set(tr("Gerät getrennt."))
+                    return
+                if counts:
+                    w = max(counts, key=lambda k: counts[k])
+                    st["w"] = w
+                    found.set(f"{tr('erkannt')}: Code {w}  ({counts[w]} {tr('Flanken')})")
+                    b_ok.config(state="normal")
+                cw.after(120, _poll)
+
+            def _apply():
+                if st["w"] is not None:
+                    var.set(str(st["w"]))
+                close()
+                cw.destroy()
+
+            def _cancel():
+                close()
+                cw.destroy()
+
+            btns = ttk.Frame(frm)
+            btns.pack(anchor="w", pady=(8, 0))
+            b_ok = ttk.Button(btns, text=tr("Übernehmen"), style="Accent.TButton",
+                              command=_apply, state="disabled")
+            b_ok.pack(side="left")
+            ttk.Button(btns, text=tr("Abbrechen"), command=_cancel).pack(side="left", padx=6)
+            cw.protocol("WM_DELETE_WINDOW", _cancel)
+            _poll()
+            cw.lift()
+
         def _field_row(row, node):
             """One form line: German label · widget · ⓘ help. Returns a getter."""
             ttk.Label(form, text=node.label).grid(row=row, column=0,
@@ -2799,6 +2861,15 @@ def run() -> None:
                 if node.pickable:  # same wording as the binding editor
                     ttk.Button(cell, text=tr("Wählen…"),
                                command=lambda v=var: _pick_into(v)).pack(side="left", padx=3)
+                # A selector-position code is a hardware input like any button —
+                # capture it by rotating the mode selector to this position.
+                elif (node.path and node.path[-1] == "code"
+                      and node.path[0] != "source_toggle"):
+                    ttk.Button(cell, text=tr("🎚 anlernen"),
+                               command=lambda v=var: _capture_code_into(
+                                   v, tr("den Mode-Selektor mehrmals auf DIESE "
+                                         "Position drehen"))
+                               ).pack(side="left", padx=3)
                 if node.optional:
                     ttk.Label(cell, text=tr("(leer = Standard)"),
                               foreground="#666").pack(side="left", padx=4)
