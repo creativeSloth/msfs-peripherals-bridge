@@ -133,6 +133,10 @@ uv run msfs-bridge read "AUTOPILOT HEADING LOCK DIR" --unit degrees
 The full command list as copy-paste lines is in
 [`docs/cheatsheet.md`](docs/cheatsheet.md).
 
+Setting up on a fresh machine (uv/Python, udev rules, **adding your own
+hardware**, registering a device, the Wine bridge)? See the step-by-step
+[`docs/INSTALL.md`](docs/INSTALL.md).
+
 See [`docs/running.md`](docs/running.md) for a full run/iterate guide: what runs
 natively vs. in Wine/Proton, finding your MSFS Proton prefix + version, and
 tuning a mapping live with `--dry-run -v`.

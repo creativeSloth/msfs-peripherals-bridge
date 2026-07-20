@@ -81,8 +81,9 @@
 > **📌 SEPARAT ANGEFRAGT, ZURÜCKGESTELLT (User wählte erst STATUS-Batch):** (a) **Geräte-Registrierung für unbekannte
 > Geräte** (fremde Rechner): heute nur statisch in `config/devices.yaml` (Vendor/Product), KEINE GUI zum Anlegen,
 > `discover()` zeigt nur bekannte; geplant = Enumerator aller USB-Geräte + GUI „Neues Gerät" + user-schreibbarer
-> Overlay + udev-Rule generieren (der „Geräte-Explorer"-TODO ist der halbe Weg). (b) **Konsolidierter INSTALL-Guide**
-> (uv/Python/udev/Wine-Bridge; heute verstreut in README/running.md/bridge). — **Zifferweise Vars** (Frage geklärt):
+> Overlay + udev-Rule generieren (der „Geräte-Explorer"-TODO ist der halbe Weg). (b) ✅ **INSTALL-Guide GESCHRIEBEN**
+> `docs/INSTALL.md` (uv/Python/udev inkl. EIGENE Hardware eintragen · Gerät registrieren · Wine-Bridge · Troubleshooting;
+> im README verlinkt). — **Zifferweise Vars** (Frage geklärt):
 > XPDR=gepackte BCD16 `TRANSPONDER CODE:1`+`XPNDR_SET` (Ziffern-Logik machen WIR, kein Sim-Feature); ADF=Krücke, 3
 > Gauge-LVars `L:KR85_dig{1,2,3}_counter` weil Standard-ADF-SimVars kaputt; DME=nur Anzeige. Fremde Flugzeuge: Standard-
 > Events zuerst, LVar-Enumeration (`MF.LVars.List`) als Fallback. Das ist der EINGABE-Pfad, getrennt vom Test-Send.
