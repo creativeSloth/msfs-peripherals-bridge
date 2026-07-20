@@ -2202,18 +2202,20 @@ def run() -> None:
         ed_status.config(text=msg, foreground="#c62828" if error else "#2e7d32" if msg else "#666")
 
     def _learn_code():
-        """Listen to the binding's device and capture which control is actuated.
+        """Capture which control on the binding's device is actuated.
 
-        Uses the same non-blocking live reader as the Live column: a button
-        press shows up as an EV_KEY edge (-> Taster + code), a clear movement
-        on an EV_ABS channel as an axis (hat when its range is the tiny ±1).
-        The strongest recent change sticks until Übernehmen fills kind + code.
+        Panels (hidraw) use the edge-COUNTING reader: a rotary detent or a
+        momentary button is a transient pulse the *state* view misses, so we count
+        rising edges and the most-pulsed bit wins (which also shakes off contact
+        bounce) — consistent with the output-editor captures. evdev axis hardware
+        keeps the state reader: a button press is an EV_KEY edge, a clear EV_ABS
+        move an axis (hat when its range is the tiny ±1).
         """
         dev = etgt["device"]
         if dev is None:
             _ed_status("Erst ein Binding öffnen.", error=True)
             return
-        opened = None
+        reader = ranges = close = None
         is_panel = False
         with contextlib.suppress(Exception):
             from .devices import evdev_reader, hidraw_reader
@@ -2223,32 +2225,39 @@ def run() -> None:
             if ddef is not None and ddef.transport == "hidraw":
                 is_panel = True
                 path = hidraw_reader.discover(dcat).get(dev)
-                opened = hidraw_reader.live_state_reader(path) if path else None
+                opened = hidraw_reader.edge_count_reader(path) if path else None
+                if opened is not None:
+                    reader, close = opened
             else:
                 path = evdev_reader.discover(dcat).get(dev) if dcat else None
                 opened = evdev_reader.live_state_reader(path) if path else None
-        if opened is None:
+                if opened is not None:
+                    reader, ranges = opened
+        if reader is None:
             _ed_status(f"„{dev}“ nicht live lesbar — Gerät angesteckt?", error=True)
             return
-        reader, ranges = opened
-        # Panels send no on-open snapshot, so their baseline is captured lazily from
-        # the first frame (= the first flip); evdev state is seeded immediately.
-        base = {"v": {} if is_panel else dict(reader() or {})}
+        base = {} if is_panel else dict(reader() or {})  # evdev seed; panel counts from 0
         cap = tk.Toplevel(ed_win)
         cap.title(f"Anlernen — {dev}")
         cap.transient(ed_win)
         frm = ttk.Frame(cap, padding=12)
         frm.pack(fill="both", expand=True)
-        ttk.Label(frm, text=("Panel-Schalter EINMAL HIN UND ZURÜCK legen\n"
-                             "(erst Baseline, dann steht der Code):"
-                             if is_panel else
-                             "Jetzt den gewünschten Knopf drücken\n"
-                             "oder den Hebel deutlich bewegen:")).pack(anchor="w")
+        ttk.Label(frm, justify="left",
+                  text=("Das gewünschte Bedienelement MEHRMALS betätigen\n"
+                        "(Schalter/Taster · Encoder drehen · Swap drücken):"
+                        if is_panel else
+                        "Jetzt den gewünschten Knopf drücken\n"
+                        "oder den Hebel deutlich bewegen:")).pack(anchor="w")
         found = tk.StringVar(value="— lausche —")
         ttk.Label(frm, textvariable=found,
                   font=("TkDefaultFont", 13, "bold")).pack(anchor="w", pady=6)
         st = {"kind": None, "code": None}
         _KIND_WORD = {"button": "Taster", "axis": "Achse", "hat": "Hat", "switch": "Schalter"}
+
+        def _close():
+            if close:
+                close()
+            cap.destroy()
 
         def _apply():
             if st["kind"] is None:
@@ -2260,14 +2269,15 @@ def run() -> None:
             ev["code"].set(str(code))
             _ed_show_fields()
             _ed_status(f"Quelle angelernt: {_KIND_WORD[st['kind']]} {code} ✓")
-            cap.destroy()
+            _close()
 
         btns = ttk.Frame(frm)
         btns.pack(anchor="w", pady=(8, 0))
         b_ok = ttk.Button(btns, text=tr("Übernehmen"), style="Accent.TButton",
                           command=_apply, state="disabled")
         b_ok.pack(side="left")
-        ttk.Button(btns, text=tr("Schließen"), command=cap.destroy).pack(side="left", padx=6)
+        ttk.Button(btns, text=tr("Schließen"), command=_close).pack(side="left", padx=6)
+        cap.protocol("WM_DELETE_WINDOW", _close)
 
         def _tick():
             if not cap.winfo_exists():
@@ -2276,25 +2286,23 @@ def run() -> None:
             if state is None:
                 found.set("Gerät getrennt.")
                 return
-            if is_panel and not base["v"]:  # panel: first frame is the baseline, no capture
+            if is_panel:  # {bit_code: rising-edge count} — the most-pulsed bit wins
                 if state:
-                    base["v"] = dict(state)
-                    found.set("Baseline gesetzt — jetzt denselben Schalter ZURÜCK legen")
+                    w = max(state, key=lambda k: state[k])
+                    st.update(kind="switch", code=w)
+                    found.set(f"Schalter — Code {w}  ({state[w]} Flanken)")
+                    b_ok.config(state="normal")
                 cap.after(80, _tick)
                 return
-            b = base["v"]
             for (kind, code), val in state.items():
                 if kind == "button":
-                    if val and b.get((kind, code)) != val:
+                    if val and base.get((kind, code)) != val:
                         st.update(kind="button", code=code)
-                elif kind == "switch":  # hidraw panel bit — either edge counts as a flip
-                    if b.get((kind, code)) != val:
-                        st.update(kind="switch", code=code)
                 else:  # EV_ABS: axes and hats
                     lo, hi = ranges.get(code, (0, 255))
                     span = (hi - lo) or 1
                     # >= so a hat press (span ±1 -> delta exactly 1) registers too
-                    if abs(val - b.get((kind, code), val)) >= max(span * 0.2, 1):
+                    if abs(val - base.get((kind, code), val)) >= max(span * 0.2, 1):
                         st.update(kind="hat" if span <= 2 else "axis", code=code)
             if st["kind"] is not None:
                 found.set(f"{_KIND_WORD[st['kind']]} — Code {st['code']}")
