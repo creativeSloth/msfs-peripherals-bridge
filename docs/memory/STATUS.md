@@ -1,6 +1,48 @@
 # STATUS — Resume-Anker
 
 > Kurzer Einstiegspunkt: was läuft, was offen ist, wie es weitergeht.
+> Stand: **2026-07-20 (spät) — TEST-SEND + ENCODER-CAPTURE gebaut & GEPUSHT; Radio-Editor/Nachbau-REDESIGN offen (voll spezifiziert).**
+>
+> **🟢 COMMITTET & GEPUSHT (`feat/mapper-panel-nachbau`, 351 Tests grün, ruff clean):**
+> `62211e8` Test-Send 🔦 (Ausgänge identifizieren) + Encoder-Labels + „Bind"-Statistik + grüner Button ·
+> `7454bd5` Doppelencoder-Capture (flanken-fangender `edge_count_reader` + geführte Sequenz + Invert) ·
+> `70dc6c8` Capture verallgemeinert (Multi-Trimmrad + Radio) · **Redesign-Commit** (Außen/Innen/SWAP-Split + Nachbau).
+> (Alle committet; ggf. `git push` prüfen, falls Session unterbrochen wurde.)
+>
+> **🟡 UNCOMMITTED, NICHT von mir, NICHT committet — ENTSCHEIDEN:** `profiles/piper_arrow.yaml` hat `kind: switch`→
+> `kind: button` auf den **multi_panel-Bindings** (AP master/HDG/NAV/…). Laufzeit-relevant an fliegbarem Profil, Herkunft
+> unklar (evtl. GUI-Test; passt zu „Multi-Knöpfe sind Taster"). **Bewusst nicht angefasst** — prüfen ob gewollt (button =
+> nur Press-Flanke statt beider Flanken), dann committen oder `git checkout`.
+>
+> **🟢 REDESIGN RADIO-EDITOR + NACHBAU — GEBAUT (uncommitted; Wünsche 1–6 unten als Beleg, VISUELL/HW UNGEPRÜFT):**
+> Die committete Encoder-Capture (`70dc6c8`) ist konzeptionell ÜBERHOLT und MUSS umgebaut werden. **HW-Fakten vom User:**
+> der Radio-Doppelencoder hat **NUR 2 Ringe (außen+innen), KEINEN Druck**; der **SWAP ist ein SEPARATER, normaler Taster**
+> (wie die Multi-Panel-Knöpfe). Konkrete Wünsche:
+> 1. **Capture aufsplitten** (statt 1 „Doppelencoder" mit 5 Feldern inkl. „Druck"): **Außen-Ring** (outer_cw/ccw, 2 Richtungen
+>    + Invert) · **Innen-Ring** (inner_cw/ccw, + Invert) · **SWAP-Taster** (swap, EIN Button-Code, `edge_count_reader`
+>    „mehrmals drücken"→Gewinner). Modell bleibt (`RadioUnit.outer_cw/ccw/inner_cw/ccw/swap`), nur die GUI-Gruppierung ändert.
+> 2. **Anlernen zieht in „außen"/„innen"-Elemente** — das obere „Doppelencoder"-Element muss KOMPLETT VERSCHWINDEN.
+> 3. **🔦 „LEDs/Display testen…" NUR im Kontextmenü von Displays/LEDs**, NICHT bei Encoder/Swap/Selektor. Gate: 🔦 nur wenn
+>    Gruppe KEINE Capture-Spec hat (kein Input-Control). Input-Controls zeigen NUR ihr „Anlernen…".
+> 4. **Alle Knöpfe konsistente Menüs** (Swap, Multi-Knöpfe, Selektor-Positionen als Taster mappbar).
+> 5. **Nachbau-Layout Radio:** LINKS eine Spalte mit dem gewählten **Mode** (Selektor-Position), NICHT im Symbol-Display;
+>    Display zeigt nur **„Act"/„Stby"**; **Selektor-Code je Zeile im Tooltip**.
+> 6. **Editor je Unit:** getrennte Blöcke Außen-Ring / Innen-Ring / SWAP-Taster (jeweils eigenes Capture; Ringe mit Invert).
+> **✅ 1–6 GEBAUT (uncommitted, 352 Tests grün, ruff clean, headless verifiziert — VISUELL/HW UNGEPRÜFT):**
+> (a) gui.py `_capture_spec`→**`_capture_specs`** (LISTE): **Außen-Ring** / **Innen-Ring** (je 2 Richtungen + 1 Invert) /
+> **SWAP-Taster** (1 Button) / **Trimmrad** (Multi). `_fields_form` rendert je Block ein `_encoder_block` (Loop);
+> **🔦 „LEDs/Display testen…" nur wenn `not specs`** (= Displays/LEDs, nicht Encoder/Swap/Trimmrad). (b) `panel_layout.
+> _radio_panel` neu: oberes Element WEG; je Unit „außen"/„innen" (ENCODER, focus outer_cw/ccw bzw. inner_cw/ccw) +
+> „SWAP-Taster" (BUTTON, focus swap); **Mode-Spalte links** (SELECTOR, ref=ganze Bank, Selektor-Code im `action`/Tooltip);
+> Display **„Act"/„Stby"** (SEGMENT, focus active/standby); DOT. (c) Test in 2 gesplittet (mode-row + unit-rings/swap).
+> **🔴 NOCH OFFEN aus diesem Block:** #4 **Selektor-Positionen als Taster capturebar** (mode-selector-Code anlernen wie
+> Swap — `edge_count_reader` „auf Position drehen"); Multi-Panel-Knöpfe konsistente Capture-Menüs (die meisten sind Taster).
+> **`edge_count_reader` ist die Basis für ALLE Captures** (Encoder-Ringe, Swap, Multi-Knöpfe, Selektor).
+> **🆕 #5 PRÄZISIERT (User): JEDE EINZELNE DISPLAY-ZIFFER/ZELLE muss mappbar sein** — nicht nur bank-weise active/standby,
+> sondern pro Zelle (inkl. Konstante wie DME-Bindestrich + Punkt-als-Pointer). Das ist der große „Render-Logik→Modell"-Umbau
+> (heute `_render_dme/_render_adf/_render_xpdr` + `format_*` hartverdrahtet). Test-Send (`panel_probe`) adressiert schon
+> pro Zelle — die MAPPING-Seite (Zelle→Var/Konstante) fehlt noch.
+> ---
 > Stand: **2026-07-20 — TEST-SEND „wo landet das Signal?" GEBAUT (uncommitted), 346 Tests grün.**
 > **🆕 NEU (User-Konzept geklärt: der Output-🪄 soll TESTSIGNALE auf ein Element schicken, damit man am
 > echten Panel sieht, welche LED/Display-Zelle ein Feld treibt — wie `tools/panel-scan/out_*`, aber pro Element

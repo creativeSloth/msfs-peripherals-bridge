@@ -10,6 +10,7 @@ from msfs_peripherals_bridge.panel_layout import (
     HEADER,
     LED,
     SEGMENT,
+    SELECTOR,
     SWITCH,
     has_hand_layout,
     panel_layout,
@@ -248,22 +249,29 @@ RADIO_PROFILE = Profile.model_validate({
 })
 
 
-def test_radio_panel_mode_row_has_two_displays_two_encoders_swap_and_dot():
+def test_radio_panel_mode_row_is_mode_plus_act_stby_and_dot():
     els = panel_layout(RADIO_PROFILE, "radio_panel")
-    # all COM1-row elements target that bank (the |focus suffix differs per element)
+    # a bank row = the mode cell + Act/Stby displays + dot (encoder/swap are per-unit)
     row = [e for e in els if e.ref and e.ref.split("|")[0] == "out:0:units/0/banks/0"]
-    assert sorted(e.kind for e in row) == sorted(
-        [SEGMENT, SEGMENT, DOT, ENCODER, ENCODER, BUTTON])
-    by_kind = {}
-    for e in row:
-        by_kind.setdefault(e.kind, []).append(e)
-    # each element opens its OWN focused field(s), not the whole bank
-    assert by_kind[BUTTON][0].ref == "out:0:units/0/banks/0|swap_event"  # swap
-    active = next(e for e in by_kind[SEGMENT] if e.ref.endswith("|active"))
-    assert active.ref == "out:0:units/0/banks/0|active"  # top display -> ACTIVE var
-    outer = next(e for e in by_kind[ENCODER] if "whole" in e.ref)
-    assert outer.ref == "out:0:units/0/banks/0|whole_inc,whole_dec"  # outer knob
-    # a group heading names the selector unit
+    assert sorted(e.kind for e in row) == sorted([SELECTOR, SEGMENT, SEGMENT, DOT])
+    mode = next(e for e in row if e.kind == SELECTOR)
+    assert "Selektor-Code 0" in mode.action  # selector code lives in the tooltip
+    assert mode.ref == "out:0:units/0/banks/0"  # opens the whole bank editor
+    assert {e.label for e in row if e.kind == SEGMENT} == {"Act", "Stby"}  # not the mode name
+    active = next(e for e in row if e.kind == SEGMENT and e.ref.endswith("|active"))
+    assert active.ref == "out:0:units/0/banks/0|active"
+
+
+def test_radio_panel_unit_has_two_rings_and_a_separate_swap_button():
+    els = panel_layout(RADIO_PROFILE, "radio_panel")
+    unit = [e for e in els if e.ref and e.ref.split("|")[0] == "out:0:units/0"]
+    # the encoder is TWO rings (no push); the swap is a SEPARATE normal button
+    outer = next(e for e in unit if e.kind == ENCODER and e.label == "außen")
+    assert outer.ref == "out:0:units/0|outer_cw,outer_ccw"
+    inner = next(e for e in unit if e.kind == ENCODER and e.label == "innen")
+    assert inner.ref == "out:0:units/0|inner_cw,inner_ccw"
+    swap = next(e for e in unit if e.kind == BUTTON)
+    assert swap.ref == "out:0:units/0|swap" and swap.label == "SWAP-Taster"
     assert any(e.kind == HEADER and "upper" in e.label for e in els)
 
 

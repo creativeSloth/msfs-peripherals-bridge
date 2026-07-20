@@ -2808,33 +2808,48 @@ def run() -> None:
                 _info(cell, help_text)
             return getter
 
-        def _capture_spec(field_names):
-            """Capture recipe for a rotary control inside this output group, or None.
+        def _capture_specs(field_names):
+            """Capture blocks for the rotary/button inputs in this output group (0..n).
 
-            Covers the Radio dual-encoder (five codes) and the Multi trim wheel
-            (dimmer, two). ``steps`` = the guided (field, instruction) walk;
-            ``inverts`` = per-ring CW/CCW swap toggles; ``summary`` renders the
-            current codes. Encoder detents are transient, hence edge-counting."""
-            if "outer_cw" in field_names:  # Radio dual-concentric encoder
-                return {
-                    "title": tr("Doppelencoder"),
+            A Radio unit has THREE separate inputs: the outer ring and the inner
+            ring (each two directions, invertible) and a SEPARATE swap push-button
+            — the encoder itself has NO push. The Multi trim wheel is one (cw/ccw).
+            Each block: title/steps/inverts/summary. Encoder detents (and momentary
+            buttons) are transient, hence edge-counting."""
+            specs = []
+            if "outer_cw" in field_names:  # outer (coarse) ring
+                specs.append({
+                    "title": tr("Außen-Ring"),
                     "steps": [
                         ("outer_cw", tr("den ÄUSSEREN Ring mehrmals IM Uhrzeigersinn drehen")),
                         ("outer_ccw", tr("den ÄUSSEREN Ring mehrmals GEGEN den "
                                          "Uhrzeigersinn drehen")),
+                    ],
+                    "inverts": [(tr("Richtung"), "outer_cw", "outer_ccw")],
+                    "summary": lambda c: (f"{tr('im UZS')} {c('outer_cw')}  ·  "
+                                          f"{tr('gegen')} {c('outer_ccw')}"),
+                })
+            if "inner_cw" in field_names:  # inner (fine) ring
+                specs.append({
+                    "title": tr("Innen-Ring"),
+                    "steps": [
                         ("inner_cw", tr("den INNEREN Ring mehrmals IM Uhrzeigersinn drehen")),
                         ("inner_ccw", tr("den INNEREN Ring mehrmals GEGEN den "
                                          "Uhrzeigersinn drehen")),
-                        ("swap", tr("den Encoder mehrmals DRÜCKEN")),
                     ],
-                    "inverts": [(tr("außen"), "outer_cw", "outer_ccw"),
-                                (tr("innen"), "inner_cw", "inner_ccw")],
-                    "summary": lambda c: (f"{tr('außen')} {c('outer_cw')}/{c('outer_ccw')}  ·  "
-                                          f"{tr('innen')} {c('inner_cw')}/{c('inner_ccw')}  ·  "
-                                          f"{tr('Druck')} {c('swap')}"),
-                }
+                    "inverts": [(tr("Richtung"), "inner_cw", "inner_ccw")],
+                    "summary": lambda c: (f"{tr('im UZS')} {c('inner_cw')}  ·  "
+                                          f"{tr('gegen')} {c('inner_ccw')}"),
+                })
+            if "swap" in field_names:  # the SEPARATE swap push-button (a normal Taster)
+                specs.append({
+                    "title": tr("SWAP-Taster"),
+                    "steps": [("swap", tr("den SWAP-Taster mehrmals drücken"))],
+                    "inverts": [],
+                    "summary": lambda c: f"{tr('Code')} {c('swap')}",
+                })
             if "cw" in field_names and "ccw" in field_names:  # Multi trim wheel (dimmer)
-                return {
+                specs.append({
                     "title": tr("Trimmrad"),
                     "steps": [
                         ("cw", tr("das Trimmrad mehrmals nach oben / im Uhrzeigersinn drehen")),
@@ -2843,8 +2858,8 @@ def run() -> None:
                     ],
                     "inverts": [(tr("Richtung"), "cw", "ccw")],
                     "summary": lambda c: f"{tr('hoch')} {c('cw')}  ·  {tr('runter')} {c('ccw')}",
-                }
-            return None
+                })
+            return specs
 
         def _encoder_block(row, group_path, spec, enc_nodes):
             """One consolidated capture row: current codes summary + Anlernen button."""
@@ -3004,23 +3019,23 @@ def run() -> None:
             fields = gui_mapper.group_fields(ost["nodes"], group.path)
             if ost["focus"]:
                 fields = [n for n in fields if n.path and n.path[-1] in ost["focus"]]
-            # A rotary control's direction codes (Radio dual-encoder, Multi trim
-            # wheel) are shown as ONE capture block (below), not raw code rows (per
-            # user: one setting per encoder). Detected from the fields present.
-            spec = _capture_spec({n.path[-1] for n in fields if n.path})
-            enc_nodes = []
-            if spec:
-                cons = {f for f, _ in spec["steps"]}
-                enc_nodes = [n for n in fields if n.path and n.path[-1] in cons]
-                fields = [n for n in fields if n not in enc_nodes]
+            # A group's rotary/button inputs (Radio outer/inner ring, swap, Multi
+            # trim wheel) become one capture block EACH (below), not raw code rows
+            # (per user: one setting per control). Detected from the fields present.
+            specs = _capture_specs({n.path[-1] for n in fields if n.path})
+            consumed = {f for s in specs for f, _ in s["steps"]}
+            enc_nodes = [n for n in fields if n.path and n.path[-1] in consumed]
+            fields = [n for n in fields if n not in enc_nodes]
             getters = [(node, _field_row(row, node)) for row, node in enumerate(fields)]
             if not fields and not enc_nodes:
                 ttk.Label(form, foreground="#666", wraplength=430, justify="left",
                           text=tr("Diese Gruppe hat keine direkten Felder — die "
                                "Untergruppen stehen im Baum der Haupttabelle.")
                           ).grid(row=0, column=0, columnspan=2, sticky="w")
-            if enc_nodes:
-                _encoder_block(len(fields), group.path, spec, enc_nodes)
+            for k, s in enumerate(specs):
+                block_nodes = [n for n in enc_nodes
+                               if n.path[-1] in {f for f, _ in s["steps"]}]
+                _encoder_block(len(fields) + k, group.path, s, block_nodes)
 
             def _apply():
                 changes = []
@@ -3047,7 +3062,7 @@ def run() -> None:
                 _save(mutate, "Gespeichert ✓")
 
             btns = ttk.Frame(form)
-            btns.grid(row=len(fields) + (2 if enc_nodes else 1), column=0, columnspan=2,
+            btns.grid(row=len(fields) + len(specs) + 1, column=0, columnspan=2,
                       sticky="w", pady=(10, 0))
             if fields:  # same button row as the binding editor
                 ttk.Button(btns, text=tr("Übernehmen"), style="Accent.TButton",
@@ -3056,9 +3071,12 @@ def run() -> None:
                            command=_reload).pack(side="left", padx=6)
             ttk.Button(btns, text=tr("Schließen"),
                        command=ow.destroy).pack(side="left", padx=(0, 6))
-            ttk.Button(btns, text=tr("🔦 LEDs/Display testen…"),
-                       command=lambda: _open_panel_test(device_id, ost["output"])
-                       ).pack(side="left", padx=(6, 0))
+            # The LEDs/Display test belongs to OUTPUT contexts only — an input
+            # control (encoder ring, swap, trim wheel) shows just its Anlernen.
+            if not specs:
+                ttk.Button(btns, text=tr("🔦 LEDs/Display testen…"),
+                           command=lambda: _open_panel_test(device_id, ost["output"])
+                           ).pack(side="left", padx=(6, 0))
             return btns
 
         def _render_group(group):

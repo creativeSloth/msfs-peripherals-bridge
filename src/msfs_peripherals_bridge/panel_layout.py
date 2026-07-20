@@ -457,10 +457,10 @@ def _focus_ref(base: str, fields: list[str] | None) -> str:
 
 
 def _radio_panel(binds, outs) -> list[PanelElement]:
-    """Per selector unit, a column of mode-rows; each row = 2 displays + dot (left)
-    and 2 encoders + swap (right), displays and controls kept apart. Every element
-    opens its bank/unit editor. The content is taller than the viewport (y > 1) so
-    the canvas scrolls it row by row."""
+    """Per selector unit: the outer + inner encoder rings and a SEPARATE swap
+    button (the encoder itself has no push), then a column of mode rows — each a
+    selector position (its code in the tooltip) with an Act/Stby display. Taller
+    than the viewport (y > 1) so the canvas scrolls it row by row."""
     idx = next((i for i, oo in enumerate(outs) if isinstance(oo, RadioPanelOutput)), None)
     if idx is None:
         return _device_layout(binds, outs)
@@ -470,39 +470,42 @@ def _radio_panel(binds, outs) -> list[PanelElement]:
     y = margin
     for u, unit in enumerate(o.units):
         uref = f"out:{idx}:units/{u}"
-        # group heading for this selector unit (full width) + its hardware CODES
-        els.append(PanelElement(HEADER, f"Selektor {unit.name} — Mode-Zeilen",
+        els.append(PanelElement(HEADER, f"Selektor {unit.name}",
                                 margin, y, 1.0 - 2 * margin, 0.05, mapped=True))
         y += 0.058
+        # the two encoder rings + the SEPARATE swap button, one control row per unit;
+        # each opens its OWN focused capture (outer ring / inner ring / swap Taster).
         els.append(PanelElement(
-            ENCODER, f"Encoder-/Swap-Codes {unit.name}", margin, y, 1.0 - 2 * margin,
-            row_h * 0.8, name=unit.name, mapped=True,
-            ref=_focus_ref(uref, ["outer_cw", "outer_ccw", "inner_cw", "inner_ccw", "swap"]),
-            action=(f"Hardware-CODES {unit.name}: außen {unit.outer_cw}/{unit.outer_ccw} "
-                    f"· innen {unit.inner_cw}/{unit.inner_ccw} · swap {unit.swap}")))
+            ENCODER, "außen", margin, y, 0.30, row_h * 0.8, name=unit.name, mapped=True,
+            ref=_focus_ref(uref, ["outer_cw", "outer_ccw"]),
+            action=f"Außen-Ring (grob) · Codes {unit.outer_cw}/{unit.outer_ccw}"))
+        els.append(PanelElement(
+            ENCODER, "innen", 0.33, y, 0.30, row_h * 0.8, name=unit.name, mapped=True,
+            ref=_focus_ref(uref, ["inner_cw", "inner_ccw"]),
+            action=f"Innen-Ring (fein) · Codes {unit.inner_cw}/{unit.inner_ccw}"))
+        els.append(PanelElement(
+            BUTTON, "SWAP-Taster", 0.66, y, 0.32, row_h * 0.8, mapped=True,
+            ref=_focus_ref(uref, ["swap"]),
+            action=f"SWAP-Taster (Code {unit.swap}) — normaler Taster, eigenständig mappbar"))
         y += row_h * 0.8 + gap
         for b, bank in enumerate(unit.banks):
             bref = f"out:{idx}:units/{u}/banks/{b}"
-            top, bot, det = _bank_display_text(bank)
-            f = _radio_focus(bank)  # each element opens ONLY its own field(s)
-            # displays (LEFT) + decimal/cursor dot
-            els.append(PanelElement(SEGMENT, f"{bank.label} · {top}", margin, y, 0.29,
-                                    row_h, ref=_focus_ref(bref, f["active"]),
-                                    mapped=True, action=det))
-            els.append(PanelElement(SEGMENT, bot, 0.31, y, 0.20, row_h,
-                                    ref=_focus_ref(bref, f["standby"]), mapped=True,
-                                    action=det))
+            _, _, det = _bank_display_text(bank)
+            f = _radio_focus(bank)  # each display element opens ONLY its own field(s)
+            # LEFT column: the selector position (mode); its code is in the tooltip.
             els.append(PanelElement(
-                DOT, ".", 0.525, y + row_h * 0.25, 0.045, row_h * 0.5,
+                SELECTOR, bank.label, margin, y, 0.27, row_h, mapped=True, ref=bref,
+                action=f"Selektor-Code {bank.code} · Mode {bank.label} · {det}"))
+            # symbolic display: Act over Stby (labels only — the mode is the left cell)
+            els.append(PanelElement(SEGMENT, "Act", 0.30, y, 0.30, row_h * 0.48,
+                                    ref=_focus_ref(bref, f["active"]), mapped=True, action=det))
+            els.append(PanelElement(SEGMENT, "Stby", 0.30, y + row_h * 0.52, 0.30,
+                                    row_h * 0.48, ref=_focus_ref(bref, f["standby"]),
+                                    mapped=True, action=det))
+            els.append(PanelElement(
+                DOT, ".", 0.63, y + row_h * 0.25, 0.05, row_h * 0.5,
                 ref=_focus_ref(bref, f["dot"]), mapped=True,
                 action="Dezimalpunkt / Cursor (springt bei ADF/XPDR über Push)"))
-            # controls (RIGHT) — separated from the displays by the gap
-            els.append(PanelElement(ENCODER, "außen", 0.60, y, 0.11, row_h,
-                                    ref=_focus_ref(bref, f["outer"]), mapped=True, action=det))
-            els.append(PanelElement(ENCODER, "innen", 0.72, y, 0.11, row_h,
-                                    ref=_focus_ref(bref, f["inner"]), mapped=True, action=det))
-            els.append(PanelElement(BUTTON, "SWAP", 0.84, y, 0.145, row_h,
-                                    ref=_focus_ref(bref, f["swap"]), mapped=True, action=det))
             y += row_h + gap
     return els
 
