@@ -1,7 +1,72 @@
 # STATUS — Resume-Anker
 
 > Kurzer Einstiegspunkt: was läuft, was offen ist, wie es weitergeht.
-> Stand: **2026-07-19 (spät) — RADIO-NACHBAU faithful + scrollbar + Gruppen. GEPUSHT bis `886a896`.**
+> Stand: **2026-07-20 — TEST-SEND „wo landet das Signal?" GEBAUT (uncommitted), 346 Tests grün.**
+> **🆕 NEU (User-Konzept geklärt: der Output-🪄 soll TESTSIGNALE auf ein Element schicken, damit man am
+> echten Panel sieht, welche LED/Display-Zelle ein Feld treibt — wie `tools/panel-scan/out_*`, aber pro Element
+> in der GUI):** (1) **Reine Schicht `mapping/panel_probe.py`** (8 Tests): isolierte Feature-Reports —
+> `switch_led_report` (Fahrwerk grün/rot je Rad), `multi_led_report` (1 Knopf-LED), `multi_cell_report`/
+> `radio_cell_report` (Ziffer „8" bzw. „8." mit Punkt auf EINE Zelle), `blank_report`, `probe_targets(output)`
+> zählt alle physischen Elemente je Panel auf (Fahrwerk=6, Multi=8 LEDs+10 Zellen, Radio=20 Zellen mit dot_report).
+> **⚠️ Modul heißt `panel_probe` (NICHT panel_test — matcht sonst pytest `*_test.py`), Fn `probe_targets` (NICHT
+> test_targets — sonst als Test eingesammelt).** (2) **GUI-Fenster `_open_panel_test`** (gui.py, vor
+> `_open_output_editor`): scrollbare, gruppierte Liste aller Elemente, je 🔦 (+🔦. für Zellen-Punkt) → sendet
+> Report, leuchtet ~2 s, „Alles aus" + Auto-Clear beim Schließen. **Geräte-frei-Sperre** via neuem `_mapper_running()`
+> (liest `/proc`, `_MAPPER_MATCHES`): läuft der Mapper, wird der Test verweigert (sonst überschreibt sein
+> OutputManager sofort). (3) Start-Knopf **„🔦 Testen…"** in der Output-Editor-Knopfzeile (`_fields_form`). **NUR
+> Test-Send gewählt** — der 🪄-LAUSCHEN-Modus für Eingang-Codes ist NICHT verdrahtet (Design steht: `_open_code_capture`
+> aus `_learn_code` extrahieren, siehe Roadmap-Punkt 2). **🔴 VISUELL/HW UNGEPRÜFT** (Fenster braucht Display + Panel):
+> beim Start GUI→Mapper→Output-Editor eines Panels öffnen→„🔦 Testen…"→Element wählen→leuchtet die richtige LED/Zelle?
+> Ruff/F821/py_compile/Import-Smoke ok, `panel_probe`-Logik voll getestet.
+>
+> **▶ ROADMAP PANEL-AUSGABE (User-Vision, in einer Session ausgebreitet — nach Prio geordnet, aktuell gewählt = #1):**
+> **1 · Test-Send** ✅ Fundament+GUI (dieser Stand). **2 · Output-LERNEN (🪄 Codes lauschen)** — Encoder/Selektor/
+> Swap/Dimmer-Code-Felder am Gerät aufnehmen; Design steht (`_open_code_capture` aus `gui.py._learn_code` extrahieren,
+> Code-Felder = {code,cw,ccw,outer_cw,outer_ccw,inner_cw,inner_ccw,swap}; source_toggle liest von seinem eigenen
+> `device`). **3 · Live-Werte in Labels (Glow-aus-Sim)** — Output-Element abonniert seine Var via `_ValueMonitor`,
+> zeigt gelesenen Wert im Label (User: „falls vorhanden"; „nur kühe"?? = unklar, evtl. „nur Kür"=optisch — NACHFRAGEN).
+> **4 · Radio-Nachbau optisch treu** — ROTE 7-Segment-artige Schrift, PUNKT als Pointer/Selektor sichtbar, ADF-
+> Doppelpunkt, DME-Bindestrich korrekt (Canvas-Rendering). **5 · ALLES per Profil konfigurierbar (großer Brocken,
+> Umfang mit User klären):** heute HARTVERDRAHTET → AP-Mode-LED-Map (`leds.py _MULTI_MODE_BIT={0:2,1:2,2:1,3:6,4:7}`),
+> DME-Layout (`_render_dme`, Bindestrich=BLANK-Spacer, „Konstante auf bestimmtem Segment" gewünscht), ADF-Zwei-Punkt-
+> Paar (`_render_adf`) → ins Modell heben + GUI-Editoren. Lohnt v. a. für FREMDE Flugzeuge (s. u.). **Alles intuitiv.**
+> **📌 SEPARAT ANGEFRAGT, ZURÜCKGESTELLT (User wählte erst STATUS-Batch):** (a) **Geräte-Registrierung für unbekannte
+> Geräte** (fremde Rechner): heute nur statisch in `config/devices.yaml` (Vendor/Product), KEINE GUI zum Anlegen,
+> `discover()` zeigt nur bekannte; geplant = Enumerator aller USB-Geräte + GUI „Neues Gerät" + user-schreibbarer
+> Overlay + udev-Rule generieren (der „Geräte-Explorer"-TODO ist der halbe Weg). (b) **Konsolidierter INSTALL-Guide**
+> (uv/Python/udev/Wine-Bridge; heute verstreut in README/running.md/bridge). — **Zifferweise Vars** (Frage geklärt):
+> XPDR=gepackte BCD16 `TRANSPONDER CODE:1`+`XPNDR_SET` (Ziffern-Logik machen WIR, kein Sim-Feature); ADF=Krücke, 3
+> Gauge-LVars `L:KR85_dig{1,2,3}_counter` weil Standard-ADF-SimVars kaputt; DME=nur Anzeige. Fremde Flugzeuge: Standard-
+> Events zuerst, LVar-Enumeration (`MF.LVars.List`) als Fallback. Das ist der EINGABE-Pfad, getrennt vom Test-Send.
+>
+> **🔧 LIVE-FEEDBACK dieser Session (alles verifiziert grün, 347 Tests, ruff clean, uncommitted):**
+> Test-Send funktioniert am ECHTEN Gerät (User bestätigt „testen der ziffern funzt"). Fixes:
+> (a) **Encoder-Labels entwirrt** (`gui_mapper.OUTPUT_FIELD_HELP`): „Äußerer Knopf rechts/links" → **„Außen · im UZS/
+> gegen UZS"**, „Innen · …"; swap = „Druck (Tausch)"; kein „Knopf"/„Drehknopf"/links-rechts mehr, überall „Encoder-Ring"
+> (User: es gibt NUR oberen+unteren Doppelencoder, je außen+innen; keine Richtung links/rechts — das sind Drehrichtungen).
+> (b) **„Bind"-Spalte der Geräteübersicht zählt jetzt Controller-Eingangscodes** (`gui_mapper.output_input_codes` +
+> `DeviceRow.inputs` = bindings + Encoder/Swap/Selektor/Dimmer-Codes; dev_tree zeigt `.inputs`) — Radio/Multi lesen sich
+> nicht mehr als „0 Bind, 1 Out" (User: Encoder/Swap/Mode-Selektor SIND Inputs). (c) **„Variablen in die Liste holen" grün**
+> (neuer `Success.TButton`-Style). (d) **🔦-Knopf umbenannt „🔦 LEDs/Display testen…"** (er ist der AUSGANGS-Test; im
+> Encoder/Eingang-Kontext war „Testen…" missverständlich).
+> **📌 GEKLÄRT:** Live-Werte in Labels = „nur Kür" (rein optisch) → Roadmap #3. **Zifferweise-Vars** s. o. **Per-Zell-
+> Mapping gibt es NICHT** — Display-Inhalt kommt aus Bank-Vars (die SIND mappbar: active/standby/code_var/dig_var); der
+> Test-Send IDENTIFIZIERT nur Zellen. Beliebige Konstante pro Zelle (DME-Bindestrich, Punkt-als-Pointer) = Roadmap #5.
+> **▶ #2 ENCODER-CAPTURE PRÄZISIERT (User-Wunsch, NÄCHSTES):** je Doppelencoder **BEIDE Richtungen als geführte SEQUENZ**
+> aufnehmen (außen im/gegen UZS · innen im/gegen UZS · swap/Druck) + **Invertier-Option** (CW/CCW tauschen).
+> **GUI zeigt pro Doppelencoder nur EINE Einstellmöglichkeit** (außen/innen/swap zusammengefasst — die 5 Einzel-Codefelder
+> outer_cw/ccw/inner_cw/ccw/swap NICHT einzeln, sondern als ein „Doppelencoder"-Block wie schon „außen"/„innen"). Capture =
+> **duplikat-bereinigte digitale Sequenz** (Encoder-Bounce/Mehrfach-Frames rauskürzen → ein sauberer Code je Richtung). **⚠️ TECHNISCHER
+> BLOCKER:** `hidraw_reader.live_state_reader` ist ZUSTANDS-basiert (letzter Wert je Bit) → eine Encoder-Rastung ist ein
+> transienter ~8 ms-Impuls (Bit 1→0), der beim 80 ms-Tick verschluckt wird (Schalter=stabiler Zustand=ok, Encoder=Impuls=verloren).
+> Braucht einen **flanken-fangenden Capture-Reader** (`iter_bit_changes`-Stil, akkumuliert geänderte Bits) — NICHT mit dem
+> jetzigen 🪄-Reader machbar. `_open_code_capture` aus `_learn_code` extrahieren + Sequenz-UI + Invert-Toggle. HW-Test nötig.
+> **▶ NACHBAU-CLEANUP `panel_layout._radio_panel` (User):** (a) das verwirrende **3. „Encoder-/Swap-Codes"-Element**
+> (oben Mitte, `panel_layout.py` ~Z.480) ist nur eine SAMMEL-Zeile der 5 Codes — physisch gibt es nur 2 Doppelencoder →
+> klarer machen/auflösen; (b) **links eine Spalte mit dem gewählten Mode** am Selektor (NICHT im Symbol-Display), Display
+> nur „Act"/„Stby"; (c) **Selektor-Code je Zeile im Tooltip**.
+> ---
+> Stand davor: **2026-07-19 (spät) — RADIO-NACHBAU faithful + scrollbar + Gruppen. GEPUSHT bis `886a896`.**
 > **✅ RADIO-LAYOUT FERTIG:** `_radio_panel`-Handlayout, pro Selektor-Einheit Gruppe (HEADER) + Encoder-/Swap-CODES;
 > **pro Mode-Zeile: 2 Displays (act/stby) + Punkt links | 2 Encoder + Swap rechts** (Anzeige/Bedienung getrennt),
 > je Element → Bank-/Unit-Editor (`out:i:units/u[/banks/b]`). **SCROLLBAR** (Canvas `scrollregion`, Content y>1,

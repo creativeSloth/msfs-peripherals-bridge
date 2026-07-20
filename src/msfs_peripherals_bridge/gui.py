@@ -270,6 +270,12 @@ def _sweep_mapper() -> int:
     return sum(_sweep(m) for m in _MAPPER_MATCHES)
 
 
+def _mapper_running() -> bool:
+    """True while a mapper process is live — it owns the panel feature-report
+    writes, so the GUI's 🔦 test-send must stand down (single-owner hardware)."""
+    return any(m in cmd for _, cmd in _iter_proc_cmdlines() for m in _MAPPER_MATCHES)
+
+
 def _port_listening(port: int) -> bool:
     """True if something is LISTENing on ``port`` locally — WITHOUT opening a
     connection. The bridge is single-client, so a once-a-second status probe must
@@ -970,6 +976,11 @@ def run() -> None:
     style.configure("Danger.TButton", background=DANGER, foreground="#ffffff",
                     padding=(10, 5), borderwidth=0)
     style.map("Danger.TButton", background=[("active", DANGER_ACT), ("disabled", "#eab8b8")])
+    # Success (green) — positive/add actions, e.g. pulling variables into the list.
+    style.configure("Success.TButton", background="#2e7d32", foreground="#ffffff",
+                    padding=(10, 5), borderwidth=0)
+    style.map("Success.TButton", background=[("active", "#256a29"), ("disabled", "#a9d3ab")],
+              foreground=[("disabled", "#eef7ee")])
     # Compact variants for dense groups (Connection tab): smaller padding, colours
     # re-declared explicitly so they don't depend on ttk style-map inheritance.
     style.configure("Small.TButton", padding=(8, 3))
@@ -1449,7 +1460,7 @@ def run() -> None:
 
     sbtn = ttk.Frame(stab)
     sbtn.grid(row=1, column=0, columnspan=4, sticky="ew", pady=(2, 4))
-    b_add = ttk.Button(sbtn, text=tr("Variablen in die Liste holen"),
+    b_add = ttk.Button(sbtn, text=tr("Variablen in die Liste holen"), style="Success.TButton",
                        command=lambda: _open_var_picker(win, _statistik_catalog(), add_var))
     b_rm = ttk.Button(sbtn, text=tr("Variablen aus Liste entfernen"), style="Danger.TButton",
                       command=remove_selected)
@@ -2602,6 +2613,124 @@ def run() -> None:
         _mapper_reload(rediscover=False, keep_device=_sel(dev_tree))
         m_state.config(text=ok_msg)
 
+    def _open_panel_test(device_id, output):
+        """A little in-GUI ``out_*`` tool: light ONE physical element at a time so
+        the user sees which LED / display cell a field drives ("wo landet das
+        Signal?"). Sends an isolated feature report per :func:`panel_probe`.
+
+        Only safe when the mapper isn't holding the panel (single feature-report
+        owner) — a live mapper would immediately overwrite the test frame, so we
+        refuse and say so instead of fighting it.
+        """
+        from .devices import hidraw_reader
+        from .mapping import panel_probe
+
+        targets = panel_probe.probe_targets(output)
+        if not targets:
+            return
+        otype = getattr(output, "type", "")
+        tw = tk.Toplevel(win)
+        tw.transient(win)
+        tw.title(f"{tr('Panel testen')} — {device_id}")
+        frm = ttk.Frame(tw, padding=12)
+        frm.pack(fill="both", expand=True)
+        ttk.Label(frm, wraplength=470, justify="left", foreground="#555",
+                  text=tr("Ein Element aufleuchten lassen, um es am echten Panel zu "
+                          "identifizieren. Geht nur, wenn der Mapper das Panel NICHT "
+                          "steuert (er würde den Test sofort überschreiben).")
+                  ).pack(anchor="w")
+        warn = ttk.Label(frm, foreground="#c62828", wraplength=470, justify="left")
+        warn.pack(anchor="w", pady=(4, 0))
+        status = ttk.Label(frm, foreground="#2e7d32")
+        status.pack(anchor="w", pady=(2, 6))
+
+        def _path():
+            with contextlib.suppress(Exception):
+                return hidraw_reader.discover(_device_catalog()).get(device_id)
+            return None
+
+        job = {"id": None}
+
+        def _write(report) -> bool:
+            if _mapper_running():
+                warn.config(text=tr("⚠ Der Mapper läuft und steuert das Panel — bitte "
+                                    "erst im Connection-Tab stoppen."))
+                return False
+            path = _path()
+            if path is None:
+                warn.config(text=f"„{device_id}“ {tr('nicht gefunden — angesteckt?')}")
+                return False
+            try:
+                hidraw_reader.write_feature_report(path, report)
+            except OSError as exc:
+                warn.config(text=f"{tr('Senden fehlgeschlagen:')} {exc}")
+                return False
+            warn.config(text="")
+            return True
+
+        def _send(report, label):
+            if not _write(report):
+                return
+            status.config(text=f"▶ {label} — {tr('leuchtet ~2 s')}")
+            if job["id"]:
+                tw.after_cancel(job["id"])
+
+            def _clear():
+                _write(panel_probe.blank_report(otype))
+                status.config(text="")
+
+            job["id"] = tw.after(2000, _clear)
+
+        def _all_off():
+            if _write(panel_probe.blank_report(otype)):
+                status.config(text=tr("alles aus"))
+
+        # scrollable grouped list of elements (radio has 20 cells + headers)
+        mid = ttk.Frame(frm)
+        mid.pack(fill="both", expand=True)
+        canvas = tk.Canvas(mid, highlightthickness=0, height=360, width=380)
+        sb = ttk.Scrollbar(mid, orient="vertical", command=canvas.yview)
+        body = ttk.Frame(canvas)
+        body.bind("<Configure>",
+                  lambda e: canvas.configure(scrollregion=canvas.bbox("all")))
+        canvas.create_window((0, 0), window=body, anchor="nw")
+        canvas.configure(yscrollcommand=sb.set)
+        canvas.pack(side="left", fill="both", expand=True)
+        sb.pack(side="right", fill="y")
+        canvas.bind_all("<Button-4>", lambda e: canvas.yview_scroll(-1, "units"))
+        canvas.bind_all("<Button-5>", lambda e: canvas.yview_scroll(1, "units"))
+        tw.bind("<Destroy>", lambda e: (canvas.unbind_all("<Button-4>"),
+                                        canvas.unbind_all("<Button-5>"))
+                if e.widget is tw else None)
+
+        row, last_group = 0, None
+        for t in targets:
+            if t.group != last_group:
+                ttk.Label(body, text=t.group, font=("TkDefaultFont", 9, "bold"),
+                          foreground="#333").grid(row=row, column=0, columnspan=3,
+                                                  sticky="w", pady=(8, 1))
+                row += 1
+                last_group = t.group
+            ttk.Label(body, text=t.label).grid(row=row, column=0, sticky="w",
+                                               padx=(14, 8))
+            ttk.Button(body, text=tr("🔦"), width=3,
+                       command=lambda r=t.report, la=t.label: _send(r, la)
+                       ).grid(row=row, column=1)
+            if t.dot_report is not None:  # radio/multi cell: also flash its dot ("8.")
+                ttk.Button(body, text=tr("🔦."), width=3,
+                           command=lambda r=t.dot_report, la=f"{t.label} .": _send(r, la)
+                           ).grid(row=row, column=2, padx=3)
+            row += 1
+
+        foot = ttk.Frame(frm)
+        foot.pack(anchor="w", pady=(8, 0))
+        ttk.Button(foot, text=tr("Alles aus"), command=_all_off).pack(side="left")
+        ttk.Button(foot, text=tr("Schließen"),
+                   command=lambda: (_all_off(), tw.destroy())).pack(side="left", padx=6)
+        tw.protocol("WM_DELETE_WINDOW", lambda: (_all_off(), tw.destroy()))
+        tw.minsize(420, 300)
+        tw.lift()
+
     # --- output settings: ONE context window per tree row ------------------ #
     # The structure (Panel -> Selektor-Position[x] -> …) lives in the main
     # detail tree; double-clicking a row opens the settings for exactly that
@@ -2728,6 +2857,9 @@ def run() -> None:
                            command=_reload).pack(side="left", padx=6)
             ttk.Button(btns, text=tr("Schließen"),
                        command=ow.destroy).pack(side="left", padx=(0, 6))
+            ttk.Button(btns, text=tr("🔦 LEDs/Display testen…"),
+                       command=lambda: _open_panel_test(device_id, ost["output"])
+                       ).pack(side="left", padx=(6, 0))
             return btns
 
         def _render_group(group):
@@ -3298,7 +3430,7 @@ def run() -> None:
         ids = set()
         for r in rows:
             dev_tree.insert("", "end", iid=r.id, text=r.name,
-                            values=(r.transport, r.status, r.bindings, r.outputs))
+                            values=(r.transport, r.status, r.inputs, r.outputs))
             ids.add(r.id)
         target = keep_device if keep_device in ids else (rows[0].id if rows else None)
         if target:

@@ -54,6 +54,9 @@ _MULTI_BUTTON_BIT: dict[str, int] = {
 }
 # Button names a profile may drive directly via a bool var (see bool_leds below).
 MULTI_LED_BUTTONS = frozenset(_MULTI_BUTTON_BIT)
+# The same buttons in their measured byte order (frozenset is unordered) — used
+# where a stable left-to-right walk matters, e.g. the panel LED test-send.
+MULTI_BUTTON_ORDER: tuple[str, ...] = tuple(_MULTI_BUTTON_BIT)
 _MULTI_AP_BIT = _MULTI_BUTTON_BIT["ap"]
 _MULTI_IAS_BIT = _MULTI_BUTTON_BIT["ias"]  # IAS button LED — blinks to flag OMNI
 # JF Arrow autopilot mode (L:AUTOPILOT_MODE, from SPAD Arrow profile) -> lit LED

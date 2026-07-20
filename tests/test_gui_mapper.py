@@ -88,8 +88,38 @@ def test_rows_keep_catalog_order_and_count_usage():
     assert (by_id["yoke"].bindings, by_id["yoke"].outputs) == (2, 0)
     assert (by_id["multi_panel"].bindings, by_id["multi_panel"].outputs) == (0, 1)
     assert (by_id["pedals"].bindings, by_id["pedals"].outputs) == (1, 0)
+    # inputs = bindings + panel-controller input codes; a pure-axis device (yoke)
+    # equals its bindings. (This fixture's multi_panel output is a gear_leds stub,
+    # which contributes no inputs — real panels are covered separately below.)
+    assert by_id["yoke"].inputs == 2
+    assert by_id["multi_panel"].inputs == 0
     assert by_id["multi_panel"].transport == "hidraw"
     assert by_id["pedals"].usb == "06a3:0763"
+
+
+def test_output_input_codes_counts_encoders_swap_selector():
+    from msfs_peripherals_bridge.gui_mapper import output_input_codes
+    from msfs_peripherals_bridge.models import (
+        GearLedOutput,
+        MultiPanelOutput,
+        RadioBank,
+        RadioPanelOutput,
+        RadioUnit,
+        SelectorEntry,
+    )
+
+    assert output_input_codes(GearLedOutput()) == set()  # pure output
+    m = MultiPanelOutput(selector=[
+        SelectorEntry(code=0, label="ALT", simvar="X", min=0, max=9),
+        SelectorEntry(code=3, label="HDG", simvar="Y", min=0, max=359),
+    ])
+    assert output_input_codes(m) == {0, 3, 5, 6}  # selector {0,3} + encoder CW/CCW
+    bank = RadioBank(code=2, label="COM1", active="A", standby="S", swap_event="SW",
+                     whole_inc="wi", whole_dec="wd", fract_inc="fi", fract_dec="fd")
+    r = RadioPanelOutput(units=[RadioUnit(
+        name="upper", row="upper", banks=[bank],
+        outer_cw=10, outer_ccw=11, inner_cw=12, inner_ccw=13, swap=14)])
+    assert output_input_codes(r) == {10, 11, 12, 13, 14, 2}  # encoder/swap + bank code
 
 
 def test_present_tristate():

@@ -61,6 +61,11 @@ class DeviceRow:
     present: bool | None  # True/False detected, None = discovery unavailable
     bindings: int
     outputs: int
+    # Total hardware INPUTS the device drives = plain bindings + the input codes
+    # living inside its panel controllers (encoders, swap, mode-selector, dimmer).
+    # Shown in the "Bind" column so a Saitek panel reads as the input-heavy device
+    # it is, instead of "0 bindings, 1 output".
+    inputs: int = 0
 
     @property
     def status(self) -> str:
@@ -93,6 +98,11 @@ def build_device_rows(
     """
     rows: list[DeviceRow] = []
     for dev in catalog.devices:
+        outs = profile.outputs.get(dev.id, [])
+        n_bind = len(profile.bindings.get(dev.id, []))
+        ctrl_inputs: set[int] = set()
+        for o in outs:
+            ctrl_inputs |= output_input_codes(o)
         rows.append(
             DeviceRow(
                 id=dev.id,
@@ -100,11 +110,38 @@ def build_device_rows(
                 transport=dev.transport,
                 usb=f"{dev.vendor}:{dev.product}",
                 present=None if present is None else (dev.id in present),
-                bindings=len(profile.bindings.get(dev.id, [])),
-                outputs=len(profile.outputs.get(dev.id, [])),
+                bindings=n_bind,
+                outputs=len(outs),
+                inputs=n_bind + len(ctrl_inputs),
             )
         )
     return rows
+
+
+def output_input_codes(output: Output) -> set[int]:
+    """Hardware INPUT codes a panel controller consumes — the physical inputs that
+    live *inside* an output block: encoder detents, the swap push, mode-selector
+    positions and the dimmer. A pure-output block (the gear LEDs) has none.
+
+    These are inputs even though they sit in an ``outputs:`` block (the Saitek
+    panels are bidirectional), so the device overview counts them under "Bind".
+    ``source_toggle`` is deliberately excluded — it lives on another device (a yoke
+    rocker), not the panel.
+    """
+    from .mapping.multi_panel import ENCODER_CCW, ENCODER_CW
+
+    if isinstance(output, MultiPanelOutput):
+        codes = {e.code for e in output.selector} | {ENCODER_CW, ENCODER_CCW}
+        if output.dimmer is not None:
+            codes |= {output.dimmer.cw, output.dimmer.ccw}
+        return codes
+    if isinstance(output, RadioPanelOutput):
+        codes = set()
+        for u in output.units:
+            codes |= {u.outer_cw, u.outer_ccw, u.inner_cw, u.inner_ccw, u.swap}
+            codes |= {b.code for b in u.banks}
+        return codes
+    return set()
 
 
 def describe_source(source: Source) -> str:
@@ -705,24 +742,31 @@ OUTPUT_FIELD_HELP: dict[str, tuple[str, str]] = {
     "down_at": ("Grün ab", "Ab dieser Position gilt das Rad als ausgefahren (grüne LED)."),
     "name": ("Name", "Bezeichnung, nur für Anzeige/Logs."),
     "row": ("Display-Hälfte", "Obere oder untere Hälfte des Radio-Panel-Displays."),
-    "outer_cw": ("Äußerer Knopf rechts", "Eingabe-Code: äußerer (grober) Drehknopf im UZS."),
-    "outer_ccw": ("Äußerer Knopf links", "Eingabe-Code: äußerer Drehknopf gegen den UZS."),
-    "inner_cw": ("Innerer Knopf rechts", "Eingabe-Code: innerer (feiner) Drehknopf im UZS."),
-    "inner_ccw": ("Innerer Knopf links", "Eingabe-Code: innerer Drehknopf gegen den UZS."),
-    "swap": ("Tausch-Knopf", "Eingabe-Code des Drückens (ACT↔STBY-Tausch)."),
+    # A Radio unit has ONE dual-concentric encoder (outer + inner rings, pushable);
+    # no left/right — the two directions are the rotation sense (CW/CCW).
+    "outer_cw": ("Außen · im UZS",
+                 "Eingabe-Code: äußerer (grober) Encoder-Ring im Uhrzeigersinn."),
+    "outer_ccw": ("Außen · gegen UZS",
+                  "Eingabe-Code: äußerer Encoder-Ring gegen den Uhrzeigersinn."),
+    "inner_cw": ("Innen · im UZS",
+                 "Eingabe-Code: innerer (feiner) Encoder-Ring im Uhrzeigersinn."),
+    "inner_ccw": ("Innen · gegen UZS",
+                  "Eingabe-Code: innerer Encoder-Ring gegen den Uhrzeigersinn."),
+    "swap": ("Druck (Tausch)",
+             "Eingabe-Code des Drückens auf den Doppelencoder (ACT↔STBY-Tausch)."),
     "active": ("Aktiv-Frequenz", "Variable der ACTIVE-Frequenz (obere Display-Zeile)."),
     "standby": ("Standby-Frequenz", "Variable der STANDBY-Frequenz (wird getunt, untere "
                 "Zeile)."),
     "swap_event": ("Tausch-Event", "Event, das ACTIVE und STANDBY tauscht."),
-    "whole_inc": ("MHz hoch", "Event des äußeren Knopfs: ganze MHz aufwärts."),
-    "whole_dec": ("MHz runter", "Event des äußeren Knopfs: ganze MHz abwärts."),
-    "fract_inc": ("kHz hoch", "Event des inneren Knopfs: Fein-Schritt aufwärts."),
-    "fract_dec": ("kHz runter", "Event des inneren Knopfs: Fein-Schritt abwärts."),
+    "whole_inc": ("MHz hoch", "Event des äußeren Encoder-Rings: ganze MHz aufwärts."),
+    "whole_dec": ("MHz runter", "Event des äußeren Encoder-Rings: ganze MHz abwärts."),
+    "fract_inc": ("kHz hoch", "Event des inneren Encoder-Rings: Fein-Schritt aufwärts."),
+    "fract_dec": ("kHz runter", "Event des inneren Encoder-Rings: Fein-Schritt abwärts."),
     "fract_fast_inc": ("kHz hoch (schnell)", "Event bei schnellem Drehen (gröberer "
                        "Schritt). Leer = wie kHz hoch."),
     "fract_fast_dec": ("kHz runter (schnell)", "Event bei schnellem Drehen abwärts. "
                        "Leer = wie kHz runter."),
-    "fine_view": ("Fein-Anzeige", "Innerer Knopf schaltet die Standby-Zeile auf 3 "
+    "fine_view": ("Fein-Anzeige", "Innerer Encoder-Ring schaltet die Standby-Zeile auf 3 "
                   "Nachkommastellen (nur COM 8.33 sinnvoll)."),
     "distance": ("Distanz-Var", "DME-Entfernungs-Variable (nautische Meilen)."),
     "speed": ("Geschw.-Var", "DME-Geschwindigkeits-Variable (Knoten)."),
@@ -737,8 +781,8 @@ OUTPUT_FIELD_HELP: dict[str, tuple[str, str]] = {
     "baro_var": ("QNH-Var", "Variable des Luftdrucks für die untere Zeile (inHg). Leer = "
                  "Zeile bleibt dunkel."),
     "baro_scale": ("QNH-Faktor", "Multiplikator der QNH-Var nach inHg (schon inHg = 1)."),
-    "baro_inc": ("QNH hoch", "Event des äußeren Knopfs: Luftdruck aufwärts."),
-    "baro_dec": ("QNH runter", "Event des äußeren Knopfs: Luftdruck abwärts."),
+    "baro_inc": ("QNH hoch", "Event des äußeren Encoder-Rings: Luftdruck aufwärts."),
+    "baro_dec": ("QNH runter", "Event des äußeren Encoder-Rings: Luftdruck abwärts."),
 }
 
 
