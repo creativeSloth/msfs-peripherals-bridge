@@ -52,11 +52,18 @@
 > **📌 GEKLÄRT:** Live-Werte in Labels = „nur Kür" (rein optisch) → Roadmap #3. **Zifferweise-Vars** s. o. **Per-Zell-
 > Mapping gibt es NICHT** — Display-Inhalt kommt aus Bank-Vars (die SIND mappbar: active/standby/code_var/dig_var); der
 > Test-Send IDENTIFIZIERT nur Zellen. Beliebige Konstante pro Zelle (DME-Bindestrich, Punkt-als-Pointer) = Roadmap #5.
-> **▶ #2 ENCODER-CAPTURE PRÄZISIERT (User-Wunsch, NÄCHSTES):** je Doppelencoder **BEIDE Richtungen als geführte SEQUENZ**
-> aufnehmen (außen im/gegen UZS · innen im/gegen UZS · swap/Druck) + **Invertier-Option** (CW/CCW tauschen).
-> **GUI zeigt pro Doppelencoder nur EINE Einstellmöglichkeit** (außen/innen/swap zusammengefasst — die 5 Einzel-Codefelder
-> outer_cw/ccw/inner_cw/ccw/swap NICHT einzeln, sondern als ein „Doppelencoder"-Block wie schon „außen"/„innen"). Capture =
-> **duplikat-bereinigte digitale Sequenz** (Encoder-Bounce/Mehrfach-Frames rauskürzen → ein sauberer Code je Richtung). **⚠️ TECHNISCHER
+> **▶ #2 ENCODER-CAPTURE — GEBAUT (uncommitted, 351 Tests grün, HW-TEST OFFEN):**
+> (1) **Flanken-fangender Reader** `hidraw_reader.count_rising_edges` (rein, 4 Tests) + `edge_count_reader(path)→(read,close)`:
+> vergleicht JEDE aufeinanderfolgende Report-Frame und zählt steigende Flanken je Bit — fängt so die transienten
+> Encoder-Impulse, die `live_state_reader` (Zustand) verschluckt; Mehrfach-Drehen macht das gewollte Bit zum klaren
+> Gewinner (dedupliziert Bounce). (2) **Geführte Capture-UI** `_open_encoder_capture` (gui.py, in `_open_output_editor`):
+> 5 Schritte (außen im/gegen UZS · innen im/gegen UZS · Druck), je „Weiter"/„Überspringen", live „erkannt: Code N (M Flanken)",
+> **Invert-Checkbox außen/innen** (tauscht CW/CCW beim Speichern), schreibt alle 5 Codes in EINEM validierten Save.
+> (3) **Konsolidiert:** die 5 Codefelder sind im Unit-Editor durch EINEN **„Doppelencoder"-Block** ersetzt (Zusammenfassung
+> außen/innen/Druck + „🎚 Anlernen…"), `gui_mapper.ENCODER_FIELDS`. **🔴 HW-TEST NÖTIG:** GUI→Radio-Panel→Unit-Editor→
+> „🎚 Anlernen…"→je Richtung drehen→wird der richtige Code erkannt? (Reader liest parallel zum Mapper, hidraw fanned out.)
+> **⏳ FOLGE (User): Multi-Trim-Wheel + Multi-Encoder** (dimmer cw/ccw, ENCODER_CW/CCW) brauchen dieselbe Capture — die
+> Sequenz-Fn ist dafür wiederverwendbar (nur andere steps/Zielfelder). **⚠️ TECHNISCHER
 > BLOCKER:** `hidraw_reader.live_state_reader` ist ZUSTANDS-basiert (letzter Wert je Bit) → eine Encoder-Rastung ist ein
 > transienter ~8 ms-Impuls (Bit 1→0), der beim 80 ms-Tick verschluckt wird (Schalter=stabiler Zustand=ok, Encoder=Impuls=verloren).
 > Braucht einen **flanken-fangenden Capture-Reader** (`iter_bit_changes`-Stil, akkumuliert geänderte Bits) — NICHT mit dem

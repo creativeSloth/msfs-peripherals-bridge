@@ -2808,6 +2808,165 @@ def run() -> None:
                 _info(cell, help_text)
             return getter
 
+        def _encoder_block(row, group_path, enc_nodes):
+            """One consolidated 'Doppelencoder' row: current codes + Anlernen button."""
+            codes = {n.path[-1]: n.value for n in enc_nodes}
+
+            def _fmt(k):
+                return codes.get(k, "—") or "—"
+
+            box = ttk.Frame(form)
+            box.grid(row=row, column=0, columnspan=3, sticky="w", pady=(8, 2))
+            ttk.Label(box, text=tr("Doppelencoder"),
+                      font=("TkDefaultFont", 9, "bold")).pack(anchor="w")
+            ttk.Label(box, foreground="#555",
+                      text=(f"{tr('außen')} {_fmt('outer_cw')}/{_fmt('outer_ccw')}  ·  "
+                            f"{tr('innen')} {_fmt('inner_cw')}/{_fmt('inner_ccw')}  ·  "
+                            f"{tr('Druck')} {_fmt('swap')}")).pack(anchor="w")
+            ttk.Button(box, text=tr("🎚 Anlernen…"), style="Accent.TButton",
+                       command=lambda: _open_encoder_capture(group_path)).pack(anchor="w",
+                                                                               pady=(3, 0))
+
+        def _open_encoder_capture(group_path):
+            """Guided capture of a dual-encoder's five codes (#2, edge-counting).
+
+            Walks outer/inner ring each way plus the push, recording each hardware
+            bit by counting rising edges while the user turns/presses it — so
+            transient detents the state view misses are caught, and turning a few
+            detents makes the intended bit the clear winner (also shakes off
+            bounce). Per-ring invert swaps its CW/CCW; all five write at once.
+            """
+            from .devices import hidraw_reader
+
+            path = None
+            with contextlib.suppress(Exception):
+                path = hidraw_reader.discover(_device_catalog()).get(device_id)
+            if path is None:
+                _status(f"„{device_id}“ nicht gefunden — angesteckt?", error=True)
+                return
+            steps = [
+                ("outer_cw", tr("den ÄUSSEREN Ring mehrmals IM Uhrzeigersinn drehen")),
+                ("outer_ccw", tr("den ÄUSSEREN Ring mehrmals GEGEN den Uhrzeigersinn drehen")),
+                ("inner_cw", tr("den INNEREN Ring mehrmals IM Uhrzeigersinn drehen")),
+                ("inner_ccw", tr("den INNEREN Ring mehrmals GEGEN den Uhrzeigersinn drehen")),
+                ("swap", tr("den Encoder mehrmals DRÜCKEN")),
+            ]
+            cap: dict[str, int] = {}
+            stt: dict = {"i": 0, "read": None, "close": None, "winner": None}
+            cw = tk.Toplevel(ow)
+            cw.transient(ow)
+            cw.title(f"{tr('Doppelencoder anlernen')} — {device_id}")
+            frm = ttk.Frame(cw, padding=12)
+            frm.pack(fill="both", expand=True)
+            instr = ttk.Label(frm, font=("TkDefaultFont", 11, "bold"),
+                              wraplength=390, justify="left")
+            instr.pack(anchor="w")
+            found = ttk.Label(frm, foreground="#2e7d32")
+            found.pack(anchor="w", pady=(4, 2))
+            summ = ttk.Label(frm, foreground="#555", wraplength=390, justify="left")
+            summ.pack(anchor="w", pady=(2, 6))
+            inv_o, inv_i = tk.BooleanVar(), tk.BooleanVar()
+            invfr = ttk.Frame(frm)
+            invfr.pack(anchor="w")
+            ttk.Checkbutton(invfr, text=tr("außen invertieren"),
+                            variable=inv_o).pack(side="left")
+            ttk.Checkbutton(invfr, text=tr("innen invertieren"),
+                            variable=inv_i).pack(side="left", padx=8)
+            _info(invfr, tr("Falls im/gegen UZS vertauscht sind — tauscht die beiden "
+                            "Codes des Rings beim Speichern."))
+            btnrow = ttk.Frame(frm)
+            btnrow.pack(anchor="w", pady=(8, 0))
+
+            def _close_reader():
+                if stt["close"]:
+                    stt["close"]()
+                stt["close"] = stt["read"] = None
+
+            def _summary():
+                return "  ·  ".join(f"{f}={cap[f]}" for f, _ in steps if f in cap) or "—"
+
+            def _poll():
+                if not cw.winfo_exists():
+                    return
+                counts = stt["read"]() if stt["read"] else None
+                if counts is None:
+                    found.config(text=tr("Gerät getrennt."))
+                    return
+                if counts:
+                    w = max(counts, key=lambda k: counts[k])
+                    stt["winner"] = w
+                    found.config(text=f"{tr('erkannt')}: Code {w}  ({counts[w]} "
+                                      f"{tr('Flanken')}) — {tr('weiterdrehen oder «Weiter»')}")
+                    b_next.config(state="normal")
+                cw.after(120, _poll)
+
+            def _start():
+                _close_reader()
+                opened = hidraw_reader.edge_count_reader(path)
+                if opened is None:
+                    found.config(text=tr("Gerät nicht lesbar."))
+                    return
+                stt["read"], stt["close"] = opened
+                stt["winner"] = None
+                _, txt = steps[stt["i"]]
+                instr.config(text=f"{tr('Schritt')} {stt['i'] + 1}/{len(steps)}: {txt}")
+                found.config(text=tr("— warte auf Bewegung —"))
+                b_next.config(state="disabled")
+                _poll()
+
+            def _advance(store):
+                if store and stt["winner"] is not None:
+                    cap[steps[stt["i"]][0]] = stt["winner"]
+                summ.config(text=f"{tr('Erfasst')}: {_summary()}")
+                stt["i"] += 1
+                if stt["i"] < len(steps):
+                    _start()
+                else:
+                    _finish()
+
+            def _apply():
+                codes = dict(cap)
+                if inv_o.get():
+                    codes["outer_cw"], codes["outer_ccw"] = (codes.get("outer_ccw"),
+                                                             codes.get("outer_cw"))
+                if inv_i.get():
+                    codes["inner_cw"], codes["inner_ccw"] = (codes.get("inner_ccw"),
+                                                             codes.get("inner_cw"))
+                codes = {f: int(v) for f, v in codes.items() if v is not None}
+                if not codes:
+                    _status("Nichts erfasst.", error=True)
+                    cw.destroy()
+                    return
+
+                def mutate(doc):
+                    for f, v in codes.items():
+                        profile_writer.set_output_value(
+                            doc, device_id, out_index, (*group_path, f), v)
+
+                cw.destroy()
+                _save(mutate, "Encoder-Codes gespeichert ✓")
+
+            def _finish():
+                _close_reader()
+                instr.config(text=tr("Fertig — Codes prüfen und übernehmen."))
+                found.config(text="")
+                b_next.pack_forget()
+                b_skip.pack_forget()
+                ttk.Button(btnrow, text=tr("Übernehmen"), style="Accent.TButton",
+                           command=_apply).pack(side="left")
+
+            b_next = ttk.Button(btnrow, text=tr("Weiter"),
+                                command=lambda: _advance(True), state="disabled")
+            b_next.pack(side="left")
+            b_skip = ttk.Button(btnrow, text=tr("Überspringen"),
+                                command=lambda: _advance(False))
+            b_skip.pack(side="left", padx=6)
+            ttk.Button(btnrow, text=tr("Abbrechen"),
+                       command=lambda: (_close_reader(), cw.destroy())).pack(side="left", padx=6)
+            cw.protocol("WM_DELETE_WINDOW", lambda: (_close_reader(), cw.destroy()))
+            _start()
+            cw.lift()
+
         def _fields_form(group):
             """The group's scalar fields + Übernehmen; returns the button row.
 
@@ -2816,12 +2975,20 @@ def run() -> None:
             fields = gui_mapper.group_fields(ost["nodes"], group.path)
             if ost["focus"]:
                 fields = [n for n in fields if n.path and n.path[-1] in ost["focus"]]
+            # A Radio unit's five encoder code fields are shown as ONE "Doppelencoder"
+            # capture block (below), not five raw code rows (per user).
+            enc_nodes = [n for n in fields
+                         if n.path and n.path[-1] in gui_mapper.ENCODER_FIELDS]
+            fields = [n for n in fields if n not in enc_nodes]
             getters = [(node, _field_row(row, node)) for row, node in enumerate(fields)]
-            if not fields:
+            if not fields and not enc_nodes:
                 ttk.Label(form, foreground="#666", wraplength=430, justify="left",
                           text=tr("Diese Gruppe hat keine direkten Felder — die "
                                "Untergruppen stehen im Baum der Haupttabelle.")
                           ).grid(row=0, column=0, columnspan=2, sticky="w")
+            enc_row = len(fields)
+            if enc_nodes:
+                _encoder_block(enc_row, group.path, enc_nodes)
 
             def _apply():
                 changes = []
@@ -2848,7 +3015,7 @@ def run() -> None:
                 _save(mutate, "Gespeichert ✓")
 
             btns = ttk.Frame(form)
-            btns.grid(row=len(fields) + 1, column=0, columnspan=2,
+            btns.grid(row=len(fields) + (2 if enc_nodes else 1), column=0, columnspan=2,
                       sticky="w", pady=(10, 0))
             if fields:  # same button row as the binding editor
                 ttk.Button(btns, text=tr("Übernehmen"), style="Accent.TButton",

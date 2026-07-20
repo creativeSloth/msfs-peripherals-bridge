@@ -15,10 +15,11 @@ runtime so the pure-logic package stays importable on any platform.
 
 from __future__ import annotations
 
+import contextlib
 import logging
 import os
 import select
-from collections.abc import Iterator
+from collections.abc import Iterable, Iterator
 
 from ..models import DeviceCatalog, SourceKind
 from .base import DeviceEvent
@@ -104,6 +105,72 @@ def iter_bit_changes(device_id: str, prev: bytes, cur: bytes) -> Iterator[Device
                     code=byte_index * 8 + bit,
                     value=1 if c & mask else 0,
                 )
+
+
+def count_rising_edges(frames: Iterable[bytes]) -> dict[int, int]:
+    """Rising-edge (0->1) count per bit code across a sequence of report frames.
+
+    Pure core of :func:`edge_count_reader`. Unlike the *state* view
+    (:func:`live_state_reader`, latest value per bit), this compares **every**
+    consecutive frame, so a transient encoder detent that pulses a bit 0->1->0
+    within one poll window is still counted — that is exactly what the state view
+    loses. The first frame only primes the baseline (emits no edges).
+    """
+    counts: dict[int, int] = {}
+    prev: bytes | None = None
+    for data in frames:
+        if prev is not None:
+            for ev in iter_bit_changes("", prev, data):
+                if ev.value == 1:  # a rising edge = one detent pulse / press
+                    counts[ev.code] = counts.get(ev.code, 0) + 1
+        prev = data
+    return counts
+
+
+def edge_count_reader(path: str):
+    """Open a hidraw panel to COUNT rising-edge pulses per bit; ``(read, close)``.
+
+    For *capturing* transient encoder detents, which :func:`live_state_reader`
+    misses: a detent pulses a bit for ~8 ms, so by the next GUI tick the state has
+    already fallen back and looks unchanged. This reader instead accumulates every
+    rising edge across all drained frames, so turning a knob a few detents makes
+    its bit the clear winner (the count also de-duplicates contact bounce — the
+    intended bit simply gets the most edges).
+
+    ``read()`` drains non-blocking and returns the accumulated
+    ``{bit_code: rising_edge_count}`` since opening (or ``None`` once unplugged);
+    ``close()`` releases the fd. Re-open to reset the counts for a fresh step.
+    """
+    try:
+        fd = os.open(path, os.O_RDONLY | os.O_NONBLOCK)
+    except OSError:
+        return None
+    counts: dict[int, int] = {}
+    prev: dict[str, bytes | None] = {"v": None}
+
+    def read() -> dict[int, int] | None:
+        try:
+            while True:
+                try:
+                    data = os.read(fd, 64)
+                except BlockingIOError:
+                    break
+                if not data:
+                    break
+                if prev["v"] is not None:
+                    for ev in iter_bit_changes("", prev["v"], data):
+                        if ev.value == 1:
+                            counts[ev.code] = counts.get(ev.code, 0) + 1
+                prev["v"] = data
+        except OSError:
+            return None
+        return dict(counts)
+
+    def close() -> None:
+        with contextlib.suppress(OSError):
+            os.close(fd)
+
+    return read, close
 
 
 def read_device(device_id: str, path: str) -> Iterator[DeviceEvent]:
