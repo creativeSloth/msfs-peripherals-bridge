@@ -86,7 +86,9 @@ def test_rows_keep_catalog_order_and_count_usage():
     assert [r.id for r in rows] == ["yoke", "multi_panel", "pedals"]
     by_id = {r.id: r for r in rows}
     assert (by_id["yoke"].bindings, by_id["yoke"].outputs) == (2, 0)
-    assert (by_id["multi_panel"].bindings, by_id["multi_panel"].outputs) == (0, 1)
+    # outputs = ATOMIC elements: the gear_leds block = 3 wheels x 2 colours = 6
+    # (not "1 block", per user: count atoms, not Oberelemente).
+    assert (by_id["multi_panel"].bindings, by_id["multi_panel"].outputs) == (0, 6)
     assert (by_id["pedals"].bindings, by_id["pedals"].outputs) == (1, 0)
     # inputs = bindings + panel-controller input codes; a pure-axis device (yoke)
     # equals its bindings. (This fixture's multi_panel output is a gear_leds stub,
@@ -527,3 +529,27 @@ def test_device_input_sources_empty_without_inputs():
 
     ddef = DeviceDef(id="x", name="X", vendor="1", product="2")
     assert device_input_sources(ddef) == []
+
+
+def test_atomic_output_count_counts_leds_and_cells():
+    from msfs_peripherals_bridge.gui_mapper import atomic_output_count
+
+    assert atomic_output_count([]) == 0
+    assert atomic_output_count([GearLedOutput()]) == 6  # 3 wheels x 2 colours
+    assert atomic_output_count([GearLedOutput(), GearLedOutput()]) == 12
+
+
+def test_atomic_input_count_counts_atoms_incl_scanned_inputs():
+    from msfs_peripherals_bridge.gui_mapper import atomic_input_count
+    from msfs_peripherals_bridge.models import DeviceDef, InputBlock
+
+    # freshly-scanned custom device: inputs come from ddef.inputs, no profile
+    ddef = DeviceDef(id="custom", name="Custom", vendor="1", product="2",
+                     inputs=[InputBlock(kind="button", name="A", code=1),
+                             InputBlock(kind="encoder", name="E", cw=2, ccw=3)])
+    empty = Profile.model_validate({"name": "p"})
+    assert atomic_input_count(ddef, empty) == 2  # encoder counts once, not twice
+
+    # catalog device with bindings: counts those
+    yoke = DeviceDef(id="yoke", name="Y", vendor="0000", product="0000", name_match="Fulcrum")
+    assert atomic_input_count(yoke, PROFILE) == 2

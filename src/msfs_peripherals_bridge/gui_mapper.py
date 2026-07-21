@@ -99,11 +99,6 @@ def build_device_rows(
     """
     rows: list[DeviceRow] = []
     for dev in catalog.devices:
-        outs = profile.outputs.get(dev.id, [])
-        n_bind = len(profile.bindings.get(dev.id, []))
-        ctrl_inputs: set[int] = set()
-        for o in outs:
-            ctrl_inputs |= output_input_codes(o)
         rows.append(
             DeviceRow(
                 id=dev.id,
@@ -111,12 +106,40 @@ def build_device_rows(
                 transport=dev.transport,
                 usb=f"{dev.vendor}:{dev.product}",
                 present=None if present is None else (dev.id in present),
-                bindings=n_bind,
-                outputs=len(outs),
-                inputs=n_bind + len(ctrl_inputs),
+                bindings=len(profile.bindings.get(dev.id, [])),
+                # Atomic element counts (per user: individual LEDs/cells & controls,
+                # not top-level blocks) — see atomic_{output,input}_count below.
+                outputs=atomic_output_count(profile.outputs.get(dev.id, [])),
+                inputs=atomic_input_count(dev, profile),
             )
         )
     return rows
+
+
+def atomic_output_count(outputs: list[Output]) -> int:
+    """Atomic physical output elements: individual LEDs + display cells.
+
+    Uses the same physical-element enumeration as the 🔦 test-send
+    (:func:`~..mapping.panel_probe.probe_targets`), so the device overview counts
+    real LEDs/cells instead of top-level output blocks (per user: count the atoms,
+    not the Oberelemente).
+    """
+    from .mapping.panel_probe import probe_targets
+
+    return sum(len(probe_targets(o)) for o in outputs)
+
+
+def atomic_input_count(ddef: DeviceDef, profile: Profile) -> int:
+    """Atomic input elements a device exposes.
+
+    Plain bindings + the input codes inside its panel controllers + the controls
+    captured by the device explorer (each InputBlock counts once — an encoder is
+    one physical control, not two signal codes).
+    """
+    n = len(profile.bindings.get(ddef.id, []))
+    for o in profile.outputs.get(ddef.id, []):
+        n += len(output_input_codes(o))
+    return n + len(ddef.inputs)
 
 
 def device_input_sources(ddef: DeviceDef) -> list[tuple[str, str, int]]:
