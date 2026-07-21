@@ -274,6 +274,39 @@ technische Hürde, danach wieder derselbe Assistent.
 
 ---
 
+## Nachbau als Editor — Tabelle & Saitek-Templates ablösen (Vision)
+
+Grundrichtung (User): **weg von den fest verdrahteten Saitek-Panel-Templates und
+der Tabellenform** — der **Nachbau wird die primäre (später einzige)
+Oberfläche.**
+
+- **Alles, was in der Tabelle steht, muss im Nachbau anwählbar sein** → dann
+  fällt die Tabelle weg.
+- ✅ **Atomare Statistik (gebaut):** die Geräteübersicht zählt jetzt **atomare
+  Elemente** (einzelne LEDs/Display-Zellen bzw. Controls), nicht Oberelemente/
+  Blöcke — `gui_mapper.atomic_output_count` (über `panel_probe.probe_targets`) +
+  `atomic_input_count` (Bindings + Controller-Codes + gescannte `InputBlock`s).
+- **Generisches Hinzufügen im Mapper** (selektiver, nicht Template-gebunden):
+  - **Anzeigen:** LED **und** Display — beim Display **Display-Art** + **Anzahl
+    Segmente/Zellen** einstellbar, weil **jede Zelle einzeln besetzbar** sein
+    muss (wie beim DME). → braucht das generische Output-Block-Modell (Schritt E).
+  - **Eingänge:** Knopf/Taster · Achse · Encoder (Schalter) — generisch anlegbar
+    (Schritt B/C liefern das für Eingänge schon).
+- **Bearbeitungsmodus (toggle):** ein umschaltbarer Modus, in dem man **nur**
+  Symbole **anordnet und in der Größe einstellt** (verschieben/resizen von
+  Knöpfen und stellvertretenden Anzeige-Blöcken) — plus **einzelne Label-Felder**
+  zum intuitiven Anlegen von **Sinngruppen** (Selbstorganisation).
+- **Bearbeitungsmenü rechts**, **ein-/ausklappbar**.
+
+**Technische Konsequenz:** `panel_layout.py` erzeugt Positionen heute
+**algorithmisch** aus dem Profil (`PanelElement` mit x/y/w/h, frozen). Für einen
+Editor müssen **Position/Größe/Gruppe je Element persistiert** werden (Layout-
+Overlay je Gerät, analog zu den Input-Overlays) und über die berechnete Basis
+gelegt werden. Das ist ein eigener großer Batch **nach** den Output-Modellen
+(Schritt E) — sonst gibt es nichts Generisches zum Anordnen.
+
+---
+
 ## Offene Konzeptfragen (Entscheidung beim User)
 
 - **HID-Descriptor-Parser bauen.** Neue Fähigkeit (Schicht 1 oben): sysfs
