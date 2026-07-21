@@ -2,6 +2,10 @@
 
 > Kurzer Einstiegspunkt: was läuft, was offen ist, wie es weitergeht.
 >
+> ## CUT 2026-07-21 (spät) — alles committet+GEPUSHT (`3b56c2b`, origin), Tests grün, ruff clean
+> **Diese Session gebaut+gepusht:** Baukasten A (inventory/Overlay/Explorer/CLI `inventory`) · B (Input-Scan `InputBlock`) · C-Kern („📋 Benannt" Alias→Quelle) · Eingang-Anlernen vereinheitlicht · **atomares Element-Mgmt** (`OutputBlock`, Lese/Schreib GETRENNT, 2 Menüs, `atomic_{in,out}put_count` Encoder=1) · Doku (INSTALL Schritt-für-Schritt+Distro/Prefix, `geraete-baukasten-konzept.md`) · Monitor-Tab-Rename · Achse ins Input-Menü · Elemente-Fenster Single-Instance/lift.
+> **🔴 SOFORT-TODO nächste Session (visuell UNGEPRÜFT — User will live sichten):** GUI starten → Geräte-Explorer → Gerät registrieren → „Geräteelemente…" → Input/Anzeige anlegen. **Offene Bugs/Lücken:** evdev-**Achsen-Live-Capture** fehlt (Menü da, `_capture` nur hidraw → Meldung „folgt"); **A NICHT fertig** = `template_elements(ddef,profile)` (Vorlage→atomare `InputBlock`/`OutputBlock` für ALLE verbundenen Geräte) + „Aus Vorlage füllen"-Button — `InputBlock.selector`+`positions` als Groundwork schon da. **Danach Schritt E** (generische Laufzeit = echte Parität, Templates raus). Kontextuelle Sonderfunktionen (Encoder→Step, Achse→Detent, 7seg-Zellen) offen. Nordstern-Details siehe unten + `geraete-baukasten-konzept.md`.
+>
 > ## Stand 2026-07-21 — SAUBER + DOKU/ONBOARDING-BATCH (uncommitted)
 > **Repo clean bis HEAD, alles committet & GEPUSHT** (`feat/mapper-panel-nachbau` = origin, 0 ahead/0 behind), **~358 Tests grün, ruff clean.** Der gesamte Radio-Redesign/Selektor-/Encoder-Capture-Batch ist committet (`775589e…af20633`) — die „uncommitted"-Absätze WEITER UNTEN sind damit ERLEDIGT (nur noch Historie).
 > **Diese Session (NOCH UNCOMMITTED — User hat nicht „committen" gesagt):**
