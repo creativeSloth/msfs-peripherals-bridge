@@ -4,8 +4,9 @@ from msfs_peripherals_bridge.mapping.loader import (
     add_device_overlay,
     load_device_catalog,
     merge_device_catalog,
+    set_device_inputs,
 )
-from msfs_peripherals_bridge.models import DeviceCatalog, DeviceDef
+from msfs_peripherals_bridge.models import DeviceCatalog, DeviceDef, InputBlock
 
 
 def _cat(*defs: DeviceDef) -> DeviceCatalog:
@@ -61,3 +62,31 @@ def test_load_device_catalog_can_skip_overlay(tmp_path):
     base.write_text(yaml.safe_dump({"devices": [A.model_dump(exclude_none=True)]}))
     catalog = load_device_catalog(base, merge_overlay=False)
     assert {d.id for d in catalog.devices} == {"a"}
+
+
+def test_devicedef_without_inputs_defaults_empty():
+    d = DeviceDef.model_validate({"id": "x", "name": "X", "vendor": "1", "product": "2"})
+    assert d.inputs == []
+
+
+def test_set_device_inputs_persists_captured_controls(tmp_path):
+    overlay = tmp_path / "devices.local.yaml"
+    blocks = [
+        InputBlock(kind="button", name="AP", code=12),
+        InputBlock(kind="encoder", name="Heading", cw=40, ccw=41),
+        InputBlock(kind="axis", name="Throttle", code=0, raw_min=0, raw_max=4095),
+    ]
+    set_device_inputs(C, blocks, overlay=overlay)
+    reloaded = DeviceCatalog.model_validate(yaml.safe_load(overlay.read_text()))
+    dev = reloaded.by_id("c")
+    assert [b.name for b in dev.inputs] == ["AP", "Heading", "Throttle"]
+    assert dev.inputs[1].cw == 40 and dev.inputs[1].ccw == 41
+    assert dev.inputs[2].raw_max == 4095
+
+
+def test_set_device_inputs_overwrites_previous(tmp_path):
+    overlay = tmp_path / "devices.local.yaml"
+    set_device_inputs(C, [InputBlock(name="Old", code=1)], overlay=overlay)
+    set_device_inputs(C, [InputBlock(name="New", code=2)], overlay=overlay)
+    reloaded = DeviceCatalog.model_validate(yaml.safe_load(overlay.read_text()))
+    assert [b.name for b in reloaded.by_id("c").inputs] == ["New"]

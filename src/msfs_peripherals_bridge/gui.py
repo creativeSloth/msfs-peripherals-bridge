@@ -1668,6 +1668,177 @@ def run() -> None:
     b_rescan.pack(side="left")
     _attach_tooltip(b_rescan, tr("evdev + hidraw discovery — welche Geräte hängen jetzt dran"))
 
+    def _open_input_scan(device_id):
+        """Guided input-scan wizard: actuate a control -> capture -> name -> save.
+
+        Writes InputBlocks into the device overlay (loader.set_device_inputs), so a
+        stranger builds their device's input list by pressing/turning, never codes.
+        Uses the flank-catching edge_count_reader (hidraw panels) + winning_code.
+        """
+        from .devices import hidraw_reader
+        from .mapping.loader import set_device_inputs
+        from .models import InputBlock
+
+        cat = _device_catalog()
+        ddef = cat.by_id(device_id) if cat else None
+        if ddef is None:
+            return
+        path = None
+        if ddef.transport == "hidraw":
+            with contextlib.suppress(Exception):
+                path = hidraw_reader.discover(cat).get(device_id)
+
+        sc = tk.Toplevel(win)
+        sc.title(tr("Eingänge scannen") + f" — {ddef.name}")
+        sc.transient(win)
+        ttk.Label(sc, text=tr("Betätige ein Bedienelement am Gerät und benenne es — "
+                              "so entsteht die Eingangsliste ganz ohne Codes."),
+                  wraplength=460, justify="left").pack(anchor="w", padx=10, pady=(10, 6))
+        lst = ttk.Treeview(sc, columns=("kind", "codes"), show="tree headings",
+                           height=8, selectmode="browse")
+        lst.heading("#0", text=tr("Name"))
+        lst.heading("kind", text=tr("Art"))
+        lst.heading("codes", text="Codes")
+        lst.column("#0", width=210, anchor="w")
+        lst.column("kind", width=90, anchor="center")
+        lst.column("codes", width=130, anchor="center")
+        lst.pack(fill="both", expand=True, padx=10)
+        state_lbl = ttk.Label(sc, text="")
+        state_lbl.pack(anchor="w", padx=10, pady=(4, 0))
+        blocks = list(ddef.inputs)
+
+        def _codes_str(b):
+            if b.kind == "encoder":
+                return f"cw {b.cw} / ccw {b.ccw}"
+            if b.kind == "axis":
+                return f"{b.code} [{b.raw_min}..{b.raw_max}]"
+            return str(b.code)
+
+        def _refill():
+            lst.delete(*lst.get_children())
+            for i, b in enumerate(blocks):
+                lst.insert("", "end", iid=str(i), text=b.name, values=(b.kind, _codes_str(b)))
+            state_lbl.config(text=f"{len(blocks)} " + tr("Eingänge"))
+
+        def _persist():
+            set_device_inputs(ddef, blocks)
+            _mapper_reload(rediscover=False, keep_device=device_id)
+
+        def _capture(steps, on_done):
+            if path is None:
+                messagebox.showinfo(tr("Eingänge scannen"),
+                                    tr("Live-Anlernen geht hier nur für angesteckte "
+                                       "hidraw-Panels. (evdev-Achsen folgen.)"))
+                return
+            cap: dict[str, int] = {}
+            stt: dict = {"i": 0, "read": None, "close": None, "winner": None}
+            cw = tk.Toplevel(sc)
+            cw.transient(sc)
+            cw.title(tr("Anlernen"))
+            frm = ttk.Frame(cw, padding=12)
+            frm.pack(fill="both", expand=True)
+            instr = ttk.Label(frm, font=("TkDefaultFont", 11, "bold"),
+                              wraplength=380, justify="left")
+            instr.pack(anchor="w")
+            found = ttk.Label(frm, foreground="#2e7d32")
+            found.pack(anchor="w", pady=(4, 6))
+            row = ttk.Frame(frm)
+            row.pack(anchor="w")
+
+            def _close_reader():
+                if stt["close"]:
+                    stt["close"]()
+                stt["close"] = stt["read"] = None
+
+            def _poll():
+                if not cw.winfo_exists():
+                    return
+                counts = stt["read"]() if stt["read"] else None
+                if counts is None:
+                    found.config(text=tr("Gerät getrennt."))
+                    return
+                w = hidraw_reader.winning_code(counts)
+                if w is not None:
+                    stt["winner"] = w
+                    found.config(text=f"{tr('erkannt')}: Code {w} ({counts[w]} "
+                                      f"{tr('Flanken')})")
+                    b_next.config(state="normal")
+                cw.after(120, _poll)
+
+            def _start():
+                _close_reader()
+                opened = hidraw_reader.edge_count_reader(path)
+                if opened is None:
+                    found.config(text=tr("Gerät nicht lesbar."))
+                    return
+                stt["read"], stt["close"] = opened
+                stt["winner"] = None
+                _key, prompt = steps[stt["i"]]
+                instr.config(text=f"{tr('Schritt')} {stt['i'] + 1}/{len(steps)}: {prompt}")
+                found.config(text=tr("— warte auf Bewegung —"))
+                b_next.config(state="disabled")
+                _poll()
+
+            def _advance():
+                if stt["winner"] is not None:
+                    cap[steps[stt["i"]][0]] = stt["winner"]
+                stt["i"] += 1
+                if stt["i"] < len(steps):
+                    _start()
+                else:
+                    _close_reader()
+                    cw.destroy()
+                    on_done(cap)
+
+            b_next = ttk.Button(row, text=tr("Weiter"), command=_advance, state="disabled")
+            b_next.pack(side="left")
+            ttk.Button(row, text=tr("Abbrechen"),
+                       command=lambda: (_close_reader(), cw.destroy())).pack(side="left", padx=6)
+            cw.protocol("WM_DELETE_WINDOW", lambda: (_close_reader(), cw.destroy()))
+            _start()
+            cw.lift()
+
+        def _name_and_add(kind, cap):
+            nm = simpledialog.askstring(tr("Name"),
+                                        tr("Wie heißt dieses Bedienelement?"), parent=sc)
+            if not nm or not nm.strip():
+                return
+            if kind == "encoder":
+                b = InputBlock(kind="encoder", name=nm.strip(),
+                               cw=cap.get("cw"), ccw=cap.get("ccw"))
+            else:
+                b = InputBlock(kind=kind, name=nm.strip(), code=cap.get("code"))
+            blocks.append(b)
+            _persist()
+            _refill()
+
+        def _remove():
+            sel = lst.focus()
+            if not sel:
+                return
+            del blocks[int(sel)]
+            _persist()
+            _refill()
+
+        br = ttk.Frame(sc)
+        br.pack(fill="x", padx=10, pady=10)
+        ttk.Button(br, text=tr("+ Knopf"),
+                   command=lambda: _capture([("code", tr("Drücke den Knopf mehrmals."))],
+                                            lambda c: _name_and_add("button", c))).pack(side="left")
+        ttk.Button(br, text=tr("+ Schalter"),
+                   command=lambda: _capture([("code", tr("Schalter mehrmals umlegen."))],
+                                            lambda c: _name_and_add("switch", c))
+                   ).pack(side="left", padx=6)
+        ttk.Button(br, text=tr("+ Encoder"),
+                   command=lambda: _capture(
+                       [("cw", tr("Encoder im Uhrzeigersinn drehen.")),
+                        ("ccw", tr("Encoder gegen den Uhrzeigersinn drehen."))],
+                       lambda c: _name_and_add("encoder", c))).pack(side="left")
+        ttk.Button(br, text=tr("Entfernen"), style="Danger.TButton",
+                   command=_remove).pack(side="left", padx=12)
+        ttk.Button(br, text=tr("Schließen"), command=sc.destroy).pack(side="right")
+        _refill()
+
     def _open_device_explorer():
         """Show ALL connected devices (registered + unregistered) and register new ones."""
         from .devices import inventory as inv_mod
@@ -1751,10 +1922,23 @@ def run() -> None:
             _mapper_reload(rediscover=True)
             _refill()
 
+        def _scan_inputs():
+            sel = tree.focus()
+            if not sel:
+                return
+            it = items[int(sel)]
+            if not it.registered:
+                messagebox.showinfo(tr("Geräte-Explorer"),
+                                    tr("Erst registrieren, dann Eingänge scannen."))
+                return
+            _open_input_scan(it.catalog_id)
+
         btnrow = ttk.Frame(ex)
         btnrow.pack(fill="x", padx=10, pady=10)
         ttk.Button(btnrow, text=tr("Registrieren…"), style="Success.TButton",
                    command=_register).pack(side="left")
+        ttk.Button(btnrow, text=tr("Eingänge scannen…"),
+                   command=_scan_inputs).pack(side="left", padx=6)
         ttk.Button(btnrow, text=tr("Aktualisieren"),
                    command=_refill).pack(side="left", padx=6)
         ttk.Button(btnrow, text=tr("Schließen"), command=ex.destroy).pack(side="right")

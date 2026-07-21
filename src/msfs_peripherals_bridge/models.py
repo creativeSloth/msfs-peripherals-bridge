@@ -772,6 +772,23 @@ class Binding(BaseModel):
         return self
 
 
+class InputBlock(BaseModel):
+    """One captured physical control on a user-registered device.
+
+    Written by the device explorer's input-scan wizard into the device overlay,
+    so a stranger can name their controls ("AP", "Gear up") without touching raw
+    codes. Encoders carry two direction codes; axes carry the captured raw range.
+    """
+
+    kind: Literal["button", "switch", "axis", "encoder"] = "button"
+    name: str = Field(..., description="User alias, e.g. 'AP' or 'Throttle'.")
+    code: int | None = Field(None, description="Primary code (button/switch/axis).")
+    cw: int | None = Field(None, description="Encoder clockwise code.")
+    ccw: int | None = Field(None, description="Encoder counter-clockwise code.")
+    raw_min: int | None = Field(None, description="Axis raw minimum (calibration).")
+    raw_max: int | None = Field(None, description="Axis raw maximum (calibration).")
+
+
 class DeviceDef(BaseModel):
     """A known physical device, matched by USB vendor/product id."""
 
@@ -787,6 +804,9 @@ class DeviceDef(BaseModel):
     # 0000:0000, shared with audio nodes). An optional case-insensitive
     # substring of the evdev device name disambiguates those.
     name_match: str | None = None
+    # Controls captured via the device explorer's input scan (Schritt B). Empty
+    # for the bundled catalog devices; the overlay fills it for user hardware.
+    inputs: list[InputBlock] = Field(default_factory=list)
 
     @property
     def usb_key(self) -> tuple[int, int]:

@@ -127,6 +127,19 @@ def count_rising_edges(frames: Iterable[bytes]) -> dict[int, int]:
     return counts
 
 
+def winning_code(counts: dict[int, int], min_edges: int = 1) -> int | None:
+    """Pick the bit with the most rising edges (the actuated control); pure.
+
+    Turns the accumulated ``{code: edge_count}`` from :func:`edge_count_reader`
+    into one confident code for the capture wizard. Returns ``None`` if the top
+    bit did not reach ``min_edges`` (nothing actuated yet).
+    """
+    if not counts:
+        return None
+    code = max(counts, key=lambda k: counts[k])
+    return code if counts[code] >= min_edges else None
+
+
 def edge_count_reader(path: str):
     """Open a hidraw panel to COUNT rising-edge pulses per bit; ``(read, close)``.
 

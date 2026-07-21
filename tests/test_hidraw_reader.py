@@ -1,5 +1,5 @@
 from msfs_peripherals_bridge.devices.base import DeviceEvent
-from msfs_peripherals_bridge.devices.hidraw_reader import iter_bit_changes
+from msfs_peripherals_bridge.devices.hidraw_reader import iter_bit_changes, winning_code
 from msfs_peripherals_bridge.models import SourceKind
 
 
@@ -75,3 +75,13 @@ def test_rising_edges_winner_is_the_turned_bit():
     counts = _edges(frames)
     assert counts == {9: 3, 0: 1}
     assert max(counts, key=counts.get) == 9
+
+
+def test_winning_code_picks_most_edges():
+    assert winning_code({6: 5, 2: 1, 9: 2}) == 6
+
+
+def test_winning_code_none_when_empty_or_below_threshold():
+    assert winning_code({}) is None
+    assert winning_code({3: 1}, min_edges=2) is None
+    assert winning_code({3: 2}, min_edges=2) == 3

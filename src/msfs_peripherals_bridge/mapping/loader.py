@@ -67,6 +67,13 @@ def add_device_overlay(ddef: DeviceDef, overlay: Path | None = None) -> Path:
     return overlay
 
 
+def set_device_inputs(ddef: DeviceDef, blocks, overlay: Path | None = None) -> Path:
+    """Persist the device explorer's captured input blocks into the user overlay."""
+    return add_device_overlay(
+        ddef.model_copy(update={"inputs": list(blocks)}), overlay=overlay
+    )
+
+
 def load_profile(path: Path) -> Profile:
     """Parse a single aircraft profile YAML file."""
     data = yaml.safe_load(path.read_text(encoding="utf-8")) or {}
