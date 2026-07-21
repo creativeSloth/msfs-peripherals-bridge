@@ -780,13 +780,14 @@ class InputBlock(BaseModel):
     codes. Encoders carry two direction codes; axes carry the captured raw range.
     """
 
-    kind: Literal["button", "switch", "axis", "encoder"] = "button"
+    kind: Literal["button", "switch", "axis", "encoder", "selector"] = "button"
     name: str = Field(..., description="User alias, e.g. 'AP' or 'Throttle'.")
     code: int | None = Field(None, description="Primary code (button/switch/axis).")
     cw: int | None = Field(None, description="Encoder clockwise code.")
     ccw: int | None = Field(None, description="Encoder counter-clockwise code.")
     raw_min: int | None = Field(None, description="Axis raw minimum (calibration).")
     raw_max: int | None = Field(None, description="Axis raw maximum (calibration).")
+    positions: list[int] = Field(default_factory=list, description="Selector: position codes.")
 
 
 class OutputBlock(BaseModel):

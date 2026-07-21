@@ -1679,6 +1679,14 @@ def run() -> None:
         from .mapping.loader import add_device_overlay
         from .models import InputBlock, OutputBlock
 
+        # Single instance: reopening just raises the existing window to the front
+        # (was: a new window every click, opening behind the main window).
+        prev = getattr(_open_input_scan, "_win", None)
+        if prev is not None and prev.winfo_exists():
+            prev.lift()
+            prev.focus_force()
+            return
+
         cat = _device_catalog()
         ddef = cat.by_id(device_id) if cat else None
         if ddef is None:
@@ -1689,8 +1697,11 @@ def run() -> None:
                 path = hidraw_reader.discover(cat).get(device_id)
 
         sc = tk.Toplevel(win)
+        _open_input_scan._win = sc
         sc.title(tr("Geräteelemente") + f" — {ddef.name}")
         sc.transient(win)
+        sc.lift()
+        sc.focus_force()
         ttk.Label(sc, text=tr("Lese- (Inputs) und Schreib-Elemente (Anzeigen) getrennt "
                               "verwalten: Inputs am Gerät betätigen und benennen, Anzeigen "
                               "(LEDs/Displays) hinzufügen."),
@@ -1714,6 +1725,8 @@ def run() -> None:
                 return f"cw {b.cw} / ccw {b.ccw}"
             if b.kind == "axis":
                 return f"{b.code} [{b.raw_min}..{b.raw_max}]"
+            if b.kind == "selector":
+                return f"{len(b.positions)} " + tr("Positionen")
             return str(b.code)
 
         def _out_detail(b):
@@ -1837,6 +1850,8 @@ def run() -> None:
                          ("ccw", tr("Encoder gegen den Uhrzeigersinn drehen."))]
             elif kind == "switch":
                 steps = [("code", tr("Schalter mehrmals umlegen."))]
+            elif kind == "axis":
+                steps = [("code", tr("Achse deutlich bewegen."))]
             else:
                 steps = [("code", tr("Drücke den Knopf mehrmals."))]
             _capture(steps, lambda c: _name_and_add(kind, c))
@@ -1879,7 +1894,7 @@ def run() -> None:
 
         # Two CONSISTENT menus (per user): one for inputs, one for displays.
         in_kinds = [("button", tr("Taster")), ("switch", tr("Schalter")),
-                    ("encoder", tr("Encoder"))]
+                    ("axis", tr("Achse")), ("encoder", tr("Encoder"))]
         out_kinds = [("led", tr("LED")), ("display", tr("Display (7-Segment)"))]
 
         br = ttk.Frame(sc)

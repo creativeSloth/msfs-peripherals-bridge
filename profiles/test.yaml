@@ -1,0 +1,23 @@
+# test — neues Profil (im Mapper-Tab bearbeiten)
+name: test
+description: ''
+aircraft_match: []
+bindings:
+  razer_razer_huntsman_v2:
+    - name: test
+      source: { kind: button, code: 0 }
+      action: { type: event, event: FUEL_SELECTOR_LEFT }
+outputs:
+  multi_panel:
+    - type: multi_panel
+      selector:
+        - { code: 0, label: ALT, simvar: AUTOPILOT ALTITUDE LOCK VAR, min: 0, max: 99999 }
+    - type: multi_panel
+      selector:
+        - { code: 0, label: ALT, simvar: AUTOPILOT ALTITUDE LOCK VAR, min: 0, max: 99999 }
+    - type: multi_panel
+      selector:
+        - { code: 0, label: ALT, simvar: AUTOPILOT ALTITUDE LOCK VAR, min: 0, max: 99999 }
+    - type: multi_panel
+      selector:
+        - { code: 0, label: ALT, simvar: AUTOPILOT ALTITUDE LOCK VAR, min: 0, max: 99999 }
