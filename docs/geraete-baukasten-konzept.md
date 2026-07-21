@@ -17,6 +17,33 @@ selbst-angelegte Gerät danach ganz normal im Mapper benutzbar ist.
 
 ---
 
+## Zielbild: zentraler Geräte-Hub, Funktionsparität, ohne KI
+
+Der Maßstab: ein Fremder — **keine Geräteliste, kein einziger gemappter Knopf** —
+steckt sein Saitek-Panel (oder einen Arduino, s. u.) an, lässt es **erkennen**
+und mappt danach **selbstständig, ohne KI, zentral am Gerät** genau das, was der
+Autor heute kann. „Zentral am Gerät" = EIN geräte-eigener Arbeitsplatz (aus dem
+Geräte-Explorer geöffnet), der alles bündelt:
+
+| Funktion (Parität) | Baustein | heute |
+|---|---|---|
+| Achse anlegen + kalibrieren | axis + Roh-Bereich | teils (`calibration.py`, Profil) |
+| Knopf/Schalter anlegen + benennen | button/switch + Alias | Input-Scan (Schritt B) |
+| Encoder anlegen (2 Ringe/Richtungen) | encoder | Radio-Capture da, zu generalisieren |
+| Selektor-Positionen anlegen | selector | Capture da |
+| **LED setzen je nach Sim-Output** | led ← Var/Bedingung | hardcodiert (`bool_leds`/`gear_leds`/`mode_leds`) → generalisieren |
+| **Display anlegen + Werte aus Sim setzen** | sevenseg/display-bank ← Var | hardcodiert (Radio/Multi-Render) → generalisieren |
+
+Der Knackpunkt für echte Parität sind die **Ausgänge** (LED-aus-Sim,
+Display-Werte): heute stecken sie in Saitek-spezifischem Code
+(`MultiPanelOutput`/`RadioPanelOutput`, DME/ADF/XPDR-Renderlogik). Für ein
+selbst-angelegtes Gerät müssen dieselben Fähigkeiten **datengetrieben über die
+GUI** erreichbar sein — „diese LED leuchtet, wenn Var X = Y" und „diese
+Display-Zelle zeigt Var Z". Das ist **Schritt E** (generische Output-Modelle):
+der größte Brocken, aber für „ohne KI selbst durchmappen" der entscheidende.
+
+---
+
 ## Ist-Zustand & die zentrale Lücke (2026-07-21)
 
 **Frage des Users: „Wird ein fremdes Gerät beim reinen USB-Anstecken sofort
@@ -125,12 +152,133 @@ statt roher Codes → dasselbe Profil-Format, nur mit eigener Hardware bestückt
 
 ---
 
+## Wie erkennt man Knöpfe & Anzeigen eines WIRKLICH unbekannten Geräts?
+
+Der Kern: **Der Nutzer bekommt NIE HID-Bytes oder Bit-Nummern zu sehen.** Die
+Technik läuft im Hintergrund; erlebt wird ein geführter Assistent mit
+Klartext-Ergebnis („Gefunden: **12 Knöpfe, 2 Achsen, 3 Lämpchen, 1 Display mit 5
+Stellen**"). Das geht in **zwei Schichten**:
+
+### Schicht 1 — „Das Gerät stellt sich selbst vor" (automatisch)
+
+Jedes USB-Gerät trägt eine **maschinenlesbare Selbstbeschreibung** in sich (den
+HID-Report-Descriptor), auf Linux lesbar unter
+`/sys/class/hidraw/*/device/report_descriptor` (bestätigt vorhanden). Ihn zu
+parsen liefert **ohne jede Nutzer-Aktion**:
+
+- Anzahl **Knöpfe / Achsen / Hats** (Standard-Usages: Button-Page, Generic
+  Desktop) + ihre Bit-/Byte-Position im Report,
+- Anzahl **LEDs / Lämpchen** (Standard-LED-Usage-Page),
+- die Report-Längen (die wir intern zum Ansteuern brauchen).
+
+Bei evdev-Geräten (Yokes/Pedale/Quadranten) ist das noch einfacher:
+`InputDevice.capabilities()` gibt Knöpfe+Achsen+Bereiche direkt her (das nutzt
+`capabilities.describe()` schon). ⇒ **Klartext-Ausgabe an den Nutzer, keine
+Bytes.**
+
+**Ehrliche Grenze:** Der Descriptor beschreibt Standard-Knöpfe/-Achsen/-LEDs
+zuverlässig, aber **herstellereigene Teile — besonders 7-Segment-Displays —
+oft nur als undurchsichtigen „Vendor-Block" von N Bytes** ohne Bedeutung. Genau
+das ist der Saitek-Fall (deshalb mussten die Display-Bytes von Hand vermessen
+werden). Schicht 1 findet also das Skelett; die Display-Semantik fehlt noch.
+
+### Schicht 2 — „Zeig es mir" (geführt, für alles, was Schicht 1 nicht benennt)
+
+Ein **Assistent ohne Code** macht den Nutzer zum Sensor:
+
+**Knöpfe/Achsen/Encoder (= Eingänge, Schritt B):**
+- „**Drücke jetzt einen Knopf.**" → System sieht, welches Signal sich ändert
+  (Flankenzählung, `edge_count_reader` — existiert) → „Erkannt ✓. **Wie soll er
+  heißen?**" → Nutzer tippt „AP" / „Fahrwerk aus" oder wählt aus einer Liste.
+- Achse: „Hebel **ganz vor** … jetzt **ganz zurück**" → nimmt den Bereich auf
+  (Kalibrierung). Encoder: „**Im Uhrzeigersinn** … jetzt **dagegen**."
+- Ergebnis: eine **benannte Liste** von Bedienelementen. Kein Byte sichtbar.
+
+**LEDs & Displays (= Ausgänge, der schwierige Teil):**
+- Software kann NICHT von allein wissen, was eine Anzeige zeigt, wenn der
+  Descriptor schweigt — **irgendwer muss aufs Gerät schauen.** Also:
+- „**Ich schalte jetzt der Reihe nach jedes Ausgangssignal ein — sag mir, was
+  passiert.**" → System sendet EINEN Testimpuls (verallgemeinertes
+  `panel_probe`) → Nutzer schaut aufs echte Gerät → „oben links leuchtet grün" →
+  **klickt die Stelle auf einem Bild/Nachbau des Geräts an** oder tippt ein
+  Label.
+- Display: System schickt eine Test-Ziffer („**8.**") auf jede Zelle nacheinander
+  → „**Welche Stelle zeigt jetzt eine 8?**" → Nutzer zeigt drauf.
+- So entsteht die LED-/Display-Karte **durch Beobachtung**, komplett als
+  „hinschauen & sagen" formuliert. (Kür-Ausbaustufe: Webcam erkennt selbst,
+  welche LED angeht — dann entfällt der Mensch. Später.)
+
+### Was der Nutzer am Ende hat (nicht-Programmierer-Form)
+
+Nicht die YAML/`DeviceSpec` (die wird still im Hintergrund geschrieben), sondern:
+
+- ein **Bild/Nachbau seines Geräts**, das sich beim Durchgehen füllt:
+  „✓ 12 Knöpfe benannt · ✓ 3 Lämpchen · ✓ 1 Display (5 Stellen)",
+- alles in **Klartext**, Schritt für Schritt, mit „Überspringen"/„Zurück",
+- danach ist das Gerät ganz normal im Mapper bespielbar.
+
+**Fazit für den Nutzer, ehrlich:** Knöpfe/Achsen = **fast automatisch** (Gerät
+beschreibt sich selbst; Nutzer *benennt* + *kalibriert* nur durch Drücken/
+Bewegen). LEDs = **automatisch gefunden, durch Hinschauen benannt**.
+7-Segment-/Vendor-Displays = **rein per Software nicht ermittelbar**; hier ist
+die „Testimpuls → Mensch bestätigt"-Schleife physikalisch nötig — aber als
+einfacher Schau-&-Klick-Assistent, nie als Bytes.
+
+---
+
+## Beliebiges Gerät: anlegen → durchstrukturieren → mappen
+
+Grundprinzip: **völlig custom** — ein selbstgebautes „Saitek-artiges" Panel, ein
+Arduino, was auch immer denkbar ist — muss sich in **drei Schritten** bändigen
+lassen, alle in der GUI, ohne Code:
+
+1. **Anlegen** — Gerät erkennen/registrieren *(Schritt A, gebaut)*.
+2. **Durchstrukturieren** — seine Bausteine festlegen: welche Knöpfe/Achsen/
+   Encoder/Selektoren (Eingänge) und welche LEDs/Displays (Ausgänge) es hat
+   (Schicht 1 automatisch, Schicht 2 per Schau-&-Klick-Assistent).
+3. **Mappen** — jeden Baustein an Sim-Var/Event binden (Eingang→Event, LED←Var,
+   Display-Zelle←Var), mit denselben Funktionen wie im heutigen Mapper.
+
+Das `DeviceSpec`-Modell ist bewusst **transport- und hersteller-agnostisch** — es
+kennt nur Bausteine. Deshalb passt „irgendein Gerät" grundsätzlich hinein; die
+Arbeit steckt in den **Transport-Adaptern** und den **generischen
+Output-Modellen** (Schritt E).
+
+### Und ein Arduino / Selbstbau-Gerät? *(zurückgestellt — erst später)*
+
+> Vom User bewusst **hinten angestellt.** Hier nur als Notiz, damit das
+> Baukasten-Modell transport-agnostisch bleibt und der serielle Weg später ohne
+> Umbau andockt. Fokus zuerst: HID-Geräte (Saitek & Custom-Panels).
+
+1. **Arduino als Standard-USB-HID** (z. B. Leonardo/Micro/Pro Micro, ATmega32u4 +
+   Joystick/HID-Library): meldet sich wie jedes Gerät als evdev-Joystick bzw.
+   hidraw → **exakt derselbe Weg** (Auto-Enumeration + Descriptor + Scan);
+   LEDs/Displays als HID-Output-Reports. **Empfohlen**, kein neuer Transport.
+2. **Arduino als serielles Gerät** (CDC/ACM, `/dev/ttyACM*`): KEIN HID → die
+   Selbstbeschreibung endet, der Sketch sendet ein **beliebiges eigenes
+   Protokoll**. Nötig: neuer **`transport: serial`** + Reader/Writer + eine
+   **Protokoll-Schicht**:
+   - a. **Bekanntes, selbstbeschreibendes Protokoll** — wir liefern einen
+        **Referenz-Sketch**, der beim Verbinden seine Pins/Fähigkeiten ansagt →
+        Erkennung wieder automatisch, Assistent identisch. Vorbild: **MobiFlight**
+        (Arduino-Firmware mit definiertem Protokoll, de-facto-Standard für
+        Selbstbau-Sim-Panels) — Kompatibilität dazu wäre der Ökosystem-Anschluss.
+   - b. **Völlig eigener Sketch** — keine Auto-Erkennung. Eingänge gehen per
+        Scan-Assistent (Knopf → serielles Byte ändert sich → erfassen); Ausgänge:
+        Nutzer gibt das Kommandoformat an. Meiste Handarbeit.
+
+**Ehrlich für Nicht-Programmierer:** HID-Arduino = wie jedes Gerät (plug & scan).
+Serieller Selbstbau = braucht einmalig eine Firmware mit bekanntem Protokoll
+(unser Referenz-Sketch oder MobiFlight) — das **Flashen** ist die einzige
+technische Hürde, danach wieder derselbe Assistent.
+
+---
+
 ## Offene Konzeptfragen (Entscheidung beim User)
 
-- **Output-Struktur unbekannter Panels.** Report-Länge/-Aufbau eines FREMDEN
-  Panels ist unbekannt → „Durchprobier-Modus" (Byte für Byte variieren, User
-  bestätigt visuell) nötig; als Startpunkt evtl. den **HID-Report-Descriptor**
-  auslesen (liefert Report-Längen). Das ist der schwierigste Teil.
+- **HID-Descriptor-Parser bauen.** Neue Fähigkeit (Schicht 1 oben): sysfs
+  `report_descriptor` parsen → Knöpfe/Achsen/LEDs + Report-Längen automatisch.
+  Reduziert die „Byte-für-Byte"-Handarbeit auf die vendor-opaken Display-Teile.
 - **Overlay-Speicherort.** `~/.config/msfs-peripherals-bridge/devices.local.yaml`
   (empfohlen) vs. `gui-settings.json`. Repo-`devices.yaml` bleibt „meine HW".
 - **udev-Rechte.** Für hidraw/Joystick-Zugriff braucht es eine udev-Regel
