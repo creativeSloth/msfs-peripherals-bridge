@@ -498,3 +498,32 @@ def test_condition_rows_round_trip():
         rows_to_conditions([{"var": " ", "op": "==", "value": "1"}])
     with pytest.raises(ValueError, match="Zahl"):
         rows_to_conditions([{"var": "X", "op": "==", "value": "abc"}])
+
+
+def test_device_input_sources_maps_blocks_to_kind_code():
+    from msfs_peripherals_bridge.gui_mapper import device_input_sources
+    from msfs_peripherals_bridge.models import DeviceDef, InputBlock
+
+    ddef = DeviceDef(
+        id="p", name="P", vendor="06a3", product="0d67", transport="hidraw",
+        inputs=[
+            InputBlock(kind="button", name="AP", code=12),
+            InputBlock(kind="switch", name="BAT", code=0),
+            InputBlock(kind="encoder", name="HDG", cw=40, ccw=41),
+            InputBlock(kind="button", name="Kaputt"),  # no code -> skipped
+        ],
+    )
+    assert device_input_sources(ddef) == [
+        ("AP", "button", 12),
+        ("BAT", "switch", 0),
+        ("HDG · CW", "button", 40),
+        ("HDG · CCW", "button", 41),
+    ]
+
+
+def test_device_input_sources_empty_without_inputs():
+    from msfs_peripherals_bridge.gui_mapper import device_input_sources
+    from msfs_peripherals_bridge.models import DeviceDef
+
+    ddef = DeviceDef(id="x", name="X", vendor="1", product="2")
+    assert device_input_sources(ddef) == []

@@ -22,6 +22,7 @@ from .models import (
     Binding,
     CurveKind,
     DeviceCatalog,
+    DeviceDef,
     DmeBank,
     EventAction,
     EventFromVarAction,
@@ -116,6 +117,26 @@ def build_device_rows(
             )
         )
     return rows
+
+
+def device_input_sources(ddef: DeviceDef) -> list[tuple[str, str, int]]:
+    """Named ``(label, kind, code)`` sources from a device's scanned InputBlocks.
+
+    Bridges the device-explorer input scan (Schritt B) to the binding editor:
+    picking a name fills the binding's source kind+code, so a stranger maps by
+    name instead of raw codes. Encoders yield two directional entries; blocks
+    without a usable code are skipped.
+    """
+    out: list[tuple[str, str, int]] = []
+    for b in ddef.inputs:
+        if b.kind == "encoder":
+            if b.cw is not None:
+                out.append((f"{b.name} · CW", "button", b.cw))
+            if b.ccw is not None:
+                out.append((f"{b.name} · CCW", "button", b.ccw))
+        elif b.code is not None:
+            out.append((b.name, b.kind, b.code))
+    return out
 
 
 def output_input_codes(output: Output) -> set[int]:

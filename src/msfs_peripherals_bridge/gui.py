@@ -2110,6 +2110,33 @@ def run() -> None:
     # capture buttons are a wordless magic wand (user wish: 🪄, no "Lernen" label)
     b_learn = ttk.Button(srcfr, text=tr("🪄"), width=3, command=lambda: _learn_code())
     b_learn.pack(side="left", padx=6)
+
+    # Pick a named input the device explorer already scanned (Schritt B): choosing
+    # a name fills kind+code, so you map by alias instead of hunting raw codes.
+    def _pick_named_source(kind, code):
+        ev["kind"].set(kind)
+        ev["code"].set(str(code))
+
+    def _fill_named_menu():
+        named_menu.delete(0, "end")
+        dev = etgt["device"]
+        dcat = _device_catalog()
+        ddef = dcat.by_id(dev) if (dcat and dev) else None
+        srcs = gui_mapper.device_input_sources(ddef) if ddef else []
+        if not srcs:
+            named_menu.add_command(label=tr("(keine gescannten Eingänge)"), state="disabled")
+            return
+        for label, kind, code in srcs:
+            named_menu.add_command(
+                label=f"{label}  ({kind} {code})",
+                command=lambda k=kind, c=code: _pick_named_source(k, c))
+
+    b_named = ttk.Menubutton(srcfr, text=tr("📋 Benannt"))
+    named_menu = tk.Menu(b_named, tearoff=0, postcommand=lambda: _fill_named_menu())
+    b_named["menu"] = named_menu
+    b_named.pack(side="left")
+    _attach_tooltip(b_named, tr("Einen bereits gescannten, benannten Eingang des Geräts wählen "
+                    "(Geräte-Explorer, Eingänge scannen) — füllt Art und Code automatisch."))
     _attach_tooltip(b_learn, tr("Bedienelement anlernen: lauscht live am angeschlossenen Gerät des "
                     "Bindings — gewünschten Knopf/Schalter EINMAL betätigen oder den Hebel "
                     "deutlich bewegen, dann werden Art (Taster/Schalter/Achse/Hat) und Code "
