@@ -1820,20 +1820,31 @@ def run() -> None:
             _persist()
             _refill()
 
+        # One unified "add input" mechanism — button, switch and encoder are the
+        # same operation, the encoder is just a multi-step scan (per user: the
+        # encoder IS an input type; bring the button and encoder logic together).
+        def _add(kind):
+            if kind == "encoder":
+                steps = [("cw", tr("Encoder im Uhrzeigersinn drehen.")),
+                         ("ccw", tr("Encoder gegen den Uhrzeigersinn drehen."))]
+            elif kind == "switch":
+                steps = [("code", tr("Schalter mehrmals umlegen."))]
+            else:
+                steps = [("code", tr("Drücke den Knopf mehrmals."))]
+            _capture(steps, lambda c: _name_and_add(kind, c))
+
+        # Data-driven kind list (peers) — adding e.g. "axis" later is one line.
+        add_kinds = [("button", tr("Taster")), ("switch", tr("Schalter")),
+                     ("encoder", tr("Encoder"))]
+
         br = ttk.Frame(sc)
         br.pack(fill="x", padx=10, pady=10)
-        ttk.Button(br, text=tr("+ Knopf"),
-                   command=lambda: _capture([("code", tr("Drücke den Knopf mehrmals."))],
-                                            lambda c: _name_and_add("button", c))).pack(side="left")
-        ttk.Button(br, text=tr("+ Schalter"),
-                   command=lambda: _capture([("code", tr("Schalter mehrmals umlegen."))],
-                                            lambda c: _name_and_add("switch", c))
-                   ).pack(side="left", padx=6)
-        ttk.Button(br, text=tr("+ Encoder"),
-                   command=lambda: _capture(
-                       [("cw", tr("Encoder im Uhrzeigersinn drehen.")),
-                        ("ccw", tr("Encoder gegen den Uhrzeigersinn drehen."))],
-                       lambda c: _name_and_add("encoder", c))).pack(side="left")
+        b_add = ttk.Menubutton(br, text=tr("+ Eingang anlernen…"))
+        add_menu = tk.Menu(b_add, tearoff=0)
+        for _k, _lbl in add_kinds:
+            add_menu.add_command(label=_lbl, command=lambda k=_k: _add(k))
+        b_add["menu"] = add_menu
+        b_add.pack(side="left")
         ttk.Button(br, text=tr("Entfernen"), style="Danger.TButton",
                    command=_remove).pack(side="left", padx=12)
         ttk.Button(br, text=tr("Schließen"), command=sc.destroy).pack(side="right")
