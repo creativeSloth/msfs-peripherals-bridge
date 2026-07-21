@@ -789,6 +789,23 @@ class InputBlock(BaseModel):
     raw_max: int | None = Field(None, description="Axis raw maximum (calibration).")
 
 
+class OutputBlock(BaseModel):
+    """One WRITE (display) element on a user-registered device — the counterpart
+    to :class:`InputBlock` (READ). An LED is a single lamp; a display carries a
+    configurable cell count so **each cell is individually addressable** (like the
+    DME). Hardware addressing (report/bit/offset) is filled later by the output
+    scan; here a stranger already declares *what* the device shows.
+    """
+
+    kind: Literal["led", "display"] = "led"
+    name: str = Field(..., description="User alias, e.g. 'AP-Lampe' or 'COM aktiv'.")
+    cells: int = Field(1, ge=1, description="Display: addressable cells/digits; LED = 1.")
+    display_kind: str | None = Field(None, description="e.g. '7segment', 'dme' (free-form).")
+    report: int | None = Field(None, description="LED: feature-report byte (output scan).")
+    bit: int | None = Field(None, description="LED: bit within that byte (output scan).")
+    report_offset: int | None = Field(None, description="Display: first cell offset (scan).")
+
+
 class DeviceDef(BaseModel):
     """A known physical device, matched by USB vendor/product id."""
 
@@ -804,9 +821,12 @@ class DeviceDef(BaseModel):
     # 0000:0000, shared with audio nodes). An optional case-insensitive
     # substring of the evdev device name disambiguates those.
     name_match: str | None = None
-    # Controls captured via the device explorer's input scan (Schritt B). Empty
-    # for the bundled catalog devices; the overlay fills it for user hardware.
+    # Atomic device elements captured via the device explorer. READ elements
+    # (buttons/switches/axes/encoders) and WRITE elements (LEDs/displays) are kept
+    # separate — per user, read and write functions are managed independently.
+    # Empty for the bundled catalog devices; the overlay fills them for user HW.
     inputs: list[InputBlock] = Field(default_factory=list)
+    outputs: list[OutputBlock] = Field(default_factory=list)
 
     @property
     def usb_key(self) -> tuple[int, int]:

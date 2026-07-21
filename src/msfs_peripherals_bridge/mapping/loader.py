@@ -68,9 +68,23 @@ def add_device_overlay(ddef: DeviceDef, overlay: Path | None = None) -> Path:
 
 
 def set_device_inputs(ddef: DeviceDef, blocks, overlay: Path | None = None) -> Path:
-    """Persist the device explorer's captured input blocks into the user overlay."""
+    """Persist the device explorer's READ elements (inputs) into the user overlay.
+
+    Keeps the device's WRITE elements (outputs) untouched — pass the current
+    ``ddef`` (as loaded from the merged catalog) so its outputs ride along.
+    """
     return add_device_overlay(
         ddef.model_copy(update={"inputs": list(blocks)}), overlay=overlay
+    )
+
+
+def set_device_outputs(ddef: DeviceDef, blocks, overlay: Path | None = None) -> Path:
+    """Persist the device explorer's WRITE elements (LEDs/displays) into the overlay.
+
+    Counterpart to :func:`set_device_inputs`; keeps the READ elements untouched.
+    """
+    return add_device_overlay(
+        ddef.model_copy(update={"outputs": list(blocks)}), overlay=overlay
     )
 
 

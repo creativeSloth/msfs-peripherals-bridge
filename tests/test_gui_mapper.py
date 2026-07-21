@@ -531,12 +531,42 @@ def test_device_input_sources_empty_without_inputs():
     assert device_input_sources(ddef) == []
 
 
+def test_panel_input_elements_counts_encoder_as_one():
+    from msfs_peripherals_bridge.gui_mapper import panel_input_elements
+    from msfs_peripherals_bridge.models import (
+        GearLedOutput,
+        MultiPanelOutput,
+        RadioBank,
+        RadioPanelOutput,
+        RadioUnit,
+        SelectorEntry,
+    )
+
+    assert panel_input_elements(GearLedOutput()) == 0
+    m = MultiPanelOutput(selector=[SelectorEntry(code=0, label="ALT", simvar="X", min=0, max=9)])
+    assert panel_input_elements(m) == 2  # value encoder + 1 selector (not 5 codes)
+    bank = RadioBank(code=2, label="COM1", active="A", standby="S", swap_event="SW",
+                     whole_inc="wi", whole_dec="wd", fract_inc="fi", fract_dec="fd")
+    r = RadioPanelOutput(units=[RadioUnit(
+        name="upper", row="upper", banks=[bank],
+        outer_cw=10, outer_ccw=11, inner_cw=12, inner_ccw=13, swap=14)])
+    assert panel_input_elements(r) == 4  # outer + inner encoder + swap + mode selector
+
+
 def test_atomic_output_count_counts_leds_and_cells():
     from msfs_peripherals_bridge.gui_mapper import atomic_output_count
+    from msfs_peripherals_bridge.models import DeviceDef, OutputBlock
 
-    assert atomic_output_count([]) == 0
-    assert atomic_output_count([GearLedOutput()]) == 6  # 3 wheels x 2 colours
-    assert atomic_output_count([GearLedOutput(), GearLedOutput()]) == 12
+    # legacy panel via profile: gear_leds -> 3 wheels x 2 colours = 6
+    catdev = DeviceDef(id="multi_panel", name="M", vendor="06a3", product="0d06",
+                       transport="hidraw")
+    assert atomic_output_count(catdev, PROFILE) == 6
+    # user device via OutputBlocks: 1 LED + a 5-cell display = 6 atomic write elements
+    userdev = DeviceDef(id="u", name="U", vendor="1", product="2",
+                        outputs=[OutputBlock(kind="led", name="AP"),
+                                 OutputBlock(kind="display", name="COM", cells=5)])
+    empty = Profile.model_validate({"name": "p"})
+    assert atomic_output_count(userdev, empty) == 6
 
 
 def test_atomic_input_count_counts_atoms_incl_scanned_inputs():

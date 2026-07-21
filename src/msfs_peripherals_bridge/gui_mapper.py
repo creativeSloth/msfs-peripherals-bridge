@@ -109,36 +109,63 @@ def build_device_rows(
                 bindings=len(profile.bindings.get(dev.id, [])),
                 # Atomic element counts (per user: individual LEDs/cells & controls,
                 # not top-level blocks) — see atomic_{output,input}_count below.
-                outputs=atomic_output_count(profile.outputs.get(dev.id, [])),
+                outputs=atomic_output_count(dev, profile),
                 inputs=atomic_input_count(dev, profile),
             )
         )
     return rows
 
 
-def atomic_output_count(outputs: list[Output]) -> int:
-    """Atomic physical output elements: individual LEDs + display cells.
+def panel_input_elements(output: Output) -> int:
+    """Physical READ controls on a legacy panel controller, counted as ELEMENTS.
 
-    Uses the same physical-element enumeration as the 🔦 test-send
-    (:func:`~..mapping.panel_probe.probe_targets`), so the device overview counts
-    real LEDs/cells instead of top-level output blocks (per user: count the atoms,
-    not the Oberelemente).
+    An encoder is one control (its CW/CCW are the same knob), a rotary selector
+    one control (not one per position) — per user: 1 encoder → 1 input. This is
+    the element view; :func:`output_input_codes` stays the raw-code view used for
+    live matching.
+    """
+    if isinstance(output, MultiPanelOutput):
+        n = 1  # the value encoder (CW/CCW = one knob)
+        if output.selector:
+            n += 1  # one mode selector, regardless of position count
+        if output.dimmer is not None:
+            n += 1  # the trim/dimmer wheel
+        return n
+    if isinstance(output, RadioPanelOutput):
+        n = 0
+        for u in output.units:
+            n += 3  # outer encoder + inner encoder + swap button
+            if u.banks:
+                n += 1  # the mode selector (one knob), not one per bank
+        return n
+    return 0
+
+
+def atomic_output_count(ddef: DeviceDef, profile: Profile) -> int:
+    """Atomic WRITE elements a device has: individual LEDs + display cells.
+
+    Legacy Saitek panels via :func:`~..mapping.panel_probe.probe_targets`; user
+    devices via their :class:`~..models.OutputBlock`s (LED = 1, display = its cell
+    count). Per user: 1 LED → 1 output; count atoms, not top-level blocks.
     """
     from .mapping.panel_probe import probe_targets
 
-    return sum(len(probe_targets(o)) for o in outputs)
+    n = sum(len(probe_targets(o)) for o in profile.outputs.get(ddef.id, []))
+    for ob in ddef.outputs:
+        n += ob.cells if ob.kind == "display" else 1
+    return n
 
 
 def atomic_input_count(ddef: DeviceDef, profile: Profile) -> int:
-    """Atomic input elements a device exposes.
+    """Atomic READ elements a device has.
 
-    Plain bindings + the input codes inside its panel controllers + the controls
-    captured by the device explorer (each InputBlock counts once — an encoder is
-    one physical control, not two signal codes).
+    Plain bindings + panel-controller input *controls* (:func:`panel_input_elements`,
+    encoder = 1) + the controls captured by the device explorer (each InputBlock
+    once). Per user: 1 encoder → 1 input.
     """
     n = len(profile.bindings.get(ddef.id, []))
     for o in profile.outputs.get(ddef.id, []):
-        n += len(output_input_codes(o))
+        n += panel_input_elements(o)
     return n + len(ddef.inputs)
 
 

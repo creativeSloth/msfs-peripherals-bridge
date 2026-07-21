@@ -44,6 +44,39 @@ der größte Brocken, aber für „ohne KI selbst durchmappen" der entscheidende
 
 ---
 
+## Atomares Element-Management — Lesen und Schreiben getrennt
+
+Prinzip (User): **nicht nur die Statistik — das GANZE Input/Output-Management ist
+atomar.** Jedes Geräteelement ist genau **ein** atomares Element mit einer
+Richtung:
+
+- **Lesen (Input):** Taster · Schalter · Achse · Encoder — je **1 Element** (ein
+  Encoder ist EIN Control, nicht 2 wegen cw/ccw).
+- **Schreiben (Anzeige):** LED (1) · Display-Zelle (je 1) — je **1 Element**.
+
+Was durchgängig gelten muss:
+- **Getrennte Darstellung** von Lese- und Schreib-Funktion in der GUI (nie
+  vermischt).
+- **Zwei konsistente Menüs** — eins für **Inputs**, eins für **Anzeigen** —
+  überall gleich.
+- **Kontextuelle Sonderfunktionen je Typ, nur eingeblendet wenn relevant:**
+  - **Encoder** → Step-/Geschwindigkeits-Logik (nur Encoder).
+  - **Achse** → Teilen am Detent (nur Achse, und nur auf Wunsch).
+  - **7-Segment-Display (generisch)** → frei konfigurierbar, Zellen einzeln
+    besetzbar.
+  - **Multipanel-Display** → weitgehend **fix**: selektor-getriebene + freie
+    Segmente sind dort nicht einzeln angreifbar.
+
+✅ **Gebaut:** `models.InputBlock` (READ) + `models.OutputBlock` (WRITE — LED/
+Display mit `cells`/`display_kind`), getrennt in `DeviceDef.inputs`/`.outputs`;
+element-basierte Zählung (`gui_mapper.atomic_input_count`/`atomic_output_count`,
+`panel_input_elements` mit Encoder=1); GUI „Geräteelemente"-Editor mit getrennten
+Gruppen „Inputs (Lesen)"/„Anzeigen (Schreiben)" + zwei Menüs. **Offen:**
+kontextuelle Sonderfunktionen je Typ (step/detent/7seg-Zellen), Output-Live-Scan
+(Schritt D), generische Ausgabe-Laufzeit (Schritt E).
+
+---
+
 ## Ist-Zustand & die zentrale Lücke (2026-07-21)
 
 **Frage des Users: „Wird ein fremdes Gerät beim reinen USB-Anstecken sofort

@@ -5,8 +5,14 @@ from msfs_peripherals_bridge.mapping.loader import (
     load_device_catalog,
     merge_device_catalog,
     set_device_inputs,
+    set_device_outputs,
 )
-from msfs_peripherals_bridge.models import DeviceCatalog, DeviceDef, InputBlock
+from msfs_peripherals_bridge.models import (
+    DeviceCatalog,
+    DeviceDef,
+    InputBlock,
+    OutputBlock,
+)
 
 
 def _cat(*defs: DeviceDef) -> DeviceCatalog:
@@ -90,3 +96,24 @@ def test_set_device_inputs_overwrites_previous(tmp_path):
     set_device_inputs(C, [InputBlock(name="New", code=2)], overlay=overlay)
     reloaded = DeviceCatalog.model_validate(yaml.safe_load(overlay.read_text()))
     assert [b.name for b in reloaded.by_id("c").inputs] == ["New"]
+
+
+def test_set_device_outputs_persists_and_keeps_inputs(tmp_path):
+    overlay = tmp_path / "devices.local.yaml"
+    ddef = C.model_copy(update={"inputs": [InputBlock(name="AP", code=12)]})
+    set_device_outputs(
+        ddef,
+        [OutputBlock(kind="led", name="AP-Lampe"),
+         OutputBlock(kind="display", name="COM", cells=5, display_kind="7segment")],
+        overlay=overlay,
+    )
+    reloaded = DeviceCatalog.model_validate(yaml.safe_load(overlay.read_text()))
+    dev = reloaded.by_id("c")
+    assert [b.name for b in dev.inputs] == ["AP"]          # READ elements kept
+    assert [b.kind for b in dev.outputs] == ["led", "display"]
+    assert dev.outputs[1].cells == 5
+
+
+def test_devicedef_without_outputs_defaults_empty():
+    d = DeviceDef.model_validate({"id": "x", "name": "X", "vendor": "1", "product": "2"})
+    assert d.outputs == []

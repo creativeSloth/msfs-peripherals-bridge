@@ -1676,8 +1676,8 @@ def run() -> None:
         Uses the flank-catching edge_count_reader (hidraw panels) + winning_code.
         """
         from .devices import hidraw_reader
-        from .mapping.loader import set_device_inputs
-        from .models import InputBlock
+        from .mapping.loader import add_device_overlay
+        from .models import InputBlock, OutputBlock
 
         cat = _device_catalog()
         ddef = cat.by_id(device_id) if cat else None
@@ -1689,39 +1689,56 @@ def run() -> None:
                 path = hidraw_reader.discover(cat).get(device_id)
 
         sc = tk.Toplevel(win)
-        sc.title(tr("Eingänge scannen") + f" — {ddef.name}")
+        sc.title(tr("Geräteelemente") + f" — {ddef.name}")
         sc.transient(win)
-        ttk.Label(sc, text=tr("Betätige ein Bedienelement am Gerät und benenne es — "
-                              "so entsteht die Eingangsliste ganz ohne Codes."),
-                  wraplength=460, justify="left").pack(anchor="w", padx=10, pady=(10, 6))
-        lst = ttk.Treeview(sc, columns=("kind", "codes"), show="tree headings",
-                           height=8, selectmode="browse")
+        ttk.Label(sc, text=tr("Lese- (Inputs) und Schreib-Elemente (Anzeigen) getrennt "
+                              "verwalten: Inputs am Gerät betätigen und benennen, Anzeigen "
+                              "(LEDs/Displays) hinzufügen."),
+                  wraplength=470, justify="left").pack(anchor="w", padx=10, pady=(10, 6))
+        lst = ttk.Treeview(sc, columns=("kind", "detail"), show="tree headings",
+                           height=10, selectmode="browse")
         lst.heading("#0", text=tr("Name"))
         lst.heading("kind", text=tr("Art"))
-        lst.heading("codes", text="Codes")
-        lst.column("#0", width=210, anchor="w")
+        lst.heading("detail", text=tr("Detail"))
+        lst.column("#0", width=230, anchor="w")
         lst.column("kind", width=90, anchor="center")
-        lst.column("codes", width=130, anchor="center")
+        lst.column("detail", width=150, anchor="center")
         lst.pack(fill="both", expand=True, padx=10)
         state_lbl = ttk.Label(sc, text="")
         state_lbl.pack(anchor="w", padx=10, pady=(4, 0))
-        blocks = list(ddef.inputs)
+        inputs = list(ddef.inputs)
+        outputs = list(ddef.outputs)
 
-        def _codes_str(b):
+        def _in_detail(b):
             if b.kind == "encoder":
                 return f"cw {b.cw} / ccw {b.ccw}"
             if b.kind == "axis":
                 return f"{b.code} [{b.raw_min}..{b.raw_max}]"
             return str(b.code)
 
+        def _out_detail(b):
+            if b.kind == "display":
+                extra = f" · {b.display_kind}" if b.display_kind else ""
+                return f"{b.cells} " + tr("Zellen") + extra
+            return tr("Lampe")
+
         def _refill():
             lst.delete(*lst.get_children())
-            for i, b in enumerate(blocks):
-                lst.insert("", "end", iid=str(i), text=b.name, values=(b.kind, _codes_str(b)))
-            state_lbl.config(text=f"{len(blocks)} " + tr("Eingänge"))
+            # Read and write functions are shown SEPARATELY (per user): two groups.
+            lst.insert("", "end", iid="grp:in", text=tr("Inputs (Lesen)"), open=True)
+            for i, b in enumerate(inputs):
+                lst.insert("grp:in", "end", iid=f"in:{i}", text=b.name,
+                           values=(b.kind, _in_detail(b)))
+            lst.insert("", "end", iid="grp:out", text=tr("Anzeigen (Schreiben)"), open=True)
+            for i, b in enumerate(outputs):
+                lst.insert("grp:out", "end", iid=f"out:{i}", text=b.name,
+                           values=(b.kind, _out_detail(b)))
+            state_lbl.config(text=f"{len(inputs)} " + tr("Inputs") + f" · {len(outputs)} "
+                             + tr("Anzeigen"))
 
         def _persist():
-            set_device_inputs(ddef, blocks)
+            # One write keeps BOTH element lists (inputs + outputs) consistent.
+            add_device_overlay(ddef.model_copy(update={"inputs": inputs, "outputs": outputs}))
             _mapper_reload(rediscover=False, keep_device=device_id)
 
         def _capture(steps, on_done):
@@ -1808,22 +1825,13 @@ def run() -> None:
                                cw=cap.get("cw"), ccw=cap.get("ccw"))
             else:
                 b = InputBlock(kind=kind, name=nm.strip(), code=cap.get("code"))
-            blocks.append(b)
+            inputs.append(b)
             _persist()
             _refill()
 
-        def _remove():
-            sel = lst.focus()
-            if not sel:
-                return
-            del blocks[int(sel)]
-            _persist()
-            _refill()
-
-        # One unified "add input" mechanism — button, switch and encoder are the
-        # same operation, the encoder is just a multi-step scan (per user: the
-        # encoder IS an input type; bring the button and encoder logic together).
-        def _add(kind):
+        # INPUT (read) — button, switch and encoder are the same operation; the
+        # encoder is just a multi-step scan (per user: the encoder IS an input type).
+        def _add_input(kind):
             if kind == "encoder":
                 steps = [("cw", tr("Encoder im Uhrzeigersinn drehen.")),
                          ("ccw", tr("Encoder gegen den Uhrzeigersinn drehen."))]
@@ -1833,18 +1841,61 @@ def run() -> None:
                 steps = [("code", tr("Drücke den Knopf mehrmals."))]
             _capture(steps, lambda c: _name_and_add(kind, c))
 
-        # Data-driven kind list (peers) — adding e.g. "axis" later is one line.
-        add_kinds = [("button", tr("Taster")), ("switch", tr("Schalter")),
-                     ("encoder", tr("Encoder"))]
+        # ANZEIGE (write) — LED or display; a display gets a configurable cell
+        # count so each cell is addressable (like the DME). Output live-scan
+        # (identify which report drives it) is the later Schritt D.
+        def _add_output(kind):
+            nm = simpledialog.askstring(tr("Name"),
+                                        tr("Wie heißt diese Anzeige?"), parent=sc)
+            if not nm or not nm.strip():
+                return
+            if kind == "display":
+                cells = simpledialog.askinteger(
+                    tr("Segmente"), tr("Wie viele Stellen/Segmente hat das Display?"),
+                    parent=sc, minvalue=1, initialvalue=5)
+                if not cells:
+                    return
+                b = OutputBlock(kind="display", name=nm.strip(), cells=cells,
+                                display_kind="7segment")
+            else:
+                b = OutputBlock(kind="led", name=nm.strip())
+            outputs.append(b)
+            _persist()
+            _refill()
+
+        def _remove():
+            sel = lst.focus()
+            if not sel or ":" not in sel:
+                return
+            grp, idx = sel.split(":", 1)
+            if grp == "in":
+                del inputs[int(idx)]
+            elif grp == "out":
+                del outputs[int(idx)]
+            else:
+                return
+            _persist()
+            _refill()
+
+        # Two CONSISTENT menus (per user): one for inputs, one for displays.
+        in_kinds = [("button", tr("Taster")), ("switch", tr("Schalter")),
+                    ("encoder", tr("Encoder"))]
+        out_kinds = [("led", tr("LED")), ("display", tr("Display (7-Segment)"))]
 
         br = ttk.Frame(sc)
         br.pack(fill="x", padx=10, pady=10)
-        b_add = ttk.Menubutton(br, text=tr("+ Eingang anlernen…"))
-        add_menu = tk.Menu(b_add, tearoff=0)
-        for _k, _lbl in add_kinds:
-            add_menu.add_command(label=_lbl, command=lambda k=_k: _add(k))
-        b_add["menu"] = add_menu
-        b_add.pack(side="left")
+        b_in = ttk.Menubutton(br, text=tr("+ Input anlernen…"))
+        in_menu = tk.Menu(b_in, tearoff=0)
+        for _k, _lbl in in_kinds:
+            in_menu.add_command(label=_lbl, command=lambda k=_k: _add_input(k))
+        b_in["menu"] = in_menu
+        b_in.pack(side="left")
+        b_out = ttk.Menubutton(br, text=tr("+ Anzeige hinzufügen…"))
+        out_menu = tk.Menu(b_out, tearoff=0)
+        for _k, _lbl in out_kinds:
+            out_menu.add_command(label=_lbl, command=lambda k=_k: _add_output(k))
+        b_out["menu"] = out_menu
+        b_out.pack(side="left", padx=6)
         ttk.Button(br, text=tr("Entfernen"), style="Danger.TButton",
                    command=_remove).pack(side="left", padx=12)
         ttk.Button(br, text=tr("Schließen"), command=sc.destroy).pack(side="right")
@@ -1940,7 +1991,7 @@ def run() -> None:
             it = items[int(sel)]
             if not it.registered:
                 messagebox.showinfo(tr("Geräte-Explorer"),
-                                    tr("Erst registrieren, dann Eingänge scannen."))
+                                    tr("Erst registrieren, dann Elemente verwalten."))
                 return
             _open_input_scan(it.catalog_id)
 
@@ -1948,7 +1999,7 @@ def run() -> None:
         btnrow.pack(fill="x", padx=10, pady=10)
         ttk.Button(btnrow, text=tr("Registrieren…"), style="Success.TButton",
                    command=_register).pack(side="left")
-        ttk.Button(btnrow, text=tr("Eingänge scannen…"),
+        ttk.Button(btnrow, text=tr("Geräteelemente…"),
                    command=_scan_inputs).pack(side="left", padx=6)
         ttk.Button(btnrow, text=tr("Aktualisieren"),
                    command=_refill).pack(side="left", padx=6)
