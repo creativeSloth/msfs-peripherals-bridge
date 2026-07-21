@@ -1306,7 +1306,7 @@ def run() -> None:
 
     # ===== Statistik tab =================================================== #
     stab = ttk.Frame(nb, padding=10)
-    nb.add(stab, text=tr("tab.variables"))
+    nb.add(stab, text=tr("tab.monitor"))
     stab.rowconfigure(2, weight=1)  # the value table grows (buttons above it in row 1)
     stab.columnconfigure(0, weight=1)
 
@@ -1667,6 +1667,104 @@ def run() -> None:
                           command=lambda: _mapper_reload(rediscover=True))
     b_rescan.pack(side="left")
     _attach_tooltip(b_rescan, tr("evdev + hidraw discovery — welche Geräte hängen jetzt dran"))
+
+    def _open_device_explorer():
+        """Show ALL connected devices (registered + unregistered) and register new ones."""
+        from .devices import inventory as inv_mod
+        from .mapping.loader import add_device_overlay
+        from .models import DeviceDef
+
+        def _slug(s: str) -> str:
+            return "".join(c if c.isalnum() else "_" for c in (s or "").lower()).strip("_")
+
+        ex = tk.Toplevel(win)
+        ex.title(tr("Geräte-Explorer"))
+        ex.transient(win)
+        ttk.Label(ex, text=tr("Alle angeschlossenen Geräte — auch noch nicht registrierte. "
+                              "Ein unregistriertes Gerät markieren und „Registrieren…“, "
+                              "damit es im Profil mappbar wird."),
+                  wraplength=520, justify="left").pack(anchor="w", padx=10, pady=(10, 6))
+        tree = ttk.Treeview(ex, columns=("usb", "via", "status"), show="tree headings",
+                            height=10, selectmode="browse")
+        tree.heading("#0", text=tr("Gerät"))
+        tree.heading("usb", text="USB")
+        tree.heading("via", text=tr("Transport"))
+        tree.heading("status", text=tr("Status"))
+        tree.column("#0", width=250, anchor="w")
+        tree.column("usb", width=90, anchor="center")
+        tree.column("via", width=70, anchor="center")
+        tree.column("status", width=160, anchor="w")
+        tree.pack(fill="both", expand=True, padx=10)
+        state_lbl = ttk.Label(ex, text="")
+        state_lbl.pack(anchor="w", padx=10, pady=(4, 0))
+        items: list = []
+
+        def _refill():
+            tree.delete(*tree.get_children())
+            items.clear()
+            cat = _device_catalog()
+            if cat is None:
+                state_lbl.config(text=tr("Geräte-Katalog nicht lesbar"))
+                return
+            found = inv_mod.inventory(cat)
+            items.extend(found)
+            for i, it in enumerate(found):
+                status = (tr("registriert als ") + str(it.catalog_id)) if it.registered \
+                    else tr("nicht registriert")
+                tree.insert("", "end", iid=str(i), text=it.name or "?",
+                            values=(it.usb, it.transport, status))
+            n_new = sum(1 for it in found if not it.registered)
+            state_lbl.config(text=f"{len(found)} " + tr("Geräte") + f" · {n_new} "
+                             + tr("nicht registriert"))
+
+        def _register():
+            sel = tree.focus()
+            if not sel:
+                return
+            it = items[int(sel)]
+            if it.registered:
+                messagebox.showinfo(tr("Geräte-Explorer"),
+                                    tr("Dieses Gerät ist bereits registriert."))
+                return
+            suggested = _slug(it.name) or ("dev_" + it.usb.replace(":", "_"))
+            dev_id = simpledialog.askstring(
+                tr("Gerät registrieren"),
+                tr("Kurz-ID für dieses Gerät (Profile referenzieren sie):"),
+                initialvalue=suggested, parent=ex)
+            if not dev_id or not dev_id.strip():
+                return
+            ambiguous = (it.vendor, it.product) == (0, 0) and bool(it.name)
+            ddef = DeviceDef(
+                id=dev_id.strip(),
+                name=it.name or dev_id.strip(),
+                vendor=f"{it.vendor:04x}",
+                product=f"{it.product:04x}",
+                transport=it.transport,
+                name_match=(it.name if ambiguous else None),
+            )
+            try:
+                path = add_device_overlay(ddef)
+            except Exception as exc:
+                messagebox.showerror(tr("Geräte-Explorer"), str(exc))
+                return
+            state_lbl.config(text=tr("Registriert ✓ → ") + str(path))
+            _mapper_reload(rediscover=True)
+            _refill()
+
+        btnrow = ttk.Frame(ex)
+        btnrow.pack(fill="x", padx=10, pady=10)
+        ttk.Button(btnrow, text=tr("Registrieren…"), style="Success.TButton",
+                   command=_register).pack(side="left")
+        ttk.Button(btnrow, text=tr("Aktualisieren"),
+                   command=_refill).pack(side="left", padx=6)
+        ttk.Button(btnrow, text=tr("Schließen"), command=ex.destroy).pack(side="right")
+        _refill()
+
+    b_explore = ttk.Button(devbtn, text=tr("🔍 Geräte-Explorer…"),
+                           command=_open_device_explorer)
+    b_explore.pack(side="left", padx=6)
+    _attach_tooltip(b_explore, tr("Alle angeschlossenen Geräte anzeigen (auch fremde, "
+                                  "noch nicht registrierte) und neue Geräte anlegen"))
 
     bindbtn = ttk.Frame(mtab)
     bindbtn.grid(row=2, column=1, columnspan=2, sticky="ew", pady=(6, 0))

@@ -33,12 +33,27 @@ def calibration_file(root: Path | None = None) -> Path:
     return (root or project_root()) / "config" / "calibration.yaml"
 
 
+def _user_config_dir() -> Path:
+    """Per-user config dir (``$XDG_CONFIG_HOME`` or ``~/.config``), outside repo."""
+    base = os.environ.get("XDG_CONFIG_HOME")
+    root = Path(base).expanduser() if base else Path.home() / ".config"
+    return root / "msfs-peripherals-bridge"
+
+
 def gui_settings_file() -> Path:
     """Per-user GUI state (e.g. the Statistik var selection), outside the repo.
 
     Honours ``$XDG_CONFIG_HOME`` and falls back to ``~/.config``; the file is
     user-specific and must not be committed with the checkout.
     """
-    base = os.environ.get("XDG_CONFIG_HOME")
-    root = Path(base).expanduser() if base else Path.home() / ".config"
-    return root / "msfs-peripherals-bridge" / "gui-settings.json"
+    return _user_config_dir() / "gui-settings.json"
+
+
+def devices_overlay_file() -> Path:
+    """User-added devices (the device explorer writes here), outside the repo.
+
+    Keeps a stranger's own hardware out of the versioned ``config/devices.yaml``;
+    :func:`~..mapping.loader.load_device_catalog` merges this overlay on top of
+    the bundled catalog automatically.
+    """
+    return _user_config_dir() / "devices.local.yaml"

@@ -7,13 +7,64 @@ from pathlib import Path
 import yaml
 
 from ..devices.calibration import CalibrationFile, DeviceCalibration
-from ..models import Binding, DeviceCatalog, Profile, SourceKind
+from ..models import Binding, DeviceCatalog, DeviceDef, Profile, SourceKind
 
 
-def load_device_catalog(path: Path) -> DeviceCatalog:
-    """Parse ``config/devices.yaml`` into a validated catalog."""
+def merge_device_catalog(base: DeviceCatalog, overlay: DeviceCatalog) -> DeviceCatalog:
+    """Overlay devices onto base: new ids appended, matching ids overridden. Pure."""
+    by_id = {d.id: d for d in base.devices}
+    order = [d.id for d in base.devices]
+    for d in overlay.devices:
+        if d.id not in by_id:
+            order.append(d.id)
+        by_id[d.id] = d
+    return DeviceCatalog(devices=[by_id[i] for i in order])
+
+
+def load_device_catalog(
+    path: Path, *, overlay: Path | None = None, merge_overlay: bool = True
+) -> DeviceCatalog:
+    """Parse ``config/devices.yaml`` and merge the user device overlay on top.
+
+    User-added devices live in ``devices.local.yaml`` (see
+    :func:`..config.devices_overlay_file`) so a stranger's hardware never touches
+    the versioned catalog. Overlay entries with a new ``id`` are appended; a
+    matching ``id`` overrides the bundled one. Pass ``merge_overlay=False`` to
+    read only ``path`` (used by tests).
+    """
     data = yaml.safe_load(path.read_text(encoding="utf-8")) or {}
-    return DeviceCatalog.model_validate(data)
+    catalog = DeviceCatalog.model_validate(data)
+    if not merge_overlay:
+        return catalog
+    if overlay is None:
+        from .. import config
+
+        overlay = config.devices_overlay_file()
+    if overlay.exists():
+        extra = yaml.safe_load(overlay.read_text(encoding="utf-8")) or {}
+        catalog = merge_device_catalog(catalog, DeviceCatalog.model_validate(extra))
+    return catalog
+
+
+def add_device_overlay(ddef: DeviceDef, overlay: Path | None = None) -> Path:
+    """Append/replace a device in the user overlay YAML, creating it if needed."""
+    if overlay is None:
+        from .. import config
+
+        overlay = config.devices_overlay_file()
+    existing = DeviceCatalog(devices=[])
+    if overlay.exists():
+        data = yaml.safe_load(overlay.read_text(encoding="utf-8")) or {}
+        existing = DeviceCatalog.model_validate(data)
+    merged = merge_device_catalog(existing, DeviceCatalog(devices=[ddef]))
+    overlay.parent.mkdir(parents=True, exist_ok=True)
+    overlay.write_text(
+        yaml.safe_dump(
+            merged.model_dump(exclude_none=True), sort_keys=False, allow_unicode=True
+        ),
+        encoding="utf-8",
+    )
+    return overlay
 
 
 def load_profile(path: Path) -> Profile:

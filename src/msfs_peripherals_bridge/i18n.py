@@ -76,7 +76,7 @@ def tr(key: str, /, **kwargs: object) -> str:
 _STRINGS: dict[str, dict[str, str]] = {
     # ----- notebook tab titles -------------------------------------------- #
     "tab.connection": {"de": "Verbindung", "en": "Connection", "es": "Conexión", "fr": "Connexion"},
-    "tab.variables": {"de": "Variablen", "en": "Variables", "es": "Variables", "fr": "Variables"},
+    "tab.monitor": {"de": "Monitor", "en": "Monitor", "es": "Monitor", "fr": "Monitor"},
     "tab.mapper": {"de": "Mapper", "en": "Mapper", "es": "Mapeo", "fr": "Mappage"},
     "tab.gauges": {"de": "Instrumente", "en": "Gauges", "es": "Instrumentos", "fr": "Instruments"},
     "tab.profile": {"de": "Profil", "en": "Profile", "es": "Perfil", "fr": "Profil"},

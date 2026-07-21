@@ -109,6 +109,45 @@ def scan() -> None:
 
 
 @app.command()
+def inventory() -> None:
+    """List ALL connected USB HID/joystick devices, registered or not.
+
+    Unlike ``list-devices`` (catalog only) this also shows *unregistered*
+    hardware — plug a new device in and read its USB id + name here, then add it
+    to config/devices.yaml (see docs/INSTALL.md, step 3). Foreground of the
+    planned GUI device explorer.
+    """
+    from .devices import inventory as inv
+
+    catalog = load_device_catalog(config.devices_file())
+    try:
+        items = inv.inventory(catalog)
+    except RuntimeError as exc:  # pragma: no cover - evdev missing
+        console.print(f"[red]{exc}[/red]")
+        raise typer.Exit(code=1) from exc
+
+    if not items:
+        console.print(
+            "[yellow]No devices detected. Plugged in? udev rules applied?[/yellow]"
+        )
+        return
+
+    table = Table(title="Connected devices")
+    table.add_column("USB", style="cyan")
+    table.add_column("name")
+    table.add_column("via")
+    table.add_column("status")
+    for it in items:
+        status = (
+            f"[green]registered[/green] ([cyan]{it.catalog_id}[/cyan])"
+            if it.registered
+            else "[yellow]unregistered[/yellow]"
+        )
+        table.add_row(it.usb, it.name or "[dim]?[/dim]", it.transport, status)
+    console.print(table)
+
+
+@app.command()
 def monitor(
     device: str = typer.Argument(..., help="Catalog device id or /dev/input/eventX path."),
 ) -> None:
