@@ -2169,20 +2169,18 @@ def run() -> None:
     # Packed right-to-left so they sit right-aligned under the table they act
     # on (per user: '+ Panel' creates content in THIS list, so it lives here):
     # + Panel  + Binding  Duplizieren  Entfernen
+    # Two clearly separated groups (per user: structure the add/edit actions):
+    #   [ + Eingang ] [ Vorlage ▾ ]  |  [ Duplizieren ] [ Entfernen ]
+    # Packed right-to-left, so the LAST packed sits leftmost.
+    # --- Bearbeiten (rightmost) ---
     ttk.Button(bindbtn, text=tr("Entfernen"), style="Danger.TButton",
                command=lambda: _remove_selected_row()).pack(side="right")
     ttk.Button(bindbtn, text=tr("Duplizieren"),
                command=lambda: _ed_duplicate()).pack(side="right", padx=6)
-    ttk.Button(bindbtn, text=tr("+ Binding"), command=lambda: _new_binding()).pack(side="right")
-    b_addpanel = ttk.Menubutton(bindbtn, text=tr("+ Saitek-Panel"))
-    b_addpanel.pack(side="right", padx=6)
-    _attach_tooltip(b_addpanel,
-                    tr("Neuen Panel-Controller anlegen — nur für Saitek-Panels (hidraw) "
-                    "und nur nötig, wenn das Profil das Panel noch gar nicht kennt. "
-                    "Details danach über die Baum-Zeilen einstellen."))
-    addpanel_menu = tk.Menu(b_addpanel, tearoff=0)
+    ttk.Separator(bindbtn, orient="vertical").pack(side="right", fill="y", padx=10, pady=2)
 
-    def _add_panel(template_name):
+    # --- Hinzufügen ---
+    def _add_panel(block: dict):
         dev = _sel(dev_tree)
         if dev is None:
             m_state.config(text=tr("Kein Gerät gewählt — links ein Gerät markieren."))
@@ -2190,20 +2188,77 @@ def run() -> None:
         cat_ = _device_catalog()
         ddef = cat_.by_id(dev) if cat_ else None
         if ddef is None or ddef.transport != "hidraw":
-            m_state.config(text=f"„{dev}“ ist kein Panel — Panel-Controller gibt es "
+            m_state.config(text=f"„{dev}“ ist kein Panel — ganze Panel-Vorlagen gibt es "
                                 "nur für die Saitek-Panels (hidraw).")
             return
-        tpl = gui_mapper.OUTPUT_BLOCK_TEMPLATES[template_name]
-        _edit_profile(lambda d: profile_writer.add_output(d, dev, dict(tpl)),
-                      f"Panel-Block angelegt ({tpl['type']}) ✓")
+        _edit_profile(lambda d: profile_writer.add_output(d, dev, dict(block)),
+                      f"Vorlage angelegt ({block.get('type')}) ✓")
 
-    for _tname in gui_mapper.OUTPUT_BLOCK_TEMPLATES:
-        addpanel_menu.add_command(label=_tname,
-                                  command=lambda t=_tname: _add_panel(t))
-    b_addpanel.configure(menu=addpanel_menu)
+    def _save_current_as_template():
+        dev = _sel(dev_tree)
+        if dev is None:
+            m_state.config(text=tr("Kein Gerät gewählt — links ein Gerät markieren."))
+            return
+        prof = mstate.get("profile")
+        outs = prof.outputs.get(dev, []) if prof is not None else []
+        if not outs:
+            m_state.config(text=tr("Dieses Gerät hat keine Anzeige/Ausgabe zum Speichern."))
+            return
+        name = simpledialog.askstring(tr("Als Vorlage speichern"),
+                                      tr("Name der Vorlage:"), parent=win)
+        if not name or not name.strip():
+            return
+        from .mapping.loader import save_output_template
+
+        # A panel device has one output-controller block; save it as the template.
+        save_output_template(name.strip(), outs[0].model_dump(exclude_none=True))
+        _rebuild_template_menu()
+        m_state.config(text=f"Vorlage „{name.strip()}“ gespeichert ✓")
+
+    def _rebuild_template_menu():
+        from .mapping.loader import delete_output_template, load_output_templates
+
+        addtmpl_menu.delete(0, "end")
+        addtmpl_menu.add_command(label=tr("Ganzes Panel (Knöpfe + Anzeigen):"),
+                                 state="disabled")
+        for _name, _block in gui_mapper.OUTPUT_BLOCK_TEMPLATES.items():
+            addtmpl_menu.add_command(label=f"  {_name}",
+                                     command=lambda b=_block: _add_panel(b))
+        user = load_output_templates()
+        if user:
+            addtmpl_menu.add_separator()
+            addtmpl_menu.add_command(label=tr("Eigene Vorlagen:"), state="disabled")
+            for _name, _block in user.items():
+                sub = tk.Menu(addtmpl_menu, tearoff=0)
+                sub.add_command(label=tr("Auf gewähltes Gerät anlegen"),
+                                command=lambda b=_block: _add_panel(b))
+                sub.add_command(label=tr("Löschen"),
+                                command=lambda n=_name: (delete_output_template(n),
+                                                         _rebuild_template_menu()))
+                addtmpl_menu.add_cascade(label=f"  {_name}", menu=sub)
+        addtmpl_menu.add_separator()
+        addtmpl_menu.add_command(label=tr("Aktuelles Gerät als Vorlage speichern…"),
+                                 command=_save_current_as_template)
+
+    b_addtmpl = ttk.Menubutton(bindbtn, text=tr("Vorlage ▾"))
+    b_addtmpl.pack(side="right", padx=6)
+    _attach_tooltip(b_addtmpl,
+                    tr("Ganzes Panel in einem Rutsch anlegen — eine Vorlage aus "
+                       "Knöpfen + Anzeigen. Die Saitek-Panels sind eingebaut (hidraw); "
+                       "eigene Anordnungen als Vorlage speicherbar."))
+    addtmpl_menu = tk.Menu(b_addtmpl, tearoff=0)
+    b_addtmpl.configure(menu=addtmpl_menu)
+
+    b_addinput = ttk.Button(bindbtn, text=tr("+ Eingang"), command=lambda: _new_binding())
+    b_addinput.pack(side="right", padx=6)
+    _attach_tooltip(b_addinput,
+                    tr("Einen einzelnen Eingang (Knopf/Achse/Schalter/Encoder/Hat) an "
+                       "ein Event oder eine Variable binden."))
+
     ttk.Label(bindbtn, text=tr("Doppelklick auf eine Zeile öffnet den Editor · "
                             "Entfernen wirkt auf die markierte Zeile"),
               foreground="#666").pack(side="left")
+    _rebuild_template_menu()
 
     # --- editor: a separate, on-demand window (opened per element) -------- #
     # A ⚙-per-row / double-click / "Bearbeiten…" opens this Toplevel with the full

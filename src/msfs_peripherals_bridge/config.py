@@ -57,3 +57,13 @@ def devices_overlay_file() -> Path:
     the bundled catalog automatically.
     """
     return _user_config_dir() / "devices.local.yaml"
+
+
+def output_templates_file() -> Path:
+    """User-created output-block templates (the mapper's "als Vorlage speichern").
+
+    A whole panel arrangement (buttons + displays) saved under a name so it can be
+    dropped onto another device in one go, alongside the bundled Saitek templates.
+    Per-user, outside the repo.
+    """
+    return _user_config_dir() / "output-templates.yaml"

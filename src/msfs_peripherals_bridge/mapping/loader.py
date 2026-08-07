@@ -88,6 +88,56 @@ def set_device_outputs(ddef: DeviceDef, blocks, overlay: Path | None = None) -> 
     )
 
 
+def load_output_templates(path: Path | None = None) -> dict[str, dict]:
+    """Load the user's saved output-block templates ``{name: block_dict}``.
+
+    Empty dict when the file is missing. Blocks are kept as plain dicts (the same
+    shape as :data:`..gui_mapper.OUTPUT_BLOCK_TEMPLATES`) so they can be dropped
+    straight onto a device via ``profile_writer.add_output``.
+    """
+    if path is None:
+        from .. import config
+
+        path = config.output_templates_file()
+    if not path.exists():
+        return {}
+    data = yaml.safe_load(path.read_text(encoding="utf-8")) or {}
+    return dict(data.get("templates", {}))
+
+
+def save_output_template(name: str, block: dict, path: Path | None = None) -> Path:
+    """Add/replace a named output-block template in the user templates file."""
+    if path is None:
+        from .. import config
+
+        path = config.output_templates_file()
+    templates = load_output_templates(path)
+    templates[name] = dict(block)
+    path.parent.mkdir(parents=True, exist_ok=True)
+    path.write_text(
+        yaml.safe_dump({"templates": templates}, sort_keys=False, allow_unicode=True),
+        encoding="utf-8",
+    )
+    return path
+
+
+def delete_output_template(name: str, path: Path | None = None) -> Path:
+    """Remove a named user template (no-op if absent)."""
+    if path is None:
+        from .. import config
+
+        path = config.output_templates_file()
+    templates = load_output_templates(path)
+    if name in templates:
+        del templates[name]
+        path.parent.mkdir(parents=True, exist_ok=True)
+        path.write_text(
+            yaml.safe_dump({"templates": templates}, sort_keys=False, allow_unicode=True),
+            encoding="utf-8",
+        )
+    return path
+
+
 def load_profile(path: Path) -> Profile:
     """Parse a single aircraft profile YAML file."""
     data = yaml.safe_load(path.read_text(encoding="utf-8")) or {}

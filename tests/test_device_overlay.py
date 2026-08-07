@@ -117,3 +117,24 @@ def test_set_device_outputs_persists_and_keeps_inputs(tmp_path):
 def test_devicedef_without_outputs_defaults_empty():
     d = DeviceDef.model_validate({"id": "x", "name": "X", "vendor": "1", "product": "2"})
     assert d.outputs == []
+
+
+def test_output_templates_round_trip(tmp_path):
+    from msfs_peripherals_bridge.mapping.loader import (
+        delete_output_template,
+        load_output_templates,
+        save_output_template,
+    )
+
+    path = tmp_path / "output-templates.yaml"
+    assert load_output_templates(path) == {}  # missing file -> empty
+
+    block = {"type": "gear_leds"}
+    save_output_template("Mein Fahrwerk", block, path=path)
+    save_output_template("Multi", {"type": "multi_panel", "selector": []}, path=path)
+    loaded = load_output_templates(path)
+    assert loaded["Mein Fahrwerk"] == block
+    assert loaded["Multi"]["type"] == "multi_panel"
+
+    delete_output_template("Multi", path=path)
+    assert set(load_output_templates(path)) == {"Mein Fahrwerk"}
