@@ -103,3 +103,42 @@ def test_output_manager_drives_generic_panel_end_to_end():
     assert writes[-1] == ("/dev/hidrawX", bytes([0x00, 0b0000_0001]))
     manager.on_state("VB", 1)
     assert writes[-1] == ("/dev/hidrawX", bytes([0x00, 0b0000_1001]))
+
+
+def test_display_renders_integer_var_right_justified():
+    from msfs_peripherals_bridge.mapping.display import BLANK
+    from msfs_peripherals_bridge.models import GenericDisplay
+
+    c = GenericPanelController(GenericPanelOutput(
+        length=6, displays=[GenericDisplay(name="ALT", var="ALT", offset=0, cells=5)]))
+    # unknown value -> blank cells; the trailing spare byte stays 0
+    assert c.render() == bytes([0x00, BLANK, BLANK, BLANK, BLANK, BLANK, 0x00])
+    c.on_state("ALT", 123)
+    assert c.render() == bytes([0x00, BLANK, BLANK, 1, 2, 3, 0x00])
+
+
+def test_display_decimals_add_trailing_dot():
+    from msfs_peripherals_bridge.mapping.display import BLANK, DOT
+    from msfs_peripherals_bridge.models import GenericDisplay
+
+    c = GenericPanelController(GenericPanelOutput(
+        length=5, displays=[GenericDisplay(var="DME", offset=0, cells=5, decimals=1)]))
+    c.on_state("DME", 12.3)
+    assert c.render() == bytes([0x00, BLANK, BLANK, 1, 2 + DOT, 3])  # "  12.3"
+
+
+def test_display_and_led_share_report_and_power_and_subscriptions():
+    from msfs_peripherals_bridge.mapping.display import BLANK
+    from msfs_peripherals_bridge.models import GenericDisplay
+
+    o = GenericPanelOutput(
+        length=6, power="PWR",
+        leds=[GenericLed(var="L", byte=5, bit=0)],
+        displays=[GenericDisplay(var="N", offset=0, cells=5)])
+    c = GenericPanelController(o)
+    assert set(c.subscriptions()) == {"L", "N", "PWR"}
+    c.on_state("N", 7)
+    c.on_state("L", 1)
+    assert c.render() == bytes([0x00, BLANK, BLANK, BLANK, BLANK, BLANK, 0x00])  # no power
+    c.on_state("PWR", 1)
+    assert c.render() == bytes([0x00, BLANK, BLANK, BLANK, BLANK, 7, 1])  # N=7, LED bit0

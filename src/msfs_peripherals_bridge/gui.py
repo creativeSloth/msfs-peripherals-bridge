@@ -2251,6 +2251,93 @@ def run() -> None:
         addtmpl_menu.add_command(label=tr("Aktuelles Gerät als Vorlage speichern…"),
                                  command=_save_current_as_template)
 
+    def _add_generic_output(kind):
+        """„+ Ausgabe" (Schritt E): map one of the device's lamps/readouts to a sim
+        var + its report address — a bit for an LED, a cell run for a display. Creates
+        the device's generic_panel output block on first use and grows it to fit."""
+        dev = _sel(dev_tree)
+        if dev is None:
+            m_state.config(text=tr("Kein Gerät gewählt — links ein Gerät markieren."))
+            return
+        dlg = tk.Toplevel(win)
+        dlg.title(tr("LED hinzufügen") if kind == "led" else tr("Display hinzufügen"))
+        dlg.transient(win)
+        frm = ttk.Frame(dlg, padding=12)
+        frm.pack(fill="both", expand=True)
+        frm.columnconfigure(1, weight=1)
+        nm, var = tk.StringVar(), tk.StringVar()
+
+        def _row(r, label, widget):
+            ttk.Label(frm, text=label).grid(row=r, column=0, sticky="w", pady=2, padx=(0, 8))
+            widget.grid(row=r, column=1, sticky="ew", pady=2)
+
+        _row(0, tr("Name"), ttk.Entry(frm, textvariable=nm, width=24))
+        vrow = ttk.Frame(frm)
+        ttk.Entry(vrow, textvariable=var).pack(side="left", fill="x", expand=True)
+        ttk.Button(vrow, text="…", width=3,
+                   command=lambda: _open_var_picker(win, _var_catalog(),
+                                                    lambda v: var.set(_var_name(v)))
+                   ).pack(side="left", padx=(4, 0))
+        _row(1, tr("Variable"), vrow)
+        specs = ([("byte", tr("Report-Byte"), "0"), ("bit", tr("Bit (0-7)"), "0"),
+                  ("on_at", tr("Schwelle (an ab)"), "0.5")] if kind == "led" else
+                 [("offset", tr("Erstes Byte (Offset)"), "0"), ("cells", tr("Zellen"), "5"),
+                  ("decimals", tr("Nachkommastellen"), "0")])
+        fields = {}
+        for i, (key, label, default) in enumerate(specs, start=2):
+            fields[key] = tk.StringVar(value=default)
+            _row(i, label, ttk.Entry(frm, textvariable=fields[key], width=10))
+        err = ttk.Label(frm, foreground="#c62828")
+        err.grid(row=6, column=0, columnspan=2, sticky="w", pady=(6, 0))
+
+        def _save():
+            v = var.get().strip()
+            if not v:
+                err.config(text=tr("Variable fehlt."))
+                return
+            try:
+                if kind == "led":
+                    byte, bit = int(fields["byte"].get()), int(fields["bit"].get())
+                    on_at = float(fields["on_at"].get())
+                    if byte < 0 or not (0 <= bit <= 7):
+                        raise ValueError
+                    entry = {"var": v, "byte": byte, "bit": bit, "on_at": on_at}
+                    path, needed = ("leds",), byte + 1
+                else:
+                    off, cells = int(fields["offset"].get()), int(fields["cells"].get())
+                    dec = int(fields["decimals"].get())
+                    if off < 0 or cells < 1 or dec < 0:
+                        raise ValueError
+                    entry = {"var": v, "offset": off, "cells": cells, "decimals": dec}
+                    path, needed = ("displays",), off + cells
+            except ValueError:
+                err.config(text=tr("Zahlenfeld ungültig."))
+                return
+            if nm.get().strip():
+                entry["name"] = nm.get().strip()
+            prof = mstate["profile"]
+            outs = list(prof.outputs.get(dev, [])) if prof is not None else []
+            gp = next((i for i, o in enumerate(outs)
+                       if getattr(o, "type", None) == "generic_panel"), None)
+            cur_len = outs[gp].length if gp is not None else 1
+            idx = gp if gp is not None else len(outs)
+
+            def edit(d):
+                if gp is None:
+                    profile_writer.add_output(d, dev, {"type": "generic_panel", "length": 1})
+                profile_writer.add_output_entry(d, dev, idx, path, entry)
+                profile_writer.set_output_value(d, dev, idx, ("length",), max(cur_len, needed))
+
+            _edit_profile(edit, tr("Ausgabe hinzugefügt ✓"))
+            dlg.destroy()
+
+        br = ttk.Frame(frm)
+        br.grid(row=7, column=0, columnspan=2, sticky="e", pady=(10, 0))
+        ttk.Button(br, text=tr("Abbrechen"), command=dlg.destroy).pack(side="right", padx=(6, 0))
+        ttk.Button(br, text=tr("Hinzufügen"), command=_save).pack(side="right")
+        dlg.lift()
+        dlg.focus_force()
+
     b_addtmpl = ttk.Menubutton(bindbtn, text=tr("Vorlage ▾"))
     b_addtmpl.pack(side="right", padx=6)
     _attach_tooltip(b_addtmpl,
@@ -2259,6 +2346,18 @@ def run() -> None:
                        "eigene Anordnungen als Vorlage speicherbar."))
     addtmpl_menu = tk.Menu(b_addtmpl, tearoff=0)
     b_addtmpl.configure(menu=addtmpl_menu)
+
+    b_addout = ttk.Menubutton(bindbtn, text=tr("+ Ausgabe ▾"))
+    b_addout.pack(side="right", padx=6)
+    _attach_tooltip(b_addout,
+                    tr("Eine Anzeige des Geräts an eine Variable binden — LED (ein Bit) "
+                       "oder Display (7-Segment-Wert ← Var). Legt bei Bedarf den "
+                       "generischen Ausgabe-Block an (Schritt E)."))
+    addout_menu = tk.Menu(b_addout, tearoff=0)
+    addout_menu.add_command(label=tr("LED…"), command=lambda: _add_generic_output("led"))
+    addout_menu.add_command(label=tr("Display (7-Segment)…"),
+                            command=lambda: _add_generic_output("display"))
+    b_addout.configure(menu=addout_menu)
 
     b_addinput = ttk.Button(bindbtn, text=tr("+ Eingabe"), command=lambda: _new_binding())
     b_addinput.pack(side="right", padx=6)

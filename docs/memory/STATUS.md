@@ -2,6 +2,12 @@
 
 > Kurzer Einstiegspunkt: was läuft, was offen ist, wie es weitergeht.
 >
+> ## CUT 2026-08-07 (spät³) — SCHRITT E.2 (Display-Zellen) + „+ Ausgabe"-GUI, 410 Tests grün, ruff clean
+> **User-Auftrag „mach E.2 und die GUI dazu".** **⑦ gebaut (uncommitted bis nächster Commit):**
+> - **E.2 Laufzeit** (`models.GenericDisplay` = var/offset/cells/decimals; `GenericPanelOutput.displays`): der `GenericPanelController.render()` rendert jetzt auch **7-Segment-Displays** — Var → Zellen via `display.format_row` (Ganzzahl, inkl. Minus) bzw. `format_measure` (Dezimal + Punkt), blank bei unbekannt/Overflow/ohne Power. LEDs + Displays teilen sich einen Report; `simvars()`+`subscriptions()` decken beide ab. 4 neue Tests (Ganzzahl rechtsbündig, Dezimalpunkt, LED+Display+Power+subs).
+> - **„+ Ausgabe ▾"-GUI** (Mapper-Knopfleiste, jetzt `[+ Eingabe][+ Ausgabe ▾][Vorlage ▾] | [Dup][Entf]`): Menü **LED… / Display (7-Segment)…** → Dialog (`_add_generic_output`) mit Name, **Variable (+ `_open_var_picker`)**, und HW-Adresse (LED: Report-Byte/Bit/Schwelle · Display: Offset/Zellen/Nachkommastellen). Speichern legt bei Bedarf den `generic_panel`-Block an (`profile_writer.add_output`), hängt LED/Display an (`add_output_entry ("leds"/"displays")`) und wächst `length` passend (`set_output_value`). 1 Persistenz-Test (`test_profile_writer`). **Detail-Baum/Output-Editor handhaben `generic_panel` schon** (`output_nodes`/`describe_output` → LEDs/Displays als eigene Zeilen → Anzeigen/Einzel-Entfernen/-Bearbeiten über bestehende Logik). **🔴 GUI-Dialog visuell UNGEPRÜFT** (Laufzeit+Persistenz getestet, py_compile+Import ok).
+> **🔴 SCHRITT E — REST:** (1) HW-Adresse (byte/bit/offset) kommt heute manuell → **Schritt D Ausgang-Scan** (Testimpuls→bestätigen) füllt sie automatisch. (2) Saitek-Panels perspektivisch auf `generic_panel` heben (Endspiel). (3) **Nachbau-only**: Rechtsklick-Kontextmenü am Element (Bearbeiten/Entfernen/Duplizieren), dann Tabelle+Toggle raus (Workflow-Doku-Entscheidung).
+>
 > ## CUT 2026-08-07 (spät²) — SCHRITT E ANGEFANGEN (generische LED-Laufzeit) + Workflow-Doku, 406 Tests grün, ruff clean
 > **User-Auftrag „dann mache E".** **⑥ Schritt-E erste Scheibe gebaut (LED-Ausgabe generisch, uncommitted bis nächster Commit) — ADDITIV, Saitek-Controller unverändert = null Regressionsrisiko:**
 > - **Modell** (`models.py`): `GenericLed` (name/var/byte/bit/on_at) + `GenericPanelOutput` (`type: generic_panel`, `length`=Datenbytes, `leds`, optional `power`-Gate; `simvars()`); in die `Output`-Union aufgenommen.

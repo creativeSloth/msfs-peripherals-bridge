@@ -216,3 +216,28 @@ def test_apply_binding_edit_can_add_a_detent_split(tmp_path):
     assert b.split is not None and b.split.at == 120
     assert b.split.action.event == "THROTTLE_REVERSE_THRUST_TOGGLE"
     assert b.split.transform.invert is True
+
+
+def test_add_generic_output_led_and_display_round_trip():
+    """The mapper's „+ Ausgabe" flow: create a generic_panel block on first use,
+    append an LED then a display, growing `length` to fit each time."""
+    from msfs_peripherals_bridge.models import GenericPanelOutput
+
+    data = pw.new_profile("p")
+    # first „+ Ausgabe · LED" -> block created, LED appended, length grown to byte+1
+    pw.add_output(data, "mypanel", {"type": "generic_panel", "length": 1})
+    pw.add_output_entry(data, "mypanel", 0, ("leds",),
+                        {"var": "AUTOPILOT MASTER", "byte": 5, "bit": 0, "on_at": 0.5})
+    pw.set_output_value(data, "mypanel", 0, ("length",), max(1, 5 + 1))
+    # second „+ Ausgabe · Display" -> appended to same block, length grown to offset+cells
+    pw.add_output_entry(data, "mypanel", 0, ("displays",),
+                        {"var": "ALT", "offset": 0, "cells": 5, "decimals": 0})
+    pw.set_output_value(data, "mypanel", 0, ("length",), max(6, 0 + 5))
+
+    prof = pw.validate(data)
+    (o,) = prof.outputs["mypanel"]
+    assert isinstance(o, GenericPanelOutput)
+    assert o.length == 6
+    assert o.leds[0].var == "AUTOPILOT MASTER" and o.leds[0].bit == 0
+    assert o.displays[0].var == "ALT" and o.displays[0].cells == 5
+    assert set(o.simvars()) == {"AUTOPILOT MASTER", "ALT"}

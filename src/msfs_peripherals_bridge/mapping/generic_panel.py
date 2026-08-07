@@ -17,6 +17,7 @@ from __future__ import annotations
 
 from ..models import GenericPanelOutput
 from ..simconnect.protocol import Command
+from .display import format_measure, format_row
 
 _REPORT_ID = 0x00
 
@@ -47,8 +48,9 @@ class GenericPanelController:
             self._values[name] = None
 
     def render(self, blink_on: bool = True) -> bytes:
-        """Full feature report: report id + ``length`` data bytes with each lit
-        LED's bit set. Dark when the optional power gate is off."""
+        """Full feature report: report id + ``length`` data bytes. Each lit LED sets
+        its bit; each display renders its var into its cells. Dark/blank when the
+        optional power gate is off."""
         data = bytearray(self._o.length)
         gate = self._o.power
         powered = gate is None or (self._values.get(gate) or 0) >= 0.5
@@ -57,4 +59,13 @@ class GenericPanelController:
                 v = self._values.get(led.var)
                 if v is not None and v >= led.on_at and 0 <= led.byte < self._o.length:
                     data[led.byte] |= 1 << led.bit
+        for disp in self._o.displays:
+            # Unpowered -> value None so the cells render blank, not stale/zero.
+            value = self._values.get(disp.var) if powered else None
+            cells = (format_measure(value, decimals=disp.decimals, width=disp.cells)
+                     if disp.decimals else format_row(value, width=disp.cells))
+            for i, cell in enumerate(cells):
+                pos = disp.offset + i
+                if 0 <= pos < self._o.length:
+                    data[pos] = cell
         return bytes([_REPORT_ID, *data])

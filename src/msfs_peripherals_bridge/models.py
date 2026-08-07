@@ -712,23 +712,37 @@ class GenericLed(BaseModel):
     on_at: float = Field(0.5, description="Threshold: var >= on_at -> lit.")
 
 
+class GenericDisplay(BaseModel):
+    """A 7-segment readout on a user-declared panel: a numeric var rendered into a
+    run of report cells (one byte each, Saitek digit encoding). ``decimals`` adds a
+    trailing decimal point (like a DME/frequency readout); 0 shows a plain integer
+    (negatives get a minus cell). Blank when the value is unknown or too wide."""
+
+    name: str = Field("", description="Element alias (for the GUI; not used at runtime).")
+    var: str = Field(..., description="Numeric sim variable shown on the cells.")
+    offset: int = Field(..., ge=0, description="First cell's data-byte index (after id).")
+    cells: int = Field(..., ge=1, description="Number of digit cells (width).")
+    decimals: int = Field(0, ge=0, description="Digits after the decimal point (0 = integer).")
+
+
 class GenericPanelOutput(BaseModel):
     """Schritt E — a generic display/LED controller driven by declared element→var
     mappings, replacing the hardcoded Saitek controllers for arbitrary devices.
 
-    Each LED is one bit in the feature report, lit from a sim var; the whole thing
-    optionally gated by a power var (dark without avionics power), like the gear
-    LEDs. Display cells (7-segment values) are a later increment; this first slice
-    covers indicator lamps, which any custom panel can use immediately.
+    Each LED is one bit in the feature report, lit from a sim var; each display is a
+    numeric var rendered into a run of 7-segment cells. The whole thing is optionally
+    gated by a power var (dark without avionics power), like the gear LEDs — so any
+    custom panel maps its own lamps and readouts without a bespoke controller.
     """
 
     type: Literal["generic_panel"] = "generic_panel"
     length: int = Field(1, ge=1, description="Number of DATA bytes (excluding report id).")
     leds: list[GenericLed] = Field(default_factory=list)
-    power: str | None = Field(None, description="Optional bool var gating all LEDs.")
+    displays: list[GenericDisplay] = Field(default_factory=list)
+    power: str | None = Field(None, description="Optional bool var gating LEDs + displays.")
 
     def simvars(self) -> list[str]:
-        names = [led.var for led in self.leds]
+        names = [led.var for led in self.leds] + [d.var for d in self.displays]
         if self.power is not None:
             names.append(self.power)
         return names
