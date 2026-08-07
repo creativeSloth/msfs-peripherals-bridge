@@ -67,3 +67,12 @@ def output_templates_file() -> Path:
     Per-user, outside the repo.
     """
     return _user_config_dir() / "output-templates.yaml"
+
+
+def panel_layouts_file() -> Path:
+    """Per-device Nachbau layout overrides (the mapper's "Anordnen" edit mode).
+
+    Where the user dragged each element, keyed by device id + element key, on top
+    of the generated hand layout. Per-user, outside the repo.
+    """
+    return _user_config_dir() / "panel-layouts.yaml"

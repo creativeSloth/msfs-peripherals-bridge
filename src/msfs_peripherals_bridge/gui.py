@@ -1589,6 +1589,14 @@ def run() -> None:
     view_btn.pack(side="right", padx=(0, 8))
     _attach_tooltip(view_btn, tr("Zwischen Tabelle und Panel-Nachbau umschalten "
                                  "(Schalter/LEDs an ihrer physischen Position)."))
+    # Edit mode ("Anordnen"): drag elements onto a grid; only useful in panel view.
+    edit_btn = ttk.Button(mhdr, text=tr("✎ Anordnen"),
+                          command=lambda: _toggle_edit())
+    _attach_tooltip(edit_btn, tr("Elemente frei anordnen: im Nachbau die Knöpfe/"
+                                 "Anzeigen ins Raster ziehen. Pro Gerät gespeichert."))
+    reset_layout_btn = ttk.Button(mhdr, text=tr("↺"),
+                                  command=lambda: _reset_layout())
+    _attach_tooltip(reset_layout_btn, tr("Anordnung dieses Geräts zurücksetzen."))
 
     # left: one row per catalog device (bus, connected?, #bindings, #outputs)
     dev_tree = ttk.Treeview(mtab, columns=("bus", "status", "b", "o"),
@@ -1634,7 +1642,10 @@ def run() -> None:
     panel_vsb.grid(row=1, column=2, sticky="ns", pady=6)
     panel_vsb.grid_remove()
     panel_canvas.configure(yscrollcommand=panel_vsb.set)
-    pcanvas: dict = {"by_index": {}, "live": {}, "device": None, "hint": None}
+    pcanvas: dict = {"by_index": {}, "live": {}, "device": None, "hint": None,
+                     "edit": False, "W": 0.0, "H": 0.0, "pad": 8,
+                     "drag": {"n": None, "sx": 0.0, "sy": 0.0, "moved": False}}
+    _PANEL_GRID = 1 / 24  # snap step + visible grid spacing in edit mode
 
     # discovery is lazy (only when the tab is first shown) so startup stays fast.
     mstate: dict[str, object] = {"present": None, "discovered": False, "profile": None,
@@ -4189,10 +4200,21 @@ def run() -> None:
             c.create_text(pad, pad, anchor="nw", fill=MUTED,
                           text=tr("Für dieses Gerät gibt es noch keinen Nachbau."))
             return
+        # Overlay the user's drag-rearrangement (edit mode) on the generated layout.
+        from .mapping.loader import load_panel_layout
+        els = panel_layout.apply_layout_overrides(els, load_panel_layout(device_id))
         # y is in "viewport" units (1.0 = one canvas height): a layout taller than
         # 1.0 (the radio panel) becomes scrollable content below the fold.
         content = max(1.0, max(el.y + el.h for el in els))
         W, H = cw - 2 * pad, ch - 2 * pad
+        pcanvas["W"], pcanvas["H"], pcanvas["pad"] = W, H, pad
+        if pcanvas["edit"]:  # faint snap grid behind the elements
+            step = _PANEL_GRID
+            k = 0
+            while k * step <= 1.0001:
+                gx = pad + k * step * W
+                c.create_line(gx, pad, gx, pad + content * H, fill="#e8e8e8")
+                k += 1
         for n, el in enumerate(els):
             tag = f"pel:{n}"
             pcanvas["by_index"][n] = el
@@ -4205,8 +4227,10 @@ def run() -> None:
             c.yview_moveto(0.0)  # nothing to scroll
         pcanvas["hint"] = c.create_text(
             pad, content_px - 4, anchor="sw", fill=MUTED, font=("TkDefaultFont", 8),
-            text=tr("Klick: gemappt → Editor, leerer Platzhalter → neu mappen · "
-                    "Schalter/Achsen live"))
+            text=(tr("Anordnen: Element ins Raster ziehen · „✎ Anordnen“ zum Beenden")
+                  if pcanvas["edit"] else
+                  tr("Klick: gemappt → Editor, leerer Platzhalter → neu mappen · "
+                     "Schalter/Achsen live")))
 
     def _panel_el_at(_event):
         """The PanelElement under the cursor, via the shared per-element tag."""
@@ -4214,6 +4238,50 @@ def run() -> None:
             if t.startswith("pel:"):
                 return pcanvas["by_index"].get(int(t.split(":")[1]))
         return None
+
+    def _panel_idx_at(_event):
+        for t in panel_canvas.gettags("current"):
+            if t.startswith("pel:"):
+                return int(t.split(":")[1])
+        return None
+
+    def _panel_press(event):
+        if pcanvas["edit"]:  # edit mode: begin dragging the element under the cursor
+            n = _panel_idx_at(event)
+            el = pcanvas["by_index"].get(n) if n is not None else None
+            cx, cy = panel_canvas.canvasx(event.x), panel_canvas.canvasy(event.y)
+            pcanvas["drag"].update(n=n, sx=cx, sy=cy, lx=cx, ly=cy,
+                                   ox=(el.x if el else 0.0), oy=(el.y if el else 0.0),
+                                   moved=False)
+            return
+        _panel_click(event)
+
+    def _panel_drag(event):
+        d = pcanvas["drag"]
+        if not pcanvas["edit"] or d["n"] is None:
+            return
+        cx, cy = panel_canvas.canvasx(event.x), panel_canvas.canvasy(event.y)
+        panel_canvas.move(f"pel:{d['n']}", cx - d["lx"], cy - d["ly"])
+        d["lx"], d["ly"], d["moved"] = cx, cy, True
+
+    def _panel_drop(event):
+        d = pcanvas["drag"]
+        if not pcanvas["edit"] or d["n"] is None:
+            return
+        n = d["n"]
+        d["n"] = None
+        el = pcanvas["by_index"].get(n)
+        if el is None or not d["moved"]:
+            return
+        # New position = original + total pixel delta, back to normalised, snapped.
+        W, H = pcanvas["W"] or 1, pcanvas["H"] or 1
+        nx = d["ox"] + (panel_canvas.canvasx(event.x) - d["sx"]) / W
+        ny = d["oy"] + (panel_canvas.canvasy(event.y) - d["sy"]) / H
+        nx = max(0.0, min(1.0 - el.w, panel_layout.snap(nx, _PANEL_GRID)))
+        ny = max(0.0, panel_layout.snap(ny, _PANEL_GRID))
+        from .mapping.loader import save_panel_layout_override
+        save_panel_layout_override(pcanvas["device"], panel_layout.element_key(el), nx, ny)
+        _render_panel_canvas(pcanvas["device"])
 
     def _panel_click(event):
         el = _panel_el_at(event)
@@ -4253,6 +4321,23 @@ def run() -> None:
             txt = f"{el.label} — " + tr("nicht gemappt")
         panel_canvas.itemconfigure(pcanvas["hint"], text=txt)
 
+    def _toggle_edit():
+        pcanvas["edit"] = not pcanvas["edit"]
+        edit_btn.config(text=tr("✓ Fertig") if pcanvas["edit"] else tr("✎ Anordnen"))
+        _render_panel_canvas(pcanvas["device"] or _sel(dev_tree))
+
+    def _reset_layout():
+        dev = pcanvas["device"] or _sel(dev_tree)
+        if not dev:
+            return
+        if messagebox.askyesno(tr("Anordnung zurücksetzen"),
+                               tr("Die eigene Anordnung dieses Geräts verwerfen und "
+                                  "zum Standard-Nachbau zurück?")):
+            from .mapping.loader import clear_panel_layout
+
+            clear_panel_layout(dev)
+            _render_panel_canvas(dev)
+
     def _apply_view():
         """Show whichever of the table / reconstruction the current mode selects."""
         if mstate["view"] == "panel":
@@ -4261,12 +4346,19 @@ def run() -> None:
             panel_canvas.grid()
             panel_vsb.grid()
             view_btn.config(text=tr("Tabelle"))
+            edit_btn.pack(side="right", padx=(0, 8))
+            reset_layout_btn.pack(side="right", padx=(0, 4))
         else:
             panel_canvas.grid_remove()
             panel_vsb.grid_remove()
             detail.grid()
             dsb.grid()
             view_btn.config(text=tr("Nachbau"))
+            edit_btn.pack_forget()
+            reset_layout_btn.pack_forget()
+            if pcanvas["edit"]:  # leaving the reconstruction ends edit mode
+                pcanvas["edit"] = False
+                edit_btn.config(text=tr("✎ Anordnen"))
 
     def _panel_wheel(event):
         # scroll the tall reconstructions (radio); Linux = Button-4/5, else delta
@@ -4284,7 +4376,9 @@ def run() -> None:
         if mstate["view"] == "panel":
             _render_panel_canvas(_sel(dev_tree))
 
-    panel_canvas.bind("<Button-1>", _panel_click)
+    panel_canvas.bind("<Button-1>", _panel_press)
+    panel_canvas.bind("<B1-Motion>", _panel_drag)
+    panel_canvas.bind("<ButtonRelease-1>", _panel_drop)
     panel_canvas.bind("<Motion>", _panel_hover)
     panel_canvas.bind(
         "<Configure>",

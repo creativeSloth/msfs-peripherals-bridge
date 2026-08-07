@@ -2,6 +2,12 @@
 
 > Kurzer Einstiegspunkt: was läuft, was offen ist, wie es weitergeht.
 >
+> ## CUT 2026-08-07 (spät) — NACHBAU-EDITOR (Drag/Raster) gebaut, 399 Tests grün, ruff clean
+> **User wählte „Nachbau-Editor (Drag/Raster)" als Nordstern-Nächstes** (statt Schritt E). **⑤ gebaut (uncommitted bis nächster Commit):** der **Bearbeitungsmodus** — Knöpfe/Anzeigen im Geräte-Nachbau frei ins Raster ziehen, pro Gerät persistent.
+> - **Pure Logik** (`panel_layout.py`, 4 Tests): `element_key(el)` (stabile ID: physisch `(kind,code)` → `ref` → kind+label), `snap(value, step)` (Raster-Rundung, KEIN Clamp wegen scrollbarem Radio), `apply_layout_overrides(els, {key:(x,y)})` (ersetzt x/y der getroffenen Elemente, `replace()`, unmutiert).
+> - **Persistenz** (`config.panel_layouts_file()` = `~/.config/.../panel-layouts.yaml`; `loader.load_panel_layout(dev)/save_panel_layout_override(dev,key,x,y)/clear_panel_layout(dev)`; Schema `{devices:{dev:{key:[x,y]}}}`).
+> - **GUI** (gui.py Mapper): Header-Buttons **„✎ Anordnen" / „✓ Fertig"** + **„↺"** (Reset, mit Rückfrage), nur im Nachbau sichtbar (via `_apply_view`). `pcanvas["edit"]`; im Edit-Modus feines Raster (`_PANEL_GRID=1/24`) hinter den Elementen; `<Button-1>`→`_panel_press` (Edit: Drag start, sonst alter Klick), `<B1-Motion>`→`_panel_drag` (Element per Tag `pel:n` mitziehen), `<ButtonRelease-1>`→`_panel_drop` (Original + Pixel-Delta → normiert → `snap` → clamp x∈[0,1-w], y≥0 → `save_panel_layout_override` → re-render). `_render_panel_canvas` legt die Overrides über das generierte Layout. Verlassen der Nachbau-Ansicht beendet Edit. **🔴 GUI visuell UNGEPRÜFT** (Canvas-Drag braucht Display) — pure Logik+Persistenz getestet, py_compile+Import ok.
+>
 > ## CUT 2026-08-07 — SCHRITT A + evdev-SCAN + SICHERUNG + MAPPER-KNOPF-UMBAU, 395 Tests grün, ruff clean
 > **COMMITTET & GEPUSHT** (`feat/mapper-panel-nachbau`, ab `9a52c35` origin bis `5f9e611`): `0c84e58` Schritt A (`template_elements`) · `d9c215b` evdev-Achsen-Capture · `095c182` evdev-Button/Switch/Encoder-Capture · `f19f6c9` STATUS · `de6a64d` Sicherung+Tools · `5f9e611` Mapper-Knopf-Umbau (④).
 > **④ SICHERUNG + MAPPER-KNOPF-UMBAU (User-Anforderung „Angst vor Datenverlust" + „Knöpfe besser gruppieren"):**

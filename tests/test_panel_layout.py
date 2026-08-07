@@ -277,3 +277,59 @@ def test_radio_panel_unit_has_two_rings_and_a_separate_swap_button():
 
 def test_unknown_device_is_empty():
     assert panel_layout(PROFILE, "does_not_exist") == []
+
+
+# --------------------------------------------------------------------------- #
+# Edit mode: element_key / snap / apply_layout_overrides
+# --------------------------------------------------------------------------- #
+def test_element_key_prefers_physical_then_ref_then_label():
+    from msfs_peripherals_bridge.panel_layout import PanelElement, element_key
+
+    phys = PanelElement(SWITCH, "BAT", 0, 0, 0.1, 0.1, code=0, live_key=("switch", 0))
+    assert element_key(phys) == "switch:0"  # physical code -> stable across reorder
+    out = PanelElement(LED, "N", 0, 0, 0.1, 0.1, ref="out:2")
+    assert element_key(out) == "out:2"
+    bare = PanelElement(HEADER, "Schalter", 0, 0, 1.0, 0.05)
+    assert element_key(bare) == "header:Schalter"
+
+
+def test_snap_rounds_to_nearest_step():
+    from msfs_peripherals_bridge.panel_layout import snap
+
+    assert abs(snap(0.10, 0.05) - 0.10) < 1e-9
+    assert abs(snap(0.12, 0.05) - 0.10) < 1e-9
+    assert abs(snap(0.13, 0.05) - 0.15) < 1e-9
+    assert snap(0.42, 0) == 0.42  # step<=0 -> passthrough (no clamping)
+
+
+def test_apply_layout_overrides_moves_only_matching_elements():
+    from msfs_peripherals_bridge.panel_layout import PanelElement, apply_layout_overrides
+
+    els = [
+        PanelElement(SWITCH, "BAT", 0.0, 0.0, 0.1, 0.1, code=0, live_key=("switch", 0)),
+        PanelElement(SWITCH, "ALT", 0.1, 0.0, 0.1, 0.1, code=1, live_key=("switch", 1)),
+    ]
+    moved = apply_layout_overrides(els, {"switch:0": (0.5, 0.5)})
+    assert (moved[0].x, moved[0].y) == (0.5, 0.5)  # BAT moved
+    assert (moved[1].x, moved[1].y) == (0.1, 0.0)  # ALT untouched
+    assert els[0].x == 0.0  # original list is not mutated (frozen dataclass)
+
+
+def test_panel_layout_persistence_round_trip(tmp_path):
+    from msfs_peripherals_bridge.mapping.loader import (
+        clear_panel_layout,
+        load_panel_layout,
+        save_panel_layout_override,
+    )
+
+    path = tmp_path / "panel-layouts.yaml"
+    assert load_panel_layout("switch_panel", path) == {}
+    save_panel_layout_override("switch_panel", "switch:0", 0.5, 0.25, path=path)
+    save_panel_layout_override("switch_panel", "out:1", 0.1, 0.9, path=path)
+    save_panel_layout_override("multi_panel", "button:7", 0.2, 0.2, path=path)
+    loaded = load_panel_layout("switch_panel", path)
+    assert loaded == {"switch:0": (0.5, 0.25), "out:1": (0.1, 0.9)}
+
+    clear_panel_layout("switch_panel", path=path)
+    assert load_panel_layout("switch_panel", path) == {}
+    assert load_panel_layout("multi_panel", path) == {"button:7": (0.2, 0.2)}  # kept

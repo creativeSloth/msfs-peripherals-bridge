@@ -138,6 +138,57 @@ def delete_output_template(name: str, path: Path | None = None) -> Path:
     return path
 
 
+def load_panel_layout(device_id: str, path: Path | None = None) -> dict[str, tuple[float, float]]:
+    """Load one device's Nachbau layout overrides ``{element_key: (x, y)}``.
+
+    Empty dict when nothing was rearranged. Consumed by
+    :func:`..panel_layout.apply_layout_overrides`.
+    """
+    if path is None:
+        from .. import config
+
+        path = config.panel_layouts_file()
+    if not path.exists():
+        return {}
+    data = yaml.safe_load(path.read_text(encoding="utf-8")) or {}
+    dev = (data.get("devices", {}) or {}).get(device_id, {}) or {}
+    return {k: (float(v[0]), float(v[1])) for k, v in dev.items()}
+
+
+def save_panel_layout_override(
+    device_id: str, key: str, x: float, y: float, path: Path | None = None
+) -> Path:
+    """Persist where one element was dragged (device id + element key -> x, y)."""
+    if path is None:
+        from .. import config
+
+        path = config.panel_layouts_file()
+    data = {}
+    if path.exists():
+        data = yaml.safe_load(path.read_text(encoding="utf-8")) or {}
+    devices = data.setdefault("devices", {})
+    devices.setdefault(device_id, {})[key] = [round(x, 4), round(y, 4)]
+    path.parent.mkdir(parents=True, exist_ok=True)
+    path.write_text(yaml.safe_dump(data, sort_keys=False, allow_unicode=True),
+                    encoding="utf-8")
+    return path
+
+
+def clear_panel_layout(device_id: str, path: Path | None = None) -> Path:
+    """Drop all layout overrides for a device (reset to the generated layout)."""
+    if path is None:
+        from .. import config
+
+        path = config.panel_layouts_file()
+    if path.exists():
+        data = yaml.safe_load(path.read_text(encoding="utf-8")) or {}
+        if device_id in data.get("devices", {}):
+            del data["devices"][device_id]
+            path.write_text(yaml.safe_dump(data, sort_keys=False, allow_unicode=True),
+                            encoding="utf-8")
+    return path
+
+
 def load_profile(path: Path) -> Profile:
     """Parse a single aircraft profile YAML file."""
     data = yaml.safe_load(path.read_text(encoding="utf-8")) or {}

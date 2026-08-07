@@ -18,7 +18,7 @@ value monitor, not the raw hidraw state).
 
 from __future__ import annotations
 
-from dataclasses import dataclass
+from dataclasses import dataclass, replace
 from math import ceil, sqrt
 
 from .gui_mapper import describe_action, output_groups, output_nodes
@@ -531,3 +531,42 @@ def panel_layout(profile: Profile, device_id: str) -> list[PanelElement]:
     if builder is not None:
         return builder(binds, outs)
     return _device_layout(binds, outs)
+
+
+# --------------------------------------------------------------------------- #
+# Edit mode ("Bearbeitungsmodus"): drag elements onto a grid, persist per device
+# --------------------------------------------------------------------------- #
+def element_key(el: PanelElement) -> str:
+    """Stable id for storing a per-element layout override.
+
+    Prefers the physical ``(kind, code)`` (survives binding reorder/removal), then
+    the detail-tree ``ref`` (outputs), then kind+label. Pure.
+    """
+    if el.live_key is not None:
+        return f"{el.live_key[0]}:{el.live_key[1]}"
+    if el.ref:
+        return el.ref
+    return f"{el.kind}:{el.label}"
+
+
+def snap(value: float, step: float) -> float:
+    """Snap a coordinate to the nearest grid line. Pure; caller clamps the range
+    (y is unbounded for the tall, scrollable radio panel)."""
+    if step <= 0:
+        return value
+    return round(value / step) * step
+
+
+def apply_layout_overrides(
+    elements: list[PanelElement], overrides: dict[str, tuple[float, float]]
+) -> list[PanelElement]:
+    """Return elements with x/y replaced from ``{element_key: (x, y)}``. Pure.
+
+    Elements without an override keep their generated position, so a partial
+    rearrangement (or a stale override after the profile changed) degrades cleanly.
+    """
+    out: list[PanelElement] = []
+    for el in elements:
+        ov = overrides.get(element_key(el))
+        out.append(replace(el, x=ov[0], y=ov[1]) if ov is not None else el)
+    return out
