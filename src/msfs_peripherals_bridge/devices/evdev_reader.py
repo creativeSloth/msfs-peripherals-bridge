@@ -55,6 +55,24 @@ def discover(catalog: DeviceCatalog) -> dict[str, str]:
     return found
 
 
+def winning_axis(
+    spans: dict[int, tuple[int, int]], min_span: int = 8
+) -> int | None:
+    """Pick the axis that moved the most from accumulated ``{code: (min, max)}``; pure.
+
+    The evdev analogue of :func:`hidraw_reader.winning_code` for the element-scan
+    wizard: while the user works one axis full-travel, every ABS channel's observed
+    min/max is accumulated; the actuated axis has by far the widest span. Returns
+    the widest-span code, or ``None`` if even the widest stayed below ``min_span``
+    (nothing moved yet / idle jitter — a hat's ±1 span is filtered out this way).
+    """
+    if not spans:
+        return None
+    code = max(spans, key=lambda k: spans[k][1] - spans[k][0])
+    lo, hi = spans[code]
+    return code if hi - lo >= min_span else None
+
+
 def axis_value_reader(path: str, code: int):
     """Open ``path`` and return a zero-arg callable giving that axis's live raw value.
 

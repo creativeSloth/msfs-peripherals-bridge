@@ -1695,6 +1695,14 @@ def run() -> None:
         if ddef.transport == "hidraw":
             with contextlib.suppress(Exception):
                 path = hidraw_reader.discover(cat).get(device_id)
+        # evdev axes (yoke/pedals/quadrant) are captured live via a separate path;
+        # the hidraw edge reader only sees the Saitek panels.
+        evdev_path = None
+        if ddef.transport == "evdev":
+            with contextlib.suppress(Exception):
+                from .devices import evdev_reader
+
+                evdev_path = evdev_reader.discover(cat).get(device_id)
 
         sc = tk.Toplevel(win)
         _open_input_scan._win = sc
@@ -1836,22 +1844,96 @@ def run() -> None:
             if kind == "encoder":
                 b = InputBlock(kind="encoder", name=nm.strip(),
                                cw=cap.get("cw"), ccw=cap.get("ccw"))
+            elif kind == "axis":
+                b = InputBlock(kind="axis", name=nm.strip(), code=cap.get("code"),
+                               raw_min=cap.get("raw_min"), raw_max=cap.get("raw_max"))
             else:
                 b = InputBlock(kind=kind, name=nm.strip(), code=cap.get("code"))
             inputs.append(b)
             _persist()
             _refill()
 
+        def _capture_axis(on_done):
+            """Live-capture one evdev axis: move it full-travel, keep the widest span.
+
+            The hidraw edge reader can't see evdev axes; this polls the axis state,
+            accumulates each ABS channel's min/max, and picks the moved axis
+            (:func:`evdev_reader.winning_axis`) so its raw range is captured as
+            calibration. A hat's ±1 span is filtered out by the span threshold.
+            """
+            if evdev_path is None:
+                messagebox.showinfo(
+                    tr("Achse anlernen"),
+                    tr("Achsen-Anlernen geht nur für angesteckte evdev-Geräte "
+                       "(Yoke/Pedale/Quadrant)."))
+                return
+            from .devices import evdev_reader
+
+            opened = evdev_reader.live_state_reader(evdev_path)
+            if opened is None:
+                messagebox.showinfo(tr("Achse anlernen"), tr("Gerät nicht lesbar."))
+                return
+            read, _ranges = opened
+            spans: dict[int, tuple[int, int]] = {}
+            cw = tk.Toplevel(sc)
+            cw.transient(sc)
+            cw.title(tr("Achse anlernen"))
+            frm = ttk.Frame(cw, padding=12)
+            frm.pack(fill="both", expand=True)
+            ttk.Label(frm, font=("TkDefaultFont", 11, "bold"), wraplength=380,
+                      justify="left",
+                      text=tr("Achse von Anschlag zu Anschlag bewegen.")).pack(anchor="w")
+            found = ttk.Label(frm, foreground="#2e7d32")
+            found.pack(anchor="w", pady=(4, 6))
+            st: dict = {"win": None}
+
+            def _poll():
+                if not cw.winfo_exists():
+                    return
+                state = read()
+                if state is None:
+                    found.config(text=tr("Gerät getrennt."))
+                    return
+                for (kind, code), val in state.items():
+                    if kind != "axis":
+                        continue
+                    lo, hi = spans.get(code, (val, val))
+                    spans[code] = (min(lo, val), max(hi, val))
+                w = evdev_reader.winning_axis(spans)
+                if w is not None:
+                    st["win"] = w
+                    lo, hi = spans[w]
+                    found.config(text=f"{tr('erkannt')}: {tr('Achse')} {w} [{lo}..{hi}]")
+                    b_ok.config(state="normal")
+                cw.after(80, _poll)
+
+            def _finish():
+                w = st["win"]
+                cw.destroy()
+                if w is not None:
+                    lo, hi = spans[w]
+                    on_done({"code": w, "raw_min": lo, "raw_max": hi})
+
+            row = ttk.Frame(frm)
+            row.pack(anchor="w")
+            b_ok = ttk.Button(row, text=tr("Fertig"), command=_finish, state="disabled")
+            b_ok.pack(side="left")
+            ttk.Button(row, text=tr("Abbrechen"), command=cw.destroy).pack(side="left", padx=6)
+            _poll()
+            cw.lift()
+
         # INPUT (read) — button, switch and encoder are the same operation; the
         # encoder is just a multi-step scan (per user: the encoder IS an input type).
+        # An axis is captured differently (evdev live range, not a hidraw edge code).
         def _add_input(kind):
+            if kind == "axis":
+                _capture_axis(lambda c: _name_and_add("axis", c))
+                return
             if kind == "encoder":
                 steps = [("cw", tr("Encoder im Uhrzeigersinn drehen.")),
                          ("ccw", tr("Encoder gegen den Uhrzeigersinn drehen."))]
             elif kind == "switch":
                 steps = [("code", tr("Schalter mehrmals umlegen."))]
-            elif kind == "axis":
-                steps = [("code", tr("Achse deutlich bewegen."))]
             else:
                 steps = [("code", tr("Drücke den Knopf mehrmals."))]
             _capture(steps, lambda c: _name_and_add(kind, c))
