@@ -2290,6 +2290,111 @@ def run() -> None:
         err = ttk.Label(frm, foreground="#c62828")
         err.grid(row=6, column=0, columnspan=2, sticky="w", pady=(6, 0))
 
+        def _scan_address():
+            """Schritt D output scan: walk the report address space with a live test
+            impulse; when the user's LED/cell lights, capture its byte/bit (LED) or
+            offset (display) into the fields. Needs the panel present + mapper stopped."""
+            cat = _device_catalog()
+            ddef = cat.by_id(dev) if cat else None
+            if ddef is None or ddef.transport != "hidraw":
+                err.config(text=tr("Ausgang-Scan geht nur für angesteckte hidraw-Panels."))
+                return
+            from .devices import hidraw_reader
+            from .mapping import panel_probe
+
+            def _path():
+                with contextlib.suppress(Exception):
+                    return hidraw_reader.discover(_device_catalog()).get(dev)
+                return None
+
+            sw = tk.Toplevel(dlg)
+            sw.transient(dlg)
+            sw.title(tr("Ausgang-Scan"))
+            sf = ttk.Frame(sw, padding=12)
+            sf.pack(fill="both", expand=True)
+            ttk.Label(sf, wraplength=420, justify="left", foreground="#555",
+                      text=tr("Ein Testimpuls wandert über die Report-Adressen. Sobald am "
+                              "Gerät die richtige LED/Ziffer aufleuchtet: „Das ist es!“. "
+                              "Nur wenn der Mapper NICHT läuft.")).pack(anchor="w")
+            lenrow = ttk.Frame(sf)
+            lenrow.pack(anchor="w", pady=(6, 0))
+            ttk.Label(lenrow, text=tr("Report-Bytes:")).pack(side="left")
+            len_v = tk.IntVar(value=12)
+            ttk.Spinbox(lenrow, from_=1, to=64, width=5,
+                        textvariable=len_v).pack(side="left", padx=6)
+            cur = ttk.Label(sf, font=("TkDefaultFont", 12, "bold"))
+            cur.pack(anchor="w", pady=(8, 2))
+            warn2 = ttk.Label(sf, foreground="#c62828", wraplength=420)
+            warn2.pack(anchor="w")
+            st = {"i": 0, "targets": []}
+
+            def _targets(length):
+                return (panel_probe.generic_led_targets(length) if kind == "led"
+                        else panel_probe.generic_cell_targets(length))
+
+            def _probe():
+                if _mapper_running():
+                    warn2.config(text=tr("⚠ Der Mapper läuft — erst im Connection-Tab stoppen."))
+                    return
+                path = _path()
+                if path is None:
+                    warn2.config(text=f"„{dev}“ {tr('nicht gefunden — angesteckt?')}")
+                    return
+                length = max(1, len_v.get())
+                st["targets"] = _targets(length)
+                if not st["targets"]:
+                    return
+                t = st["targets"][st["i"] % len(st["targets"])]
+                report = (panel_probe.generic_led_report(length, t[0], t[1]) if kind == "led"
+                          else panel_probe.generic_cell_report(length, t))
+                try:
+                    hidraw_reader.write_feature_report(path, report)
+                except OSError as exc:
+                    warn2.config(text=f"{tr('Senden fehlgeschlagen:')} {exc}")
+                    return
+                warn2.config(text="")
+                cur.config(text=(f"{tr('Adresse')}: Byte {t[0]} · Bit {t[1]}" if kind == "led"
+                                 else f"{tr('Adresse')}: Zelle @ Byte {t}"))
+
+            def _blank():
+                with contextlib.suppress(Exception):
+                    hidraw_reader.write_feature_report(_path(), panel_probe.generic_blank(
+                        max(1, len_v.get())))
+
+            def _next():
+                st["i"] += 1
+                _probe()
+
+            def _found():
+                tgts = st["targets"]
+                if not tgts:
+                    return
+                t = tgts[st["i"] % len(tgts)]
+                if kind == "led":
+                    fields["byte"].set(str(t[0]))
+                    fields["bit"].set(str(t[1]))
+                else:
+                    fields["offset"].set(str(t))
+                _blank()
+                sw.destroy()
+
+            def _close():
+                _blank()
+                sw.destroy()
+
+            br2 = ttk.Frame(sf)
+            br2.pack(anchor="w", pady=(10, 0))
+            ttk.Button(br2, text=tr("Weiter"), command=_next).pack(side="left")
+            ttk.Button(br2, text=tr("Das ist es!"), command=_found).pack(side="left", padx=6)
+            ttk.Button(br2, text=tr("Abbrechen"), command=_close).pack(side="left")
+            sw.protocol("WM_DELETE_WINDOW", _close)
+            _probe()
+            sw.lift()
+            sw.focus_force()
+
+        ttk.Button(frm, text=tr("🔦 Adresse finden…"), command=_scan_address).grid(
+            row=5, column=1, sticky="w", pady=(4, 0))
+
         def _save():
             v = var.get().strip()
             if not v:

@@ -111,3 +111,37 @@ def test_radio_targets_are_twenty_cells_with_dot_variant():
     assert all(t.dot_report is not None for t in ts)  # cells can flash their dot
     # four display groups (upper/lower x active/standby)
     assert len({t.group for t in ts}) == 4
+
+
+# --------------------------------------------------------------------------- #
+# Schritt D — generic output-scan probes (parameterised by report length)
+# --------------------------------------------------------------------------- #
+def test_generic_led_report_sets_only_one_bit():
+    from msfs_peripherals_bridge.mapping.panel_probe import generic_led_report
+
+    assert generic_led_report(3, 1, 3) == bytes([0x00, 0x00, 0x08, 0x00])
+    assert generic_led_report(2, 0, 0) == bytes([0x00, 0x01, 0x00])
+    # out-of-range address -> all blank, never an index error
+    assert generic_led_report(2, 5, 0) == bytes([0x00, 0x00, 0x00])
+
+
+def test_generic_cell_report_shows_eight_with_optional_dot():
+    from msfs_peripherals_bridge.mapping.display import DOT
+    from msfs_peripherals_bridge.mapping.panel_probe import TEST_GLYPH, generic_cell_report
+
+    assert generic_cell_report(3, 2) == bytes([0x00, 0x00, 0x00, TEST_GLYPH])
+    assert generic_cell_report(3, 2, dot=True) == bytes([0x00, 0x00, 0x00, TEST_GLYPH + DOT])
+
+
+def test_generic_blank_and_target_enumeration():
+    from msfs_peripherals_bridge.mapping.panel_probe import (
+        generic_blank,
+        generic_cell_targets,
+        generic_led_targets,
+    )
+
+    assert generic_blank(4) == bytes([0x00, 0x00, 0x00, 0x00, 0x00])  # id + 4 data
+    assert generic_led_targets(2) == [(0, 0), (0, 1), (0, 2), (0, 3), (0, 4), (0, 5),
+                                      (0, 6), (0, 7), (1, 0), (1, 1), (1, 2), (1, 3),
+                                      (1, 4), (1, 5), (1, 6), (1, 7)]
+    assert generic_cell_targets(3) == [0, 1, 2]

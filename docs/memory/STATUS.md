@@ -2,6 +2,12 @@
 
 > Kurzer Einstiegspunkt: was läuft, was offen ist, wie es weitergeht.
 >
+> ## CUT 2026-08-07 (spät⁴) — SCHRITT D (Ausgang-Scan) fertig, 413 Tests grün, ruff clean
+> **User-Auftrag „mach Schritt D".** **⑧ gebaut (uncommitted bis nächster Commit):** der **Ausgang-Scan** — Testimpuls wandert über die Report-Adressen, User bestätigt „das ist es!", Byte/Bit bzw. Offset werden automatisch gefüllt (statt manuell).
+> - **Reine Probe-Funktionen** (`mapping/panel_probe.py`, generisch nach Report-Länge, 3 Tests): `generic_led_report(length, byte, bit)` (nur 1 Bit), `generic_cell_report(length, offset, dot=)` (Ziffer „8" in einer Zelle), `generic_blank(length)`, `generic_led_targets(length)`→`[(byte,bit)]` (byte-major), `generic_cell_targets(length)`→`[offset]`. (Die Saitek-`probe_targets` bleiben der Spezialfall mit bekanntem Layout.)
+> - **GUI-Scan** im „+ Ausgabe"-Dialog (`_add_generic_output._scan_address`): Button **„🔦 Adresse finden…"** → Fenster mit „Report-Bytes"-Spinner, läuft die Adressen mit `write_feature_report` ab (LED: Byte·Bit / Display: Zelle@Byte), **„Weiter" / „Das ist es!" / „Abbrechen"**; „Das ist es!" schreibt Byte/Bit bzw. Offset in die Dialogfelder, blankt und schließt. Gesperrt wenn Mapper läuft (`_mapper_running`) oder Panel fehlt; reused `hidraw_reader.discover/write_feature_report`. **🔴 HW-interaktiv → visuell/am Gerät UNGEPRÜFT** (reine Funktionen getestet, py_compile+Import ok).
+> **🔴 SCHRITT E/NORDSTERN — REST:** (1) **Nachbau-only**: Rechtsklick-Kontextmenü am Element (Bearbeiten/Entfernen/Duplizieren), dann Tabelle+„Tabelle↔Nachbau"-Umschalter raus (Workflow-Doku-Entscheidung). (2) Saitek-Panels perspektivisch auf `generic_panel` heben (Endspiel, optional). (3) Glow-aus-Sim im Nachbau (Anzeigen zeigen gelesenen Wert).
+>
 > ## CUT 2026-08-07 (spät³) — SCHRITT E.2 (Display-Zellen) + „+ Ausgabe"-GUI, 410 Tests grün, ruff clean
 > **User-Auftrag „mach E.2 und die GUI dazu".** **⑦ gebaut (uncommitted bis nächster Commit):**
 > - **E.2 Laufzeit** (`models.GenericDisplay` = var/offset/cells/decimals; `GenericPanelOutput.displays`): der `GenericPanelController.render()` rendert jetzt auch **7-Segment-Displays** — Var → Zellen via `display.format_row` (Ganzzahl, inkl. Minus) bzw. `format_measure` (Dezimal + Punkt), blank bei unbekannt/Overflow/ohne Power. LEDs + Displays teilen sich einen Report; `simvars()`+`subscriptions()` decken beide ab. 4 neue Tests (Ganzzahl rechtsbündig, Dezimalpunkt, LED+Display+Power+subs).

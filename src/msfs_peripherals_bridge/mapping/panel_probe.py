@@ -149,3 +149,40 @@ def probe_targets(output: Output) -> list[TestTarget]:
                 ))
         return targets
     return []
+
+
+# --------------------------------------------------------------------------- #
+# Schritt D — output scan for UNKNOWN devices: walk the report address space,
+# light one candidate at a time, let the user confirm which element it is. The
+# builders are parameterised by the device's report length (the Saitek probes
+# above are the special case where the layout is already known).
+# --------------------------------------------------------------------------- #
+def generic_blank(length: int) -> bytes:
+    """All-off feature report for a device with ``length`` data bytes."""
+    return bytes([_REPORT_ID, *([0x00] * length)])
+
+
+def generic_led_report(length: int, byte: int, bit: int) -> bytes:
+    """Set ONLY ``bit`` of data ``byte`` (everything else 0x00) — probe one LED."""
+    data = bytearray(length)
+    if 0 <= byte < length and 0 <= bit <= 7:
+        data[byte] |= 1 << bit
+    return bytes([_REPORT_ID, *data])
+
+
+def generic_cell_report(length: int, offset: int, *, dot: bool = False) -> bytes:
+    """Show ``8`` in the cell at data-byte ``offset`` (others 0x00) — probe one cell."""
+    data = bytearray(length)
+    if 0 <= offset < length:
+        data[offset] = TEST_GLYPH + (DOT if dot else 0)
+    return bytes([_REPORT_ID, *data])
+
+
+def generic_led_targets(length: int) -> list[tuple[int, int]]:
+    """Every ``(byte, bit)`` address to walk when hunting an LED (byte-major)."""
+    return [(b, bit) for b in range(length) for bit in range(8)]
+
+
+def generic_cell_targets(length: int) -> list[int]:
+    """Every data-byte ``offset`` to walk when hunting a display cell."""
+    return list(range(length))
