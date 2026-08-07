@@ -1762,12 +1762,16 @@ def run() -> None:
             add_device_overlay(ddef.model_copy(update={"inputs": inputs, "outputs": outputs}))
             _mapper_reload(rediscover=False, keep_device=device_id)
 
-        def _capture(steps, on_done):
-            if path is None:
-                messagebox.showinfo(tr("Eingänge scannen"),
-                                    tr("Live-Anlernen geht hier nur für angesteckte "
-                                       "hidraw-Panels. (evdev-Achsen folgen.)"))
-                return
+        def _capture(steps, on_done, opener=None):
+            # opener() -> (read, close) | None; read() -> {code: edge_count}. Default
+            # is the hidraw edge reader; evdev button/switch/encoder pass their own.
+            if opener is None:
+                if path is None:
+                    messagebox.showinfo(tr("Eingänge scannen"),
+                                        tr("Live-Anlernen braucht das angesteckte "
+                                           "hidraw-Panel."))
+                    return
+                opener = lambda: hidraw_reader.edge_count_reader(path)  # noqa: E731
             cap: dict[str, int] = {}
             stt: dict = {"i": 0, "read": None, "close": None, "winner": None}
             cw = tk.Toplevel(sc)
@@ -1805,7 +1809,7 @@ def run() -> None:
 
             def _start():
                 _close_reader()
-                opened = hidraw_reader.edge_count_reader(path)
+                opened = opener()
                 if opened is None:
                     found.config(text=tr("Gerät nicht lesbar."))
                     return
@@ -1936,7 +1940,20 @@ def run() -> None:
                 steps = [("code", tr("Schalter mehrmals umlegen."))]
             else:
                 steps = [("code", tr("Drücke den Knopf mehrmals."))]
-            _capture(steps, lambda c: _name_and_add(kind, c))
+            opener = None
+            if ddef.transport == "evdev":
+                # Buttons/switches/encoders on a yoke/pedals/quadrant are read via
+                # evdev key edges (the hidraw edge reader only sees the panels).
+                if evdev_path is None:
+                    messagebox.showinfo(
+                        tr("Eingänge scannen"),
+                        tr("Live-Anlernen geht nur für angesteckte evdev-Geräte "
+                           "(Yoke/Pedale/Quadrant)."))
+                    return
+                from .devices import evdev_reader
+
+                opener = lambda: evdev_reader.button_edge_reader(evdev_path)  # noqa: E731
+            _capture(steps, lambda c: _name_and_add(kind, c), opener=opener)
 
         # ANZEIGE (write) — LED or display; a display gets a configurable cell
         # count so each cell is addressable (like the DME). Output live-scan

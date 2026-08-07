@@ -7,8 +7,9 @@ platform and in CI for the pure-logic tests.
 
 from __future__ import annotations
 
+import contextlib
 import logging
-from collections.abc import Iterator
+from collections.abc import Iterable, Iterator
 
 from ..models import DeviceCatalog, SourceKind
 from .base import DeviceEvent
@@ -71,6 +72,71 @@ def winning_axis(
     code = max(spans, key=lambda k: spans[k][1] - spans[k][0])
     lo, hi = spans[code]
     return code if hi - lo >= min_span else None
+
+
+def key_edges(
+    last: dict[int, int], events: Iterable[tuple[int, int]]
+) -> dict[int, int]:
+    """Count 0->1 (press) transitions per key code from ``(code, value)`` events.
+
+    Pure core of :func:`button_edge_reader`, the evdev analogue of
+    :func:`hidraw_reader.count_rising_edges`: ``last`` (the previous value per code)
+    is updated in place, and the returned ``{code: rising_edges}`` counts only
+    presses — so tapping a button / flipping a switch a few times makes its code the
+    clear winner, holds and releases are ignored, and an autorepeat (value 2) is not
+    a new edge.
+    """
+    edges: dict[int, int] = {}
+    for code, value in events:
+        prev = last.get(code, 0)
+        if prev == 0 and value == 1:
+            edges[code] = edges.get(code, 0) + 1
+        last[code] = value
+    return edges
+
+
+def button_edge_reader(path: str):
+    """Open ``path`` to COUNT key press-edges per code; ``(read, close)`` or ``None``.
+
+    The evdev counterpart of :func:`hidraw_reader.edge_count_reader` for the
+    element-scan wizard (button/switch/encoder capture on yokes/pedals/quadrants):
+    ``read()`` drains pending EV_KEY events non-blocking and returns the CUMULATIVE
+    ``{code: rising_edges}`` (via :func:`key_edges`), so the actuated control becomes
+    the clear winner for :func:`hidraw_reader.winning_code`. ``None`` if evdev is
+    unavailable or the device can't be opened; ``read()`` returns ``None`` once the
+    device is unplugged.
+    """
+    if not _HAS_EVDEV:
+        return None
+    try:
+        dev = evdev.InputDevice(path)
+    except OSError:
+        return None
+    counts: dict[int, int] = {}
+    last: dict[int, int] = {}
+
+    def read() -> dict[int, int] | None:
+        events: list[tuple[int, int]] = []
+        try:
+            while True:
+                ev = dev.read_one()
+                if ev is None:
+                    break
+                if ev.type == ecodes.EV_KEY:
+                    events.append((ev.code, ev.value))
+        except BlockingIOError:
+            pass
+        except OSError:
+            return None  # unplugged
+        for code, n in key_edges(last, events).items():
+            counts[code] = counts.get(code, 0) + n
+        return counts
+
+    def close() -> None:
+        with contextlib.suppress(Exception):
+            dev.close()
+
+    return read, close
 
 
 def axis_value_reader(path: str, code: int):
