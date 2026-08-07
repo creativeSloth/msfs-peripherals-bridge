@@ -1,0 +1,53 @@
+# Device catalog. USB ids taken from 999-flightsim-override.rules.
+# `id` is the stable key that profiles reference.
+devices:
+  - id: yoke
+    name: Fulcrum One Yoke
+    # The Fulcrum One genuinely reports 0000:0000 (shared with audio nodes),
+    # so it is disambiguated by name. Confirmed via `scan` on 2026-06-19:
+    # ABS_X/ABS_Y 0..4095 (12-bit), 2 hats (ABS_HAT0X/Y), 8 buttons.
+    vendor: "0000"
+    product: "0000"
+    name_match: "Fulcrum"
+
+  - id: tq6
+    name: VirtualFly TQ6+
+    vendor: "16d0"
+    product: "0da2"
+
+  - id: trim
+    name: Saitek Cessna Trim Wheel
+    vendor: "06a3"
+    product: "0bd4"
+
+  - id: pedals
+    name: Saitek Pro Flight Rudder Pedals
+    vendor: "06a3"
+    product: "0763"
+
+  # Raw-HID panels (read via /dev/hidraw, not evdev). Input report is 3 bytes;
+  # bits map to switches/rotary/gear, see profiles for the bit->function table.
+  - id: switch_panel
+    name: Saitek Pro Flight Switch Panel
+    vendor: "06a3"
+    product: "0d67"
+    transport: hidraw
+
+  # Multi Panel: 3-byte input (selector/encoder/buttons/flaps/trim), 12-byte
+  # feature output (2x5 digit display + 8 button LEDs). Full HID map measured in
+  # docs/memory/multi-panel-hid.md.
+  - id: multi_panel
+    name: Saitek Pro Flight Multi Panel
+    vendor: "06a3"
+    product: "0d06"
+    transport: hidraw
+
+  # Radio Panel: 3-byte input (2 mode selectors, 4 encoders, 2 swap buttons),
+  # feature output = 20 digits (2 displays x 2 rows x 5 cells) + 2 flag bytes.
+  # HID structure in docs/memory/radio-panel-hid.md; exact input bits measured
+  # with tools/panel-scan/scan_radio.py.
+  - id: radio_panel
+    name: Saitek Pro Flight Radio Panel
+    vendor: "06a3"
+    product: "0d05"
+    transport: hidraw

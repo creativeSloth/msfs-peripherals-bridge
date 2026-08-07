@@ -1,0 +1,18 @@
+devices:
+- id: razer_razer_huntsman_v2
+  name: Razer Razer Huntsman V2
+  vendor: '1532'
+  product: 026c
+  transport: hidraw
+  inputs: []
+  outputs: []
+- id: switch_panel
+  name: Saitek Pro Flight Switch Panel
+  vendor: 06a3
+  product: 0d67
+  transport: hidraw
+  inputs: []
+  outputs:
+  - kind: led
+    name: Left Gear
+    cells: 1

@@ -1,0 +1,23 @@
+name: "Default fallback"
+description: "Minimal mapping used when no aircraft-specific profile matches."
+
+# Empty aircraft_match means it is never auto-selected; choose it explicitly
+# with `msfs-bridge run --profile default`.
+aircraft_match: []
+
+bindings:
+  yoke:
+    - name: "Aileron"
+      source: { kind: axis, code: 0 }
+      action: { type: event, event: AILERON_SET }
+      transform: { deadzone: 0.04, out_min: -16383, out_max: 16383 }
+    - name: "Elevator"
+      source: { kind: axis, code: 1 }
+      action: { type: event, event: ELEVATOR_SET }
+      transform: { deadzone: 0.04, invert: true, out_min: -16383, out_max: 16383 }
+
+  pedals:
+    - name: "Rudder"
+      source: { kind: axis, code: 5 }
+      action: { type: event, event: RUDDER_SET }
+      transform: { deadzone: 0.05, invert: true, out_min: -16383, out_max: 16383 }

@@ -1,0 +1,519 @@
+name: "Piper PA-28R Arrow III / Turbo Arrow III & IV (Just Flight)"
+description: "Complex single-engine mapping for the Just Flight PA-28R Arrow III, Turbo Arrow III (PA-28R-201T) and Turbo Arrow IV (PA-28RT-201T). Same yoke/pedals/trim hardware as the C172 profile; the TQ6+ gains the constant-speed PROPELLER lever (the Arrow is a complex aircraft). Uses standard SimConnect events — no Just Flight LVars needed. Scope is the flight-control + engine axes only; gear, flaps and panel switches live on the user's Saitek panels via SPAD.neXt."
+
+# JF in-sim titles vary; these case-insensitive substrings cover all 3 variants.
+# Verify with the actual aircraft TITLE if a variant fails to auto-select.
+aircraft_match:
+  - "Arrow III"
+  - "Arrow IV"
+  - "Turbo Arrow"
+  - "PA-28R"
+  - "PA28R"
+  - "PA-28RT"
+
+bindings:
+  # --- Fulcrum One Yoke (same calibration as the C172 profile, 2026-06-20) ---
+  # ABS_X(0)=roll (raw 0 = full LEFT), ABS_Y(1)=pitch (raw rises pulling back =
+  # nose up -> elevator invert:true). Hardware ranges come from
+  # config/calibration.yaml. Flip an invert if reversed in the sim.
+  yoke:
+    - name: "Aileron (roll)"
+      source: { kind: axis, code: 0 }
+      action: { type: event, event: AILERON_SET }
+      transform: { deadzone: 0.03, curve: expo, expo: 0.25, invert: true, out_min: -16383, out_max: 16383 }
+    - name: "Elevator (pitch)"
+      source: { kind: axis, code: 1 }
+      action: { type: event, event: ELEVATOR_SET }
+      transform: { deadzone: 0.03, curve: expo, expo: 0.25, invert: true, out_min: -16383, out_max: 16383 }
+    # --- Yoke grip buttons (codes & labels in config/calibration.yaml) ---
+    # Flight-deck functions, fire once on press. Gear & flaps stay on the
+    # Saitek panels via SPAD.neXt (out of scope here).
+    - name: "ATC window"           # 288 left grip, red button
+      # Open/close the ATC window. `ATC` (the FSX-era event) does NOT reliably
+      # toggle the window in MSFS 2020; SIMUI_WINDOW_HIDESHOW is the documented
+      # UI-window toggle. NOTE: the window must be enabled in the MSFS toolbar at
+      # least once before an external switch can toggle it.
+      source: { kind: button, code: 288 }
+      action: { type: event, event: ATC_0 }
+    - name: "Parking brake"        # 289 left grip, black button
+      source: { kind: button, code: 289 }
+      action: { type: event, event: PARKING_BRAKES }
+    - name: "Fuel selector LEFT"   # 294 right rocker, left
+      source: { kind: button, code: 294 }
+      action: { type: event, event: FUEL_SELECTOR_LEFT }
+    - name: "Fuel selector RIGHT"  # 295 right rocker, right
+      source: { kind: button, code: 295 }
+      action: { type: event, event: FUEL_SELECTOR_RIGHT }
+    - name: "Heading bug = current heading"   # 290 left rocker up
+      # Dynamic action: on press the bridge reads the live magnetic heading and
+      # fires HEADING_BUG_SET with it, snapping the AP heading bug to where the
+      # nose points. Same effect as the SPAD.neXt mapping
+      # "AUTOPILOT HEADING LOCK DIR := PLANE HEADING DEGREES MAGNETIC".
+      source: { kind: button, code: 290 }
+      action:
+        type: event_from_var
+        read: "PLANE HEADING DEGREES MAGNETIC"
+        unit: degrees
+        event: HEADING_BUG_SET
+    # POV hat -> look around the cockpit (head movement). ONE binding covers the
+    # whole hat: source.code = X (base) channel 16, Y implicitly 17. The PAN_*
+    # events nudge the active camera up/down/left/right, like turning your head.
+    - name: "Blick schwenken (Kopfbewegung)"
+      source: { kind: hat, code: 16 }
+      hat:
+        up: { type: event, event: PAN_UP }
+        down: { type: event, event: PAN_DOWN }
+        left: { type: event, event: PAN_LEFT }
+        right: { type: event, event: PAN_RIGHT }
+    # 291 (left rocker down) flips the Multi Panel CRS source NAV1<->NAV2 — wired
+    # via the multi_panel output's `source_toggle` below, not as a yoke binding.
+    # NOT mapped yet:
+    #   292/293 right grip black (lower/upper): unassigned.
+    # Verify in-sim: PAN_* pan the *active* camera — if the hat scrolls a UI
+    # window instead, switch the active view back to the cockpit. ATC window
+    # event name may differ in MSFS 2024.
+
+  # --- VirtualFly TQ6+ : 6 levers -> Throttle / Prop / Mixture, engines 1 & 2 ---
+  # codes 0..5 left->right = T1,T2,P1,P2,M1,M2. Raw ~0 = lever fully FORWARD
+  # (max power / max RPM / full rich); raw rises toward ~3200 pulling back to the
+  # idle / min-RPM / cut-off gate. We invert by giving raw_min (the back/gate
+  # reading) > raw_max (the forward reading), so fully-back -> 0 and fully-forward
+  # -> +16383. Both endpoints were measured in-sim a few counts inside the travel,
+  # so they override calibration and clamp cleanly at the gate (reverse/feather
+  # beyond it is unused on a piston aircraft).
+  tq6:
+    - name: "Throttle 1"
+      source: { kind: axis, code: 0, raw_min: 3273, raw_max: 7 }
+      action: { type: event, event: THROTTLE1_SET }
+      transform: { out_max: 16383.0 }
+    - name: "Throttle 2"
+      source: { kind: axis, code: 1, raw_min: 3276, raw_max: 8 }
+      action: { type: event, event: THROTTLE2_SET }
+      transform: { out_max: 16383.0 }
+    - name: "Propeller 1"
+      # Constant-speed prop: full forward = max RPM (fine), back = min RPM. The
+      # governor holds RPM; the Arrow's prop does not feather, so raw_min clamps
+      # at the detent rather than passing into the feather range.
+      source: { kind: axis, code: 2, raw_min: 3254, raw_max: 8 }
+      action: { type: event, event: PROP_PITCH1_SET }
+      transform: { out_max: 16383.0 }
+    - name: "Propeller 2"
+      source: { kind: axis, code: 3, raw_min: 3267, raw_max: 13 }
+      action: { type: event, event: PROP_PITCH2_SET }
+      transform: { out_max: 16383.0 }
+    - name: "Mixture 1"
+      # Fully back (raw_min) reaches idle cut-off (mixture 0%); fully forward =
+      # full rich. raw_min sits at the lever's full-back hardware stop, measured
+      # in-sim.
+      source: { kind: axis, code: 4, raw_min: 3233, raw_max: 12 }
+      action: { type: event, event: MIXTURE1_SET }
+      transform: { out_max: 16384.0 }
+    - name: "Mixture 2"
+      source: { kind: axis, code: 5, raw_min: 3257, raw_max: 10 }
+      action: { type: event, event: MIXTURE2_SET }
+      transform: { out_max: 16384.0 }
+
+  # --- Saitek Cessna Trim Wheel (same as C172) ---
+  # ABS_X bounded; wheel forward ("nose down")=raw min, back ("nose up")=raw max.
+  # Range from calibration.yaml.
+  trim:
+    - name: "Elevator trim"
+      source: { kind: axis, code: 0 }
+      action: { type: event, event: ELEVATOR_TRIM_SET }
+      transform: { out_min: -16383, out_max: 16383 }
+
+  # --- Saitek Rudder Pedals (same as C172) ---
+  # rudder ABS_RZ(5) centre 252; toe brakes ABS_X(0)=LEFT, ABS_Y(1)=RIGHT.
+  # Ranges from calibration.yaml.
+  pedals:
+    - name: "Rudder"
+      source: { kind: axis, code: 5 }
+      action: { type: event, event: RUDDER_SET }
+      transform: { deadzone: 0.05, invert: true, out_min: -16383, out_max: 16383 }
+    - name: "Brake left"
+      source: { kind: axis, code: 0 }
+      action: { type: event, event: AXIS_LEFT_BRAKE_SET }
+      transform: { out_min: -16383, out_max: 16383 }
+    - name: "Brake right"
+      source: { kind: axis, code: 1 }
+      action: { type: event, event: AXIS_RIGHT_BRAKE_SET }
+      transform: { out_min: -16383, out_max: 16383 }
+
+  # --- Saitek Pro Flight Switch Panel (raw HID, 3-byte report) ---
+  # `code` is the global bit index = byte*8 + bit, mapped empirically 2026-06-24:
+  #   byte0: 0 BAT  1 ALT  2 AVIONICS  3 FUEL PUMP  4 DE-ICE  5 PITOT  6 COWL  7 PANEL
+  #   byte1: 8 BEACON 9 NAV 10 STROBE 11 TAXI 12 LANDING | 13 MAG-OFF 14 MAG-R 15 MAG-L
+  #   byte2: 16 MAG-BOTH 17 MAG-START | 18 GEAR-UP 19 GEAR-DOWN
+  #
+  # kind: switch -> WITHOUT `value` = stateful: forwards on/off as 1/0 to a
+  # `*_SET` event (toggle switches). WITH `value` = momentary: fires only on the
+  # enter edge (rotary detents, gear lever).
+  #
+  # VERIFY in-sim: the electrical/fuel/anti-ice SET event names below are
+  # best-effort — adjust any that don't move the right switch in the Arrow.
+  switch_panel:
+    # Toggle switches -> stateful *_SET (on=1 / off=0)
+    - name: "Battery master"
+      source: { kind: switch, code: 0 }
+      action: { type: event, event: MASTER_BATTERY_SET }      # confirmed in-sim 2026-06-24
+    - name: "Alternator"
+      source: { kind: switch, code: 1 }
+      action: { type: event, event: ALTERNATOR_SET }          # confirmed in-sim 2026-06-24
+    # Electric fuel pump: JF custom LVar, written via the MobiFlight WASM channel
+    # (plain *_SET is a no-op here). JF pump is 3-way OFF/LO/HI; the 2-pos Saitek
+    # switch covers off/LO. The LVar uses inverse polarity (switch-on writes 0),
+    # confirmed in-sim 2026-06-30 -> invert: true.
+    - name: "Electric fuel pump"
+      source: { kind: switch, code: 3 }
+      action: { type: simvar, simvar: "L:CENTRE_LOWER_FUELPUMP", unit: "number", invert: true }
+    # Avionics master: a single *_SET is a no-op on the JF Arrow — it needs the
+    # full multi-step macro (events + L:KN62_POWER + COM volumes), 1:1 from the
+    # SPAD SWITCH_AVIONICS_MASTER VALUEON/VALUEOFF. Maintained switch -> on edge
+    # powers the stack up, off edge tears it down.
+    - name: "Avionics master"
+      source: { kind: switch, code: 2 }
+      action:
+        type: sequence
+        on_edge:
+          - { event: AVIONICS_MASTER_SET, value: 1 }
+          - { event: AVIONICS_MASTER_1_ON }
+          - { event: AVIONICS_MASTER_2_ON }
+          - { simvar: "L:KN62_POWER", value: 1 }
+          - { event: COM1_VOLUME_SET, value: 100 }
+          - { event: COM2_VOLUME_SET, value: 100 }
+          - { event: TRANSPONDERON }
+        off_edge:
+          - { event: AVIONICS_MASTER_SET, value: 0 }
+          - { event: AVIONICS_MASTER_2_OFF }
+          - { event: AVIONICS_MASTER_1_OFF }
+          - { simvar: "L:KN62_POWER", value: 0 }
+          - { event: COM1_VOLUME_SET, value: 0 }
+          - { event: COM2_VOLUME_SET, value: 0 }
+          - { event: TRANSPONDEROFF }
+    - name: "De-ice / anti-ice"
+      source: { kind: switch, code: 4 }
+      action: { type: event, event: ANTI_ICE_SET }
+    - name: "Pitot heat"
+      source: { kind: switch, code: 5 }
+      action: { type: event, event: PITOT_HEAT_SET }
+    # Cowl flaps NOT mapped: COWLFLAP1_SET expects a 0..16383 position, but a
+    # switch only sends 0/1 (no transform yet on switches). Add later via a
+    # SimVar or a scaled switch action.
+    # Switch code 7 (the "panel lights" toggle) is INTENTIONALLY UNMAPPED — the red
+    # center/cabin dome light it was meant to drive is not externally controllable on
+    # this JF Arrow. Traced in-sim 2026-07-05 (see docs/memory/radio-panel-measurement.md
+    # / STATUS): its rotary drives ONLY L:LIGHTING_CABIN_0 (verified across 229 light
+    # vars), but writing that var holds the value yet does NOT light the lamp; the
+    # emissive is set by an A: var the JF gauge only touches on real knob interaction,
+    # which our SimConnect/MobiFlight writes can't reproduce (CABIN_LIGHTS_SET/TOGGLE
+    # do nothing, and the A: light vars aren't even readable). JustFlight modelling
+    # limit — parked. Re-open only if the knob's H: input event turns up.
+    - name: "Beacon lights"
+      source: { kind: switch, code: 8 }
+      action: { type: event, event: BEACON_LIGHTS_SET }
+    # Nav lights: NOT a switch on the Arrow — the nav light follows the radio-light
+    # dimmer (on whenever radio brightness > 0), handled by the Multi Panel dimmer's
+    # follow_event. So code 9 is intentionally unmapped here.
+    # Strobe switch = the cockpit "Anti Collision" control; confirmed in-sim 2026-06-24.
+    - name: "Strobe lights"
+      source: { kind: switch, code: 10 }
+      action: { type: event, event: STROBES_SET }         # confirmed (= anti-collision)
+    - name: "Taxi lights"
+      source: { kind: switch, code: 11 }
+      action: { type: event, event: TAXI_LIGHTS_SET }
+    - name: "Landing lights"
+      source: { kind: switch, code: 12 }
+      action: { type: event, event: LANDING_LIGHTS_SET }
+    # Magneto / starter rotary -> momentary, fires on entering each detent.
+    # Single-engine: engine 1. START is spring-loaded back to BOTH.
+    # BUG (in-sim 2026-06-24, JF Arrow): engine starts & it's usable, but the
+    # LEFT (L) detent mis-registers as its neighbour in the travel direction.
+    #   Up   OFF-R-L-BOTH-START arrives as OFF-R-BOTH-BOTH-START (L -> BOTH)
+    #   Down START-BOTH-L-R-OFF arrives as BOTH-BOTH-R-R-OFF       (L -> R)
+    # (START springing back to BOTH after ~1s is correct/expected.) Likely the
+    # hidraw bit map for code 15 (L) vs 16 (BOTH) or a fast-rotate diff/edge issue
+    # in hidraw_reader — needs re-measuring the L detent. TODO fix; tolerable for now.
+    - name: "Magneto OFF"
+      source: { kind: switch, code: 13 }
+      action: { type: event, event: MAGNETO1_OFF, value: 1 }
+    - name: "Magneto RIGHT"
+      source: { kind: switch, code: 14 }
+      action: { type: event, event: MAGNETO1_RIGHT, value: 1 }
+    - name: "Magneto LEFT"
+      source: { kind: switch, code: 15 }
+      action: { type: event, event: MAGNETO1_LEFT, value: 1 }
+    - name: "Magneto BOTH"
+      source: { kind: switch, code: 16 }
+      action: { type: event, event: MAGNETO1_BOTH, value: 1 }
+    - name: "Magneto START"
+      source: { kind: switch, code: 17 }
+      action: { type: event, event: MAGNETO1_START, value: 1 }
+    # Gear lever -> momentary on the enter edge.
+    - name: "Gear up"
+      source: { kind: switch, code: 18 }
+      action: { type: event, event: GEAR_UP, value: 1 }
+    - name: "Gear down"
+      source: { kind: switch, code: 19 }
+      action: { type: event, event: GEAR_DOWN, value: 1 }
+
+  # Multi Panel buttons/flaps/auto-throttle (hidraw bit codes, measured map in
+  # docs/memory/multi-panel-hid.md). The selector + encoder are NOT here — they
+  # are owned by the multi_panel controller under `outputs:` below.
+  multi_panel:
+    - name: "AP master"
+      source: { kind: button, code: 7 }
+      # Toggle the AP AND land it in HDG mode. The JF AutoControl only accepts a
+      # jump to APR once a lateral mode is active (confirmed in-sim 2026-07-01:
+      # with the master on + HDG engaged, APR arms directly); a fresh engage
+      # otherwise leaves L:AUTOPILOT_MODE cleared, from which APR won't take. So
+      # arm HDG (=2) on every press — harmless on the disengage press (AP off).
+      action:
+        type: sequence
+        on_edge:
+          - { event: AP_MASTER, value: 1 }        # toggles AP on/off
+          - { simvar: "L:AUTOPILOT_MODE", value: 2 }   # = HDG (like the HDG button)
+    # AUTO THROTTLE arm switch (code 15) = the HDG-MASTER arm. On the real Arrow,
+    # heading-hold arm (L:AUTOPILOT_HDG) is its OWN switch, separate from picking
+    # a mode — so it lives here and ONLY here. The mode buttons below set just
+    # L:AUTOPILOT_MODE; they no longer touch HDG. Maintained switch: on=1, off=0.
+    - name: "HDG master arm (auto-throttle switch)"
+      source: { kind: switch, code: 15 }
+      action:
+        type: sequence
+        on_edge: [{ simvar: "L:AUTOPILOT_HDG", value: 1 }]
+        off_edge: [{ simvar: "L:AUTOPILOT_HDG", value: 0 }]
+    # Flaps rocker: momentary up/down, one notch per press (as SPAD: DECR/INCR).
+    - name: "Flaps up"
+      source: { kind: switch, code: 16 }
+      action: { type: event, event: FLAPS_DECR, value: 1 }
+    - name: "Flaps down"
+      source: { kind: switch, code: 17 }
+      action: { type: event, event: FLAPS_INCR, value: 1 }
+    # AP mode buttons (codes 8/9/13/14). The Arrow's AP has no toggle buttons —
+    # its modes are a rotary that sets L:AUTOPILOT_MODE (NAV=0, HDG=2, APR=3,
+    # REV=4). Each button sets ONLY its mode; HDG-master arm is a separate switch
+    # (the auto-throttle switch above), so the mode buttons no longer write
+    # L:AUTOPILOT_HDG (SPAD did, but that fought the cockpit's own HDG switch).
+    # NOTE: the button LEDs still need an L:AUTOPILOT_MODE *read* (LVar-read path,
+    # not built yet) — so these engage the modes but don't light up yet.
+    - name: "HDG"
+      source: { kind: button, code: 8 }
+      action:
+        type: sequence
+        on_edge:
+          - { simvar: "L:AUTOPILOT_MODE", value: 2 }
+    - name: "NAV"
+      source: { kind: button, code: 9 }
+      action:
+        type: sequence
+        on_edge:
+          - { simvar: "L:AUTOPILOT_MODE", value: 0 }
+    - name: "APR"
+      source: { kind: button, code: 13 }
+      action:
+        type: sequence
+        on_edge:
+          - { simvar: "L:AUTOPILOT_MODE", value: 3 }
+    - name: "REV"
+      source: { kind: button, code: 14 }
+      action:
+        type: sequence
+        on_edge:
+          - { simvar: "L:AUTOPILOT_MODE", value: 4 }
+    # OMNI mode (L:AUTOPILOT_MODE=1) on the otherwise-free IAS button (code 10).
+    # OMNI = auto-intercept & track a VOR radial (the Arrow's "hidden" coupler
+    # mode, SPAD reached it via NAV long-press / slow blink).
+    - name: "OMNI (IAS button)"
+      source: { kind: button, code: 10 }
+      action:
+        type: sequence
+        on_edge:
+          - { simvar: "L:AUTOPILOT_MODE", value: 1 }
+    # ALT / VS hold buttons (codes 11/12). The JF AutoControl ignores the standard
+    # MSFS AP_ALT_HOLD/AP_VS_HOLD events, AND writing the state LVars L:JF_PA28_AP_alt/_vs
+    # is a no-op (they are gauge OUTPUTS, overwritten every frame). The real INPUT was
+    # found by probing (tools/probe_altvs.py, in-sim 2026-07-09): writing
+    # L:AUTOPILOT_alt = 1 engages ALT hold, L:AUTOPILOT_vs = 1 engages VS. The JF
+    # vertical modes are mutually exclusive (engaging one clears the other on its own),
+    # and the button LEDs read the true state via the JF_PA28_AP_* bools (bool_leds
+    # below), so the light tracks however it was engaged (panel or cockpit clickspot).
+    # NOTE: these are ENGAGE/SELECT commands, NOT toggles — a second press (write 1
+    # again) or writing 0 does NOT disengage (both verified in-sim). To drop the
+    # vertical mode use the AP master button or switch to the other mode. A true
+    # on/off toggle would need the JF H: clickspot event, not yet identified.
+    - name: "ALT hold"
+      source: { kind: button, code: 11 }
+      action:
+        type: sequence
+        on_edge:
+          - { simvar: "L:AUTOPILOT_alt", value: 1 }
+    - name: "VS hold"
+      source: { kind: button, code: 12 }
+      action:
+        type: sequence
+        on_edge:
+          - { simvar: "L:AUTOPILOT_vs", value: 1 }
+
+# Panel outputs (LEDs), streamed back from the bridge. The Switch Panel has 3
+# gear-indicator lights (nose/left/right), each green=down&locked / red=in
+# transit / off=up — and dark when the battery is off. Mirrors the SPAD.neXt
+# Arrow logic: GEAR x POSITION (Percent Over 100), green at >=0.95, gated by
+# ELECTRICAL MASTER BATTERY. The nose wheel is the *centre* gear in MSFS.
+outputs:
+  switch_panel:
+    - type: gear_leds
+      nose: "GEAR CENTER POSITION"
+      left: "GEAR LEFT POSITION"
+      right: "GEAR RIGHT POSITION"
+      down_at: 0.95
+      power: "ELECTRICAL MASTER BATTERY"
+
+  # Multi Panel controller: the 5-way selector picks which autopilot reference
+  # value the encoder edits and the top display row shows; the button LEDs show
+  # AP master (+ active mode once the L: read lands). Step/fast_step mirror the
+  # SPAD Arrow profile (normal turn vs. quick spin). Values are set via the
+  # standard *_SET events; if a JF-specific var ignores its event in-sim, drop
+  # set_event for that row to write the SimVar directly instead.
+  multi_panel:
+    - type: multi_panel
+      selector:
+        # fast_step = gentle acceleration: only after a sustained fast spin, and
+        # ~half the old jump (was ALT 1000 / HDG 10). Drop fast_step to disable.
+        # The display shows the live sim value (user choice 2026-07-09). The JF
+        # gauge parks AUTOPILOT ALTITUDE LOCK VAR at 80000 when the ALT hold is off
+        # (VS active) — off_above maps that (and any missing value) to 0, so the
+        # readout reads 0 when off instead of "80000".
+        - { code: 0, label: ALT, simvar: "AUTOPILOT ALTITUDE LOCK VAR", set_event: AP_ALT_VAR_SET_ENGLISH, step: 100, fast_step: 300, min: 0, max: 99999, off_above: 60000 }
+        # VS lives on the *bottom* display row so ALT (top) and VS stay visible
+        # together; switching ALT<->VS only re-points the encoder.
+        - { code: 1, label: VS, simvar: "AUTOPILOT VERTICAL HOLD VAR", set_event: AP_VS_VAR_SET_ENGLISH, step: 100, fast_step: 300, min: -9999, max: 9999, display_row: bottom, off_above: 30000 }
+        - { code: 2, label: IAS, simvar: "AUTOPILOT AIRSPEED HOLD VAR", set_event: AP_SPD_VAR_SET, step: 1, fast_step: 3, min: 0, max: 360 }
+        - { code: 3, label: HDG, simvar: "AUTOPILOT HEADING LOCK DIR", set_event: HEADING_BUG_SET, step: 1, fast_step: 3, min: 0, max: 359, rollover: true }
+        # CRS edits the OBS course. The yoke's left rocker-down (code 291) flips
+        # the source between NAV1 (source #1) and NAV2 (alt); while CRS is selected
+        # the active index (1 or 2) shows on the free bottom row.
+        - { code: 4, label: CRS, simvar: "NAV OBS:1", set_event: VOR1_SET, step: 1, fast_step: 3, min: 0, max: 359, rollover: true, alt_sources: [{ simvar: "NAV OBS:2", set_event: VOR2_SET }] }
+      ap_master: "AUTOPILOT MASTER"
+      mode_var: "L:AUTOPILOT_MODE"
+      # ALT/VS are *hold* modes that coexist with the active lateral mode, so they
+      # can't ride the single-value L:AUTOPILOT_MODE enum — their LEDs read the JF
+      # per-mode bools directly (found via LVar enumeration, docs/simvars-reference.md
+      # §11). The LED mirrors the real hold state however it was engaged (panel
+      # button or cockpit clickspot), so it lights even if the write below is wrong.
+      bool_leds:
+        alt: "L:JF_PA28_AP_alt"
+        vs: "L:JF_PA28_AP_vs"
+      source_toggle: { device: yoke, code: 291 }
+      # Trim wheel = instrument-light dimmer for the radio + panel lights (no
+      # switch on the real Piper). The dimmer tracks a shared PERCENT (0..100,
+      # step 10 = even 10% stops) and scales each target to its own `full`, so the
+      # two lights move together off one knob. The nav light follows (on when
+      # percent > 0) via NAV_LIGHTS_SET.
+      # Targets = the real JF Arrow lighting L:vars, both 0..10 (each detent = one
+      # clean 10% step). Found by enumerating every JF LVar (MF.LVars.List) and
+      # watching which moved with each cockpit knob — see docs/simvars-reference.md §11.
+      #   - radio LTS backlight = L:CENTRE_LOWER_nav_light (0..10), confirmed in-sim
+      #     2026-07-02. Misleading name, but it IS the "Radio lts" knob's var (sibling
+      #     of panel_light). Writing it also gates the exterior nav lights (the JF
+      #     couples nav_light_on to it), so NAV_LIGHTS_SET below is belt-and-braces.
+      #     The old LIGHT_POTENTIOMETER_2_SET event never drove it (dead end); the
+      #     A:var LIGHT POTENTIOMETER:2 is only a read-mirror of nav_light.
+      #   - panel light = L:CENTRE_LOWER_panel_light (0..10), confirmed writable.
+      dimmer:
+        cw: 18
+        ccw: 19
+        step: 10
+        min: 0
+        max: 100
+        targets:
+          - { var: "L:CENTRE_LOWER_nav_light", full: 10 }    # radio LTS backlight (0..10)
+          - { var: "L:CENTRE_LOWER_panel_light", full: 10 }  # panel light (0..10)
+        follow_event: NAV_LIGHTS_SET
+      # Battery gate: the display + button LEDs only light while the master battery
+      # is on, matching the gear LEDs (which already go dark without power). Swap for
+      # "AVIONICS MASTER SWITCH" if the panel should follow the avionics bus instead.
+      power: "ELECTRICAL MASTER BATTERY"
+
+  # Radio Panel controller: two independent radio units (upper + lower). Each has
+  # a mode selector picking a COM/NAV bank, a dual concentric encoder (outer coarse
+  # = whole MHz, inner fine = kHz, pushable = ACT/STBY swap) and a two-row display
+  # (ACTIVE over STANDBY). Tuning is event-based (standard MSFS *_INC/DEC +
+  # *_RADIO_SWAP); the display follows the encoder — the inner knob shifts the tuned
+  # standby row to NN.NNN (8.33 kHz third decimal), the outer knob back to NNN.NN —
+  # and the inner-knob spin speed picks fine vs coarse fract steps. Scope = COM/NAV
+  # (ADF/DME/XPDR later). HID structure: docs/memory/radio-panel-hid.md.
+  #
+  # INPUT CODES measured on the hardware 2026-07-05 with tools/panel-scan/scan_radio.py
+  # (one-hot selectors + a clean CW-only encoder pass; see docs/memory/radio-panel-hid.md):
+  #   upper selector bits 0-6 (COM1=0,COM2=1,NAV1=2,NAV2=3, ADF/DME/XPDR=4/5/6)
+  #   lower selector bits 7-13 (COM1=7,COM2=8,NAV1=9,NAV2=10, ...)
+  #   swaps  = bit 14 (upper encoder push) / bit 15 (lower encoder push)
+  #   upper  inner enc 16/17 (cw/ccw), outer enc 18/19 ; lower inner 20/21, outer 22/23
+  #   CW = increment. Selectors + inner encoders matched the old guess; the outer
+  #   encoders and both swaps did NOT — those are the corrected values below.
+  # ⚠️ fract_fast_* (coarse 25 kHz step for a fast inner spin) is left unset: verify
+  # in-sim which event gives a real 8.33 vs 25 kHz step on the JF Arrow, then add
+  # fract_fast_inc/-dec per bank. Without it a fast inner spin just repeats the fine step.
+  radio_panel:
+    - type: radio_panel
+      # Battery gate: the display only lights while the master battery is on, like
+      # the gear LEDs. Swap for "AVIONICS MASTER SWITCH" for an avionics-bus gate.
+      power: "ELECTRICAL MASTER BATTERY"
+      units:
+        - name: upper
+          row: upper
+          outer_cw: 18
+          outer_ccw: 19
+          inner_cw: 16
+          inner_ccw: 17
+          swap: 14
+          banks:
+            - { code: 0, label: COM1, active: "COM ACTIVE FREQUENCY:1", standby: "COM STANDBY FREQUENCY:1", swap_event: COM1_RADIO_SWAP, fine_view: true, whole_inc: COM_RADIO_WHOLE_INC, whole_dec: COM_RADIO_WHOLE_DEC, fract_inc: COM_RADIO_FRACT_INC, fract_dec: COM_RADIO_FRACT_DEC }
+            - { code: 1, label: COM2, active: "COM ACTIVE FREQUENCY:2", standby: "COM STANDBY FREQUENCY:2", swap_event: COM2_RADIO_SWAP, fine_view: true, whole_inc: COM2_RADIO_WHOLE_INC, whole_dec: COM2_RADIO_WHOLE_DEC, fract_inc: COM2_RADIO_FRACT_INC, fract_dec: COM2_RADIO_FRACT_DEC }
+            - { code: 2, label: NAV1, active: "NAV ACTIVE FREQUENCY:1", standby: "NAV STANDBY FREQUENCY:1", swap_event: NAV1_RADIO_SWAP, whole_inc: NAV1_RADIO_WHOLE_INC, whole_dec: NAV1_RADIO_WHOLE_DEC, fract_inc: NAV1_RADIO_FRACT_INC, fract_dec: NAV1_RADIO_FRACT_DEC }
+            - { code: 3, label: NAV2, active: "NAV ACTIVE FREQUENCY:2", standby: "NAV STANDBY FREQUENCY:2", swap_event: NAV2_RADIO_SWAP, whole_inc: NAV2_RADIO_WHOLE_INC, whole_dec: NAV2_RADIO_WHOLE_DEC, fract_inc: NAV2_RADIO_FRACT_INC, fract_dec: NAV2_RADIO_FRACT_DEC }
+            # ADF (code 4): KR-85 4-digit kHz freq, edited a digit-pair at a time.
+            # Push toggles the cursor between the high pair (1000s,100s) and low pair
+            # (10s,1s); outer knob = the pair's left digit, inner = its right (0-9,
+            # clamped to 190..1799). Reads/writes the KR-85 knob counters
+            # L:KR85_dig1/2/3_counter (F = (dig1+1)*100 + dig2*10 + dig3, in-sim
+            # 2026-07-11) — the standard ADF SimVars are decoupled junk on the JF.
+            - { kind: adf, code: 4 }
+            # DME (code 5): distance on top, "<nav> <GS>" below; ACT/STBY push cycles
+            # NAV1<->NAV2. source_var = the cockpit DME NAV switch (bidirectional: the
+            # display follows the cockpit switch, the push flips it). 4/5/6 = ADF/DME/XPDR.
+            - kind: dme
+              code: 5
+              label: DME
+              source_var: "L:RIGHT_MISC_dme_nav"
+              sources:
+                - { label: "1", distance: "NAV DME:1", speed: "NAV DMESPEED:1" }
+                - { label: "2", distance: "NAV DME:2", speed: "NAV DMESPEED:2" }
+            # XPDR (code 6): squawk edit on top + altimeter (QNH) on the bottom row.
+            # Push walks an edit cursor across the 4 squawk digits (a dot marks it);
+            # inner knob steps that digit (octal 0-7); set via XPNDR_SET (BCD16). The
+            # outer knob is the QNH: fires KOHLSMAN_INC/DEC and the bottom row shows
+            # KOHLSMAN SETTING HG as NN.NN inHg (dot on the 2nd digit, e.g. 29.92).
+            - { kind: xpdr, code: 6, baro_var: "KOHLSMAN SETTING HG" }
+        - name: lower
+          row: lower
+          outer_cw: 22
+          outer_ccw: 23
+          inner_cw: 20
+          inner_ccw: 21
+          swap: 15
+          banks:
+            - { code: 7, label: COM1, active: "COM ACTIVE FREQUENCY:1", standby: "COM STANDBY FREQUENCY:1", swap_event: COM1_RADIO_SWAP, fine_view: true, whole_inc: COM_RADIO_WHOLE_INC, whole_dec: COM_RADIO_WHOLE_DEC, fract_inc: COM_RADIO_FRACT_INC, fract_dec: COM_RADIO_FRACT_DEC }
+            - { code: 8, label: COM2, active: "COM ACTIVE FREQUENCY:2", standby: "COM STANDBY FREQUENCY:2", swap_event: COM2_RADIO_SWAP, fine_view: true, whole_inc: COM2_RADIO_WHOLE_INC, whole_dec: COM2_RADIO_WHOLE_DEC, fract_inc: COM2_RADIO_FRACT_INC, fract_dec: COM2_RADIO_FRACT_DEC }
+            - { code: 9, label: NAV1, active: "NAV ACTIVE FREQUENCY:1", standby: "NAV STANDBY FREQUENCY:1", swap_event: NAV1_RADIO_SWAP, whole_inc: NAV1_RADIO_WHOLE_INC, whole_dec: NAV1_RADIO_WHOLE_DEC, fract_inc: NAV1_RADIO_FRACT_INC, fract_dec: NAV1_RADIO_FRACT_DEC }
+            - { code: 10, label: NAV2, active: "NAV ACTIVE FREQUENCY:2", standby: "NAV STANDBY FREQUENCY:2", swap_event: NAV2_RADIO_SWAP, whole_inc: NAV2_RADIO_WHOLE_INC, whole_dec: NAV2_RADIO_WHOLE_DEC, fract_inc: NAV2_RADIO_FRACT_INC, fract_dec: NAV2_RADIO_FRACT_DEC }
+            # DME (code 12), lower unit — bidirectional NAV source via source_var.
+            - kind: dme
+              code: 12
+              label: DME
+              source_var: "L:RIGHT_MISC_dme_nav"
+              sources:
+                - { label: "1", distance: "NAV DME:1", speed: "NAV DMESPEED:1" }
+                - { label: "2", distance: "NAV DME:2", speed: "NAV DMESPEED:2" }
+            - { kind: adf, code: 11 }   # ADF (KR-85) digit-pair freq edit (see upper unit)
+            - { kind: xpdr, code: 13, baro_var: "KOHLSMAN SETTING HG" }  # squawk + QNH

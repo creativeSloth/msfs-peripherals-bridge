@@ -1,0 +1,325 @@
+{
+  "statistik_vars": [
+    {
+      "kind": "A:",
+      "name": "PLANE ALTITUDE",
+      "unit": "Feet"
+    },
+    {
+      "kind": "A:",
+      "name": "AIRSPEED INDICATED",
+      "unit": "Knots"
+    },
+    {
+      "kind": "A:",
+      "name": "HEADING INDICATOR",
+      "unit": "Radians"
+    },
+    {
+      "kind": "A:",
+      "name": "GENERAL ENG PCT MAX RPM:1",
+      "unit": "Percent"
+    },
+    {
+      "kind": "A:",
+      "name": "GENERAL ENG MIXTURE LEVER POSITION:1",
+      "unit": "Percent"
+    },
+    {
+      "kind": "A:",
+      "name": "GENERAL ENG FUEL PUMP ON:1",
+      "unit": "Bool"
+    }
+  ],
+  "panel_tiles": [
+    {
+      "kind": "A:",
+      "name": "PLANE ALTITUDE",
+      "unit": "Feet",
+      "x": 0.0,
+      "y": 0.0
+    },
+    {
+      "kind": "A:",
+      "name": "AIRSPEED INDICATED",
+      "unit": "Knots",
+      "x": 278.0,
+      "y": 0.0
+    },
+    {
+      "kind": "A:",
+      "name": "HEADING INDICATOR",
+      "unit": "Radians",
+      "x": 127.0,
+      "y": 0.0
+    }
+  ],
+  "panel": {
+    "cols": 6,
+    "rows": 1,
+    "geometry": "1801x80+1940+522",
+    "visible": false,
+    "tiles": [
+      {
+        "kind": "A:",
+        "name": "HEADING INDICATOR",
+        "unit": "Radians",
+        "col": 1,
+        "row": 0
+      },
+      {
+        "kind": "A:",
+        "name": "AIRSPEED INDICATED",
+        "unit": "Knots",
+        "col": 0,
+        "row": 0
+      },
+      {
+        "kind": "A:",
+        "name": "PLANE ALTITUDE",
+        "unit": "Feet",
+        "col": 2,
+        "row": 0
+      }
+    ]
+  },
+  "gauge_library": {
+    "Airspeed": {
+      "name": "Airspeed",
+      "needles": [
+        {
+          "label": "IAS",
+          "kind": "A:",
+          "var": "AIRSPEED INDICATED",
+          "unit": "kt",
+          "factor": 1.0,
+          "v_min": 20.0,
+          "v_max": 190.0,
+          "sweep": 306,
+          "omega": 0,
+          "h": 1.0,
+          "major": 20,
+          "minor": 5,
+          "arcs": [
+            {
+              "v_from": 65,
+              "v_to": 100,
+              "color": "#2e7d32"
+            },
+            {
+              "v_from": 100,
+              "v_to": 190,
+              "color": "#f9a825"
+            },
+            {
+              "v_from": 70,
+              "v_to": 77,
+              "color": "#1565c0"
+            }
+          ],
+          "radius": 1.0,
+          "fmt": "{:.0f}",
+          "color": "#e53935"
+        }
+      ]
+    },
+    "Fuel links": {
+      "name": "Fuel links",
+      "needles": [
+        {
+          "label": "FUEL L",
+          "kind": "A:",
+          "var": "FUEL LEFT QUANTITY",
+          "unit": "gal",
+          "factor": 1.0,
+          "v_min": 0.0,
+          "v_max": 38.5,
+          "sweep": 100,
+          "omega": -50,
+          "h": 1.0,
+          "major": 10,
+          "minor": 2,
+          "arcs": [],
+          "radius": 1.0,
+          "fmt": "{:.1f}",
+          "color": "#e53935"
+        }
+      ]
+    },
+    "Fuel rechts": {
+      "name": "Fuel rechts",
+      "needles": [
+        {
+          "label": "FUEL R",
+          "kind": "A:",
+          "var": "FUEL RIGHT QUANTITY",
+          "unit": "gal",
+          "factor": 1.0,
+          "v_min": 0.0,
+          "v_max": 38.5,
+          "sweep": 100,
+          "omega": -50,
+          "h": 1.0,
+          "major": 10,
+          "minor": 2,
+          "arcs": [],
+          "radius": 1.0,
+          "fmt": "{:.1f}",
+          "color": "#e53935"
+        }
+      ]
+    },
+    "Neues Gauge": {
+      "name": "Neues Gauge",
+      "needles": [
+        {
+          "label": "WERT",
+          "kind": "A:",
+          "var": "THROTTLE LOWER LIMIT",
+          "unit": "",
+          "factor": 1.0,
+          "v_min": 20.0,
+          "v_max": 100.0,
+          "sweep": 270,
+          "omega": -135,
+          "h": 1.0,
+          "major": 10,
+          "minor": 0.0,
+          "arcs": [],
+          "radius": 1.0,
+          "fmt": "{:.0f}",
+          "color": "#e53935"
+        }
+      ]
+    },
+    "MAP + Fuel Flow": {
+      "name": "MAP + Fuel Flow",
+      "needles": [
+        {
+          "label": "MAP",
+          "kind": "A:",
+          "var": "ENG MANIFOLD PRESSURE:1",
+          "unit": "inHg",
+          "factor": 1.0,
+          "v_min": 10,
+          "v_max": 50,
+          "sweep": 180,
+          "omega": -90,
+          "h": 1.0,
+          "major": 5,
+          "minor": 1,
+          "arcs": [
+            {
+              "v_from": 10,
+              "v_to": 41,
+              "color": "#2e7d32"
+            }
+          ],
+          "radius": 0.95,
+          "cx": 0.5,
+          "cy": 0.5,
+          "fmt": "{:.1f}",
+          "color": "#e53935"
+        },
+        {
+          "label": "FF",
+          "kind": "A:",
+          "var": "ENG FUEL FLOW GPH:1",
+          "unit": "GPH",
+          "factor": 1.0,
+          "v_min": 0,
+          "v_max": 25,
+          "sweep": 165,
+          "omega": 100,
+          "h": 1.8,
+          "major": 5,
+          "minor": 1,
+          "arcs": [
+            {
+              "v_from": 0,
+              "v_to": 24,
+              "color": "#2e7d32"
+            },
+            {
+              "v_from": 21.5,
+              "v_to": 24,
+              "color": "#66bb6a"
+            }
+          ],
+          "radius": 0.62,
+          "cx": 0.5,
+          "cy": 0.5,
+          "fmt": "{:.1f}",
+          "color": "#fbc02d"
+        }
+      ],
+      "aspect": 1.0
+    }
+  },
+  "gauges_panel": [
+    {
+      "name": "MAP + Fuel Flow",
+      "needles": [
+        {
+          "label": "MAP",
+          "kind": "A:",
+          "var": "ENG MANIFOLD PRESSURE:1",
+          "unit": "inHg",
+          "factor": 1.0,
+          "v_min": 10,
+          "v_max": 50,
+          "sweep": 180,
+          "omega": -90,
+          "h": 1.0,
+          "major": 5,
+          "minor": 1,
+          "arcs": [
+            {
+              "v_from": 10,
+              "v_to": 41,
+              "color": "#2e7d32"
+            }
+          ],
+          "radius": 0.95,
+          "cx": 0.5,
+          "cy": 0.5,
+          "fmt": "{:.1f}",
+          "color": "#e53935"
+        },
+        {
+          "label": "FF",
+          "kind": "A:",
+          "var": "ENG FUEL FLOW GPH:1",
+          "unit": "GPH",
+          "factor": 1.0,
+          "v_min": 0,
+          "v_max": 25,
+          "sweep": 165,
+          "omega": 100,
+          "h": 1.8,
+          "major": 5,
+          "minor": 1,
+          "arcs": [
+            {
+              "v_from": 0,
+              "v_to": 24,
+              "color": "#2e7d32"
+            },
+            {
+              "v_from": 21.5,
+              "v_to": 24,
+              "color": "#66bb6a"
+            }
+          ],
+          "radius": 0.62,
+          "cx": 0.5,
+          "cy": 0.5,
+          "fmt": "{:.1f}",
+          "color": "#fbc02d"
+        }
+      ],
+      "aspect": 1.0
+    }
+  ],
+  "language": "de"
+}
