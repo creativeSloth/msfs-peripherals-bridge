@@ -2249,10 +2249,10 @@ def run() -> None:
     addtmpl_menu = tk.Menu(b_addtmpl, tearoff=0)
     b_addtmpl.configure(menu=addtmpl_menu)
 
-    b_addinput = ttk.Button(bindbtn, text=tr("+ Eingang"), command=lambda: _new_binding())
+    b_addinput = ttk.Button(bindbtn, text=tr("+ Eingabe"), command=lambda: _new_binding())
     b_addinput.pack(side="right", padx=6)
     _attach_tooltip(b_addinput,
-                    tr("Einen einzelnen Eingang (Knopf/Achse/Schalter/Encoder/Hat) an "
+                    tr("Eine einzelne Eingabe (Knopf/Achse/Schalter/Encoder/Hat) an "
                        "ein Event oder eine Variable binden."))
 
     ttk.Label(bindbtn, text=tr("Doppelklick auf eine Zeile öffnet den Editor · "
