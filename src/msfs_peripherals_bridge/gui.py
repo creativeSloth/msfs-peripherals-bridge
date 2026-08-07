@@ -1580,15 +1580,9 @@ def run() -> None:
     ttk.Label(mhdr, text=tr("Geräte im Profil — was ist worauf gemappt:")).pack(side="left")
     m_state = ttk.Label(mhdr, text=tr(""), foreground="#666")
     m_state.pack(side="right")
-    # View toggle: the detail table, or a panel *reconstruction* (switches/LEDs at
-    # ~their physical position). Non-destructive — flips which of the two shares
-    # the right-hand cell. Text flips with the mode; wired below where the canvas
-    # and its renderer are defined.
-    view_btn = ttk.Button(mhdr, text=tr("Nachbau"),
-                          command=lambda: _toggle_view())
-    view_btn.pack(side="right", padx=(0, 8))
-    _attach_tooltip(view_btn, tr("Zwischen Tabelle und Panel-Nachbau umschalten "
-                                 "(Schalter/LEDs an ihrer physischen Position)."))
+    # The panel *reconstruction* is the single mapper surface (docs/geraete-workflow.md):
+    # switches/LEDs/displays at ~their physical position; the old detail-table view +
+    # its toggle were retired — the table lives on only as a hidden data source.
     # Edit mode ("Anordnen"): drag elements onto a grid; only useful in panel view.
     edit_btn = ttk.Button(mhdr, text=tr("✎ Anordnen"),
                           command=lambda: _toggle_edit())
@@ -2177,18 +2171,10 @@ def run() -> None:
 
     bindbtn = ttk.Frame(mtab)
     bindbtn.grid(row=2, column=1, columnspan=2, sticky="ew", pady=(6, 0))
-    # Packed right-to-left so they sit right-aligned under the table they act
-    # on (per user: '+ Panel' creates content in THIS list, so it lives here):
-    # + Panel  + Binding  Duplizieren  Entfernen
-    # Two clearly separated groups (per user: structure the add/edit actions):
-    #   [ + Eingang ] [ Vorlage ▾ ]  |  [ Duplizieren ] [ Entfernen ]
-    # Packed right-to-left, so the LAST packed sits leftmost.
-    # --- Bearbeiten (rightmost) ---
-    ttk.Button(bindbtn, text=tr("Entfernen"), style="Danger.TButton",
-               command=lambda: _remove_selected_row()).pack(side="right")
-    ttk.Button(bindbtn, text=tr("Duplizieren"),
-               command=lambda: _ed_duplicate()).pack(side="right", padx=6)
-    ttk.Separator(bindbtn, orient="vertical").pack(side="right", fill="y", padx=10, pady=2)
+    # The Nachbau is the single mapper surface (docs/geraete-workflow.md): the header
+    # holds only the ADD actions; per-element Bearbeiten/Duplizieren/Entfernen live in
+    # the right-click context menu on the element itself.
+    #   [ + Eingabe ] [ + Ausgabe ▾ ] [ Vorlage ▾ ]  (packed right-to-left)
 
     # --- Hinzufügen ---
     def _add_panel(block: dict):
@@ -2470,8 +2456,8 @@ def run() -> None:
                     tr("Eine einzelne Eingabe (Knopf/Achse/Schalter/Encoder/Hat) an "
                        "ein Event oder eine Variable binden."))
 
-    ttk.Label(bindbtn, text=tr("Doppelklick auf eine Zeile öffnet den Editor · "
-                            "Entfernen wirkt auf die markierte Zeile"),
+    ttk.Label(bindbtn, text=tr("Klick auf ein Element öffnet den Editor · "
+                            "Rechtsklick: Bearbeiten / Duplizieren / Entfernen"),
               foreground="#666").pack(side="left")
     _rebuild_template_menu()
 
@@ -4494,8 +4480,11 @@ def run() -> None:
         if el.ref:  # mapped -> open its editor
             _open_row(el.ref)
             return
-        # empty placeholder with a physical code -> create a binding FOR it, with
-        # the source (kind + code) pre-filled so the switch/button can be mapped.
+        _panel_map_empty(el)
+
+    def _panel_map_empty(el):
+        """Empty placeholder with a physical code -> open the editor to create a
+        binding FOR it, source (kind + code) pre-filled so it can be mapped."""
         dev = _sel(dev_tree)
         src = el.source_kind or el.kind  # physical source kind may differ from visual
         if dev and el.code is not None and src in ("switch", "button", "axis", "hat"):
@@ -4505,6 +4494,38 @@ def run() -> None:
             ev["name"].set(el.label or tr("Neues Binding"))
             _ed_show_fields()
             ed_win.title(f"Neu mappen — {dev} · {el.label} (Code {el.code})")
+
+    def _ctx_do(ref, fn):
+        """Run an existing selection-based handler on ``ref``: point the (hidden)
+        detail tree at that row, then call the handler that reads its selection."""
+        with contextlib.suppress(Exception):
+            detail.selection_set(ref)
+            detail.see(ref)
+        fn()
+
+    def _panel_menu(event):
+        """Right-click on a Nachbau element: Bearbeiten / Duplizieren / Entfernen —
+        the per-element actions, now that the Nachbau is the single mapper surface."""
+        if pcanvas["edit"]:  # in arrange mode a right-click shouldn't map/remove
+            return
+        el = _panel_el_at(event)
+        if el is None or el.kind == panel_layout.HEADER:
+            return
+        menu = tk.Menu(panel_canvas, tearoff=0)
+        if el.ref:
+            menu.add_command(label=tr("Bearbeiten…"), command=lambda: _open_row(el.ref))
+            if str(el.ref).startswith("bind:"):
+                menu.add_command(label=tr("Duplizieren"),
+                                 command=lambda: _ctx_do(el.ref, _ed_duplicate))
+            menu.add_separator()
+            menu.add_command(label=tr("Mapping entfernen"),
+                             command=lambda: _ctx_do(el.ref, _remove_selected_row))
+        elif el.code is not None and (el.source_kind or el.kind) in (
+                "switch", "button", "axis", "hat"):
+            menu.add_command(label=tr("Neu mappen…"), command=lambda: _panel_map_empty(el))
+        else:
+            return
+        menu.tk_popup(event.x_root, event.y_root)
 
     def _panel_hover(event):
         if pcanvas["hint"] is None:
@@ -4543,26 +4564,15 @@ def run() -> None:
             _render_panel_canvas(dev)
 
     def _apply_view():
-        """Show whichever of the table / reconstruction the current mode selects."""
-        if mstate["view"] == "panel":
-            detail.grid_remove()
-            dsb.grid_remove()
-            panel_canvas.grid()
-            panel_vsb.grid()
-            view_btn.config(text=tr("Tabelle"))
-            edit_btn.pack(side="right", padx=(0, 8))
-            reset_layout_btn.pack(side="right", padx=(0, 4))
-        else:
-            panel_canvas.grid_remove()
-            panel_vsb.grid_remove()
-            detail.grid()
-            dsb.grid()
-            view_btn.config(text=tr("Nachbau"))
-            edit_btn.pack_forget()
-            reset_layout_btn.pack_forget()
-            if pcanvas["edit"]:  # leaving the reconstruction ends edit mode
-                pcanvas["edit"] = False
-                edit_btn.config(text=tr("✎ Anordnen"))
+        """Show the reconstruction — the single mapper surface. The detail tree stays
+        alive but HIDDEN (grid_remove'd): it's the internal data source the element
+        context menu drives, no longer a view the user toggles to."""
+        detail.grid_remove()
+        dsb.grid_remove()
+        panel_canvas.grid()
+        panel_vsb.grid()
+        edit_btn.pack(side="right", padx=(0, 8))
+        reset_layout_btn.pack(side="right", padx=(0, 4))
 
     def _panel_wheel(event):
         # scroll the tall reconstructions (radio); Linux = Button-4/5, else delta
@@ -4574,15 +4584,10 @@ def run() -> None:
     for _seq in ("<MouseWheel>", "<Button-4>", "<Button-5>"):
         panel_canvas.bind(_seq, _panel_wheel)
 
-    def _toggle_view():
-        mstate["view"] = "table" if mstate["view"] == "panel" else "panel"
-        _apply_view()
-        if mstate["view"] == "panel":
-            _render_panel_canvas(_sel(dev_tree))
-
     panel_canvas.bind("<Button-1>", _panel_press)
     panel_canvas.bind("<B1-Motion>", _panel_drag)
     panel_canvas.bind("<ButtonRelease-1>", _panel_drop)
+    panel_canvas.bind("<Button-3>", _panel_menu)
     panel_canvas.bind("<Motion>", _panel_hover)
     panel_canvas.bind(
         "<Configure>",

@@ -2,6 +2,13 @@
 
 > Kurzer Einstiegspunkt: was läuft, was offen ist, wie es weitergeht.
 >
+> ## CUT 2026-08-07 (spät⁵) — NACHBAU-ONLY AUFGERÄUMT (Tabelle raus, Rechtsklick-Menü), 413 Tests grün, ruff clean
+> **User-Auftrag „aufräumen".** **⑨ gebaut (uncommitted bis nächster Commit) — der Nachbau ist jetzt die EINZIGE Mapper-Oberfläche (Workflow-Doku-Entscheidung umgesetzt):**
+> - **Rechtsklick-Kontextmenü am Nachbau-Element** (`gui.py _panel_menu`, `<Button-3>`): gemappt → **Bearbeiten… / Duplizieren (nur bind:) / Mapping entfernen**; leerer Platzhalter → **Neu mappen…**. Treibt die bestehenden Handler, indem es den (versteckten) `detail`-Baum per `detail.selection_set(ref)` anwählt und `_open_row`/`_ed_duplicate`/`_remove_selected_row` ruft (`_ctx_do`-Helfer). `_panel_click`-Empty-Zweig zu `_panel_map_empty(el)` extrahiert (von Klick + Menü genutzt).
+> - **Kopfzeile bereinigt:** „Duplizieren"/„Entfernen"-Buttons RAUS (Aktionen jetzt am Element); Kopf = nur noch Hinzufügen `[+ Eingabe][+ Ausgabe ▾][Vorlage ▾]`. Hinweistext angepasst („Klick öffnet Editor · Rechtsklick: Bearbeiten/Duplizieren/Entfernen").
+> - **„Tabelle ↔ Nachbau"-Umschalter ENTFERNT:** `view_btn` + `_toggle_view` weg; `_apply_view` zeigt immer den Nachbau. Der `detail`-Treeview bleibt als **versteckte interne Datenquelle** (grid_remove'd, aber von `_render_detail` bei jeder Geräteauswahl befüllt) — die selection-basierten Handler funktionieren darüber weiter. `mstate["view"]` bleibt konstant „panel". **🔴 GUI visuell UNGEPRÜFT** (Kontextmenü/Rechtsklick brauchen Display) — ruff/py_compile/Import ok, alle Handler wiederverwendet.
+> **🔴 NORDSTERN-REST:** (1) **Glow-aus-Sim** im Nachbau (Anzeigen zeigen gelesenen Var-Wert live — Output-Elemente an `_ValueMonitor` hängen). (2) Saitek-Panels perspektivisch auf `generic_panel` heben (Endspiel, optional). (3) evtl. `detail`-Treeview ganz aus dem Layout nehmen (aktuell nur versteckt) — kosmetisch.
+>
 > ## CUT 2026-08-07 (spät⁴) — SCHRITT D (Ausgang-Scan) fertig, 413 Tests grün, ruff clean
 > **User-Auftrag „mach Schritt D".** **⑧ gebaut (uncommitted bis nächster Commit):** der **Ausgang-Scan** — Testimpuls wandert über die Report-Adressen, User bestätigt „das ist es!", Byte/Bit bzw. Offset werden automatisch gefüllt (statt manuell).
 > - **Reine Probe-Funktionen** (`mapping/panel_probe.py`, generisch nach Report-Länge, 3 Tests): `generic_led_report(length, byte, bit)` (nur 1 Bit), `generic_cell_report(length, offset, dot=)` (Ziffer „8" in einer Zelle), `generic_blank(length)`, `generic_led_targets(length)`→`[(byte,bit)]` (byte-major), `generic_cell_targets(length)`→`[offset]`. (Die Saitek-`probe_targets` bleiben der Spezialfall mit bekanntem Layout.)
