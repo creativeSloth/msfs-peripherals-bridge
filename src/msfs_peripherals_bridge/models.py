@@ -700,8 +700,43 @@ class RadioPanelOutput(BaseModel):
         return names
 
 
+class GenericLed(BaseModel):
+    """One LED on a user-declared panel: a bit in a feature-report data byte, lit
+    straight from a sim variable. The generic counterpart to the hardcoded panel
+    LEDs — a stranger maps their own device's lamps without a bespoke controller."""
+
+    name: str = Field("", description="Element alias (for the GUI; not used at runtime).")
+    var: str = Field(..., description="Sim variable; the LED lights when var >= on_at.")
+    byte: int = Field(0, ge=0, description="Data-byte index in the feature report (after id).")
+    bit: int = Field(..., ge=0, le=7, description="Bit within that byte.")
+    on_at: float = Field(0.5, description="Threshold: var >= on_at -> lit.")
+
+
+class GenericPanelOutput(BaseModel):
+    """Schritt E — a generic display/LED controller driven by declared element→var
+    mappings, replacing the hardcoded Saitek controllers for arbitrary devices.
+
+    Each LED is one bit in the feature report, lit from a sim var; the whole thing
+    optionally gated by a power var (dark without avionics power), like the gear
+    LEDs. Display cells (7-segment values) are a later increment; this first slice
+    covers indicator lamps, which any custom panel can use immediately.
+    """
+
+    type: Literal["generic_panel"] = "generic_panel"
+    length: int = Field(1, ge=1, description="Number of DATA bytes (excluding report id).")
+    leds: list[GenericLed] = Field(default_factory=list)
+    power: str | None = Field(None, description="Optional bool var gating all LEDs.")
+
+    def simvars(self) -> list[str]:
+        names = [led.var for led in self.leds]
+        if self.power is not None:
+            names.append(self.power)
+        return names
+
+
 Output = Annotated[
-    GearLedOutput | MultiPanelOutput | RadioPanelOutput, Field(discriminator="type")
+    GearLedOutput | MultiPanelOutput | RadioPanelOutput | GenericPanelOutput,
+    Field(discriminator="type"),
 ]
 
 

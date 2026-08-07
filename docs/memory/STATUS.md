@@ -2,6 +2,14 @@
 
 > Kurzer Einstiegspunkt: was läuft, was offen ist, wie es weitergeht.
 >
+> ## CUT 2026-08-07 (spät²) — SCHRITT E ANGEFANGEN (generische LED-Laufzeit) + Workflow-Doku, 406 Tests grün, ruff clean
+> **User-Auftrag „dann mache E".** **⑥ Schritt-E erste Scheibe gebaut (LED-Ausgabe generisch, uncommitted bis nächster Commit) — ADDITIV, Saitek-Controller unverändert = null Regressionsrisiko:**
+> - **Modell** (`models.py`): `GenericLed` (name/var/byte/bit/on_at) + `GenericPanelOutput` (`type: generic_panel`, `length`=Datenbytes, `leds`, optional `power`-Gate; `simvars()`); in die `Output`-Union aufgenommen.
+> - **Controller** (`mapping/generic_panel.py` `GenericPanelController`): erfüllt das `PanelController`-Protokoll (`subscriptions/consumes/on_event/refresh_after/on_state/render`). `consumes()=False` (generische Panel-Eingaben sind normale Bindings); `render()` baut den Feature-Report `[id, *length]` = jede LED ein Bit, gesetzt wenn `var>=on_at`, alles dunkel ohne `power`. Rein, hardware-frei.
+> - **Verdrahtung** (`outputs.py OutputManager`): neuer `isinstance(GenericPanelOutput)`-Zweig → `_controllers`; nutzt bestehenden `render()`/`needed_simvars`/Blink-Pfad. 7 Tests inkl. End-to-End (Manager subscribed die Vars, schreibt Report bei State-Change).
+> - **Workflow-Doku** (`docs/geraete-workflow.md`, committet `a64f128`): die systematische Kette (Phase 0 Erkennen → 1 Elemente/Struktur → 2 Kalibrieren → 3 Mappen → 4 Prüfen), Zwei-Schichten-Prinzip (Struktur=Overlay `ddef.inputs/outputs` vs. Funktion=Profil), **Entscheidung: Nachbau = einzige Mapper-Oberfläche, Tabelle entfällt** (Aktionen am Element per Klick/Rechtsklick).
+> **🔴 SCHRITT E — WAS NOCH FEHLT (Reihenfolge):** (1) **Display-Zellen** (7-Segment-Wert ← Var, Formatierung) = E.2 — heute nur LEDs. (2) **GUI**: `generic_panel`-Output im Mapper anlegen + Element→(Var, byte/bit) mappen (das „+ Ausgabe" aus der Workflow-Doku) — braucht auch die Hardware-Adresse (byte/bit) = **Schritt D Ausgang-Scan** (Testimpuls→bestätigen) ODER manuell. (3) Saitek-Panels perspektivisch auf `generic_panel` heben (Endspiel, optional). (4) **Nachbau-only**: Tabelle+Toggle entfernen, nachdem Rechtsklick-Kontextmenü (Bearbeiten/Entfernen/Duplizieren am Element) den Nachbau selbsttragend macht.
+>
 > ## CUT 2026-08-07 (spät) — NACHBAU-EDITOR (Drag/Raster) gebaut, 399 Tests grün, ruff clean
 > **User wählte „Nachbau-Editor (Drag/Raster)" als Nordstern-Nächstes** (statt Schritt E). **⑤ gebaut (uncommitted bis nächster Commit):** der **Bearbeitungsmodus** — Knöpfe/Anzeigen im Geräte-Nachbau frei ins Raster ziehen, pro Gerät persistent.
 > - **Pure Logik** (`panel_layout.py`, 4 Tests): `element_key(el)` (stabile ID: physisch `(kind,code)` → `ref` → kind+label), `snap(value, step)` (Raster-Rundung, KEIN Clamp wegen scrollbarem Radio), `apply_layout_overrides(els, {key:(x,y)})` (ersetzt x/y der getroffenen Elemente, `replace()`, unmutiert).

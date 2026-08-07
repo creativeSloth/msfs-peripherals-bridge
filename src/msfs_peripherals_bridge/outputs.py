@@ -27,10 +27,17 @@ from collections.abc import Callable, Iterator
 from typing import Protocol
 
 from .devices.hidraw_reader import write_feature_report
+from .mapping.generic_panel import GenericPanelController
 from .mapping.leds import gear_led_byte
 from .mapping.multi_panel import MultiPanelController
 from .mapping.radio_panel import RadioPanelController
-from .models import GearLedOutput, MultiPanelOutput, Output, RadioPanelOutput
+from .models import (
+    GearLedOutput,
+    GenericPanelOutput,
+    MultiPanelOutput,
+    Output,
+    RadioPanelOutput,
+)
 from .simconnect.protocol import Command, ReadNow, Subscribe
 
 log = logging.getLogger(__name__)
@@ -133,6 +140,8 @@ class OutputManager:
                         self._aux[(tog.device, tog.code)] = (device_id, controller)
                 elif isinstance(output, RadioPanelOutput):
                     self._controllers[device_id] = RadioPanelController(output)
+                elif isinstance(output, GenericPanelOutput):
+                    self._controllers[device_id] = GenericPanelController(output)
                 elif isinstance(output, GearLedOutput):
                     self._gear.setdefault(device_id, []).append(output)
 
