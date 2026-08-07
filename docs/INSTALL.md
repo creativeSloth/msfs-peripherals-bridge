@@ -130,13 +130,38 @@ mit Lese-/Schreibrecht für deinen User (`rw`), nachdem das Gerät steckt.
 
 ---
 
-## 3. Neues Gerät registrieren (Katalog) — *nur bei anderer Hardware*
+## 3. Gerät registrieren + seine Bausteine anlernen — *nur bei anderer Hardware*
 
-> Hast du **genau meine Hardware**, ist das schon in `config/devices.yaml`
-> eingetragen → **weiter mit Schritt 4.**
+> Hast du **genau meine Hardware**, ist alles schon eingetragen → **weiter mit
+> Schritt 4.** Für fremde Geräte ist das die systematische „von null"-Kette (Details:
+> [`geraete-workflow.md`](geraete-workflow.md)): **erkennen → registrieren →
+> Ein-/Ausgänge anlernen → (kalibrieren) → mappen.** Zwei Schichten sauber getrennt:
+> *was das Gerät physisch hat* (hier) vs. *was es im Flugzeug tut* (Schritt 4).
 
-Damit die App das Gerät kennt, muss es in **`config/devices.yaml`** stehen. Die
-`id` ist der stabile Schlüssel, auf den die Profile verweisen:
+### 3a. In der GUI (empfohlen) — Geräte-Explorer
+
+```bash
+uv run python -m msfs_peripherals_bridge.gui
+```
+
+Im **Mapper-Tab**:
+1. **„🔍 Geräte-Explorer…"** → listet **alle** angesteckten evdev/hidraw-Geräte,
+   auch unbekannte. Deins markieren → **„Registrieren…"** (kurze id vergeben). Das
+   schreibt ins **User-Overlay** `~/.config/msfs-peripherals-bridge/devices.local.yaml`
+   (die versionierte `config/devices.yaml` bleibt unangetastet).
+2. Am registrierten Gerät **„Geräteelemente…"** → getrennt **Eingaben (Lesen)** und
+   **Anzeigen (Schreiben)** anlegen:
+   - **„+ Input anlernen…"** (Taster/Schalter/Achse/Encoder): am Gerät betätigen →
+     der Code wird live erkannt (Achsen erfassen dabei ihren Rohbereich) → benennen.
+   - **„+ Anzeige hinzufügen…"** (LED/Display): Name + Zellenzahl. Die **Report-
+     Adresse** (welches Byte/Bit) findet der **🔦 Ausgang-Scan** im „+ Ausgabe"-Dialog
+     (Schritt 4), oder du trägst sie von Hand ein.
+   - **„Aus Vorlage füllen…"** projiziert ein bekanntes Muster (Saitek/Yoke/TQ6) in
+     einem Rutsch in die Element-Liste.
+
+### 3b. Alternativ manuell — `config/devices.yaml`
+
+USB-IDs per `lsusb` finden, dann eintragen (`id` = stabiler Schlüssel für Profile):
 
 ```yaml
 devices:
@@ -148,58 +173,45 @@ devices:
     # name_match: "Fulcrum"  # nur nötig, wenn die USB-ID mehrdeutig ist (z. B. 0000:0000)
 ```
 
-- `transport: evdev` für Yokes/Quadranten/Pedale (Achsen), `hidraw` für Panels
-  mit Knöpfen/LEDs/Display.
-- `name_match` nur setzen, wenn mehrere Geräte dieselbe (oder eine generische)
-  USB-ID melden — dann wird über den Produktnamen unterschieden.
+Prüfen (CLI): `uv run msfs-bridge list-devices` (Katalog-Geräte, die dranhängen) ·
+`uv run msfs-bridge inventory` (**alle** Geräte roh, inkl. unregistrierter) ·
+`uv run msfs-bridge scan` / `monitor <id>` (Codes live ablesen).
 
-Jetzt Gerät anstecken und prüfen:
-
-```bash
-uv run msfs-bridge list-devices   # welche Katalog-Geräte hängen dran?
-```
-
-Die **Codes** (Achsen-/Knopf-Nummern) findest du live per:
-
-```bash
-uv run msfs-bridge scan           # alle Achsen/Knöpfe/Hats je Gerät
-uv run msfs-bridge monitor <id>   # wie evtest: Code beim Bewegen ablesen
-```
-
-…oder komfortabel direkt in der GUI über **🪄 / 🎚 Anlernen** (Schritt 4).
-
-**✓ Checkpoint:** `list-devices` zeigt dein Gerät als **verbunden**.
-
-> Eine GUI zum Anlegen unbekannter Geräte (Geräte-Explorer) ist geplant; aktuell
-> ist der Katalog diese eine YAML-Datei.
+**✓ Checkpoint:** Das Gerät steht im Geräte-Explorer als **registriert**
+(bzw. `list-devices` zeigt es als **verbunden**), und seine Ein-/Ausgänge sind als
+Elemente angelegt.
 
 ---
 
 ## 4. Mappen & testen — ohne Sim (Dry-Run)
 
-Ab hier brauchst du **noch kein MSFS**. Starte die GUI:
+Ab hier brauchst du **noch kein MSFS**. In der GUI (Mapper-Tab):
 
-```bash
-uv run python -m msfs_peripherals_bridge.gui
-```
-
-Im **Mapper-Tab**:
 1. Gerät links auswählen — der **Nachbau** zeigt Schalter/Achsen/Displays an
-   physischer Position (Umschalter „Tabelle ↔ Nachbau").
-2. Ein Element anklicken → Editor öffnet sich.
-3. **🪄 Anlernen** (Knopf/Schalter) bzw. **🎚 Anlernen** (Encoder/Selektor):
-   am Gerät betätigen → der Code wird flanken-fangend erkannt und eingetragen.
-4. Ziel-SimVar/Event über **„Wählen…"** setzen, **Übernehmen**.
+   physischer Position. Mit **„✎ Anordnen"** ziehst du die Elemente ins Raster
+   (pro Gerät gespeichert).
+2. **Eingaben mappen** — **„+ Eingabe"** (oder ein Element im Nachbau anklicken) →
+   Quelle per **„📋 Benannt"** aus den angelernten Eingaben wählen (statt roher
+   Codes), Ziel-SimVar/Event über **„Wählen…"** setzen, **Übernehmen**. Codes
+   nachträglich per **🪄 / 🎚 Anlernen** im Editor.
+3. **Anzeigen mappen** — **„+ Ausgabe ▾" → LED… / Display…**: Variable wählen und
+   die Report-Adresse per **„🔦 Adresse finden…"** scannen (Testimpuls wandert, du
+   bestätigst „das ist es!"). Die **generische Laufzeit** treibt danach LEDs (ein
+   Bit) und 7-Segment-Displays (Var → Zellen) direkt aus dem Sim.
+4. Für die 3 Saitek-Panels gibt es zusätzlich **„Vorlage ▾"** (ganzes Panel in
+   einem Rutsch; eigene Anordnungen als Vorlage speicherbar).
 
-**Live-Kontrolle ohne Sim:** Bewege eine Achse / kippe einen Schalter — der
-Nachbau-Balken füllt sich bzw. das Element glüht. So siehst du sofort, ob das
-Gerät gelesen wird.
+**Live-Kontrolle ohne Sim:** Achse bewegen / Schalter kippen — der Nachbau-Balken
+füllt sich bzw. das Element glüht. Panel-Ausgänge lassen sich mit **🔦 LEDs/Display
+testen…** gezielt ansteuern.
 
-> Panel-Ausgänge (LEDs/Display) lassen sich mit **🔦 LEDs/Display testen…**
-> gezielt ansteuern, um zu sehen, welche Zelle welches Feld treibt.
+> **Nichts kaputt machen können:** `tools/simulate-from-scratch.sh` startet eine
+> isolierte Sandbox (leerer Katalog + leeres Profil), in der du den ganzen Von-Null-
+> Ablauf gefahrlos durchspielst — deine echten Mappings werden nie angefasst.
 
-**✓ Checkpoint:** Beim Betätigen der Hardware reagiert der Nachbau live, und ein
-angelernter Code landet im Editor.
+**✓ Checkpoint:** Beim Betätigen der Hardware reagiert der Nachbau live, ein
+angelernter Code landet im Editor, und ein 🔦-Testimpuls leuchtet die richtige
+LED/Zelle.
 
 ---
 
