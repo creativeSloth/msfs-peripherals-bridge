@@ -1878,6 +1878,40 @@ def run() -> None:
             _persist()
             _refill()
 
+        def _fill_from_template():
+            """Seed atomic elements from the device's CURRENT hardcoded mapping.
+
+            Nordstern (Schritt A): a click expresses the yoke/panels/pedals as the
+            same InputBlock/OutputBlock a stranger would scan by hand, so the user
+            reaches parity without re-capturing everything. Existing blocks are kept;
+            only template elements whose name isn't present yet are appended.
+            """
+            prof = mstate.get("profile") or _current_profile()
+            if prof is None:
+                messagebox.showinfo(tr("Aus Vorlage füllen"), tr("Kein Profil geladen."))
+                return
+            t_in, t_out = gui_mapper.template_elements(ddef, prof)
+            have_in = {b.name for b in inputs}
+            have_out = {b.name for b in outputs}
+            new_in = [b for b in t_in if b.name not in have_in]
+            new_out = [b for b in t_out if b.name not in have_out]
+            if not new_in and not new_out:
+                messagebox.showinfo(
+                    tr("Aus Vorlage füllen"),
+                    tr("Nichts hinzuzufügen — alle Vorlage-Elemente sind schon da."))
+                return
+            if not messagebox.askyesno(
+                    tr("Aus Vorlage füllen"),
+                    tr("Aus dem aktuellen Mapping übernehmen:")
+                    + f"\n\n{len(new_in)} " + tr("Inputs") + f" · {len(new_out)} "
+                    + tr("Anzeigen") + "\n\n" + tr("Vorhandene Elemente bleiben erhalten."),
+                    parent=sc):
+                return
+            inputs.extend(new_in)
+            outputs.extend(new_out)
+            _persist()
+            _refill()
+
         def _remove():
             sel = lst.focus()
             if not sel or ":" not in sel:
@@ -1911,6 +1945,10 @@ def run() -> None:
             out_menu.add_command(label=_lbl, command=lambda k=_k: _add_output(k))
         b_out["menu"] = out_menu
         b_out.pack(side="left", padx=6)
+        b_tmpl = ttk.Button(br, text=tr("Aus Vorlage füllen…"), command=_fill_from_template)
+        b_tmpl.pack(side="left", padx=6)
+        _attach_tooltip(b_tmpl, tr("Elemente aus dem aktuellen Mapping übernehmen "
+                                   "(Bindings + Panel-Controls/LEDs/Display)"))
         ttk.Button(br, text=tr("Entfernen"), style="Danger.TButton",
                    command=_remove).pack(side="left", padx=12)
         ttk.Button(br, text=tr("Schließen"), command=sc.destroy).pack(side="right")

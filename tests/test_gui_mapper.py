@@ -583,3 +583,117 @@ def test_atomic_input_count_counts_atoms_incl_scanned_inputs():
     # catalog device with bindings: counts those
     yoke = DeviceDef(id="yoke", name="Y", vendor="0000", product="0000", name_match="Fulcrum")
     assert atomic_input_count(yoke, PROFILE) == 2
+
+
+# --------------------------------------------------------------------------- #
+# template_elements — project the hardcoded mapping into atomic blocks
+# --------------------------------------------------------------------------- #
+def test_template_elements_projects_bindings_to_typed_inputs():
+    from msfs_peripherals_bridge.gui_mapper import template_elements
+    from msfs_peripherals_bridge.models import DeviceDef
+
+    ddef = DeviceDef(id="yoke", name="Y", vendor="0000", product="0000", name_match="Fulcrum")
+    profile = Profile.model_validate({
+        "name": "p",
+        "bindings": {"yoke": [
+            {"name": "Aileron",
+             "source": {"kind": "axis", "code": 0, "raw_min": 0, "raw_max": 4095},
+             "action": {"type": "event", "event": "AILERON_SET"}},
+            {"name": "Gear", "source": {"kind": "button", "code": 288},
+             "action": {"type": "event", "event": "GEAR_TOGGLE"}},
+            {"name": "Beacon", "source": {"kind": "switch", "code": 2},
+             "action": {"type": "event", "event": "TOGGLE_BEACON_LIGHTS"}},
+            {"name": "View", "source": {"kind": "hat", "code": 16},
+             "hat": {
+                 "up": {"action": {"type": "event", "event": "PAN_UP"}, "code": 20, "value": 1},
+                 "down": {"action": {"type": "event", "event": "PAN_DN"}, "code": 21, "value": 1},
+                 "left": {"action": {"type": "event", "event": "PAN_L"}, "code": 22, "value": 1},
+                 "right": {"action": {"type": "event", "event": "PAN_R"}, "code": 23, "value": 1},
+             }},
+        ]},
+    })
+    inputs, outputs = template_elements(ddef, profile)
+    assert outputs == []
+    kinds = [(b.kind, b.name, b.code) for b in inputs]
+    assert kinds == [
+        ("axis", "Aileron", 0),
+        ("button", "Gear", 288),
+        ("switch", "Beacon", 2),
+        ("selector", "View", 16),
+    ]
+    axis = inputs[0]
+    assert (axis.raw_min, axis.raw_max) == (0, 4095)  # axis carries its calibration
+    assert inputs[3].positions == [20, 21, 22, 23]  # hat -> selector over its codes
+
+
+def test_template_elements_multi_panel_controls_and_display():
+    from msfs_peripherals_bridge.gui_mapper import template_elements
+    from msfs_peripherals_bridge.mapping.multi_panel import ENCODER_CCW, ENCODER_CW
+    from msfs_peripherals_bridge.models import DeviceDef
+
+    ddef = DeviceDef(id="multi_panel", name="M", vendor="06a3", product="0d06",
+                     transport="hidraw")
+    profile = Profile.model_validate({
+        "name": "p",
+        "outputs": {"multi_panel": [{
+            "type": "multi_panel",
+            "selector": [{"code": 0, "label": "ALT", "simvar": "X", "min": 0, "max": 9},
+                         {"code": 1, "label": "VS", "simvar": "Y", "min": 0, "max": 9}],
+            "dimmer": {"cw": 30, "ccw": 31, "targets": [{"var": "L:PANEL_LIGHT"}]},
+        }]},
+    })
+    inputs, outputs = template_elements(ddef, profile)
+    # value encoder + mode selector + dimmer
+    assert [b.kind for b in inputs] == ["encoder", "selector", "encoder"]
+    assert (inputs[0].cw, inputs[0].ccw) == (ENCODER_CW, ENCODER_CCW)
+    assert inputs[1].positions == [0, 1]
+    assert (inputs[2].cw, inputs[2].ccw) == (30, 31)
+    # 8 button LEDs + one 10-cell display
+    leds = [b for b in outputs if b.kind == "led"]
+    displays = [b for b in outputs if b.kind == "display"]
+    assert len(leds) == 8
+    assert len(displays) == 1 and displays[0].cells == 10
+
+
+def test_template_elements_radio_panel_per_unit():
+    from msfs_peripherals_bridge.gui_mapper import template_elements
+    from msfs_peripherals_bridge.models import DeviceDef
+
+    ddef = DeviceDef(id="radio_panel", name="R", vendor="06a3", product="0d05",
+                     transport="hidraw")
+    bank = {"kind": "freq", "code": 2, "label": "COM1", "active": "A", "standby": "S",
+            "swap_event": "SW", "whole_inc": "wi", "whole_dec": "wd",
+            "fract_inc": "fi", "fract_dec": "fd"}
+    profile = Profile.model_validate({
+        "name": "p",
+        "outputs": {"radio_panel": [{
+            "type": "radio_panel",
+            "units": [{"name": "upper", "row": "upper", "banks": [bank],
+                       "outer_cw": 10, "outer_ccw": 11, "inner_cw": 12, "inner_ccw": 13,
+                       "swap": 14}],
+        }]},
+    })
+    inputs, outputs = template_elements(ddef, profile)
+    # per unit: outer + inner encoder + swap button + mode selector
+    assert [b.kind for b in inputs] == ["encoder", "encoder", "button", "selector"]
+    assert (inputs[0].cw, inputs[0].ccw) == (10, 11)
+    assert (inputs[1].cw, inputs[1].ccw) == (12, 13)
+    assert inputs[2].code == 14
+    assert inputs[3].positions == [2]
+    # active + standby display, five cells each
+    assert [b.kind for b in outputs] == ["display", "display"]
+    assert all(b.cells == 5 for b in outputs)
+
+
+def test_template_elements_gear_leds_are_three_lamps():
+    from msfs_peripherals_bridge.gui_mapper import template_elements
+    from msfs_peripherals_bridge.models import DeviceDef
+
+    ddef = DeviceDef(id="switch_panel", name="S", vendor="06a3", product="0d67",
+                     transport="hidraw")
+    profile = Profile.model_validate({
+        "name": "p", "outputs": {"switch_panel": [{"type": "gear_leds"}]},
+    })
+    inputs, outputs = template_elements(ddef, profile)
+    assert inputs == []
+    assert [b.kind for b in outputs] == ["led", "led", "led"]

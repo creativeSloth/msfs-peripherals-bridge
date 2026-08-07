@@ -27,8 +27,10 @@ from .models import (
     EventAction,
     EventFromVarAction,
     GearLedOutput,
+    InputBlock,
     MultiPanelOutput,
     Output,
+    OutputBlock,
     Profile,
     RadioBank,
     RadioPanelOutput,
@@ -37,6 +39,7 @@ from .models import (
     SequenceAction,
     SimVarAction,
     Source,
+    SourceKind,
     Transform,
     WriteStep,
     XpdrBank,
@@ -213,6 +216,93 @@ def output_input_codes(output: Output) -> set[int]:
             codes |= {b.code for b in u.banks}
         return codes
     return set()
+
+
+# Physical wheel order + labels of the switch-panel gear LEDs (matches
+# panel_probe._WHEELS / _WHEEL_LABEL); kept local so this stays import-light.
+_GEAR_WHEELS = (("nose", "Bugrad"), ("left", "links"), ("right", "rechts"))
+
+
+def template_elements(
+    ddef: DeviceDef, profile: Profile
+) -> tuple[list[InputBlock], list[OutputBlock]]:
+    """Project a device's *hardcoded* mapping into atomic InputBlock/OutputBlock lists.
+
+    The Nordstern (2026-07-21): express every currently-mapped device — the Saitek
+    panels, yoke, TQ6, pedals — as the same atomic elements a stranger would scan by
+    hand, so the elements editor's "Aus Vorlage füllen" seeds a device in one click
+    and, later (Schritt E), a generic runtime can drive those elements directly and
+    retire the panel templates.
+
+    Pure projection, no I/O, so it is unit-tested headless:
+
+    * each plain binding -> one InputBlock (kind + code + axis calibration from its
+      source; a hat becomes a multi-position ``selector`` over its direction codes);
+    * each panel-controller output -> its input CONTROLS as InputBlocks (value/ring
+      encoders, mode selector, swap, dimmer) plus its physical WRITE atoms as
+      OutputBlocks — one lamp per LED, one display carrying its cell count, the same
+      layout the 🔦 test-send walks.
+
+    Names mirror what the user already sees, so seeded blocks read like the bindings
+    they came from.
+    """
+    from .mapping.leds import MULTI_BUTTON_ORDER
+    from .mapping.multi_panel import ENCODER_CCW, ENCODER_CW
+
+    inputs: list[InputBlock] = []
+    outputs: list[OutputBlock] = []
+
+    for b in profile.bindings.get(ddef.id, []):
+        src = b.source
+        if b.hat is not None:
+            codes = sorted({c for c, _v, _a in b.hat.entries(src.code)})
+            inputs.append(InputBlock(kind="selector", name=b.name, code=src.code,
+                                     positions=codes))
+        elif src.kind == SourceKind.AXIS:
+            inputs.append(InputBlock(kind="axis", name=b.name, code=src.code,
+                                     raw_min=src.raw_min, raw_max=src.raw_max))
+        elif src.kind == SourceKind.SWITCH:
+            inputs.append(InputBlock(kind="switch", name=b.name, code=src.code))
+        else:  # button (and any other momentary source)
+            inputs.append(InputBlock(kind="button", name=b.name, code=src.code))
+
+    for o in profile.outputs.get(ddef.id, []):
+        if isinstance(o, MultiPanelOutput):
+            inputs.append(InputBlock(kind="encoder", name=tr("Wert-Encoder"),
+                                     cw=ENCODER_CW, ccw=ENCODER_CCW))
+            if o.selector:
+                inputs.append(InputBlock(kind="selector", name=tr("Modus-Wahl"),
+                                         positions=[e.code for e in o.selector]))
+            if o.dimmer is not None:
+                inputs.append(InputBlock(kind="encoder", name=tr("Helligkeit"),
+                                         cw=o.dimmer.cw, ccw=o.dimmer.ccw))
+            for name in MULTI_BUTTON_ORDER:
+                outputs.append(OutputBlock(kind="led", name=f"LED {name.upper()}"))
+            # one physical 2x5 seven-segment display, ten addressable cells.
+            outputs.append(OutputBlock(kind="display", name=tr("Display"),
+                                       cells=10, display_kind="7segment"))
+        elif isinstance(o, RadioPanelOutput):
+            for u in o.units:
+                lbl = u.name or u.row
+                inputs.append(InputBlock(kind="encoder", name=f"{lbl} · {tr('außen')}",
+                                         cw=u.outer_cw, ccw=u.outer_ccw))
+                inputs.append(InputBlock(kind="encoder", name=f"{lbl} · {tr('innen')}",
+                                         cw=u.inner_cw, ccw=u.inner_ccw))
+                inputs.append(InputBlock(kind="button", name=f"{lbl} · SWAP", code=u.swap))
+                if u.banks:
+                    inputs.append(InputBlock(kind="selector",
+                                             name=f"{lbl} · {tr('Modus-Wahl')}",
+                                             positions=[bk.code for bk in u.banks]))
+                # each unit shows an active + a standby five-digit display.
+                outputs.append(OutputBlock(kind="display", name=f"{lbl} · {tr('Aktiv')}",
+                                           cells=5, display_kind="7segment"))
+                outputs.append(OutputBlock(kind="display", name=f"{lbl} · {tr('Standby')}",
+                                           cells=5, display_kind="7segment"))
+        elif isinstance(o, GearLedOutput):
+            for _wheel, label in _GEAR_WHEELS:
+                outputs.append(OutputBlock(kind="led", name=f"LED {label}"))
+
+    return inputs, outputs
 
 
 def describe_source(source: Source) -> str:
