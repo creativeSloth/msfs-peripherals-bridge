@@ -1344,6 +1344,9 @@ def run() -> None:
     # forward hook: the Gauges tab (built further down) contributes its needle
     # variables to the shared subscription while it is visible.
     gauge_hook: dict = {"wires": lambda: []}
+    # forward hook: the Mapper's panel view contributes its display vars
+    # (glow-from-sim: LED/segment readouts) while the panel is the shown tab.
+    panel_glow: dict = {"wires": lambda: []}
 
     def _resubscribe():
         # Subscribe only to what's visible: the Statistik list while its tab is
@@ -1360,6 +1363,7 @@ def run() -> None:
         if pw is not None and pw.alive():
             wires += pw.wires()
         wires += gauge_hook["wires"]()
+        wires += panel_glow["wires"]()
         monitor.set_names(list(dict.fromkeys(wires)))
 
     def _persist_selection():
@@ -1636,7 +1640,9 @@ def run() -> None:
     panel_vsb.grid(row=1, column=2, sticky="ns", pady=6)
     panel_vsb.grid_remove()
     panel_canvas.configure(yscrollcommand=panel_vsb.set)
-    pcanvas: dict = {"by_index": {}, "live": {}, "device": None, "hint": None,
+    # "live" maps a device (kind, code) -> input-element handles (physical mirror);
+    # "sim" maps a sim var -> display-element handles (glow-from-sim readout).
+    pcanvas: dict = {"by_index": {}, "live": {}, "sim": {}, "device": None, "hint": None,
                      "edit": False, "W": 0.0, "H": 0.0, "pad": 8,
                      "drag": {"n": None, "sx": 0.0, "sy": 0.0, "moved": False}}
     _PANEL_GRID = 1 / 24  # snap step + visible grid spacing in edit mode
@@ -2450,11 +2456,28 @@ def run() -> None:
                             command=lambda: _add_generic_output("display"))
     b_addout.configure(menu=addout_menu)
 
-    b_addinput = ttk.Button(bindbtn, text=tr("+ Eingabe"), command=lambda: _new_binding())
+    b_addinput = ttk.Menubutton(bindbtn, text=tr("+ Eingabe ▾"))
     b_addinput.pack(side="right", padx=6)
     _attach_tooltip(b_addinput,
-                    tr("Eine einzelne Eingabe (Knopf/Achse/Schalter/Encoder/Hat) an "
-                       "ein Event oder eine Variable binden."))
+                    tr("Eine einzelne Eingabe an ein Event/eine Variable binden — "
+                       "Taster/Schalter/Achse/Hat. Ein Encoder (2 Richtungen) wird an "
+                       "generischen Geräten in einem Rutsch angelernt; die Saitek-Panels "
+                       "steuern ihre Encoder über die Vorlage (kein eigener Schritt)."))
+
+    def _rebuild_input_menu():
+        # rebuilt on open (postcommand) so 'Encoder' only shows for generic devices
+        addin_menu.delete(0, "end")
+        for _k, _lbl in (("button", tr("Taster")), ("switch", tr("Schalter")),
+                         ("axis", tr("Achse")), ("hat", tr("Hat"))):
+            addin_menu.add_command(label=_lbl, command=lambda kk=_k: _new_binding(kk))
+        dev = _sel(dev_tree)
+        if dev is not None and not _is_static_panel(dev):
+            addin_menu.add_separator()
+            addin_menu.add_command(label=tr("Encoder (2 Richtungen)…"),
+                                   command=_add_encoder_binding)
+
+    addin_menu = tk.Menu(b_addinput, tearoff=0, postcommand=_rebuild_input_menu)
+    b_addinput.configure(menu=addin_menu)
 
     ttk.Label(bindbtn, text=tr("Klick auf ein Element öffnet den Editor · "
                             "Rechtsklick: Bearbeiten / Duplizieren / Entfernen"),
@@ -3252,6 +3275,7 @@ def run() -> None:
     def _ed_close():
         ed_win.withdraw()
         etgt.update(device=None, index=None, original_action=None)
+        etgt.pop("then", None)  # a cancelled encoder CW must not chain to CCW
 
     def _ed_load(device_id, index):
         prof = mstate["profile"]
@@ -3270,6 +3294,7 @@ def run() -> None:
 
     def _open_editor(device_id, index):
         """Populate + show the settings window for ONE binding (index None = new)."""
+        etgt.pop("then", None)  # drop any leftover encoder-chain continuation
         if index is None:
             etgt.update(device=device_id, index=None, original_action=None)
             _ed_set_form(gui_mapper.blank_binding_form("button"))
@@ -3284,12 +3309,156 @@ def run() -> None:
         ed_win.lift()
         ed_win.focus_set()
 
-    def _new_binding():
+    def _new_binding(kind="button"):
         dev = _sel(dev_tree)
         if dev is None:
             m_state.config(text=tr("Kein Gerät gewählt — links ein Gerät markieren."))
             return
         _open_editor(dev, None)
+        ev["kind"].set(kind)  # pre-select the source kind (matches the physical control)
+        _ed_show_fields()
+
+    def _is_static_panel(dev):
+        # Saitek panels drive their encoders from the template -> no generic add.
+        return panel_layout.is_static_panel(mstate["profile"], dev)
+
+    def _capture_codes(dev, steps, on_done):
+        """Guided multi-step edge capture in the Mapper (encoder cw/ccw → codes).
+
+        ``steps`` = ``[(key, prompt), …]``; calls ``on_done({key: code})`` with the
+        winning bit per step. Uses the flank-COUNTING reader (hidraw edge_count /
+        evdev button edges) like :func:`_learn_code`, so a transient encoder detent
+        is caught (the state reader would miss the ~8 ms pulse)."""
+        opener = None
+        with contextlib.suppress(Exception):
+            from .devices import evdev_reader, hidraw_reader
+
+            dcat = _device_catalog()
+            ddef = dcat.by_id(dev) if dcat else None
+            if ddef is not None and ddef.transport == "hidraw":
+                path = hidraw_reader.discover(dcat).get(dev)
+                if path:
+                    opener = lambda: hidraw_reader.edge_count_reader(path)  # noqa: E731
+            else:
+                path = evdev_reader.discover(dcat).get(dev) if dcat else None
+                if path:
+                    opener = lambda: evdev_reader.button_edge_reader(path)  # noqa: E731
+        if opener is None:
+            m_state.config(text=f"„{dev}“ nicht live lesbar — Gerät angesteckt?")
+            return
+        from .devices import hidraw_reader  # winning_code decides the pulsed bit
+
+        cap: dict[str, int] = {}
+        stt: dict = {"i": 0, "read": None, "close": None, "winner": None}
+        cap_win = tk.Toplevel(win)
+        cap_win.transient(win)
+        cap_win.title(tr("Encoder anlernen"))
+        frm = ttk.Frame(cap_win, padding=12)
+        frm.pack(fill="both", expand=True)
+        instr = ttk.Label(frm, font=("TkDefaultFont", 11, "bold"), wraplength=380,
+                          justify="left")
+        instr.pack(anchor="w")
+        found = ttk.Label(frm, foreground="#2e7d32")
+        found.pack(anchor="w", pady=(4, 6))
+        row = ttk.Frame(frm)
+        row.pack(anchor="w")
+
+        def _close_reader():
+            if stt["close"]:
+                stt["close"]()
+            stt["close"] = stt["read"] = None
+
+        def _poll():
+            if not cap_win.winfo_exists():
+                return
+            counts = stt["read"]() if stt["read"] else None
+            if counts is None:
+                found.config(text=tr("Gerät getrennt."))
+                return
+            w = hidraw_reader.winning_code(counts)
+            if w is not None:
+                stt["winner"] = w
+                found.config(text=f"{tr('erkannt')}: Code {w} ({counts[w]} {tr('Flanken')})")
+                b_next.config(state="normal")
+            cap_win.after(120, _poll)
+
+        def _start():
+            _close_reader()
+            opened = opener()
+            if opened is None:
+                found.config(text=tr("Gerät nicht lesbar."))
+                return
+            stt["read"], stt["close"] = opened
+            stt["winner"] = None
+            _key, prompt = steps[stt["i"]]
+            instr.config(text=f"{tr('Schritt')} {stt['i'] + 1}/{len(steps)}: {prompt}")
+            found.config(text=tr("— warte auf Bewegung —"))
+            b_next.config(state="disabled")
+            _poll()
+
+        def _advance():
+            if stt["winner"] is not None:
+                cap[steps[stt["i"]][0]] = stt["winner"]
+            stt["i"] += 1
+            if stt["i"] < len(steps):
+                _start()
+            else:
+                _close_reader()
+                cap_win.destroy()
+                on_done(cap)
+
+        b_next = ttk.Button(row, text=tr("Weiter"), command=_advance, state="disabled")
+        b_next.pack(side="left")
+        ttk.Button(row, text=tr("Abbrechen"),
+                   command=lambda: (_close_reader(), cap_win.destroy())).pack(side="left", padx=6)
+        cap_win.protocol("WM_DELETE_WINDOW", lambda: (_close_reader(), cap_win.destroy()))
+        _start()
+        cap_win.lift()
+
+    def _open_encoder_direction(dev, name, dir_label, code, then=None):
+        """Open the binding editor pre-filled for ONE encoder direction (a button on
+        ``code``); on save, ``then`` (the other direction) is opened next."""
+        _open_editor(dev, None)
+        ev["kind"].set("button")
+        ev["code"].set(str(code))
+        ev["name"].set(f"{name} {dir_label}")
+        ev["action_type"].set("event")
+        _ed_show_fields()
+        etgt["then"] = then
+        ed_win.title(f"Encoder „{name}“ · {dir_label} — Event wählen (z. B. …_INC/…_DEC)")
+        _ed_status(f"Richtung {dir_label}: Event fürs Drehen wählen, dann Übernehmen.")
+
+    def _add_encoder_binding():
+        """+ Eingabe → Encoder: capture cw+ccw, then map each direction as its own
+        button binding (an encoder detent is a momentary pulse). Generic devices
+        only — the Saitek panels drive their encoders from the template."""
+        dev = _sel(dev_tree)
+        if dev is None:
+            m_state.config(text=tr("Kein Gerät gewählt — links ein Gerät markieren."))
+            return
+        if _is_static_panel(dev):
+            m_state.config(text=f"„{dev}“ ist ein Saitek-Panel — seine Encoder kommen aus "
+                                "der Vorlage, kein eigenes Anlernen nötig.")
+            return
+        steps = [("cw", tr("Encoder mehrmals IM Uhrzeigersinn drehen.")),
+                 ("ccw", tr("Encoder mehrmals GEGEN den Uhrzeigersinn drehen."))]
+
+        def _done(codes):
+            cwc, ccwc = codes.get("cw"), codes.get("ccw")
+            if cwc is None or ccwc is None:
+                m_state.config(text=tr("Encoder-Anlernen abgebrochen (nicht beide Richtungen)."))
+                return
+            name = simpledialog.askstring(
+                tr("Encoder-Name"),
+                tr("Wie heißt dieser Encoder? (z. B. „Heading“, „Höhe“)"), parent=win)
+            if not name or not name.strip():
+                return
+            name = name.strip()
+            _open_encoder_direction(
+                dev, name, "CW", cwc,
+                then=lambda: _open_encoder_direction(dev, name, "CCW", ccwc))
+
+        _capture_codes(dev, steps, _done)
 
     def _ed_reset():
         if etgt["device"] is None:
@@ -3320,6 +3489,7 @@ def run() -> None:
         if etgt["device"] is None:
             _ed_status("Kein Binding gewählt.", error=True)
             return
+        nxt = etgt.get("then")  # encoder chain: open the other direction after a save
         try:
             # A sequence's steps live in seq_state (not the flat form): build its
             # action fresh and hand it to form_to_binding (which passes it through).
@@ -3351,6 +3521,8 @@ def run() -> None:
         _ed_close()
         _reselect(dev, idx)
         m_state.config(text=msg)
+        if nxt:  # encoder: CW saved -> straight into the CCW direction editor
+            nxt()
 
     def _ed_duplicate():
         dev, idx = _selected_bind()
@@ -4204,6 +4376,7 @@ def run() -> None:
 
     # --- panel reconstruction view (canvas drawn from panel_layout) -------- #
     _PANEL_ON = "#22c55e"  # live "switch on" highlight (green)
+    _LAMP_ON, _LAMP_ON_EDGE = "#22c55e", "#4ade80"  # a lit indicator lamp (glow-from-sim)
 
     def _panel_fill(el):
         """(fill, outline) for an element in its resting (not-live) state."""
@@ -4299,9 +4472,13 @@ def run() -> None:
 
     def _draw_led(c, tag, el, x0, y0, x1, y1):
         fill, edge = _panel_fill(el)
-        c.create_oval(x0, y0, x1, y1, fill=fill, outline=edge, width=2, tags=(tag,))
+        oval = c.create_oval(x0, y0, x1, y1, fill=fill, outline=edge, width=2, tags=(tag,))
         c.create_text((x0 + x1) / 2, (y0 + y1) / 2, text=el.label, fill="#e2e8f0",
                       font=("TkDefaultFont", 8, "bold"), tags=(tag,))
+        if el.var:  # glow-from-sim: the value monitor lights this lamp live
+            pcanvas["sim"].setdefault(el.var, []).append(
+                {"kind": "lamp", "id": oval, "on_at": el.on_at,
+                 "off_fill": fill, "off_edge": edge})
 
     def _draw_segment(c, tag, el, x0, y0, x1, y1):
         # a digital DISPLAY — unmistakably NOT a button: rectangular metal bezel,
@@ -4313,9 +4490,12 @@ def run() -> None:
         sx0, sy0, sx1, sy1 = x0 + 5, y0 + 5, x1 - 5, y1 - 5
         c.create_rectangle(sx0, sy0, sx1, sy1, fill="#0a0202" if ink == "#ff3b30"
                            else "#050805", outline="#000000", width=1, tags=(tag,))
-        c.create_text((x0 + x1) / 2, (y0 + y1) / 2, text=el.label, fill=ink,
-                      font=("TkFixedFont", 9, "bold"),
-                      width=max(26.0, sx1 - sx0 - 4), tags=(tag,))
+        txt = c.create_text((x0 + x1) / 2, (y0 + y1) / 2, text=el.label, fill=ink,
+                            font=("TkFixedFont", 9, "bold"),
+                            width=max(26.0, sx1 - sx0 - 4), tags=(tag,))
+        if el.var:  # glow-from-sim: show the live value in place of the caption
+            pcanvas["sim"].setdefault(el.var, []).append(
+                {"kind": "segment", "id": txt, "label": el.label})
 
     def _draw_button_light(c, tag, el, x0, y0, x1, y1):
         # a button backlight (amber), pill-shaped like a button
@@ -4375,6 +4555,7 @@ def run() -> None:
         c.delete("all")
         pcanvas["by_index"].clear()
         pcanvas["live"].clear()
+        pcanvas["sim"].clear()
         pcanvas["device"] = device_id
         pcanvas["hint"] = None
         prof = mstate["profile"]
@@ -4421,6 +4602,9 @@ def run() -> None:
                   if pcanvas["edit"] else
                   tr("Klick: gemappt → Editor, leerer Platzhalter → neu mappen · "
                      "Schalter/Achsen live")))
+        # the drawn display vars just changed -> refresh the shared subscription so
+        # the value monitor pulls exactly this panel's LEDs/segments (glow-from-sim).
+        _resubscribe()
 
     def _panel_el_at(_event):
         """The PanelElement under the cursor, via the shared per-element tag."""
@@ -4655,6 +4839,13 @@ def run() -> None:
     # is retried every ~2 s, so plugging it in just starts the live view.
     live: dict = {"id": None, "read": None, "ranges": {}, "retry": 0}
 
+    # glow-from-sim contributes the panel's drawn display vars to the shared value
+    # monitor while the Mapper's panel view is the shown tab (see _resubscribe).
+    panel_glow["wires"] = lambda: (
+        list(pcanvas["sim"].keys())
+        if str(nb.select()) == str(mtab) and mstate["view"] == "panel"
+        else [])
+
     def _live_open(device_id):
         live.update(id=device_id, read=None, ranges={}, retry=0)
         if device_id is None:
@@ -4727,6 +4918,25 @@ def run() -> None:
                                 panel_canvas.coords(e["handle"], fx - hr, e["midy"] - hr,
                                                     fx + hr, e["midy"] + hr)
                                 panel_canvas.itemconfigure(e["text"], text=f"{val:g}")
+            # glow-from-sim: paint LED/segment display elements from the value
+            # monitor, independent of the physical device (works even unplugged).
+            if (pcanvas["sim"] and mstate["view"] == "panel"
+                    and str(nb.select()) == str(mtab)):
+                sim_vals = monitor.values()
+                for var, entries in pcanvas["sim"].items():
+                    if var not in sim_vals:
+                        continue
+                    val = sim_vals[var]
+                    for e in entries:
+                        if panel_canvas.type(e["id"]) is None:
+                            continue
+                        if e["kind"] == "lamp":
+                            lit = panel_layout.lamp_lit(val, e["on_at"])
+                            panel_canvas.itemconfigure(
+                                e["id"], fill=_LAMP_ON if lit else e["off_fill"],
+                                outline=_LAMP_ON_EDGE if lit else e["off_edge"])
+                        elif e["kind"] == "segment" and val is not None:
+                            panel_canvas.itemconfigure(e["id"], text=_fmt_value(val))
         finally:
             win.after(100, _live_tick)
 

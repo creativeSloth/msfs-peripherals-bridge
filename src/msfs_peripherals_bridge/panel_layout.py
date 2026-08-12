@@ -65,6 +65,28 @@ class PanelElement:
     # "" = derive from `kind`; set explicitly where the visual kind differs from the
     # physical source (e.g. a magneto detent drawn as a bar but sourced as a switch).
     source_kind: str = ""
+    # Glow-from-sim: the variable whose live value drives this display element and
+    # the lamp on-threshold. `var` None = no sim readout (an input control, or a
+    # display type not wired to the value monitor yet); `on_at` None = numeric
+    # segment (show the value) rather than a boolean lamp.
+    var: str | None = None
+    on_at: float | None = None
+
+
+def lamp_lit(value: object, on_at: float | None) -> bool:
+    """Whether a lamp element glows for a sim ``value`` and its ``on_at`` threshold.
+
+    A bool is taken as-is; a number lights the lamp at/above ``on_at`` (default
+    0.5). ``None`` (no reading yet) stays dark, so a lamp only glows on a real
+    positive reading from the running bridge."""
+    if value is None:
+        return False
+    if isinstance(value, bool):
+        return value
+    try:
+        return float(value) >= (0.5 if on_at is None else on_at)
+    except (TypeError, ValueError):
+        return bool(value)
 
 
 def _live_key(kind: str, code: int) -> tuple[str, int] | None:
@@ -195,6 +217,9 @@ def _switch_panel(binds, outs) -> list[PanelElement]:
             # ref targets the output's SOLO field -> click opens THAT LED's mapping
             ref=(f"out:{gear_out[0]}:{field}" if gear_out else None),
             mapped=gear_out is not None,
+            # glow-from-sim: the gear-position var lights the lamp when extended
+            var=(getattr(gear_out[1], field, None) if gear_out else None),
+            on_at=(0.5 if gear_out else None),
         ))
 
     # Gear lever (bottom-right): up + down each its own clickable bar.
@@ -293,32 +318,46 @@ def _output_element_text(o, path, g) -> tuple[str, str]:
     return g.label, str(g.value)
 
 
+def _display_var(o, p) -> str | None:
+    """The sim var a display element reads (glow-from-sim), or None if not wired."""
+    try:
+        if len(p) == 1 and p[0] in ("nose", "left", "right"):
+            return getattr(o, p[0], None)
+        if len(p) == 2 and p[0] == "selector":
+            return o.selector[p[1]].simvar
+    except (IndexError, AttributeError, TypeError):
+        pass
+    return None
+
+
 def _output_items(outs) -> tuple[list, list]:
     """(control_items, display_items) — encoders/swap vs displays/lamps.
 
-    Each item is ('out', out_index, path, kind, label, detail). The two lists are
-    laid in SEPARATE zones so buttons and displays are shown apart. Abstract config
-    groups (bool_leds/alt_sources/dimmer) are skipped — mapped in the editor."""
+    Each item is ('out', out_index, path, kind, label, detail, var, on_at). The two
+    lists are laid in SEPARATE zones so buttons and displays are shown apart. Abstract
+    config groups (bool_leds/alt_sources/dimmer) are skipped — mapped in the editor."""
     controls: list = []
     displays: list = []
     for k, o in enumerate(outs):
         for g in output_groups(output_nodes(o)):
             p = g.path
             if len(p) == 1 and p[0] in ("nose", "left", "right"):
-                displays.append(("out", k, p, LED, g.label, str(g.value)))
+                displays.append(("out", k, p, LED, g.label, str(g.value),
+                                 _display_var(o, p), 0.5))
             elif (len(p) == 2 and p[0] == "selector") or (
                     len(p) == 4 and p[0] == "units" and p[2] == "banks"):
                 lbl, det = _output_element_text(o, p, g)  # display cell (segment)
-                displays.append(("out", k, p, SEGMENT, lbl, det))
+                displays.append(("out", k, p, SEGMENT, lbl, det, _display_var(o, p), None))
             elif len(p) == 2 and p[0] == "units":  # a radio unit's controls
                 try:
                     name = o.units[p[1]].name
                 except (IndexError, AttributeError):
                     name = str(p[1])
                 controls.append(("out", k, p, ENCODER, f"Encoder {name}",
-                                 f"Außen-/Innen-Drehknopf + Mode-Selektor · Einheit {name}"))
+                                 f"Außen-/Innen-Drehknopf + Mode-Selektor · Einheit {name}",
+                                 None, None))
                 controls.append(("out", k, p, BUTTON, f"Swap {name}",
-                                 f"ACT/STBY-Swap-Taste · Einheit {name}"))
+                                 f"ACT/STBY-Swap-Taste · Einheit {name}", None, None))
     return controls, displays
 
 
@@ -337,9 +376,10 @@ def _lay_tiles(items, x0: float, y0: float, x1: float, y1: float) -> list[PanelE
             out += _stacked_bars(cx0, cy0, w, h, positions, local,
                                  src_kind=str(ub.source.kind))
         elif it[0] == "out":
-            _, k, p, okind, label, detail = it
+            _, k, p, okind, label, detail, evar, on_at = it
             out.append(PanelElement(okind, label, cx0, cy0, w, h, action=detail,
-                                    ref=f"out:{k}:" + "/".join(map(str, p)), mapped=True))
+                                    ref=f"out:{k}:" + "/".join(map(str, p)), mapped=True,
+                                    var=evar, on_at=on_at))
         else:  # key / hat binding
             _, i, b = it
             kk = str(b.source.kind)
@@ -492,16 +532,22 @@ def _radio_panel(binds, outs) -> list[PanelElement]:
             bref = f"out:{idx}:units/{u}/banks/{b}"
             _, _, det = _bank_display_text(bank)
             f = _radio_focus(bank)  # each display element opens ONLY its own field(s)
+            # glow-from-sim: a freq bank's ACT/STBY cells read those frequency vars;
+            # other bank types (dme/adf/xpdr) need per-digit formatting -> later.
+            is_freq = getattr(bank, "kind", "") == "freq"
+            act_var = getattr(bank, "active", None) if is_freq else None
+            stby_var = getattr(bank, "standby", None) if is_freq else None
             # LEFT column: the selector position (mode); its code is in the tooltip.
             els.append(PanelElement(
                 SELECTOR, bank.label, margin, y, 0.27, row_h, mapped=True, ref=bref,
                 action=f"Selektor-Code {bank.code} · Mode {bank.label} · {det}"))
             # symbolic display: Act over Stby (labels only — the mode is the left cell)
             els.append(PanelElement(SEGMENT, "Act", 0.30, y, 0.30, row_h * 0.48,
-                                    ref=_focus_ref(bref, f["active"]), mapped=True, action=det))
+                                    ref=_focus_ref(bref, f["active"]), mapped=True,
+                                    action=det, var=act_var))
             els.append(PanelElement(SEGMENT, "Stby", 0.30, y + row_h * 0.52, 0.30,
                                     row_h * 0.48, ref=_focus_ref(bref, f["standby"]),
-                                    mapped=True, action=det))
+                                    mapped=True, action=det, var=stby_var))
             els.append(PanelElement(
                 DOT, ".", 0.63, y + row_h * 0.25, 0.05, row_h * 0.5,
                 ref=_focus_ref(bref, f["dot"]), mapped=True,
@@ -517,6 +563,26 @@ _HAND_LAYOUTS = {"switch_panel": _switch_panel, "radio_panel": _radio_panel}
 def has_hand_layout(device_id: str) -> bool:
     """Whether ``device_id`` has a hand-drawn (vs auto-grid) reconstruction."""
     return device_id in _HAND_LAYOUTS
+
+
+# Output blocks whose device is driven by a dedicated panel controller (as opposed
+# to the generic ``generic_panel``): switch/multi/radio. These panels are static —
+# encoders/swap/selectors come from the template, not from generic bindings.
+_PANEL_CONTROLLER_TYPES = frozenset({"gear_leds", "multi_panel", "radio_panel"})
+
+
+def is_static_panel(profile: Profile | None, device_id: str) -> bool:
+    """Whether a device is a Saitek panel laid out statically by its own controller.
+
+    True for the hand-laid panels (switch/radio) and any device carrying a
+    gear_leds/multi_panel/radio_panel output. The Mapper uses this to hide the
+    generic *add-encoder* step there: those panels drive their encoders from the
+    template, so re-mapping them as plain bindings would only conflict.
+    """
+    if has_hand_layout(device_id):  # switch + radio panels
+        return True
+    outs = profile.outputs.get(device_id, []) if profile is not None else []
+    return any(getattr(o, "type", "") in _PANEL_CONTROLLER_TYPES for o in outs)
 
 
 def panel_layout(profile: Profile, device_id: str) -> list[PanelElement]:

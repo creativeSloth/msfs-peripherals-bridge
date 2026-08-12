@@ -13,6 +13,7 @@ from msfs_peripherals_bridge.panel_layout import (
     SELECTOR,
     SWITCH,
     has_hand_layout,
+    lamp_lit,
     panel_layout,
 )
 
@@ -61,6 +62,21 @@ def test_switch_panel_has_hand_layout():
     assert has_hand_layout("yoke") is False
 
 
+def test_is_static_panel_flags_saitek_not_generic_devices():
+    from msfs_peripherals_bridge.panel_layout import is_static_panel
+
+    # hand-laid Saitek panels are static regardless of the profile's outputs
+    assert is_static_panel(PROFILE, "switch_panel") is True
+    assert is_static_panel(RADIO_PROFILE, "radio_panel") is True
+    assert is_static_panel(None, "radio_panel") is True  # hand layout, no profile needed
+    # multi_panel is static via its dedicated controller output block
+    assert is_static_panel(OUT_PROFILE, "multi_panel") is True
+    # a generic device (yoke, plain bindings) is NOT static -> encoder-add allowed
+    assert is_static_panel(PROFILE, "yoke") is False
+    assert is_static_panel(PROFILE, "tq6") is False  # unknown, no outputs
+    assert is_static_panel(None, "yoke") is False
+
+
 def test_switch_panel_renders_all_13_toggles():
     els = panel_layout(PROFILE, "switch_panel")
     toggles = [e for e in els if e.kind == SWITCH]
@@ -104,6 +120,23 @@ def test_gear_leds_map_each_field_individually():
     # each LED opens its OWN gear_leds field (solo path), not the whole output
     assert {e.ref for e in leds} == {"out:0:nose", "out:0:left", "out:0:right"}
     assert all(e.mapped for e in leds)
+
+
+def test_gear_leds_carry_glow_from_sim_var():
+    by_ref = {e.ref: e for e in panel_layout(PROFILE, "switch_panel") if e.kind == LED}
+    # each lamp knows the gear-position var it glows from + a lamp threshold
+    assert by_ref["out:0:nose"].var == "GEAR CENTER POSITION"
+    assert by_ref["out:0:left"].var == "GEAR LEFT POSITION"
+    assert by_ref["out:0:right"].var == "GEAR RIGHT POSITION"
+    assert all(e.on_at == 0.5 for e in by_ref.values())
+
+
+def test_lamp_lit_reads_bool_number_and_threshold():
+    assert lamp_lit(None, 0.5) is False  # no reading yet -> dark
+    assert lamp_lit(True, 0.5) is True and lamp_lit(False, 0.5) is False
+    assert lamp_lit(1.0, 0.5) is True and lamp_lit(0.0, 0.5) is False
+    assert lamp_lit(0.4, 0.5) is False and lamp_lit(0.5, 0.5) is True
+    assert lamp_lit("on", None) is True  # non-numeric truthy string -> lit
 
 
 def test_gear_lever_positions_are_individual_bars():
@@ -205,6 +238,11 @@ def test_outputs_become_typed_clickable_elements_like_inputs():
     assert {e.ref for e in segs} == {"out:0:selector/0", "out:0:selector/1"}
     assert {e.label for e in segs} == {"ALT", "VS"}  # short mode name, no simvar/BANK
     assert all(e.mapped for e in segs)  # click opens THAT output field's mapping
+    # glow-from-sim: each cell reads its selector position's simvar (numeric, no on_at)
+    by_ref = {e.ref: e for e in segs}
+    assert by_ref["out:0:selector/0"].var == "AUTOPILOT ALTITUDE LOCK VAR"
+    assert by_ref["out:0:selector/1"].var == "AUTOPILOT VERTICAL HOLD VAR"
+    assert all(e.on_at is None for e in segs)  # segments show the value, not a lamp
 
 
 ZONE_PROFILE = Profile.model_validate({
@@ -260,6 +298,16 @@ def test_radio_panel_mode_row_is_mode_plus_act_stby_and_dot():
     assert {e.label for e in row if e.kind == SEGMENT} == {"Act", "Stby"}  # not the mode name
     active = next(e for e in row if e.kind == SEGMENT and e.ref.endswith("|active"))
     assert active.ref == "out:0:units/0/banks/0|active"
+
+
+def test_radio_freq_segments_glow_from_active_standby_vars():
+    els = panel_layout(RADIO_PROFILE, "radio_panel")
+    row = [e for e in els if e.ref and e.ref.split("|")[0] == "out:0:units/0/banks/0"]
+    active = next(e for e in row if e.kind == SEGMENT and e.ref.endswith("|active"))
+    standby = next(e for e in row if e.kind == SEGMENT and e.ref.endswith("|standby"))
+    # a freq bank's cells read the frequency vars (numeric readout, no lamp threshold)
+    assert active.var == "A" and standby.var == "S"
+    assert active.on_at is None and standby.on_at is None
 
 
 def test_radio_panel_unit_has_two_rings_and_a_separate_swap_button():
