@@ -71,6 +71,38 @@ class PanelElement:
     # segment (show the value) rather than a boolean lamp.
     var: str | None = None
     on_at: float | None = None
+    # Controller-faithful text format for a numeric SEGMENT's live value (glow):
+    # "" = compact raw, "int" = rounded (like format_row), "dec:N" = N decimals with
+    # a negative/None blanked (like format_measure/format_frequency). See format_segment.
+    fmt: str = ""
+
+
+def format_segment(value: object, fmt: str = "") -> str:
+    """Controller-faithful text for a display segment's live value (glow-from-sim).
+
+    ``fmt`` mirrors the Saitek 7-segment encoding so the reconstruction reads like
+    the hardware instead of a raw float: ``"int"`` rounds (like ``format_row``),
+    ``"dec:N"`` shows N decimals and blanks a negative value (like
+    ``format_measure``/``format_frequency`` — a radio freq is ``"dec:2"`` -> 118.00),
+    ``""`` is a compact raw readout. ``None`` (no reading yet) -> ``""`` (blank cell).
+    """
+    if value is None:
+        return ""
+    if isinstance(value, bool):
+        return "1" if value else "0"
+    try:
+        v = float(value)
+    except (TypeError, ValueError):
+        return str(value)
+    if fmt == "int":
+        return str(round(v))
+    if fmt.startswith("dec:"):
+        try:
+            n = int(fmt[4:])
+        except ValueError:
+            n = 1
+        return "" if v < 0 else f"{v:.{n}f}"
+    return f"{v:.4g}"
 
 
 def lamp_lit(value: object, on_at: float | None) -> bool:
@@ -333,9 +365,10 @@ def _display_var(o, p) -> str | None:
 def _output_items(outs) -> tuple[list, list]:
     """(control_items, display_items) — encoders/swap vs displays/lamps.
 
-    Each item is ('out', out_index, path, kind, label, detail, var, on_at). The two
-    lists are laid in SEPARATE zones so buttons and displays are shown apart. Abstract
-    config groups (bool_leds/alt_sources/dimmer) are skipped — mapped in the editor."""
+    Each item is ('out', out_index, path, kind, label, detail, var, on_at, fmt). The
+    two lists are laid in SEPARATE zones so buttons and displays are shown apart.
+    Abstract config groups (bool_leds/alt_sources/dimmer) are skipped — mapped in the
+    editor. Generic-panel LEDs/displays (a user's own device, Schritt E) glow too."""
     controls: list = []
     displays: list = []
     for k, o in enumerate(outs):
@@ -343,11 +376,24 @@ def _output_items(outs) -> tuple[list, list]:
             p = g.path
             if len(p) == 1 and p[0] in ("nose", "left", "right"):
                 displays.append(("out", k, p, LED, g.label, str(g.value),
-                                 _display_var(o, p), 0.5))
+                                 _display_var(o, p), 0.5, ""))
             elif (len(p) == 2 and p[0] == "selector") or (
                     len(p) == 4 and p[0] == "units" and p[2] == "banks"):
                 lbl, det = _output_element_text(o, p, g)  # display cell (segment)
-                displays.append(("out", k, p, SEGMENT, lbl, det, _display_var(o, p), None))
+                # multi selector cell = integer readout (format_row); radio banks fall
+                # back here only without a hand layout (per-digit -> not glow-formatted).
+                fmt = "int" if len(p) == 2 else ""
+                displays.append(("out", k, p, SEGMENT, lbl, det, _display_var(o, p),
+                                 None, fmt))
+            elif len(p) == 2 and p[0] == "leds":  # generic_panel LED (glow lamp)
+                led = o.leds[p[1]]
+                displays.append(("out", k, p, LED, led.name or f"LED {p[1] + 1}",
+                                 f"{led.var} ≥ {led.on_at:g}", led.var, led.on_at, ""))
+            elif len(p) == 2 and p[0] == "displays":  # generic_panel 7-seg display
+                d = o.displays[p[1]]
+                fmt = f"dec:{d.decimals}" if d.decimals else "int"
+                displays.append(("out", k, p, SEGMENT, d.name or f"Anzeige {p[1] + 1}",
+                                 f"Anzeige liest {d.var}", d.var, None, fmt))
             elif len(p) == 2 and p[0] == "units":  # a radio unit's controls
                 try:
                     name = o.units[p[1]].name
@@ -355,9 +401,9 @@ def _output_items(outs) -> tuple[list, list]:
                     name = str(p[1])
                 controls.append(("out", k, p, ENCODER, f"Encoder {name}",
                                  f"Außen-/Innen-Drehknopf + Mode-Selektor · Einheit {name}",
-                                 None, None))
+                                 None, None, ""))
                 controls.append(("out", k, p, BUTTON, f"Swap {name}",
-                                 f"ACT/STBY-Swap-Taste · Einheit {name}", None, None))
+                                 f"ACT/STBY-Swap-Taste · Einheit {name}", None, None, ""))
     return controls, displays
 
 
@@ -376,10 +422,10 @@ def _lay_tiles(items, x0: float, y0: float, x1: float, y1: float) -> list[PanelE
             out += _stacked_bars(cx0, cy0, w, h, positions, local,
                                  src_kind=str(ub.source.kind))
         elif it[0] == "out":
-            _, k, p, okind, label, detail, evar, on_at = it
+            _, k, p, okind, label, detail, evar, on_at, efmt = it
             out.append(PanelElement(okind, label, cx0, cy0, w, h, action=detail,
                                     ref=f"out:{k}:" + "/".join(map(str, p)), mapped=True,
-                                    var=evar, on_at=on_at))
+                                    var=evar, on_at=on_at, fmt=efmt))
         else:  # key / hat binding
             _, i, b = it
             kk = str(b.source.kind)
@@ -541,13 +587,15 @@ def _radio_panel(binds, outs) -> list[PanelElement]:
             els.append(PanelElement(
                 SELECTOR, bank.label, margin, y, 0.27, row_h, mapped=True, ref=bref,
                 action=f"Selektor-Code {bank.code} · Mode {bank.label} · {det}"))
-            # symbolic display: Act over Stby (labels only — the mode is the left cell)
+            # symbolic display: Act over Stby (labels only — the mode is the left cell);
+            # freq cells read NNN.NN (dec:2), the resting/coarse view of format_frequency.
+            fq_fmt = "dec:2" if is_freq else ""
             els.append(PanelElement(SEGMENT, "Act", 0.30, y, 0.30, row_h * 0.48,
                                     ref=_focus_ref(bref, f["active"]), mapped=True,
-                                    action=det, var=act_var))
+                                    action=det, var=act_var, fmt=fq_fmt))
             els.append(PanelElement(SEGMENT, "Stby", 0.30, y + row_h * 0.52, 0.30,
                                     row_h * 0.48, ref=_focus_ref(bref, f["standby"]),
-                                    mapped=True, action=det, var=stby_var))
+                                    mapped=True, action=det, var=stby_var, fmt=fq_fmt))
             els.append(PanelElement(
                 DOT, ".", 0.63, y + row_h * 0.25, 0.05, row_h * 0.5,
                 ref=_focus_ref(bref, f["dot"]), mapped=True,

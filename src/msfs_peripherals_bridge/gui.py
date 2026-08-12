@@ -4495,7 +4495,7 @@ def run() -> None:
                             width=max(26.0, sx1 - sx0 - 4), tags=(tag,))
         if el.var:  # glow-from-sim: show the live value in place of the caption
             pcanvas["sim"].setdefault(el.var, []).append(
-                {"kind": "segment", "id": txt, "label": el.label})
+                {"kind": "segment", "id": txt, "label": el.label, "fmt": el.fmt})
 
     def _draw_button_light(c, tag, el, x0, y0, x1, y1):
         # a button backlight (amber), pill-shaped like a button
@@ -4936,7 +4936,8 @@ def run() -> None:
                                 e["id"], fill=_LAMP_ON if lit else e["off_fill"],
                                 outline=_LAMP_ON_EDGE if lit else e["off_edge"])
                         elif e["kind"] == "segment" and val is not None:
-                            panel_canvas.itemconfigure(e["id"], text=_fmt_value(val))
+                            panel_canvas.itemconfigure(
+                                e["id"], text=panel_layout.format_segment(val, e.get("fmt", "")))
         finally:
             win.after(100, _live_tick)
 

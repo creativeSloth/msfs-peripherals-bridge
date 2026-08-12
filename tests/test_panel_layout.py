@@ -12,6 +12,7 @@ from msfs_peripherals_bridge.panel_layout import (
     SEGMENT,
     SELECTOR,
     SWITCH,
+    format_segment,
     has_hand_layout,
     lamp_lit,
     panel_layout,
@@ -139,6 +140,18 @@ def test_lamp_lit_reads_bool_number_and_threshold():
     assert lamp_lit("on", None) is True  # non-numeric truthy string -> lit
 
 
+def test_format_segment_is_controller_faithful():
+    assert format_segment(None) == ""  # no reading yet -> blank cell
+    assert format_segment(118.0, "dec:2") == "118.00"  # freq keeps trailing zeros
+    assert format_segment(12.34, "dec:1") == "12.3"  # gauge measure rounds to N decimals
+    assert format_segment(-500.0, "dec:2") == ""  # negative freq/measure blanks
+    assert format_segment(3000.4, "int") == "3000"  # integer readout rounds (format_row)
+    assert format_segment(-750.0, "int") == "-750"  # ints keep their sign (e.g. VS)
+    assert format_segment(True, "int") == "1" and format_segment(False, "int") == "0"
+    assert format_segment(118.005, "") == "118"  # raw compact (.4g), unchanged default
+    assert format_segment("ALT", "int") == "ALT"  # non-numeric passes through
+
+
 def test_gear_lever_positions_are_individual_bars():
     gears = [e for e in panel_layout(PROFILE, "switch_panel")
              if e.source_kind == "switch" and e.code in (18, 19)]
@@ -243,6 +256,7 @@ def test_outputs_become_typed_clickable_elements_like_inputs():
     assert by_ref["out:0:selector/0"].var == "AUTOPILOT ALTITUDE LOCK VAR"
     assert by_ref["out:0:selector/1"].var == "AUTOPILOT VERTICAL HOLD VAR"
     assert all(e.on_at is None for e in segs)  # segments show the value, not a lamp
+    assert all(e.fmt == "int" for e in segs)  # multi selector value = integer (format_row)
 
 
 ZONE_PROFILE = Profile.model_validate({
@@ -265,6 +279,33 @@ def test_controls_and_displays_are_separated_into_zones():
     assert controls and displays
     # every control sits above every display (separate zones, clear gap)
     assert max(e.y + e.h for e in controls) <= min(e.y for e in displays) + 1e-9
+
+
+GENERIC_PROFILE = Profile.model_validate({
+    "name": "G",
+    "outputs": {"my_panel": [{
+        "type": "generic_panel", "length": 4,
+        "leds": [{"name": "Gear", "var": "GEAR HANDLE POSITION", "byte": 0, "bit": 2,
+                  "on_at": 0.5}],
+        "displays": [{"name": "Alt", "var": "INDICATED ALTITUDE", "offset": 1, "cells": 3},
+                     {"name": "Fuel", "var": "FUEL TOTAL QUANTITY", "offset": 2,
+                      "cells": 1, "decimals": 1}],
+    }]},
+})
+
+
+def test_generic_panel_leds_and_displays_glow_from_sim():
+    els = panel_layout(GENERIC_PROFILE, "my_panel")  # a user's own declared panel
+    lamps = [e for e in els if e.kind == LED]
+    segs = [e for e in els if e.kind == SEGMENT]
+    # the declared LED glows from its var at its threshold (like the Saitek gear LEDs)
+    assert len(lamps) == 1
+    assert lamps[0].var == "GEAR HANDLE POSITION" and lamps[0].on_at == 0.5
+    # each declared 7-seg display reads its var; decimals -> dec:N, else integer readout
+    by_var = {e.var: e for e in segs}
+    assert by_var["INDICATED ALTITUDE"].fmt == "int"
+    assert by_var["FUEL TOTAL QUANTITY"].fmt == "dec:1"
+    assert all(e.mapped and e.on_at is None for e in segs)
 
 
 RADIO_PROFILE = Profile.model_validate({
@@ -308,6 +349,8 @@ def test_radio_freq_segments_glow_from_active_standby_vars():
     # a freq bank's cells read the frequency vars (numeric readout, no lamp threshold)
     assert active.var == "A" and standby.var == "S"
     assert active.on_at is None and standby.on_at is None
+    # controller-faithful: freq shows NNN.NN (dec:2), the coarse view of format_frequency
+    assert active.fmt == "dec:2" and standby.fmt == "dec:2"
 
 
 def test_radio_panel_unit_has_two_rings_and_a_separate_swap_button():
