@@ -148,6 +148,53 @@ def local_var_catalog(local_vars: Iterable[Any]) -> list[CatalogVar]:
     return out
 
 
+def spad_catalog(payload: dict[str, Any]) -> list[CatalogVar]:
+    """Turn a SPAD.neXt import payload into picker entries (deduped, stable order).
+
+    ``payload`` is the JSON produced by ``tools/spadnext_import.py`` (``--json``)
+    or its :func:`to_payload`. We harvest the distinct **targets** every action
+    references — the events and SimVars/LVars this aircraft actually uses — so the
+    picker can offer that curated shortlist instead of only the 700+ generic
+    names. Namespaces already arrive in our convention (``L:``/``V:`` prefixed,
+    bare = A:/K:).
+
+    Only real variables are kept: ``led``/``command``/``axis`` actions (device
+    lamps, SPAD-internal commands, axis config) carry no sim var and are skipped.
+    A target written by any action is marked ``settable``.
+    """
+    source = str(payload.get("source", "") or "").strip()
+    category = f"SPAD: {source}" if source else "SPAD import"
+    # (kind, name) -> CatalogVar, first occurrence wins order; settable OR-ed.
+    picked: dict[tuple[str, str], CatalogVar] = {}
+    writing = {"set", "increment", "decrement"}
+    for dev in payload.get("devices", []):
+        for entry in dev.get("entries", []):
+            for act in entry.get("actions", []):
+                verb = act.get("verb", "")
+                target = str(act.get("target", "") or "").strip()
+                if not target or verb in ("led", "command", "axis"):
+                    continue
+                if verb == "event":
+                    kind, name, settable = KIND_EVENT, target, False
+                elif target.startswith("L:"):
+                    kind, name, settable = KIND_LVAR, target[2:], True
+                elif target.startswith("V:"):
+                    kind, name, settable = KIND_VIRTUAL, target[2:], True
+                else:  # bare SimVar (set/increment/decrement/display)
+                    kind, name, settable = KIND_SIMVAR, target, verb in writing
+                key = (kind, name)
+                existing = picked.get(key)
+                if existing is None:
+                    picked[key] = CatalogVar(
+                        name=name, kind=kind, unit="", category=category, settable=settable
+                    )
+                elif settable and not existing.settable:
+                    picked[key] = CatalogVar(
+                        name=name, kind=kind, unit="", category=category, settable=True
+                    )
+    return list(picked.values())
+
+
 def filter_catalog(
     catalog: list[CatalogVar], *, kind: str | None = None, query: str = ""
 ) -> list[CatalogVar]:

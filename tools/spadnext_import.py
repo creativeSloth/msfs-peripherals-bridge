@@ -424,6 +424,15 @@ def render_markdown(catalogs: list[DeviceCatalog], src: str) -> str:
     return "\n".join(lines)
 
 
+def to_payload(catalogs: list[DeviceCatalog], source: str) -> dict[str, Any]:
+    """The machine-readable catalog (same shape as ``--json``).
+
+    Kept separate from ``main`` so the GUI can build it directly from
+    ``parse_profile`` without going through a temp file.
+    """
+    return {"source": source, "devices": [c.to_dict() for c in catalogs]}
+
+
 def main(argv: list[str] | None = None) -> int:
     ap = argparse.ArgumentParser(description=__doc__.splitlines()[0])
     ap.add_argument("xml", type=Path, help="SPAD.neXt profile .xml")
@@ -445,10 +454,7 @@ def main(argv: list[str] | None = None) -> int:
         print(report)
 
     if args.json:
-        payload = {
-            "source": args.xml.name,
-            "devices": [c.to_dict() for c in catalogs],
-        }
+        payload = to_payload(catalogs, args.xml.name)
         args.json.write_text(json.dumps(payload, indent=2, ensure_ascii=False))
         print(f"wrote {args.json}", file=sys.stderr)
     return 0

@@ -1905,6 +1905,66 @@ def run() -> None:
     reset_layout_btn = ttk.Button(mhdr, text=tr("↺"), command=lambda: _reset_layout())
     _attach_tooltip(reset_layout_btn, tr("Anordnung dieses Geräts zurücksetzen."))
 
+    def _spad_payload_from_xml(xml_path: Path) -> dict:
+        """Run the tools/spadnext_import.py parser on an .xml, return its payload."""
+        import importlib.util
+        import sys
+
+        mod_path = root_dir / "tools" / "spadnext_import.py"
+        spec = importlib.util.spec_from_file_location("spadnext_import", mod_path)
+        if spec is None or spec.loader is None:
+            raise RuntimeError(f"cannot load {mod_path}")
+        mod = importlib.util.module_from_spec(spec)
+        # Register before exec: the module's @dataclass needs sys.modules to
+        # resolve its string annotations (from __future__ import annotations).
+        sys.modules[spec.name] = mod
+        spec.loader.exec_module(mod)
+        return mod.to_payload(mod.parse_profile(xml_path), xml_path.name)
+
+    def _load_spad_profile():
+        """Harvest an existing SPAD.neXt profile's events/vars into the pickers."""
+        from tkinter import filedialog
+
+        path = filedialog.askopenfilename(
+            parent=win,
+            title=tr("SPAD.neXt-Profil (.xml) oder Katalog (.json) wählen"),
+            filetypes=[("SPAD.neXt / Katalog", "*.xml *.json"), ("Alle Dateien", "*")],
+        )
+        if not path:
+            return
+        p = Path(path)
+        try:
+            if p.suffix.lower() == ".json":
+                payload = json.loads(p.read_text(encoding="utf-8"))
+            else:
+                payload = _spad_payload_from_xml(p)
+            spad_vars = gui_catalog.spad_catalog(payload)
+        except Exception as exc:  # show any parse error to the user, don't crash
+            messagebox.showerror(tr("SPAD.neXt-Import"), tr("Konnte nicht laden: ") + str(exc))
+            return
+        mstate["spad_vars"] = spad_vars
+        n_ev = sum(1 for v in spad_vars if v.kind == "K:")
+        messagebox.showinfo(
+            tr("SPAD.neXt-Import"),
+            tr(
+                "{n} Variablen/Events aus {src} geladen "
+                "(davon {ev} Events). Sie stehen jetzt ganz oben im "
+                "Variablen-Picker beim Mappen."
+            ).format(n=len(spad_vars), src=payload.get("source", p.name), ev=n_ev),
+        )
+
+    spad_btn = ttk.Button(mhdr, text=tr("SPAD.neXt…"), command=_load_spad_profile)
+    spad_btn.pack(side="right", padx=(0, 8))
+    _attach_tooltip(
+        spad_btn,
+        tr(
+            "Ein vorhandenes SPAD.neXt-Profil (.xml) einlesen: die Events/"
+            "SimVars, die dieses Flugzeug nutzt, erscheinen beim Mappen ganz "
+            "oben im Variablen-Picker (kuratierte Kurzliste statt 700+ Namen). "
+            "Nur die Semantik — den physischen Knopf wählst du weiter selbst."
+        ),
+    )
+
     # left: one row per catalog device (bus, connected?, #bindings, #outputs)
     dev_tree = ttk.Treeview(
         mtab,
@@ -1985,6 +2045,7 @@ def run() -> None:
         "discovered": False,
         "profile": None,
         "view": "panel",
+        "spad_vars": [],  # CatalogVars harvested from an imported SPAD.neXt profile
     }  # reconstruction is the default view
 
     def _current_profile():
@@ -3034,7 +3095,10 @@ def run() -> None:
             if mstate["profile"] is not None
             else []
         )
-        return catalog + extra
+        spad = mstate.get("spad_vars") or []
+        # SPAD-imported first: the aircraft's own events/vars surface above the
+        # 700+ generic names in the picker.
+        return list(spad) + catalog + extra
 
     def _var_name(v):  # CatalogVar -> the string the engine/writer expect
         return (v.kind + v.name) if v.kind in ("L:", "V:") else v.name

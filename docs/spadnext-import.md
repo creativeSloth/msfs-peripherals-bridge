@@ -24,6 +24,21 @@ python tools/spadnext_import.py "/path/to/Arrow III.xml" \
 SPAD profiles live under your MSFS Proton prefix, e.g.
 `~/Dokumente/SPAD.neXt/profiles/*.xml`. Point the tool at one of those.
 
+## In the mapper (GUI)
+
+You don't have to touch the command line. In the **Mapper** tab, the
+**`SPAD.neXt…`** button (top-right) lets you pick a SPAD profile (`.xml`) — or a
+catalog `.json` you saved with `--json`. The tool then harvests the distinct
+**events and SimVars/LVars that aircraft actually uses** and drops them at the
+**top of the variable picker**, so when you map a control you get that curated
+shortlist above the 700+ generic names. You still point at the physical input
+yourself; only the "what should it fire" is pre-filled.
+
+The conversion (`gui_catalog.spad_catalog`) keeps only real variables: events
+become `K:`, written vars become settable `A:`/`L:`/`V:`, and
+`led`/`command`/`axis` actions are skipped. Entries are tagged `SPAD: <file>` so
+you can tell them apart in the picker.
+
 ## What you get
 
 A per-device, per-control catalog. Each row is one *(control × trigger)* pair —
