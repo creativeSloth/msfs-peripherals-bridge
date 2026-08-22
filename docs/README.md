@@ -12,7 +12,7 @@ one-line description each.
 | I want to… | Open |
 |---|---|
 | **Install the software and start it** — no Linux/Python knowledge, copy-paste only | **[QUICKSTART.md](QUICKSTART.md)** |
-| Set up a fresh machine in full — udev, the Wine bridge, all the details | [INSTALL.md](INSTALL.md) 🇩🇪 |
+| Set up a fresh machine in full — udev, the Wine bridge, all the details | [INSTALL.md](INSTALL.md) |
 | Use **hardware that isn't one of the supported devices** — detect, register, teach, map it | [geraete-workflow.md](geraete-workflow.md) 🇩🇪 |
 | Run it day-to-day and tune a mapping live | [running.md](running.md) |
 | Look up a **command** | [cheatsheet.md](cheatsheet.md) |
@@ -26,7 +26,7 @@ one-line description each.
 | Document | For whom / what |
 |---|---|
 | **[QUICKSTART.md](QUICKSTART.md)** | **Start here.** Beginners, copy-paste only: clone → `./install.sh` → start the app; the rest is buttons. |
-| [INSTALL.md](INSTALL.md) 🇩🇪 | The full setup for a fresh machine: udev, registering your own hardware, the Wine bridge. Read this when QUICKSTART isn't enough. |
+| [INSTALL.md](INSTALL.md) | The full setup for a fresh machine: udev, registering your own hardware, the Wine bridge. Read this when QUICKSTART isn't enough. |
 | [geraete-workflow.md](geraete-workflow.md) 🇩🇪 | Adding a **new/foreign device** from scratch: detect → register → teach its inputs/outputs → (calibrate) → map. |
 | [running.md](running.md) | Running & iterating: what runs natively vs. in Wine/Proton, finding your Proton prefix/version, tuning a mapping live. |
 

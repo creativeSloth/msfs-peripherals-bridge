@@ -1,326 +1,336 @@
-# Einrichtung — Schritt für Schritt (frischer Rechner)
+# Setup — Step by Step (fresh machine)
 
-Diese Anleitung bringt einen **frischen Linux-Rechner** von null auf ein
-funktionierendes Setup: native App → Geräte lesbar machen → (eigene) Hardware
-registrieren → mappen/testen → Wine-seitige SimConnect-Bridge → fliegen.
+This guide takes a **fresh Linux machine** from zero to a working setup: native
+app → make devices readable → register (your own) hardware → map/test →
+Wine-side SimConnect bridge → fly.
 
-Arbeite die Schritte **der Reihe nach** ab. Jeder Schritt endet mit einem
-**✓ Checkpoint** — läuft der durch, geht's weiter; sonst hilft die
-[Fehlersuche](#8-fehlersuche) unten.
+Work through the steps **in order**. Each step ends with a **✓ Checkpoint** — if
+it passes, move on; otherwise the [Troubleshooting](#8-troubleshooting) section
+below helps.
 
-> **Zwei Nutzer-Typen:**
-> - **Genau meine Hardware** (Fulcrum-Yoke, VirtualFly TQ6+, Saitek-Panels/
->   -Pedale/-Trimmrad) → **Schritt 3 überspringen**, die mitgelieferten Regeln
->   und der Katalog passen schon.
-> - **Andere Hardware** → **Schritt 2b + 3** sind für dich Pflicht (Geräte
->   eintragen), der Rest ist identisch.
+> **Two kinds of user:**
+> - **My exact hardware** (Fulcrum yoke, VirtualFly TQ6+, Saitek panels/
+>   pedals/trim wheel) → **skip Step 3**; the bundled rules and catalog already fit.
+> - **Other hardware** → **Steps 2b + 3** are mandatory for you (register the
+>   devices); everything else is identical.
 
-Kurzbefehle zum Kopieren: [`cheatsheet.md`](cheatsheet.md) ·
-Betrieb/Iteration: [`running.md`](running.md).
+Copy-paste commands: [`cheatsheet.md`](cheatsheet.md) ·
+Operating/iterating: [`running.md`](running.md). New or non-technical? The
+one-command installer path is [`QUICKSTART.md`](QUICKSTART.md).
 
 ---
 
-## 0. Überblick: die zwei Prozesse
+## 0. Overview: the two processes
 
-Es gibt **zwei** Programme, und nur **eines** berührt Wine:
+There are **two** programs, and only **one** touches Wine:
 
-| Prozess | Wo | Zweck |
+| Process | Where | Purpose |
 |---|---|---|
-| **`msfs-bridge`** (diese App) | **nativ auf Linux** (Python via `uv`) | liest die USB-Peripherie (evdev/hidraw), wendet das Flugzeug-Profil an, schickt Events/SimVars an die Bridge |
-| **`bridge.py`** | **im MSFS-Proton/Wine-Prefix** | linkt `SimConnect.dll` und reicht sie über TCP `127.0.0.1:7842` an die Linux-App |
+| **`msfs-bridge`** (this app) | **natively on Linux** (Python via `uv`) | reads the USB peripherals (evdev/hidraw), applies the aircraft profile, sends events/SimVars to the bridge |
+| **`bridge.py`** | **inside the MSFS Proton/Wine prefix** | links `SimConnect.dll` and exposes it over TCP `127.0.0.1:7842` to the Linux app |
 
-Wichtig: Du startest `msfs-bridge` **nicht** über Wine. Die Bridge (Schritt 5–6)
-brauchst du **nur für den echten Sim-Betrieb** — zum Mappen/Anlernen/Testen
-reicht die native App im Dry-Run (Schritt 4).
+Important: you do **not** start `msfs-bridge` through Wine. You only need the
+bridge (Steps 5–6) for **real sim operation** — for mapping/teaching/testing,
+the native app in dry-run (Step 4) is enough.
 
 ---
 
-## 1. Native App installieren
+## 1. Install the native app
 
-**Voraussetzung:** Linux mit udev und `/dev/hidraw` (aktueller Kernel).
-[`uv`](https://docs.astral.sh/uv/) zieht Python (**≥ 3.11**) und alle
-Abhängigkeiten selbst — ein manuelles venv ist nicht nötig.
+**Requirement:** Linux with udev and `/dev/hidraw` (recent kernel).
+[`uv`](https://docs.astral.sh/uv/) pulls Python (**≥ 3.11**) and all
+dependencies itself — no manual venv needed.
 
 ```bash
-# 1. uv installieren (falls noch nicht vorhanden)
+# 1. Install uv (if not already present)
 curl -LsSf https://astral.sh/uv/install.sh | sh
 
-# 2. Repo holen + Abhängigkeiten in ein lokales venv
-git clone <repo-url> msfs-peripherals-bridge
+# 2. Get the repo + dependencies into a local venv
+git clone https://github.com/creativeSloth/msfs-peripherals-bridge.git
 cd msfs-peripherals-bridge
 uv sync --extra dev
 
-# 3. Prüfen, dass alles lädt
-uv run msfs-bridge validate       # Katalog + Profile validieren
-uv run msfs-bridge list-profiles  # verfügbare Flugzeug-Profile
+# 3. Check that everything loads
+uv run msfs-bridge validate       # validate catalog + profiles
+uv run msfs-bridge list-profiles  # available aircraft profiles
 ```
 
-> `$MSFS_BRIDGE_HOME` überschreibt, aus welchem Verzeichnis `profiles/` und
-> `config/` geladen werden (Default: der Repo-Checkout).
+> `$MSFS_BRIDGE_HOME` overrides which directory `profiles/` and `config/` are
+> loaded from (default: the repo checkout).
 
-**✓ Checkpoint:** `validate` meldet den Katalog und die Profile **ohne Fehler**,
-`list-profiles` listet mindestens ein Flugzeug (z. B. `piper_arrow`, `cessna_172`).
+**✓ Checkpoint:** `validate` reports the catalog and profiles **without errors**,
+and `list-profiles` lists at least one aircraft (e.g. `piper_arrow`, `cessna_172`).
 
 ---
 
-## 2. Geräte für Linux lesbar machen (udev, einmalig, root)
+## 2. Make devices readable for Linux (udev, one-time, root)
 
-Ohne udev-Regeln darf dein normaler User die USB-/hidraw-Knoten nicht öffnen,
-und die Panels werden vom X-Server fälschlich als Maus erkannt (Zeiger zappelt).
+Without udev rules your normal user may not open the USB/hidraw nodes, and the
+panels are wrongly detected as a mouse by the X server (pointer jumps).
 
-> **Distro-Hinweis (Mint/Ubuntu · Fedora · Arch/CachyOS):** udev funktioniert
-> auf allen gleich — der Regel-Pfad `/etc/udev/rules.d/` und die Befehle
-> `udevadm control --reload-rules` / `udevadm trigger` sind **identisch**, und
-> `TAG+="uaccess"` (session-basierte Rechte) braucht nur systemd-logind, das auf
-> allen vier Standard ist. Es gibt **keine** distro-spezifische Regel-Variante.
-> Einziger Unterschied: `lsusb` kommt aus `usbutils` und ist ggf. nachzuinstallieren —
+> **Distro note (Mint/Ubuntu · Fedora · Arch/CachyOS):** udev works the same
+> everywhere — the rule path `/etc/udev/rules.d/` and the commands
+> `udevadm control --reload-rules` / `udevadm trigger` are **identical**, and
+> `TAG+="uaccess"` (session-based permissions) only needs systemd-logind, which
+> is the default on all four. There is **no** distro-specific rule variant. The
+> only difference: `lsusb` comes from `usbutils` and may need installing —
 > Mint/Ubuntu `sudo apt install usbutils`, Fedora `sudo dnf install usbutils`,
-> Arch/CachyOS `sudo pacman -S usbutils`. (Gruppen wie `input`/`plugdev` sind
-> hier egal, weil die Regeln `MODE="0666"` setzen.)
+> Arch/CachyOS `sudo pacman -S usbutils`. (Groups like `input`/`plugdev` don't
+> matter here, because the rules set `MODE="0666"`.)
 
-### 2a. Meine Hardware — Regeln einfach übernehmen
+### 2a. My hardware — just take the rules
 
 ```bash
 sudo cp 999-flightsim-override.rules /etc/udev/rules.d/99-flightsim.rules
 sudo udevadm control --reload-rules && sudo udevadm trigger
-# danach die Geräte einmal ab- und wieder anstecken
+# then unplug and replug the devices once
 ```
 
-**Was die Regeln tun** (`999-flightsim-override.rules`):
-- **hidraw-Knoten öffnen** (`MODE="0666"`, `TAG+="uaccess"`) für die
-  Panel-Vendor (Saitek `06a3`, VirtualFly `16d0`, Fulcrum-Yoke `0000`) — Pflicht
-  für den Raw-HID-Zugriff.
-- **Panels vom X-Server isolieren** (`LIBINPUT_IGNORE_DEVICE="1"`), sonst zappelt
-  der Mauszeiger.
-- **Achsen-Hardware als Joystick** markieren (`ID_INPUT_JOYSTICK`) und
-  `js*`/`event*` lesbar machen.
+**What the rules do** (`999-flightsim-override.rules`):
+- **Open hidraw nodes** (`MODE="0666"`, `TAG+="uaccess"`) for the panel vendors
+  (Saitek `06a3`, VirtualFly `16d0`, Fulcrum yoke `0000`) — required for raw-HID
+  access.
+- **Isolate the panels from the X server** (`LIBINPUT_IGNORE_DEVICE="1"`),
+  otherwise the mouse pointer jumps.
+- **Mark axis hardware as a joystick** (`ID_INPUT_JOYSTICK`) and make
+  `js*`/`event*` readable.
 
-### 2b. Eigene / unbekannte Hardware eintragen
+### 2b. Register your own / unknown hardware
 
-Die mitgelieferten Regeln decken **nur meine Geräte** ab. Für andere Hardware
-zuerst die USB-IDs finden:
+The bundled rules cover **only my devices**. For other hardware, first find the
+USB IDs:
 
 ```bash
-lsusb        # Zeile deines Geräts finden: "ID 1234:5678 Hersteller Produkt"
+lsusb        # find your device's line: "ID 1234:5678 Vendor Product"
 ```
 
-Trage Vendor (`1234`) und Product (`5678`) in `/etc/udev/rules.d/99-flightsim.rules`
-ein — kopiere dazu die passende Vorlage:
+Enter vendor (`1234`) and product (`5678`) into
+`/etc/udev/rules.d/99-flightsim.rules` — copy the matching template:
 
-- **Panel / Raw-HID** (Knöpfe, LEDs, Display):
+- **Panel / raw-HID** (buttons, LEDs, display):
   ```
   SUBSYSTEM=="hidraw", KERNEL=="hidraw*", ATTRS{idVendor}=="1234", MODE="0666", TAG+="uaccess"
   SUBSYSTEM=="input",  ATTRS{idVendor}=="1234", ATTRS{idProduct}=="5678", ENV{LIBINPUT_IGNORE_DEVICE}="1"
   ```
-- **Achsen-Gerät** (Yoke, Quadrant, Pedale):
+- **Axis device** (yoke, quadrant, pedals):
   ```
   SUBSYSTEM=="input", ATTRS{idVendor}=="1234", ATTRS{idProduct}=="5678", ENV{ID_INPUT_JOYSTICK}="1", MODE="0666", TAG+="uaccess"
   SUBSYSTEM=="input", ATTRS{idVendor}=="1234", ATTRS{idProduct}=="5678", KERNEL=="js*",    MODE="0666", TAG+="uaccess"
   SUBSYSTEM=="input", ATTRS{idVendor}=="1234", ATTRS{idProduct}=="5678", KERNEL=="event*", MODE="0666", TAG+="uaccess"
   ```
 
-Danach die Regeln neu laden und das Gerät neu einstecken:
+Then reload the rules and replug the device:
 
 ```bash
 sudo udevadm control --reload-rules && sudo udevadm trigger
 ```
 
-**✓ Checkpoint:** `ls -l /dev/hidraw*` (bzw. `/dev/input/js*`) zeigt die Knoten
-mit Lese-/Schreibrecht für deinen User (`rw`), nachdem das Gerät steckt.
+**✓ Checkpoint:** `ls -l /dev/hidraw*` (or `/dev/input/js*`) shows the nodes with
+read/write permission for your user (`rw`) once the device is plugged in.
 
 ---
 
-## 3. Gerät registrieren + seine Bausteine anlernen — *nur bei anderer Hardware*
+## 3. Register a device + teach its building blocks — *only for other hardware*
 
-> Hast du **genau meine Hardware**, ist alles schon eingetragen → **weiter mit
-> Schritt 4.** Für fremde Geräte ist das die systematische „von null"-Kette (Details:
-> [`geraete-workflow.md`](geraete-workflow.md)): **erkennen → registrieren →
-> Ein-/Ausgänge anlernen → (kalibrieren) → mappen.** Zwei Schichten sauber getrennt:
-> *was das Gerät physisch hat* (hier) vs. *was es im Flugzeug tut* (Schritt 4).
+> If you have **my exact hardware**, everything is already registered →
+> **continue with Step 4.** For foreign devices this is the systematic "from
+> scratch" chain (details: [`geraete-workflow.md`](geraete-workflow.md)):
+> **detect → register → teach inputs/outputs → (calibrate) → map.** Two layers
+> cleanly separated: *what the device physically has* (here) vs. *what it does in
+> the aircraft* (Step 4).
 
-### 3a. In der GUI (empfohlen) — Geräte-Explorer
+### 3a. In the GUI (recommended) — Device Explorer
 
 ```bash
 uv run python -m msfs_peripherals_bridge.gui
 ```
 
-Im **Mapper-Tab**:
-1. **„🔍 Geräte-Explorer…"** → listet **alle** angesteckten evdev/hidraw-Geräte,
-   auch unbekannte. Deins markieren → **„Registrieren…"** (kurze id vergeben). Das
-   schreibt ins **User-Overlay** `~/.config/msfs-peripherals-bridge/devices.local.yaml`
-   (die versionierte `config/devices.yaml` bleibt unangetastet).
-2. Am registrierten Gerät **„Geräteelemente…"** → getrennt **Eingaben (Lesen)** und
-   **Anzeigen (Schreiben)** anlegen:
-   - **„+ Input anlernen…"** (Taster/Schalter/Achse/Encoder): am Gerät betätigen →
-     der Code wird live erkannt (Achsen erfassen dabei ihren Rohbereich) → benennen.
-   - **„+ Anzeige hinzufügen…"** (LED/Display): Name + Zellenzahl. Die **Report-
-     Adresse** (welches Byte/Bit) findet der **🔦 Ausgang-Scan** im „+ Ausgabe"-Dialog
-     (Schritt 4), oder du trägst sie von Hand ein.
-   - **„Aus Vorlage füllen…"** projiziert ein bekanntes Muster (Saitek/Yoke/TQ6) in
-     einem Rutsch in die Element-Liste.
+In the **Mapper tab** (button labels are quoted as they appear in the app —
+German by default; an English gloss follows in parentheses):
+1. **„🔍 Geräte-Explorer…"** (Device Explorer) → lists **all** connected
+   evdev/hidraw devices, even unknown ones. Select yours → **„Registrieren…"**
+   (Register) and give it a short id. This writes to the **user overlay**
+   `~/.config/msfs-peripherals-bridge/devices.local.yaml` (the versioned
+   `config/devices.yaml` stays untouched).
+2. On the registered device, **„Geräteelemente…"** (Device elements) → create
+   **inputs (read)** and **displays (write)** separately:
+   - **„+ Input anlernen…"** (teach an input; button/switch/axis/encoder):
+     actuate it on the device → the code is detected live (axes capture their raw
+     range at the same time) → name it.
+   - **„+ Anzeige hinzufügen…"** (add a display; LED/display): name + cell count.
+     The **report address** (which byte/bit) is found by the **🔦 output scan** in
+     the „+ Ausgabe" (+ Output) dialog (Step 4), or you enter it by hand.
+   - **„Aus Vorlage füllen…"** (fill from template) projects a known pattern
+     (Saitek/Yoke/TQ6) into the element list in one go.
 
-### 3b. Alternativ manuell — `config/devices.yaml`
+### 3b. Alternatively, manually — `config/devices.yaml`
 
-USB-IDs per `lsusb` finden, dann eintragen (`id` = stabiler Schlüssel für Profile):
+Find USB IDs with `lsusb`, then enter them (`id` = stable key for profiles):
 
 ```yaml
 devices:
-  - id: mein_yoke            # frei wählbar, von Profilen referenziert
-    name: Hersteller Produkt
-    vendor: "1234"           # aus lsusb (hex, ohne 0x)
+  - id: my_yoke             # free to choose, referenced by profiles
+    name: Vendor Product
+    vendor: "1234"          # from lsusb (hex, without 0x)
     product: "5678"
-    transport: evdev         # evdev = Achsen/Joystick · hidraw = Raw-HID-Panels
-    # name_match: "Fulcrum"  # nur nötig, wenn die USB-ID mehrdeutig ist (z. B. 0000:0000)
+    transport: evdev        # evdev = axes/joystick · hidraw = raw-HID panels
+    # name_match: "Fulcrum" # only needed if the USB id is ambiguous (e.g. 0000:0000)
 ```
 
-Prüfen (CLI): `uv run msfs-bridge list-devices` (Katalog-Geräte, die dranhängen) ·
-`uv run msfs-bridge inventory` (**alle** Geräte roh, inkl. unregistrierter) ·
-`uv run msfs-bridge scan` / `monitor <id>` (Codes live ablesen).
+Check (CLI): `uv run msfs-bridge list-devices` (catalog devices that are
+connected) · `uv run msfs-bridge inventory` (**all** devices raw, incl.
+unregistered) · `uv run msfs-bridge scan` / `monitor <id>` (read codes live).
 
-**✓ Checkpoint:** Das Gerät steht im Geräte-Explorer als **registriert**
-(bzw. `list-devices` zeigt es als **verbunden**), und seine Ein-/Ausgänge sind als
-Elemente angelegt.
-
----
-
-## 4. Mappen & testen — ohne Sim (Dry-Run)
-
-Ab hier brauchst du **noch kein MSFS**. In der GUI (Mapper-Tab):
-
-1. Gerät links auswählen — der **Nachbau** zeigt Schalter/Achsen/Displays an
-   physischer Position. Mit **„✎ Anordnen"** ziehst du die Elemente ins Raster
-   (pro Gerät gespeichert).
-2. **Eingaben mappen** — **„+ Eingabe"** (oder ein Element im Nachbau anklicken) →
-   Quelle per **„📋 Benannt"** aus den angelernten Eingaben wählen (statt roher
-   Codes), Ziel-SimVar/Event über **„Wählen…"** setzen, **Übernehmen**. Codes
-   nachträglich per **🪄 / 🎚 Anlernen** im Editor.
-3. **Anzeigen mappen** — **„+ Ausgabe ▾" → LED… / Display…**: Variable wählen und
-   die Report-Adresse per **„🔦 Adresse finden…"** scannen (Testimpuls wandert, du
-   bestätigst „das ist es!"). Die **generische Laufzeit** treibt danach LEDs (ein
-   Bit) und 7-Segment-Displays (Var → Zellen) direkt aus dem Sim.
-4. Für die 3 Saitek-Panels gibt es zusätzlich **„Vorlage ▾"** (ganzes Panel in
-   einem Rutsch; eigene Anordnungen als Vorlage speicherbar).
-
-**Live-Kontrolle ohne Sim:** Achse bewegen / Schalter kippen — der Nachbau-Balken
-füllt sich bzw. das Element glüht. Panel-Ausgänge lassen sich mit **🔦 LEDs/Display
-testen…** gezielt ansteuern.
-
-> **Nichts kaputt machen können:** `tools/simulate-from-scratch.sh` startet eine
-> isolierte Sandbox (leerer Katalog + leeres Profil), in der du den ganzen Von-Null-
-> Ablauf gefahrlos durchspielst — deine echten Mappings werden nie angefasst.
-
-**✓ Checkpoint:** Beim Betätigen der Hardware reagiert der Nachbau live, ein
-angelernter Code landet im Editor, und ein 🔦-Testimpuls leuchtet die richtige
-LED/Zelle.
+**✓ Checkpoint:** The device shows as **registered** in the Device Explorer (or
+`list-devices` shows it as **connected**), and its inputs/outputs are created as
+elements.
 
 ---
 
-## 5. Wine-Bridge einrichten (nur für den echten Sim-Betrieb)
+## 4. Map & test — without a sim (dry-run)
 
-**Voraussetzung:** **MSFS unter Steam+Proton mindestens einmal gestartet**,
-damit das Proton-Prefix existiert (Proton Experimental empfohlen).
+From here you **don't need MSFS yet**. In the GUI (Mapper tab):
 
-Einmalig Windows-Python + SimConnect **ins Prefix** installieren (braucht Netz):
+1. Select the device on the left — the **replica** shows switches/axes/displays
+   at their physical positions. With **„✎ Anordnen"** (Arrange) you drag the
+   elements into the grid (saved per device).
+2. **Map inputs** — **„+ Eingabe"** (+ Input) (or click an element in the
+   replica) → pick the source via **„📋 Benannt"** (Named) from the taught inputs
+   (instead of raw codes), set the target SimVar/event via **„Wählen…"**
+   (Choose…), then **„Übernehmen"** (Apply). Codes can be (re)taught afterwards
+   via **🪄 / 🎚 Anlernen** (teach) in the editor.
+3. **Map displays** — **„+ Ausgabe ▾" → LED… / Display…** (+ Output): pick a
+   variable and scan the report address via **„🔦 Adresse finden…"** (find
+   address) — a test pulse moves around and you confirm "that's it!". The
+   **generic runtime** then drives LEDs (one bit) and 7-segment displays
+   (var → cells) directly from the sim.
+4. For the 3 Saitek panels there's also **„Vorlage ▾"** (Template) — a whole
+   panel in one go; your own arrangements can be saved as a template.
+
+**Live check without a sim:** move an axis / flip a switch — the replica bar
+fills or the element glows. Panel outputs can be driven deliberately with
+**🔦 LEDs/Display testen…** (test LEDs/display).
+
+> **Nothing you can break:** `tools/simulate-from-scratch.sh` starts an isolated
+> sandbox (empty catalog + empty profile) where you can safely rehearse the whole
+> from-scratch flow — your real mappings are never touched.
+
+**✓ Checkpoint:** When you actuate the hardware the replica reacts live, a taught
+code lands in the editor, and a 🔦 test pulse lights the correct LED/cell.
+
+---
+
+## 5. Set up the Wine bridge (only for real sim operation)
+
+**Requirement:** **MSFS started at least once under Steam+Proton**, so that the
+Proton prefix exists (Proton Experimental recommended).
+
+One-time, install Windows Python + SimConnect **into the prefix** (needs network):
 
 ```bash
 ./bridge/setup-prefix.sh
 ```
 
-Das lädt ein embeddable Windows-Python + `pip install SimConnect` (bündelt
-`SimConnect.dll`, **kein MSFS-SDK nötig**) nach `…/pfx/drive_c/pybridge`.
+This downloads an embeddable Windows Python + `pip install SimConnect` (bundles
+`SimConnect.dll`, **no MSFS SDK needed**) into `…/pfx/drive_c/pybridge`.
 Details: [`bridge/README.md`](../bridge/README.md).
 
-### Wo liegt dein Prefix? (Steam-Variante — wichtig, distro-übergreifend)
+### Where is your prefix? (Steam variant — important, distro-independent)
 
-`setup-prefix.sh`/`run-bridge.sh` bilden den Prefix als
-`$STEAM_ROOT/steamapps/compatdata/$MSFS_APPID/pfx`. **Passt der Default nicht,
-setzt du `STEAM_ROOT` (oder direkt `STEAM_COMPAT_DATA_PATH`) — das ist der
-einzige distro-/setup-abhängige Teil.** Steam bestimmt den Pfad, nicht die
-Distribution (Mint/Fedora/Arch/CachyOS sind gleich; es zählt **wie** Steam
-installiert ist):
+`setup-prefix.sh`/`run-bridge.sh` build the prefix as
+`$STEAM_ROOT/steamapps/compatdata/$MSFS_APPID/pfx`. **If the default doesn't fit,
+set `STEAM_ROOT` (or `STEAM_COMPAT_DATA_PATH` directly) — that's the only
+distro-/setup-dependent part.** Steam determines the path, not the distribution
+(Mint/Fedora/Arch/CachyOS are the same; what matters is **how** Steam is
+installed):
 
-| Steam-Variante | `STEAM_ROOT` setzen auf |
+| Steam variant | Set `STEAM_ROOT` to |
 |---|---|
-| **Nativ, Default** (Arch/CachyOS/Fedora/Mint) | *(nichts — Default `~/.steam/steam` passt)* |
-| **Nativ, aber `.local/share`** | `~/.local/share/Steam` |
-| **Flatpak-Steam** (oft Mint/Fedora) | `~/.var/app/com.valvesoftware.Steam/.local/share/Steam` |
-| **Zweite Library / andere Platte** | am einfachsten direkt `STEAM_COMPAT_DATA_PATH=<Library>/steamapps/compatdata/1250410` |
+| **Native, default** (Arch/CachyOS/Fedora/Mint) | *(nothing — default `~/.steam/steam` fits)* |
+| **Native, but `.local/share`** | `~/.local/share/Steam` |
+| **Flatpak Steam** (often Mint/Fedora) | `~/.var/app/com.valvesoftware.Steam/.local/share/Steam` |
+| **Second library / other drive** | easiest to set `STEAM_COMPAT_DATA_PATH=<Library>/steamapps/compatdata/1250410` directly |
 
 ```bash
-# Beispiel Flatpak-Steam:
+# Example: Flatpak Steam:
 export STEAM_ROOT="$HOME/.var/app/com.valvesoftware.Steam/.local/share/Steam"
-./bridge/setup-prefix.sh          # nimmt jetzt den richtigen Prefix
+./bridge/setup-prefix.sh          # now uses the correct prefix
 ```
 
-> **Prefix schnell finden:** `find ~ -type d -path '*steamapps/compatdata/1250410/pfx' 2>/dev/null`
-> — der Elternpfad bis `steamapps` ist dein `STEAM_ROOT`. In der GUI erledigt das
-> das **Prefix-Feld** im Connection-Tab (persistiert, wird als
-> `STEAM_COMPAT_DATA_PATH` an die Skripte injiziert).
+> **Find the prefix quickly:** run `./tools/find-prefix.sh` — it searches every
+> Steam variant (native, `.local/share`, Flatpak, a second drive) and prints the
+> ready-to-paste prefix path plus the `export` lines. Manually:
+> `find ~ -type d -path '*steamapps/compatdata/1250410/pfx' 2>/dev/null` — the
+> parent path up to `steamapps` is your `STEAM_ROOT`. In the GUI the **Prefix
+> field** on the Connection tab does this (persisted, injected as
+> `STEAM_COMPAT_DATA_PATH` into the scripts).
 
-Weitere steuerbare Variablen (Defaults meist ok):
-- `MSFS_APPID` (Default `1250410`, Steam-MSFS)
-- `PROTON_NAME` (Default `Proton - Experimental`) / `PROTON_PATH` (voller Pfad,
-  falls Proton woanders liegt — z. B. Flatpak/zweite Library).
+Other tunable variables (defaults usually fine):
+- `MSFS_APPID` (default `1250410`, Steam MSFS)
+- `PROTON_NAME` (default `Proton - Experimental`) / `PROTON_PATH` (full path, if
+  Proton lives elsewhere — e.g. Flatpak/second library).
 
-> **Bequemer aus der GUI:** Der **Connection-Tab** hat eine
-> **Voraussetzungs-Checkliste** (Prefix, Windows-Python, `SimConnect.dll`,
-> Proton, Skripte — grün/rot) und einen Knopf **„Prefix einrichten…"**, der
-> `setup-prefix.sh` mit Live-Log ausführt. Schritt 5 geht also auch dort.
+> **More convenient from the GUI:** The **Connection tab** has a **prerequisites
+> checklist** (prefix, Windows Python, `SimConnect.dll`, Proton, scripts —
+> green/red) and a **„Prefix einrichten…"** (Set up prefix…) button that runs
+> `setup-prefix.sh` with a live log — so Step 5 can be done there too. The same
+> tab also has an **„Geräte freischalten…"** (Enable devices…) button that
+> installs the udev rules from Step 2 via a graphical password prompt.
 
-**✓ Checkpoint:** Die Checkliste im Connection-Tab ist **komplett grün** (bzw.
-`ls …/pfx/drive_c/pybridge` zeigt `pythonw.exe` + `SimConnect.dll`).
+**✓ Checkpoint:** The checklist on the Connection tab is **all green** (or
+`ls …/pfx/drive_c/pybridge` shows `pythonw.exe` + `SimConnect.dll`).
 
 ---
 
-## 6. Fliegen
+## 6. Fly
 
-Jede Session: **MSFS starten, Flug laden**, dann:
+Each session: **start MSFS, load a flight**, then:
 
 ```bash
-./bridge/run-bridge.sh                       # Bridge im Prefix starten
-uv run msfs-bridge run --profile piper_arrow # oder --aircraft "Piper Arrow"
+./bridge/run-bridge.sh                       # start the bridge in the prefix
+uv run msfs-bridge run --profile piper_arrow # or --aircraft "Piper Arrow"
 ```
 
-> Der Bridge-Port `7842` geht erst **nach** SimConnect auf — die Bridge braucht
-> also ein laufendes MSFS mit geladenem Flug. Prüfen: `ss -ltn | grep 7842`.
+> The bridge port `7842` only opens **after** SimConnect — so the bridge needs a
+> running MSFS with a loaded flight. Check: `ss -ltn | grep 7842`.
 
-**✓ Checkpoint:** Achse bewegen / Schalter kippen → die Aktion passiert im Sim.
-`uv run msfs-bridge read "<SimVar>"` liest zur Kontrolle einen Wert zurück.
+**✓ Checkpoint:** move an axis / flip a switch → the action happens in the sim.
+`uv run msfs-bridge read "<SimVar>"` reads a value back to verify.
 
 ---
 
-## 7. Alltag (Kurzform)
+## 7. Everyday (short form)
 
 ```bash
-# MSFS + Flug laden, dann:
+# Load MSFS + flight, then:
 ./bridge/run-bridge.sh
-uv run msfs-bridge run --profile <profil>
-# oder komplett aus der GUI (Connection-Tab: Bridge/Mapper starten/stoppen)
+uv run msfs-bridge run --profile <profile>
+# or entirely from the GUI (Connection tab: start/stop bridge/mapper)
 uv run python -m msfs_peripherals_bridge.gui
 ```
 
-Iterations-Details (nativ vs. Wine, live nachjustieren): [`running.md`](running.md).
+Iteration details (native vs. Wine, live tuning): [`running.md`](running.md).
 
 ---
 
-## 8. Fehlersuche
+## 8. Troubleshooting
 
-- **Gerät nicht erkannt** → `lsusb` prüfen; udev-Regel **und**
-  `devices.yaml`-Eintrag vorhanden? `sudo udevadm control --reload-rules &&
-  sudo udevadm trigger`, neu einstecken.
-- **„nicht live lesbar" in der GUI** → hidraw-Knoten nicht `0666` (udev fehlt),
-  oder Gerät nicht angesteckt.
-- **Mauszeiger zappelt** beim Panel → `LIBINPUT_IGNORE_DEVICE`-Zeile fehlt in
-  der udev-Regel.
-- **Bridge verbindet nicht** → läuft MSFS **mit geladenem Flug**? Port offen?
-  `ss -ltn | grep 7842`. Die Bridge ist **single-client** — kein zweiter Mapper
-  gleichzeitig.
-- **`L:`/`H:`/`B:`-Vars gehen nicht** → brauchen den MobiFlight-WASM-Kanal (noch
-  offen); Standard-`A:`-Vars und `K:`-Events funktionieren.
-- **Panel-Test/Anlernen kollidiert** → der laufende Mapper „besitzt" das
-  hidraw-Gerät; zum Testen/Anlernen den Mapper stoppen (Connection-Tab).
+- **Device not detected** → check `lsusb`; is the udev rule **and** the
+  `devices.yaml` entry present? `sudo udevadm control --reload-rules &&
+  sudo udevadm trigger`, then replug.
+- **"not live-readable" in the GUI** → hidraw node not `0666` (udev missing), or
+  device not plugged in.
+- **Mouse pointer jumps** with the panel → the `LIBINPUT_IGNORE_DEVICE` line is
+  missing from the udev rule.
+- **Bridge doesn't connect** → is MSFS running **with a loaded flight**? Port
+  open? `ss -ltn | grep 7842`. The bridge is **single-client** — no second
+  mapper at the same time.
+- **`L:`/`H:`/`B:` vars don't work** → they need the MobiFlight WASM channel
+  (still open); standard `A:` vars and `K:` events work.
+- **Panel test/teach collides** → the running mapper "owns" the hidraw device;
+  to test/teach, stop the mapper (Connection tab).
 
 ---
 
-Verwandt: [`README.md`](../README.md) (Architektur), [`running.md`](running.md)
-(nativ vs. Wine, live iterieren), [`cheatsheet.md`](cheatsheet.md) (alle Befehle).
+Related: [`README.md`](../README.md) (architecture), [`running.md`](running.md)
+(native vs. Wine, live iterating), [`cheatsheet.md`](cheatsheet.md) (all commands).
