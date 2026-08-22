@@ -259,6 +259,74 @@ _STRINGS: dict[str, dict[str, str]] = {
         "es": "Se requiere reiniciar para aplicar el idioma por completo.",
         "fr": "Un redémarrage est nécessaire pour appliquer pleinement la langue.",
     },
+    # ----- Settings: which tabs are shown --------------------------------- #
+    "settings.tabs_group": {
+        "de": "Angezeigte Tabs",
+        "en": "Shown tabs",
+        "es": "Pestañas mostradas",
+        "fr": "Onglets affichés",
+    },
+    "settings.tab_gauges": {
+        "de": "Instrumente-Tab (Gauges)",
+        "en": "Instruments tab (Gauges)",
+        "es": "Pestaña de instrumentos (Gauges)",
+        "fr": "Onglet instruments (Gauges)",
+    },
+    "settings.tab_gauges_hint": {
+        "de": "Zeigt die aus Air Manager übernommenen Rundinstrumente. Standard: aus.",
+        "en": "Shows the round instruments ported from Air Manager. Default: off.",
+        "es": "Muestra los instrumentos redondos portados de Air Manager. Predet.: apagado.",
+        "fr": "Affiche les instruments ronds portés d'Air Manager. Défaut : désactivé.",
+    },
+    # ----- Settings: backup / restore ------------------------------------- #
+    "settings.backup_group": {
+        "de": "Sichern & Wiederherstellen",
+        "en": "Backup & restore",
+        "es": "Copia de seguridad y restauración",
+        "fr": "Sauvegarde et restauration",
+    },
+    "settings.backup_hint": {
+        "de": "Bündelt deine Mappings (profiles/), die Kalibrierung und alle "
+        "GUI-Daten (Anordnung, eigene Geräte, Vorlagen) in eine .zip — für "
+        "Neu-Clone, Rechnerwechsel oder als Sicherung.",
+        "en": "Bundles your mappings (profiles/), calibration and all GUI data "
+        "(arrangement, registered devices, templates) into one .zip — for a "
+        "re-clone, a machine move, or a plain backup.",
+        "es": "Agrupa tus asignaciones (profiles/), la calibración y todos los datos "
+        "de la interfaz en un .zip: para reclonar, cambiar de equipo o respaldar.",
+        "fr": "Regroupe vos mappings (profiles/), la calibration et toutes les données "
+        "de l'interface dans un .zip — reclonage, changement de machine ou sauvegarde.",
+    },
+    "settings.backup_export": {
+        "de": "Exportieren…",
+        "en": "Export…",
+        "es": "Exportar…",
+        "fr": "Exporter…",
+    },
+    "settings.backup_import": {
+        "de": "Importieren…",
+        "en": "Import…",
+        "es": "Importar…",
+        "fr": "Importer…",
+    },
+    "settings.backup_export_done": {
+        "de": "Backup gespeichert: {path}\n({n} Profile, {u} GUI-Dateien).",
+        "en": "Backup saved: {path}\n({n} profiles, {u} GUI files).",
+        "es": "Copia guardada: {path}\n({n} perfiles, {u} archivos de interfaz).",
+        "fr": "Sauvegarde enregistrée : {path}\n({n} profils, {u} fichiers d'interface).",
+    },
+    "settings.backup_import_confirm": {
+        "de": "Backup wiederherstellen? Passende Profile und GUI-Daten werden überschrieben.",
+        "en": "Restore the backup? Matching profiles and GUI data will be overwritten.",
+        "es": "¿Restaurar la copia? Se sobrescribirán los perfiles y datos coincidentes.",
+        "fr": "Restaurer la sauvegarde ? Les profils et données correspondants seront écrasés.",
+    },
+    "settings.backup_import_done": {
+        "de": "Wiederhergestellt: {n} Profile, {u} GUI-Dateien.",
+        "en": "Restored: {n} profiles, {u} GUI files.",
+        "es": "Restaurado: {n} perfiles, {u} archivos de interfaz.",
+        "fr": "Restauré : {n} profils, {u} fichiers d'interface.",
+    },
     # ----- status bar ----------------------------------------------------- #
     "status.label": {"de": "Status:", "en": "Status:", "es": "Estado:", "fr": "État :"},
     "status.profile": {"de": "Profil:", "en": "Profile:", "es": "Perfil:", "fr": "Profil :"},

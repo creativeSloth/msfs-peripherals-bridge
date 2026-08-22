@@ -9,7 +9,7 @@ import typer
 from rich.console import Console
 from rich.table import Table
 
-from . import __version__, config
+from . import __version__, backup, config
 from .devices.calibration import load_calibration
 from .mapping.loader import (
     apply_calibration,
@@ -428,6 +428,36 @@ def _resolve_profile(profile: str | None, aircraft: str | None) -> Profile | Non
         return None
     calibration = load_calibration(config.calibration_file())
     return apply_calibration(chosen, calibration)
+
+
+@app.command(name="export-config")
+def export_config_cmd(
+    dest: str = typer.Argument(..., help="Ziel-Zip für das Backup."),
+) -> None:
+    """Alle Nutzerdaten (Profile + Anordnung + eigene Geräte) in eine .zip sichern."""
+    res = backup.export_config(dest)
+    console.print(
+        f"[green]✓[/green] Backup: {res.path}  "
+        f"({res.profiles} Profile, Kalibrierung: {'ja' if res.calibration else 'nein'}, "
+        f"{res.user_files} GUI-Dateien)"
+    )
+
+
+@app.command(name="import-config")
+def import_config_cmd(
+    src: str = typer.Argument(..., help="Backup-Zip aus export-config."),
+) -> None:
+    """Ein export-config-Backup wiederherstellen (überschreibt passende Dateien)."""
+    try:
+        res = backup.import_config(src)
+    except (ValueError, OSError) as exc:
+        console.print(f"[red]Import fehlgeschlagen:[/red] {exc}")
+        raise typer.Exit(code=1) from None
+    console.print(
+        f"[green]✓[/green] Wiederhergestellt: {len(res.profiles)} Profile, "
+        f"Kalibrierung: {'ja' if res.calibration else 'nein'}, "
+        f"{len(res.user_files)} GUI-Dateien"
+    )
 
 
 if __name__ == "__main__":  # pragma: no cover

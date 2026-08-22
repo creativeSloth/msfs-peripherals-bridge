@@ -117,6 +117,18 @@ def save_prefix_path(prefix: str, path: Path | None = None) -> None:
     save_gui_settings(data, path)
 
 
+def load_show_gauges(path: Path | None = None) -> bool:
+    """Whether the instrument (Gauges) tab is shown. Default off."""
+    return bool(load_gui_settings(path).get("show_gauges", False))
+
+
+def save_show_gauges(value: bool, path: Path | None = None) -> None:
+    """Persist the Gauges-tab visibility, preserving the rest of the settings file."""
+    data = load_gui_settings(path)
+    data["show_gauges"] = bool(value)
+    save_gui_settings(data, path)
+
+
 def load_statistik_selection(path: Path | None = None) -> list[dict[str, str]]:
     """Restore the saved Statistik var list as ``{kind, name, unit}`` dicts."""
     return _clean_vars(load_gui_settings(path).get("statistik_vars"))
@@ -6879,11 +6891,107 @@ def run() -> None:
         lang_fr, text=tr("settings.apply_restart"), style="Accent.TButton", command=_restart_gui
     ).grid(row=3, column=0, columnspan=2, sticky="w", pady=(10, 0))
 
+    # --- which tabs are shown --------------------------------------------- #
+    tabs_fr = ttk.Labelframe(settab, text=tr("settings.tabs_group"), padding=12)
+    tabs_fr.grid(row=1, column=0, sticky="ew", pady=(12, 0))
+    tabs_fr.columnconfigure(0, weight=1)
+    gauges_var = tk.BooleanVar(value=load_show_gauges())
+
+    def _toggle_gauges_tab() -> None:
+        on = gauges_var.get()
+        save_show_gauges(on)
+        if on:
+            nb.insert(ptab, gtab, text=tr("tab.gauges"))  # before the Profile tab
+        else:
+            nb.hide(gtab)
+
+    ttk.Checkbutton(
+        tabs_fr, text=tr("settings.tab_gauges"), variable=gauges_var, command=_toggle_gauges_tab
+    ).grid(row=0, column=0, sticky="w")
+    ttk.Label(
+        tabs_fr,
+        text=tr("settings.tab_gauges_hint"),
+        foreground=MUTED,
+        font=("TkDefaultFont", 8),
+        wraplength=520,
+        justify="left",
+    ).grid(row=1, column=0, sticky="w", pady=(4, 0))
+
+    # --- backup / restore (all user data as one zip) ---------------------- #
+    backup_fr = ttk.Labelframe(settab, text=tr("settings.backup_group"), padding=12)
+    backup_fr.grid(row=2, column=0, sticky="ew", pady=(12, 0))
+    backup_fr.columnconfigure(2, weight=1)
+    ttk.Label(
+        backup_fr,
+        text=tr("settings.backup_hint"),
+        foreground=MUTED,
+        font=("TkDefaultFont", 8),
+        wraplength=520,
+        justify="left",
+    ).grid(row=0, column=0, columnspan=3, sticky="w", pady=(0, 8))
+
+    def _export_backup() -> None:
+        from tkinter import filedialog
+
+        from . import backup as _backup
+
+        dest = filedialog.asksaveasfilename(
+            title=tr("settings.backup_export"),
+            defaultextension=".zip",
+            initialfile="msfs-bridge-backup.zip",
+            filetypes=[("Zip", "*.zip")],
+        )
+        if not dest:
+            return
+        try:
+            res = _backup.export_config(dest)
+        except Exception as exc:
+            messagebox.showerror(tr("dialog.error"), str(exc))
+            return
+        messagebox.showinfo(
+            tr("settings.backup_group"),
+            tr("settings.backup_export_done", n=res.profiles, u=res.user_files, path=res.path),
+        )
+
+    def _import_backup() -> None:
+        from tkinter import filedialog
+
+        from . import backup as _backup
+
+        src = filedialog.askopenfilename(
+            title=tr("settings.backup_import"), filetypes=[("Zip", "*.zip")]
+        )
+        if not src:
+            return
+        if not messagebox.askyesno(tr("dialog.confirm"), tr("settings.backup_import_confirm")):
+            return
+        try:
+            res = _backup.import_config(src)
+        except Exception as exc:
+            messagebox.showerror(tr("dialog.error"), str(exc))
+            return
+        messagebox.showinfo(
+            tr("settings.backup_group"),
+            tr("settings.backup_import_done", n=len(res.profiles), u=len(res.user_files)),
+        )
+
+    ttk.Button(backup_fr, text=tr("settings.backup_export"), command=_export_backup).grid(
+        row=1, column=0, sticky="w"
+    )
+    ttk.Button(backup_fr, text=tr("settings.backup_import"), command=_import_backup).grid(
+        row=1, column=1, sticky="w", padx=(8, 0)
+    )
+
     # tab order per user (2026-07-17): Mapper after Connection, then Statistik,
     # Gauges to its right, Profile, Settings last. nb.insert() on an already-managed
-    # child just moves it.
-    for pos, tab in enumerate((conn, mtab, stab, gtab, ptab, settab)):
+    # child just moves it. The Gauges (instrument) tab is opt-in (Settings), default
+    # off — dropped from the order and hidden unless enabled.
+    _show_gauges = load_show_gauges()
+    _ordered = [conn, mtab, stab, *([gtab] if _show_gauges else []), ptab, settab]
+    for pos, tab in enumerate(_ordered):
         nb.insert(pos, tab)
+    if not _show_gauges:
+        nb.hide(gtab)
 
     # --- bottom status bar (small lamps) ----------------------------------- #
     ttk.Separator(win, orient="horizontal").grid(row=2, column=0, sticky="ew", pady=(8, 0))
