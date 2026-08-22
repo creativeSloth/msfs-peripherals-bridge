@@ -40,10 +40,20 @@ from msfs_peripherals_bridge.models import (
 CATALOG = DeviceCatalog.model_validate(
     {
         "devices": [
-            {"id": "yoke", "name": "Fulcrum Yoke", "vendor": "0000", "product": "0000",
-             "name_match": "Fulcrum"},
-            {"id": "multi_panel", "name": "Multi Panel", "vendor": "06a3", "product": "0d06",
-             "transport": "hidraw"},
+            {
+                "id": "yoke",
+                "name": "Fulcrum Yoke",
+                "vendor": "0000",
+                "product": "0000",
+                "name_match": "Fulcrum",
+            },
+            {
+                "id": "multi_panel",
+                "name": "Multi Panel",
+                "vendor": "06a3",
+                "product": "0d06",
+                "transport": "hidraw",
+            },
             {"id": "pedals", "name": "Rudder Pedals", "vendor": "06a3", "product": "0763"},
         ]
     }
@@ -112,16 +122,38 @@ def test_output_input_codes_counts_encoders_swap_selector():
     )
 
     assert output_input_codes(GearLedOutput()) == set()  # pure output
-    m = MultiPanelOutput(selector=[
-        SelectorEntry(code=0, label="ALT", simvar="X", min=0, max=9),
-        SelectorEntry(code=3, label="HDG", simvar="Y", min=0, max=359),
-    ])
+    m = MultiPanelOutput(
+        selector=[
+            SelectorEntry(code=0, label="ALT", simvar="X", min=0, max=9),
+            SelectorEntry(code=3, label="HDG", simvar="Y", min=0, max=359),
+        ]
+    )
     assert output_input_codes(m) == {0, 3, 5, 6}  # selector {0,3} + encoder CW/CCW
-    bank = RadioBank(code=2, label="COM1", active="A", standby="S", swap_event="SW",
-                     whole_inc="wi", whole_dec="wd", fract_inc="fi", fract_dec="fd")
-    r = RadioPanelOutput(units=[RadioUnit(
-        name="upper", row="upper", banks=[bank],
-        outer_cw=10, outer_ccw=11, inner_cw=12, inner_ccw=13, swap=14)])
+    bank = RadioBank(
+        code=2,
+        label="COM1",
+        active="A",
+        standby="S",
+        swap_event="SW",
+        whole_inc="wi",
+        whole_dec="wd",
+        fract_inc="fi",
+        fract_dec="fd",
+    )
+    r = RadioPanelOutput(
+        units=[
+            RadioUnit(
+                name="upper",
+                row="upper",
+                banks=[bank],
+                outer_cw=10,
+                outer_ccw=11,
+                inner_cw=12,
+                inner_ccw=13,
+                swap=14,
+            )
+        ]
+    )
     assert output_input_codes(r) == {10, 11, 12, 13, 14, 2}  # encoder/swap + bank code
 
 
@@ -177,8 +209,9 @@ def test_describe_transform_defaults_and_shaping():
     assert describe_transform(inv) == "invert, out[-1,1]"
     assert describe_transform(Transform(deadzone=0.1)) == "dz=0.1"
     # the expo curve folds its strength in — no duplicate "expo, expo=0.25".
-    yoke = Transform(deadzone=0.03, curve="expo", expo=0.25, invert=True,
-                     out_min=-16383.0, out_max=16383.0)
+    yoke = Transform(
+        deadzone=0.03, curve="expo", expo=0.25, invert=True, out_min=-16383.0, out_max=16383.0
+    )
     assert describe_transform(yoke) == "dz=0.03, expo=0.25, invert, out[-16383,16383]"
 
 
@@ -216,46 +249,84 @@ def test_output_detail_gear_leds():
 
 
 def test_output_detail_multi_panel_selector_leds_dimmer():
-    multi = MultiPanelOutput.model_validate({
-        "selector": [
-            {"code": 3, "label": "HDG", "simvar": "AUTOPILOT HEADING LOCK DIR",
-             "set_event": "HEADING_BUG_SET", "min": 0, "max": 359, "rollover": True,
-             "alt_sources": [{"simvar": "NAV OBS:2", "set_event": "VOR2_SET"}]},
-        ],
-        "bool_leds": {"alt": "L:JF_PA28_AP_alt"},
-        "dimmer": {"cw": 12, "ccw": 13,
-                   "targets": [{"var": "L:CENTRE_LOWER_PANEL_LIGHT", "full": 10}]},
-    })
+    multi = MultiPanelOutput.model_validate(
+        {
+            "selector": [
+                {
+                    "code": 3,
+                    "label": "HDG",
+                    "simvar": "AUTOPILOT HEADING LOCK DIR",
+                    "set_event": "HEADING_BUG_SET",
+                    "min": 0,
+                    "max": 359,
+                    "rollover": True,
+                    "alt_sources": [{"simvar": "NAV OBS:2", "set_event": "VOR2_SET"}],
+                },
+            ],
+            "bool_leds": {"alt": "L:JF_PA28_AP_alt"},
+            "dimmer": {
+                "cw": 12,
+                "ccw": 13,
+                "targets": [{"var": "L:CENTRE_LOWER_PANEL_LIGHT", "full": 10}],
+            },
+        }
+    )
     lines = describe_output_detail(multi)
-    assert any("Selektor 3 HDG" in ln and "HEADING_BUG_SET" in ln and "rollover" in ln
-               for ln in lines)
+    assert any(
+        "Selektor 3 HDG" in ln and "HEADING_BUG_SET" in ln and "rollover" in ln for ln in lines
+    )
     assert any("Alt-Quelle NAV OBS:2" in ln and "VOR2_SET" in ln for ln in lines)
     assert "LED alt ← L:JF_PA28_AP_alt" in lines
     assert any("Dimmer" in ln and "L:CENTRE_LOWER_PANEL_LIGHT" in ln for ln in lines)
 
 
 def test_output_detail_radio_panel_all_bank_kinds():
-    radio = RadioPanelOutput.model_validate({
-        "units": [{
-            "name": "upper", "row": "upper",
-            "outer_cw": 1, "outer_ccw": 2, "inner_cw": 3, "inner_ccw": 4, "swap": 5,
-            "banks": [
-                {"code": 0, "label": "COM1", "active": "COM ACTIVE FREQUENCY:1",
-                 "standby": "COM STANDBY FREQUENCY:1", "swap_event": "COM1_RADIO_SWAP",
-                 "whole_inc": "A", "whole_dec": "B", "fract_inc": "C", "fract_dec": "D",
-                 "fine_view": True},
-                {"kind": "dme", "code": 5,
-                 "sources": [{"label": "1", "distance": "NAV DME:1", "speed": "NAV DMESPEED:1"}]},
-                {"kind": "adf", "code": 6},
-                {"kind": "xpdr", "code": 7, "baro_var": "KOHLSMAN SETTING HG:1"},
+    radio = RadioPanelOutput.model_validate(
+        {
+            "units": [
+                {
+                    "name": "upper",
+                    "row": "upper",
+                    "outer_cw": 1,
+                    "outer_ccw": 2,
+                    "inner_cw": 3,
+                    "inner_ccw": 4,
+                    "swap": 5,
+                    "banks": [
+                        {
+                            "code": 0,
+                            "label": "COM1",
+                            "active": "COM ACTIVE FREQUENCY:1",
+                            "standby": "COM STANDBY FREQUENCY:1",
+                            "swap_event": "COM1_RADIO_SWAP",
+                            "whole_inc": "A",
+                            "whole_dec": "B",
+                            "fract_inc": "C",
+                            "fract_dec": "D",
+                            "fine_view": True,
+                        },
+                        {
+                            "kind": "dme",
+                            "code": 5,
+                            "sources": [
+                                {"label": "1", "distance": "NAV DME:1", "speed": "NAV DMESPEED:1"}
+                            ],
+                        },
+                        {"kind": "adf", "code": 6},
+                        {"kind": "xpdr", "code": 7, "baro_var": "KOHLSMAN SETTING HG:1"},
+                    ],
+                }
             ],
-        }],
-    })
+        }
+    )
     lines = describe_output_detail(radio)
-    assert any("Einheit upper (upper)" in ln and "outer 1/2" in ln and "swap 5" in ln
-               for ln in lines)
-    assert any("COM1 (freq)" in ln and "act=COM ACTIVE FREQUENCY:1" in ln and "fine-view" in ln
-               for ln in lines)
+    assert any(
+        "Einheit upper (upper)" in ln and "outer 1/2" in ln and "swap 5" in ln for ln in lines
+    )
+    assert any(
+        "COM1 (freq)" in ln and "act=COM ACTIVE FREQUENCY:1" in ln and "fine-view" in ln
+        for ln in lines
+    )
     assert any("(DME, nur Anzeige)" in ln for ln in lines)
     assert any("(ADF)" in ln and "L:KR85_dig1_counter" in ln for ln in lines)
     assert any("(XPDR)" in ln and "QNH KOHLSMAN SETTING HG:1" in ln for ln in lines)
@@ -269,13 +340,20 @@ def _binding(d: dict) -> Binding:
 
 
 def test_binding_to_form_axis_event():
-    b = _binding({
-        "name": "Aileron",
-        "source": {"kind": "axis", "code": 0, "raw_min": 0, "raw_max": 4095},
-        "action": {"type": "event", "event": "AILERON_SET"},
-        "transform": {"curve": "expo", "expo": 0.25, "invert": True,
-                      "out_min": -16383, "out_max": 16383},
-    })
+    b = _binding(
+        {
+            "name": "Aileron",
+            "source": {"kind": "axis", "code": 0, "raw_min": 0, "raw_max": 4095},
+            "action": {"type": "event", "event": "AILERON_SET"},
+            "transform": {
+                "curve": "expo",
+                "expo": 0.25,
+                "invert": True,
+                "out_min": -16383,
+                "out_max": 16383,
+            },
+        }
+    )
     f = binding_to_form(b)
     assert f["name"] == "Aileron"
     assert (f["kind"], f["code"], f["is_axis"]) == ("axis", "0", True)
@@ -285,21 +363,49 @@ def test_binding_to_form_axis_event():
     assert (f["tf_out_min"], f["tf_out_max"]) == ("-16383", "16383")
 
 
-@pytest.mark.parametrize("binding_dict", [
-    {"name": "A", "source": {"kind": "axis", "code": 0, "raw_min": 0, "raw_max": 4095},
-     "action": {"type": "event", "event": "AILERON_SET"},
-     "transform": {"deadzone": 0.03, "curve": "expo", "expo": 0.25, "invert": True,
-                   "out_min": -16383, "out_max": 16383}},
-    {"name": "Gear", "source": {"kind": "button", "code": 288},
-     "action": {"type": "event", "event": "GEAR_TOGGLE", "value": 1}},
-    {"name": "Pump", "source": {"kind": "switch", "code": 3},
-     "action": {"type": "simvar", "simvar": "L:FuelPump", "invert": True}},
-    {"name": "HdgSync", "source": {"kind": "button", "code": 290},
-     "action": {"type": "event_from_var", "read": "PLANE HEADING DEGREES MAGNETIC",
-                "event": "HEADING_BUG_SET", "unit": "degrees"}},
-    {"name": "AltHold", "source": {"kind": "switch", "code": 11},
-     "action": {"type": "rpn", "code": "(L:X) ! (>L:X)"}},
-])
+@pytest.mark.parametrize(
+    "binding_dict",
+    [
+        {
+            "name": "A",
+            "source": {"kind": "axis", "code": 0, "raw_min": 0, "raw_max": 4095},
+            "action": {"type": "event", "event": "AILERON_SET"},
+            "transform": {
+                "deadzone": 0.03,
+                "curve": "expo",
+                "expo": 0.25,
+                "invert": True,
+                "out_min": -16383,
+                "out_max": 16383,
+            },
+        },
+        {
+            "name": "Gear",
+            "source": {"kind": "button", "code": 288},
+            "action": {"type": "event", "event": "GEAR_TOGGLE", "value": 1},
+        },
+        {
+            "name": "Pump",
+            "source": {"kind": "switch", "code": 3},
+            "action": {"type": "simvar", "simvar": "L:FuelPump", "invert": True},
+        },
+        {
+            "name": "HdgSync",
+            "source": {"kind": "button", "code": 290},
+            "action": {
+                "type": "event_from_var",
+                "read": "PLANE HEADING DEGREES MAGNETIC",
+                "event": "HEADING_BUG_SET",
+                "unit": "degrees",
+            },
+        },
+        {
+            "name": "AltHold",
+            "source": {"kind": "switch", "code": 11},
+            "action": {"type": "rpn", "code": "(L:X) ! (>L:X)"},
+        },
+    ],
+)
 def test_form_round_trip_preserves_binding(binding_dict):
     # binding -> form -> binding must reparse to an equal model (no data loss).
     original = _binding(binding_dict)
@@ -308,13 +414,19 @@ def test_form_round_trip_preserves_binding(binding_dict):
 
 
 def test_deadzone_raw_window_round_trip():
-    b = _binding({
-        "name": "Roll",
-        "source": {"kind": "axis", "code": 0, "raw_min": 0, "raw_max": 4095},
-        "action": {"type": "event", "event": "AILERON_SET"},
-        "transform": {"deadzone_min": 1900, "deadzone_max": 2200,
-                      "out_min": -16383, "out_max": 16383},
-    })
+    b = _binding(
+        {
+            "name": "Roll",
+            "source": {"kind": "axis", "code": 0, "raw_min": 0, "raw_max": 4095},
+            "action": {"type": "event", "event": "AILERON_SET"},
+            "transform": {
+                "deadzone_min": 1900,
+                "deadzone_max": 2200,
+                "out_min": -16383,
+                "out_max": 16383,
+            },
+        }
+    )
     f = binding_to_form(b)
     assert (f["tf_dz_min"], f["tf_dz_max"]) == ("1900", "2200")
     rebuilt = _binding(form_to_binding(f))
@@ -322,11 +434,15 @@ def test_deadzone_raw_window_round_trip():
 
 
 def test_deadzone_window_plausibility():
-    base = binding_to_form(_binding({
-        "name": "Roll",
-        "source": {"kind": "axis", "code": 0, "raw_min": 0, "raw_max": 4095},
-        "action": {"type": "event", "event": "AILERON_SET"},
-    }))
+    base = binding_to_form(
+        _binding(
+            {
+                "name": "Roll",
+                "source": {"kind": "axis", "code": 0, "raw_min": 0, "raw_max": 4095},
+                "action": {"type": "event", "event": "AILERON_SET"},
+            }
+        )
+    )
     with pytest.raises(ValueError, match="größer"):  # max must exceed min
         form_to_binding({**base, "tf_dz_min": "2200", "tf_dz_max": "1900"})
     with pytest.raises(ValueError, match="min UND max"):  # both edges required
@@ -378,23 +494,37 @@ def test_blank_form_builds_a_valid_button_binding():
 # sequence action <-> editor rows
 # --------------------------------------------------------------------------- #
 def test_seq_action_to_rows_splits_event_and_simvar_steps():
-    action = SequenceAction.model_validate({
-        "type": "sequence",
-        "on_edge": [{"event": "AVIONICS_MASTER_1", "value": 1},
-                    {"simvar": "L:AUTOPILOT_MODE", "value": 2}],
-        "off_edge": [{"simvar": "L:AUTOPILOT_MODE", "value": 0}],
-    })
+    action = SequenceAction.model_validate(
+        {
+            "type": "sequence",
+            "on_edge": [
+                {"event": "AVIONICS_MASTER_1", "value": 1},
+                {"simvar": "L:AUTOPILOT_MODE", "value": 2},
+            ],
+            "off_edge": [{"simvar": "L:AUTOPILOT_MODE", "value": 0}],
+        }
+    )
     rows = seq_action_to_rows(action)
-    assert rows["on"][0] == {"target": "event", "name": "AVIONICS_MASTER_1",
-                             "value": "1", "unit": "number"}
+    assert rows["on"][0] == {
+        "target": "event",
+        "name": "AVIONICS_MASTER_1",
+        "value": "1",
+        "unit": "number",
+    }
     assert rows["on"][1]["target"] == "simvar" and rows["on"][1]["name"] == "L:AUTOPILOT_MODE"
-    assert rows["off"][0] == {"target": "simvar", "name": "L:AUTOPILOT_MODE",
-                              "value": "0", "unit": "number"}
+    assert rows["off"][0] == {
+        "target": "simvar",
+        "name": "L:AUTOPILOT_MODE",
+        "value": "0",
+        "unit": "number",
+    }
 
 
 def test_rows_to_seq_action_round_trips_through_the_model():
-    on = [{"target": "event", "name": "AVIONICS_MASTER_1", "value": "1", "unit": "number"},
-          {"target": "simvar", "name": "L:AUTOPILOT_MODE", "value": "2", "unit": "number"}]
+    on = [
+        {"target": "event", "name": "AVIONICS_MASTER_1", "value": "1", "unit": "number"},
+        {"target": "simvar", "name": "L:AUTOPILOT_MODE", "value": "2", "unit": "number"},
+    ]
     off = [{"target": "simvar", "name": "L:AUTOPILOT_MODE", "value": "0", "unit": "number"}]
     act = rows_to_seq_action(on, off)
     model = SequenceAction.model_validate(act)  # must validate
@@ -413,16 +543,19 @@ def test_rows_to_seq_action_validates_inputs():
 
 
 def test_form_round_trip_preserves_split():
-    b = _binding({
-        "name": "Throttle mit Reverse",
-        "source": {"kind": "axis", "code": 0, "raw_min": 0, "raw_max": 1000},
-        "action": {"type": "event", "event": "THROTTLE1_SET"},
-        "transform": {"out_min": 0, "out_max": 16383},
-        "split": {"at": 200,
-                  "action": {"type": "simvar",
-                             "simvar": "TURB ENG REVERSE NOZZLE PERCENT:1"},
-                  "transform": {"invert": True}},
-    })
+    b = _binding(
+        {
+            "name": "Throttle mit Reverse",
+            "source": {"kind": "axis", "code": 0, "raw_min": 0, "raw_max": 1000},
+            "action": {"type": "event", "event": "THROTTLE1_SET"},
+            "transform": {"out_min": 0, "out_max": 16383},
+            "split": {
+                "at": 200,
+                "action": {"type": "simvar", "simvar": "TURB ENG REVERSE NOZZLE PERCENT:1"},
+                "transform": {"invert": True},
+            },
+        }
+    )
     form = binding_to_form(b)
     assert form["sp_enabled"] is True
     assert form["sp_at"] == "200"
@@ -446,11 +579,14 @@ def test_form_split_disabled_emits_no_split():
 
 
 def test_describe_binding_mentions_the_split():
-    b = _binding({
-        "name": "Prop", "source": {"kind": "axis", "code": 3, "raw_min": 0, "raw_max": 100},
-        "action": {"type": "event", "event": "PROP_PITCH1_SET"},
-        "split": {"at": 20, "action": {"type": "event", "event": "PROP_FEATHER"}},
-    })
+    b = _binding(
+        {
+            "name": "Prop",
+            "source": {"kind": "axis", "code": 3, "raw_min": 0, "raw_max": 100},
+            "action": {"type": "event", "event": "PROP_PITCH1_SET"},
+            "split": {"at": 20, "action": {"type": "event", "event": "PROP_FEATHER"}},
+        }
+    )
     row = describe_binding(b)
     assert "unter 20" in row.action and "PROP_FEATHER" in row.action
 
@@ -479,28 +615,42 @@ def test_live_row_map_covers_axes_hats_buttons_and_switches():
 
     # hidraw panel switches now map to ("switch", code) keys — the same global
     # bit index the profile stores, so the Live column can light them up.
-    panel = Profile.model_validate({
-        "name": "SW",
-        "bindings": {"switch_panel": [
-            {"name": "Battery", "source": {"kind": "switch", "code": 0},
-             "action": {"type": "event", "event": "MASTER_BATTERY_SET"}},
-            {"name": "Cowl", "source": {"kind": "switch", "code": 6},
-             "action": {"type": "event", "event": "COWL_FLAPS_SET"}},
-        ]},
-    })
+    panel = Profile.model_validate(
+        {
+            "name": "SW",
+            "bindings": {
+                "switch_panel": [
+                    {
+                        "name": "Battery",
+                        "source": {"kind": "switch", "code": 0},
+                        "action": {"type": "event", "event": "MASTER_BATTERY_SET"},
+                    },
+                    {
+                        "name": "Cowl",
+                        "source": {"kind": "switch", "code": 6},
+                        "action": {"type": "event", "event": "COWL_FLAPS_SET"},
+                    },
+                ]
+            },
+        }
+    )
     sw = live_row_map(panel, "switch_panel")
     assert {k for k, _ in sw} == {"switch"}
     assert ("switch", 0) in sw and ("switch", 6) in sw
 
 
 def test_form_round_trip_preserves_hat():
-    b = _binding({
-        "name": "Trim-Hat",
-        "source": {"kind": "hat", "code": 16},
-        "hat": {"up": {"type": "event", "event": "ELEV_TRIM_UP"},
+    b = _binding(
+        {
+            "name": "Trim-Hat",
+            "source": {"kind": "hat", "code": 16},
+            "hat": {
+                "up": {"type": "event", "event": "ELEV_TRIM_UP"},
                 "down": {"type": "event", "event": "ELEV_TRIM_DN", "value": 2},
-                "left": {"type": "simvar", "simvar": "L:PAN_LEFT"}},
-    })
+                "left": {"type": "simvar", "simvar": "L:PAN_LEFT"},
+            },
+        }
+    )
     form = binding_to_form(b)
     assert form["hat_up_name"] == "ELEV_TRIM_UP"
     assert form["hat_down_value"] == "2"
@@ -523,13 +673,17 @@ def test_condition_rows_round_trip():
     from msfs_peripherals_bridge.gui_mapper import conditions_to_rows, rows_to_conditions
     from msfs_peripherals_bridge.models import Condition
 
-    when = [Condition(var="AVIONICS MASTER SWITCH"),
-            Condition(var="L:AUTOPILOT_MODE", op="<", value=3)]
+    when = [
+        Condition(var="AVIONICS MASTER SWITCH"),
+        Condition(var="L:AUTOPILOT_MODE", op="<", value=3),
+    ]
     rows = conditions_to_rows(when)
     assert rows[0] == {"var": "AVIONICS MASTER SWITCH", "op": "==", "value": "1"}
     out = rows_to_conditions(rows)
-    assert out == [{"var": "AVIONICS MASTER SWITCH"},
-                   {"var": "L:AUTOPILOT_MODE", "op": "<", "value": 3}]
+    assert out == [
+        {"var": "AVIONICS MASTER SWITCH"},
+        {"var": "L:AUTOPILOT_MODE", "op": "<", "value": 3},
+    ]
     assert [Condition.model_validate(c) for c in out] == when
 
     with pytest.raises(ValueError, match="Variable fehlt"):
@@ -543,7 +697,11 @@ def test_device_input_sources_maps_blocks_to_kind_code():
     from msfs_peripherals_bridge.models import DeviceDef, InputBlock
 
     ddef = DeviceDef(
-        id="p", name="P", vendor="06a3", product="0d67", transport="hidraw",
+        id="p",
+        name="P",
+        vendor="06a3",
+        product="0d67",
+        transport="hidraw",
         inputs=[
             InputBlock(kind="button", name="AP", code=12),
             InputBlock(kind="switch", name="BAT", code=0),
@@ -581,11 +739,31 @@ def test_panel_input_elements_counts_encoder_as_one():
     assert panel_input_elements(GearLedOutput()) == 0
     m = MultiPanelOutput(selector=[SelectorEntry(code=0, label="ALT", simvar="X", min=0, max=9)])
     assert panel_input_elements(m) == 2  # value encoder + 1 selector (not 5 codes)
-    bank = RadioBank(code=2, label="COM1", active="A", standby="S", swap_event="SW",
-                     whole_inc="wi", whole_dec="wd", fract_inc="fi", fract_dec="fd")
-    r = RadioPanelOutput(units=[RadioUnit(
-        name="upper", row="upper", banks=[bank],
-        outer_cw=10, outer_ccw=11, inner_cw=12, inner_ccw=13, swap=14)])
+    bank = RadioBank(
+        code=2,
+        label="COM1",
+        active="A",
+        standby="S",
+        swap_event="SW",
+        whole_inc="wi",
+        whole_dec="wd",
+        fract_inc="fi",
+        fract_dec="fd",
+    )
+    r = RadioPanelOutput(
+        units=[
+            RadioUnit(
+                name="upper",
+                row="upper",
+                banks=[bank],
+                outer_cw=10,
+                outer_ccw=11,
+                inner_cw=12,
+                inner_ccw=13,
+                swap=14,
+            )
+        ]
+    )
     assert panel_input_elements(r) == 4  # outer + inner encoder + swap + mode selector
 
 
@@ -594,13 +772,21 @@ def test_atomic_output_count_counts_leds_and_cells():
     from msfs_peripherals_bridge.models import DeviceDef, OutputBlock
 
     # legacy panel via profile: gear_leds -> 3 wheels x 2 colours = 6
-    catdev = DeviceDef(id="multi_panel", name="M", vendor="06a3", product="0d06",
-                       transport="hidraw")
+    catdev = DeviceDef(
+        id="multi_panel", name="M", vendor="06a3", product="0d06", transport="hidraw"
+    )
     assert atomic_output_count(catdev, PROFILE) == 6
     # user device via OutputBlocks: 1 LED + a 5-cell display = 6 atomic write elements
-    userdev = DeviceDef(id="u", name="U", vendor="1", product="2",
-                        outputs=[OutputBlock(kind="led", name="AP"),
-                                 OutputBlock(kind="display", name="COM", cells=5)])
+    userdev = DeviceDef(
+        id="u",
+        name="U",
+        vendor="1",
+        product="2",
+        outputs=[
+            OutputBlock(kind="led", name="AP"),
+            OutputBlock(kind="display", name="COM", cells=5),
+        ],
+    )
     empty = Profile.model_validate({"name": "p"})
     assert atomic_output_count(userdev, empty) == 6
 
@@ -610,9 +796,16 @@ def test_atomic_input_count_counts_atoms_incl_scanned_inputs():
     from msfs_peripherals_bridge.models import DeviceDef, InputBlock
 
     # freshly-scanned custom device: inputs come from ddef.inputs, no profile
-    ddef = DeviceDef(id="custom", name="Custom", vendor="1", product="2",
-                     inputs=[InputBlock(kind="button", name="A", code=1),
-                             InputBlock(kind="encoder", name="E", cw=2, ccw=3)])
+    ddef = DeviceDef(
+        id="custom",
+        name="Custom",
+        vendor="1",
+        product="2",
+        inputs=[
+            InputBlock(kind="button", name="A", code=1),
+            InputBlock(kind="encoder", name="E", cw=2, ccw=3),
+        ],
+    )
     empty = Profile.model_validate({"name": "p"})
     assert atomic_input_count(ddef, empty) == 2  # encoder counts once, not twice
 
@@ -629,25 +822,56 @@ def test_template_elements_projects_bindings_to_typed_inputs():
     from msfs_peripherals_bridge.models import DeviceDef
 
     ddef = DeviceDef(id="yoke", name="Y", vendor="0000", product="0000", name_match="Fulcrum")
-    profile = Profile.model_validate({
-        "name": "p",
-        "bindings": {"yoke": [
-            {"name": "Aileron",
-             "source": {"kind": "axis", "code": 0, "raw_min": 0, "raw_max": 4095},
-             "action": {"type": "event", "event": "AILERON_SET"}},
-            {"name": "Gear", "source": {"kind": "button", "code": 288},
-             "action": {"type": "event", "event": "GEAR_TOGGLE"}},
-            {"name": "Beacon", "source": {"kind": "switch", "code": 2},
-             "action": {"type": "event", "event": "TOGGLE_BEACON_LIGHTS"}},
-            {"name": "View", "source": {"kind": "hat", "code": 16},
-             "hat": {
-                 "up": {"action": {"type": "event", "event": "PAN_UP"}, "code": 20, "value": 1},
-                 "down": {"action": {"type": "event", "event": "PAN_DN"}, "code": 21, "value": 1},
-                 "left": {"action": {"type": "event", "event": "PAN_L"}, "code": 22, "value": 1},
-                 "right": {"action": {"type": "event", "event": "PAN_R"}, "code": 23, "value": 1},
-             }},
-        ]},
-    })
+    profile = Profile.model_validate(
+        {
+            "name": "p",
+            "bindings": {
+                "yoke": [
+                    {
+                        "name": "Aileron",
+                        "source": {"kind": "axis", "code": 0, "raw_min": 0, "raw_max": 4095},
+                        "action": {"type": "event", "event": "AILERON_SET"},
+                    },
+                    {
+                        "name": "Gear",
+                        "source": {"kind": "button", "code": 288},
+                        "action": {"type": "event", "event": "GEAR_TOGGLE"},
+                    },
+                    {
+                        "name": "Beacon",
+                        "source": {"kind": "switch", "code": 2},
+                        "action": {"type": "event", "event": "TOGGLE_BEACON_LIGHTS"},
+                    },
+                    {
+                        "name": "View",
+                        "source": {"kind": "hat", "code": 16},
+                        "hat": {
+                            "up": {
+                                "action": {"type": "event", "event": "PAN_UP"},
+                                "code": 20,
+                                "value": 1,
+                            },
+                            "down": {
+                                "action": {"type": "event", "event": "PAN_DN"},
+                                "code": 21,
+                                "value": 1,
+                            },
+                            "left": {
+                                "action": {"type": "event", "event": "PAN_L"},
+                                "code": 22,
+                                "value": 1,
+                            },
+                            "right": {
+                                "action": {"type": "event", "event": "PAN_R"},
+                                "code": 23,
+                                "value": 1,
+                            },
+                        },
+                    },
+                ]
+            },
+        }
+    )
     inputs, outputs = template_elements(ddef, profile)
     assert outputs == []
     kinds = [(b.kind, b.name, b.code) for b in inputs]
@@ -667,17 +891,24 @@ def test_template_elements_multi_panel_controls_and_display():
     from msfs_peripherals_bridge.mapping.multi_panel import ENCODER_CCW, ENCODER_CW
     from msfs_peripherals_bridge.models import DeviceDef
 
-    ddef = DeviceDef(id="multi_panel", name="M", vendor="06a3", product="0d06",
-                     transport="hidraw")
-    profile = Profile.model_validate({
-        "name": "p",
-        "outputs": {"multi_panel": [{
-            "type": "multi_panel",
-            "selector": [{"code": 0, "label": "ALT", "simvar": "X", "min": 0, "max": 9},
-                         {"code": 1, "label": "VS", "simvar": "Y", "min": 0, "max": 9}],
-            "dimmer": {"cw": 30, "ccw": 31, "targets": [{"var": "L:PANEL_LIGHT"}]},
-        }]},
-    })
+    ddef = DeviceDef(id="multi_panel", name="M", vendor="06a3", product="0d06", transport="hidraw")
+    profile = Profile.model_validate(
+        {
+            "name": "p",
+            "outputs": {
+                "multi_panel": [
+                    {
+                        "type": "multi_panel",
+                        "selector": [
+                            {"code": 0, "label": "ALT", "simvar": "X", "min": 0, "max": 9},
+                            {"code": 1, "label": "VS", "simvar": "Y", "min": 0, "max": 9},
+                        ],
+                        "dimmer": {"cw": 30, "ccw": 31, "targets": [{"var": "L:PANEL_LIGHT"}]},
+                    }
+                ]
+            },
+        }
+    )
     inputs, outputs = template_elements(ddef, profile)
     # value encoder + mode selector + dimmer
     assert [b.kind for b in inputs] == ["encoder", "selector", "encoder"]
@@ -695,20 +926,43 @@ def test_template_elements_radio_panel_per_unit():
     from msfs_peripherals_bridge.gui_mapper import template_elements
     from msfs_peripherals_bridge.models import DeviceDef
 
-    ddef = DeviceDef(id="radio_panel", name="R", vendor="06a3", product="0d05",
-                     transport="hidraw")
-    bank = {"kind": "freq", "code": 2, "label": "COM1", "active": "A", "standby": "S",
-            "swap_event": "SW", "whole_inc": "wi", "whole_dec": "wd",
-            "fract_inc": "fi", "fract_dec": "fd"}
-    profile = Profile.model_validate({
-        "name": "p",
-        "outputs": {"radio_panel": [{
-            "type": "radio_panel",
-            "units": [{"name": "upper", "row": "upper", "banks": [bank],
-                       "outer_cw": 10, "outer_ccw": 11, "inner_cw": 12, "inner_ccw": 13,
-                       "swap": 14}],
-        }]},
-    })
+    ddef = DeviceDef(id="radio_panel", name="R", vendor="06a3", product="0d05", transport="hidraw")
+    bank = {
+        "kind": "freq",
+        "code": 2,
+        "label": "COM1",
+        "active": "A",
+        "standby": "S",
+        "swap_event": "SW",
+        "whole_inc": "wi",
+        "whole_dec": "wd",
+        "fract_inc": "fi",
+        "fract_dec": "fd",
+    }
+    profile = Profile.model_validate(
+        {
+            "name": "p",
+            "outputs": {
+                "radio_panel": [
+                    {
+                        "type": "radio_panel",
+                        "units": [
+                            {
+                                "name": "upper",
+                                "row": "upper",
+                                "banks": [bank],
+                                "outer_cw": 10,
+                                "outer_ccw": 11,
+                                "inner_cw": 12,
+                                "inner_ccw": 13,
+                                "swap": 14,
+                            }
+                        ],
+                    }
+                ]
+            },
+        }
+    )
     inputs, outputs = template_elements(ddef, profile)
     # per unit: outer + inner encoder + swap button + mode selector
     assert [b.kind for b in inputs] == ["encoder", "encoder", "button", "selector"]
@@ -725,11 +979,13 @@ def test_template_elements_gear_leds_are_three_lamps():
     from msfs_peripherals_bridge.gui_mapper import template_elements
     from msfs_peripherals_bridge.models import DeviceDef
 
-    ddef = DeviceDef(id="switch_panel", name="S", vendor="06a3", product="0d67",
-                     transport="hidraw")
-    profile = Profile.model_validate({
-        "name": "p", "outputs": {"switch_panel": [{"type": "gear_leds"}]},
-    })
+    ddef = DeviceDef(id="switch_panel", name="S", vendor="06a3", product="0d67", transport="hidraw")
+    profile = Profile.model_validate(
+        {
+            "name": "p",
+            "outputs": {"switch_panel": [{"type": "gear_leds"}]},
+        }
+    )
     inputs, outputs = template_elements(ddef, profile)
     assert inputs == []
     assert [b.kind for b in outputs] == ["led", "led", "led"]

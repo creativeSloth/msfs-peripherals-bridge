@@ -112,7 +112,10 @@ class BridgeClient:
                     if attempt == 1 or attempt % 15 == 0:
                         log.warning(
                             "Bridge unreachable at %s:%s (%s); retrying every %.0fs…",
-                            self.host, self.port, exc, self._retry_delay,
+                            self.host,
+                            self.port,
+                            exc,
+                            self._retry_delay,
                         )
                     if self._wake.wait(self._retry_delay):
                         return False  # close() woke us
@@ -128,7 +131,10 @@ class BridgeClient:
                 self._replay(sock, subs)
                 log.info(
                     "Connected to SimConnect bridge at %s:%s (resubscribed %d, gen %d)",
-                    self.host, self.port, len(subs), gen,
+                    self.host,
+                    self.port,
+                    len(subs),
+                    gen,
                 )
                 return True
 

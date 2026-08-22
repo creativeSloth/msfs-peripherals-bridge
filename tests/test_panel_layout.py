@@ -25,28 +25,56 @@ PROFILE = Profile.model_validate(
         "name": "Test",
         "bindings": {
             "switch_panel": [
-                {"name": "Battery master", "source": {"kind": "switch", "code": 0},
-                 "action": {"type": "event", "event": "MASTER_BATTERY_SET"}},
-                {"name": "Strobe lights", "source": {"kind": "switch", "code": 10},
-                 "action": {"type": "event", "event": "STROBES_SET"}},
-                {"name": "Magneto BOTH", "source": {"kind": "switch", "code": 16},
-                 "action": {"type": "event", "event": "MAGNETO1_BOTH", "value": 1}},
-                {"name": "Gear up", "source": {"kind": "switch", "code": 18},
-                 "action": {"type": "event", "event": "GEAR_UP", "value": 1}},
+                {
+                    "name": "Battery master",
+                    "source": {"kind": "switch", "code": 0},
+                    "action": {"type": "event", "event": "MASTER_BATTERY_SET"},
+                },
+                {
+                    "name": "Strobe lights",
+                    "source": {"kind": "switch", "code": 10},
+                    "action": {"type": "event", "event": "STROBES_SET"},
+                },
+                {
+                    "name": "Magneto BOTH",
+                    "source": {"kind": "switch", "code": 16},
+                    "action": {"type": "event", "event": "MAGNETO1_BOTH", "value": 1},
+                },
+                {
+                    "name": "Gear up",
+                    "source": {"kind": "switch", "code": 18},
+                    "action": {"type": "event", "event": "GEAR_UP", "value": 1},
+                },
             ],
             "yoke": [
-                {"name": "Trim up", "source": {"kind": "button", "code": 288},
-                 "action": {"type": "event", "event": "ELEV_TRIM_UP"}},
-                {"name": "AP", "source": {"kind": "button", "code": 289},
-                 "action": {"type": "event", "event": "AP_MASTER"}},
-                {"name": "Aileron", "source": {"kind": "axis", "code": 0,
-                 "raw_min": 0, "raw_max": 4095},
-                 "action": {"type": "event", "event": "AILERON_SET"}},
-                {"name": "Elevator", "source": {"kind": "axis", "code": 1},
-                 "action": {"type": "event", "event": "ELEVATOR_SET"}},
-                {"name": "View", "source": {"kind": "hat", "code": 16},
-                 "hat": {"up": {"type": "event", "event": "VIEW_UP", "value": 1},
-                         "down": {"type": "event", "event": "VIEW_DOWN", "value": 1}}},
+                {
+                    "name": "Trim up",
+                    "source": {"kind": "button", "code": 288},
+                    "action": {"type": "event", "event": "ELEV_TRIM_UP"},
+                },
+                {
+                    "name": "AP",
+                    "source": {"kind": "button", "code": 289},
+                    "action": {"type": "event", "event": "AP_MASTER"},
+                },
+                {
+                    "name": "Aileron",
+                    "source": {"kind": "axis", "code": 0, "raw_min": 0, "raw_max": 4095},
+                    "action": {"type": "event", "event": "AILERON_SET"},
+                },
+                {
+                    "name": "Elevator",
+                    "source": {"kind": "axis", "code": 1},
+                    "action": {"type": "event", "event": "ELEVATOR_SET"},
+                },
+                {
+                    "name": "View",
+                    "source": {"kind": "hat", "code": 16},
+                    "hat": {
+                        "up": {"type": "event", "event": "VIEW_UP", "value": 1},
+                        "down": {"type": "event", "event": "VIEW_DOWN", "value": 1},
+                    },
+                },
             ],
         },
         "outputs": {"switch_panel": [{"type": "gear_leds"}]},
@@ -105,8 +133,11 @@ def test_unmapped_toggle_is_muted_but_still_live_capable():
 
 def test_magneto_detents_are_individually_clickable_bars():
     # (looked up by code — the gear LEDs reuse the "L"/"R" labels by position)
-    detents = [e for e in panel_layout(PROFILE, "switch_panel")
-               if e.kind == BUTTON and e.code in range(13, 18)]
+    detents = [
+        e
+        for e in panel_layout(PROFILE, "switch_panel")
+        if e.kind == BUTTON and e.code in range(13, 18)
+    ]
     assert {e.code for e in detents} == set(range(13, 18))  # codes 13..17
     assert all(e.source_kind == "switch" for e in detents)
     both = next(e for e in detents if e.code == 16)
@@ -153,8 +184,11 @@ def test_format_segment_is_controller_faithful():
 
 
 def test_gear_lever_positions_are_individual_bars():
-    gears = [e for e in panel_layout(PROFILE, "switch_panel")
-             if e.source_kind == "switch" and e.code in (18, 19)]
+    gears = [
+        e
+        for e in panel_layout(PROFILE, "switch_panel")
+        if e.source_kind == "switch" and e.code in (18, 19)
+    ]
     up = next(e for e in gears if e.code == 18)
     dn = next(e for e in gears if e.code == 19)
     assert up.mapped and up.ref == "bind:3" and up.label == "Gear up"  # clear label
@@ -202,17 +236,30 @@ def test_axes_stack_above_the_button_tiles():
     assert max(e.y + e.h for e in axes) <= min(e.y for e in tiles) + 1e-9
 
 
-ROCKER_PROFILE = Profile.model_validate({
-    "name": "R",
-    "bindings": {"multi_panel": [
-        {"name": "Flaps up", "source": {"kind": "switch", "code": 16},
-         "action": {"type": "event", "event": "FLAPS_DECR", "value": 1}},
-        {"name": "Flaps down", "source": {"kind": "switch", "code": 17},
-         "action": {"type": "event", "event": "FLAPS_INCR", "value": 1}},
-        {"name": "AP master", "source": {"kind": "switch", "code": 7},
-         "action": {"type": "event", "event": "AP_MASTER", "value": 1}},
-    ]},
-})
+ROCKER_PROFILE = Profile.model_validate(
+    {
+        "name": "R",
+        "bindings": {
+            "multi_panel": [
+                {
+                    "name": "Flaps up",
+                    "source": {"kind": "switch", "code": 16},
+                    "action": {"type": "event", "event": "FLAPS_DECR", "value": 1},
+                },
+                {
+                    "name": "Flaps down",
+                    "source": {"kind": "switch", "code": 17},
+                    "action": {"type": "event", "event": "FLAPS_INCR", "value": 1},
+                },
+                {
+                    "name": "AP master",
+                    "source": {"kind": "switch", "code": 7},
+                    "action": {"type": "event", "event": "AP_MASTER", "value": 1},
+                },
+            ]
+        },
+    }
+)
 
 
 def test_flaps_up_down_become_two_stacked_bars():
@@ -230,18 +277,34 @@ def test_flaps_up_down_become_two_stacked_bars():
     assert len(tiles) == 3 and tiles[-1].label == "AP master"
 
 
-OUT_PROFILE = Profile.model_validate({
-    "name": "O",
-    "outputs": {"multi_panel": [{
-        "type": "multi_panel",
-        "selector": [
-            {"code": 0, "label": "ALT", "simvar": "AUTOPILOT ALTITUDE LOCK VAR",
-             "min": 0, "max": 99999},
-            {"code": 1, "label": "VS", "simvar": "AUTOPILOT VERTICAL HOLD VAR",
-             "min": -9999, "max": 9999},
-        ],
-    }]},
-})
+OUT_PROFILE = Profile.model_validate(
+    {
+        "name": "O",
+        "outputs": {
+            "multi_panel": [
+                {
+                    "type": "multi_panel",
+                    "selector": [
+                        {
+                            "code": 0,
+                            "label": "ALT",
+                            "simvar": "AUTOPILOT ALTITUDE LOCK VAR",
+                            "min": 0,
+                            "max": 99999,
+                        },
+                        {
+                            "code": 1,
+                            "label": "VS",
+                            "simvar": "AUTOPILOT VERTICAL HOLD VAR",
+                            "min": -9999,
+                            "max": 9999,
+                        },
+                    ],
+                }
+            ]
+        },
+    }
+)
 
 
 def test_outputs_become_typed_clickable_elements_like_inputs():
@@ -259,17 +322,28 @@ def test_outputs_become_typed_clickable_elements_like_inputs():
     assert all(e.fmt == "int" for e in segs)  # multi selector value = integer (format_row)
 
 
-ZONE_PROFILE = Profile.model_validate({
-    "name": "Z",
-    "bindings": {"multi_panel": [
-        {"name": "AP master", "source": {"kind": "switch", "code": 7},
-         "action": {"type": "event", "event": "AP_MASTER", "value": 1}},
-    ]},
-    "outputs": {"multi_panel": [{
-        "type": "multi_panel",
-        "selector": [{"code": 0, "label": "ALT", "simvar": "X", "min": 0, "max": 9}],
-    }]},
-})
+ZONE_PROFILE = Profile.model_validate(
+    {
+        "name": "Z",
+        "bindings": {
+            "multi_panel": [
+                {
+                    "name": "AP master",
+                    "source": {"kind": "switch", "code": 7},
+                    "action": {"type": "event", "event": "AP_MASTER", "value": 1},
+                },
+            ]
+        },
+        "outputs": {
+            "multi_panel": [
+                {
+                    "type": "multi_panel",
+                    "selector": [{"code": 0, "label": "ALT", "simvar": "X", "min": 0, "max": 9}],
+                }
+            ]
+        },
+    }
+)
 
 
 def test_controls_and_displays_are_separated_into_zones():
@@ -281,17 +355,38 @@ def test_controls_and_displays_are_separated_into_zones():
     assert max(e.y + e.h for e in controls) <= min(e.y for e in displays) + 1e-9
 
 
-GENERIC_PROFILE = Profile.model_validate({
-    "name": "G",
-    "outputs": {"my_panel": [{
-        "type": "generic_panel", "length": 4,
-        "leds": [{"name": "Gear", "var": "GEAR HANDLE POSITION", "byte": 0, "bit": 2,
-                  "on_at": 0.5}],
-        "displays": [{"name": "Alt", "var": "INDICATED ALTITUDE", "offset": 1, "cells": 3},
-                     {"name": "Fuel", "var": "FUEL TOTAL QUANTITY", "offset": 2,
-                      "cells": 1, "decimals": 1}],
-    }]},
-})
+GENERIC_PROFILE = Profile.model_validate(
+    {
+        "name": "G",
+        "outputs": {
+            "my_panel": [
+                {
+                    "type": "generic_panel",
+                    "length": 4,
+                    "leds": [
+                        {
+                            "name": "Gear",
+                            "var": "GEAR HANDLE POSITION",
+                            "byte": 0,
+                            "bit": 2,
+                            "on_at": 0.5,
+                        }
+                    ],
+                    "displays": [
+                        {"name": "Alt", "var": "INDICATED ALTITUDE", "offset": 1, "cells": 3},
+                        {
+                            "name": "Fuel",
+                            "var": "FUEL TOTAL QUANTITY",
+                            "offset": 2,
+                            "cells": 1,
+                            "decimals": 1,
+                        },
+                    ],
+                }
+            ]
+        },
+    }
+)
 
 
 def test_generic_panel_leds_and_displays_glow_from_sim():
@@ -308,24 +403,55 @@ def test_generic_panel_leds_and_displays_glow_from_sim():
     assert all(e.mapped and e.on_at is None for e in segs)
 
 
-RADIO_PROFILE = Profile.model_validate({
-    "name": "R2",
-    "outputs": {"radio_panel": [{
-        "type": "radio_panel",
-        "units": [{
-            "name": "upper", "row": "upper",
-            "outer_cw": 0, "outer_ccw": 1, "inner_cw": 2, "inner_ccw": 3, "swap": 4,
-            "banks": [
-                {"kind": "freq", "code": 0, "label": "COM1", "active": "A", "standby": "S",
-                 "swap_event": "SW", "whole_inc": "WI", "whole_dec": "WD",
-                 "fract_inc": "FI", "fract_dec": "FD"},
-                {"kind": "freq", "code": 1, "label": "NAV1", "active": "A2", "standby": "S2",
-                 "swap_event": "SW2", "whole_inc": "WI2", "whole_dec": "WD2",
-                 "fract_inc": "FI2", "fract_dec": "FD2"},
-            ],
-        }],
-    }]},
-})
+RADIO_PROFILE = Profile.model_validate(
+    {
+        "name": "R2",
+        "outputs": {
+            "radio_panel": [
+                {
+                    "type": "radio_panel",
+                    "units": [
+                        {
+                            "name": "upper",
+                            "row": "upper",
+                            "outer_cw": 0,
+                            "outer_ccw": 1,
+                            "inner_cw": 2,
+                            "inner_ccw": 3,
+                            "swap": 4,
+                            "banks": [
+                                {
+                                    "kind": "freq",
+                                    "code": 0,
+                                    "label": "COM1",
+                                    "active": "A",
+                                    "standby": "S",
+                                    "swap_event": "SW",
+                                    "whole_inc": "WI",
+                                    "whole_dec": "WD",
+                                    "fract_inc": "FI",
+                                    "fract_dec": "FD",
+                                },
+                                {
+                                    "kind": "freq",
+                                    "code": 1,
+                                    "label": "NAV1",
+                                    "active": "A2",
+                                    "standby": "S2",
+                                    "swap_event": "SW2",
+                                    "whole_inc": "WI2",
+                                    "whole_dec": "WD2",
+                                    "fract_inc": "FI2",
+                                    "fract_dec": "FD2",
+                                },
+                            ],
+                        }
+                    ],
+                }
+            ]
+        },
+    }
+)
 
 
 def test_radio_panel_mode_row_is_mode_plus_act_stby_and_dot():

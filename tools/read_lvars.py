@@ -41,15 +41,20 @@ def main() -> int:
     try:
         sock = socket.create_connection((HOST, PORT), timeout=10)
     except OSError as exc:
-        print(f"Cannot reach the bridge on {HOST}:{PORT} ({exc}). MSFS up? mapper stopped?",
-              file=sys.stderr)
+        print(
+            f"Cannot reach the bridge on {HOST}:{PORT} ({exc}). MSFS up? mapper stopped?",
+            file=sys.stderr,
+        )
         return 1
 
     with sock:
         for name in names:
             sock.sendall((json.dumps({"op": "subscribe", "name": name}) + "\n").encode())
-        print(f"Watching {len(names)} var(s). Move the control; the one that moves is it. "
-              "Ctrl-C to stop.\n", file=sys.stderr)
+        print(
+            f"Watching {len(names)} var(s). Move the control; the one that moves is it. "
+            "Ctrl-C to stop.\n",
+            file=sys.stderr,
+        )
         seen: dict[str, object] = {}
         sock.settimeout(None)
         buf = b""

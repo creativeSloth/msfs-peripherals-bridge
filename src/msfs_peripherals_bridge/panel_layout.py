@@ -18,11 +18,13 @@ value monitor, not the raw hidraw state).
 
 from __future__ import annotations
 
+from collections.abc import Iterable, Sequence
 from dataclasses import dataclass, replace
 from math import ceil, sqrt
+from typing import Any
 
 from .gui_mapper import describe_action, output_groups, output_nodes
-from .models import GearLedOutput, Profile, RadioPanelOutput
+from .models import Binding, GearLedOutput, Profile, RadioPanelOutput
 
 # --- element kinds (what the canvas draws) --------------------------------- #
 SWITCH = "switch"  # two-position toggle / momentary — highlights when live-on
@@ -91,7 +93,7 @@ def format_segment(value: object, fmt: str = "") -> str:
     if isinstance(value, bool):
         return "1" if value else "0"
     try:
-        v = float(value)
+        v = float(value)  # type: ignore[arg-type]  # arbitrary sim value; non-numeric caught
     except (TypeError, ValueError):
         return str(value)
     if fmt == "int":
@@ -116,7 +118,7 @@ def lamp_lit(value: object, on_at: float | None) -> bool:
     if isinstance(value, bool):
         return value
     try:
-        return float(value) >= (0.5 if on_at is None else on_at)
+        return float(value) >= (0.5 if on_at is None else on_at)  # type: ignore[arg-type]
     except (TypeError, ValueError):
         return bool(value)
 
@@ -132,11 +134,11 @@ def _live_key(kind: str, code: int) -> tuple[str, int] | None:
     return None
 
 
-def _action_summary(binding) -> str:
+def _action_summary(binding: Binding) -> str:
     """Short action text for a binding's tooltip (hats have no single action)."""
     if binding.hat is not None:
         return "hat"
-    return describe_action(binding.action)
+    return describe_action(binding.action) if binding.action is not None else ""
 
 
 # --------------------------------------------------------------------------- #
@@ -147,13 +149,27 @@ def _action_summary(binding) -> str:
 # short caption is the hardware label, so the reconstruction is recognisable
 # even where the profile maps a code to something else (or not at all).
 _SP_TOGGLES: tuple[tuple[int, str], ...] = (
-    (0, "BAT"), (1, "ALT"), (2, "AVION"), (3, "FUEL"), (4, "DE-ICE"),
-    (5, "PITOT"), (6, "COWL"), (7, "PANEL"), (8, "BEACON"), (9, "NAV"),
-    (10, "STROBE"), (11, "TAXI"), (12, "LAND"),
+    (0, "BAT"),
+    (1, "ALT"),
+    (2, "AVION"),
+    (3, "FUEL"),
+    (4, "DE-ICE"),
+    (5, "PITOT"),
+    (6, "COWL"),
+    (7, "PANEL"),
+    (8, "BEACON"),
+    (9, "NAV"),
+    (10, "STROBE"),
+    (11, "TAXI"),
+    (12, "LAND"),
 )
 # Magneto / starter rotary detents (spring-loaded START), left -> right on the knob.
 _SP_MAGNETO: tuple[tuple[int, str], ...] = (
-    (13, "OFF"), (14, "R"), (15, "L"), (16, "BOTH"), (17, "START"),
+    (13, "OFF"),
+    (14, "R"),
+    (15, "L"),
+    (16, "BOTH"),
+    (17, "START"),
 )
 # Gear lever edges.
 _SP_GEAR: tuple[tuple[int, str], ...] = ((18, "UP"), (19, "DN"))
@@ -162,30 +178,54 @@ _SP_GEAR: tuple[tuple[int, str], ...] = ((18, "UP"), (19, "DN"))
 _SP_GEAR_LEDS: tuple[tuple[str, str], ...] = (("N", "nose"), ("L", "left"), ("R", "right"))
 
 
-def _index_bindings(binds) -> dict[int, tuple[int, object]]:
+def _index_bindings(binds: Iterable[Binding]) -> dict[int, tuple[int, Binding]]:
     """{switch/button code -> (binding index, binding)} — first binding wins."""
-    by_code: dict[int, tuple[int, object]] = {}
+    by_code: dict[int, tuple[int, Binding]] = {}
     for i, b in enumerate(binds):
         by_code.setdefault(b.source.code, (i, b))
     return by_code
 
 
-def _switch_element(hw_label: str, x: float, y: float, w: float, h: float,
-                    code: int, hit: tuple[int, object] | None) -> PanelElement:
+def _switch_element(
+    hw_label: str,
+    x: float,
+    y: float,
+    w: float,
+    h: float,
+    code: int,
+    hit: tuple[int, Binding] | None,
+) -> PanelElement:
     """Build a toggle element, filling name/action/ref from its binding if mapped."""
     if hit is None:
-        return PanelElement(SWITCH, hw_label, x, y, w, h, code=code, mapped=False,
-                            live_key=("switch", code))
+        return PanelElement(
+            SWITCH, hw_label, x, y, w, h, code=code, mapped=False, live_key=("switch", code)
+        )
     idx, b = hit
     return PanelElement(
-        SWITCH, hw_label, x, y, w, h,
-        name=b.name, action=_action_summary(b), code=code,
-        ref=f"bind:{idx}", mapped=True, live_key=("switch", code),
+        SWITCH,
+        hw_label,
+        x,
+        y,
+        w,
+        h,
+        name=b.name,
+        action=_action_summary(b),
+        code=code,
+        ref=f"bind:{idx}",
+        mapped=True,
+        live_key=("switch", code),
     )
 
 
-def _stacked_bars(x: float, y: float, w: float, h: float,
-                  positions, by_code, src_kind: str = "switch") -> list[PanelElement]:
+def _stacked_bars(
+    x: float,
+    y: float,
+    w: float,
+    h: float,
+    positions: Sequence[tuple[int, str]],
+    by_code: dict[int, tuple[int, Binding]],
+    src_kind: str = "switch",
+) -> list[PanelElement]:
     """K stacked, INDIVIDUALLY clickable sub-bars filling (x, y, w, h).
 
     One bar per ``(code, label)`` position of a multi-position control (magneto
@@ -203,21 +243,45 @@ def _stacked_bars(x: float, y: float, w: float, h: float,
         yy = y + k * (bh + gap)
         hit = by_code.get(code)
         if hit is None:
-            out.append(PanelElement(BUTTON, label, x, yy, w, bh, code=code,
-                                    mapped=False, source_kind=src_kind,
-                                    live_key=_live_key(src_kind, code)))
+            out.append(
+                PanelElement(
+                    BUTTON,
+                    label,
+                    x,
+                    yy,
+                    w,
+                    bh,
+                    code=code,
+                    mapped=False,
+                    source_kind=src_kind,
+                    live_key=_live_key(src_kind, code),
+                )
+            )
         else:
             idx, b = hit
             # mapped bars show the clear binding name (not the terse detent code);
             # live_key lights the bar when that position is pressed at the device.
-            out.append(PanelElement(
-                BUTTON, b.name or label, x, yy, w, bh, name=b.name,
-                action=_action_summary(b), code=code, ref=f"bind:{idx}",
-                mapped=True, source_kind=src_kind, live_key=_live_key(src_kind, code)))
+            out.append(
+                PanelElement(
+                    BUTTON,
+                    b.name or label,
+                    x,
+                    yy,
+                    w,
+                    bh,
+                    name=b.name,
+                    action=_action_summary(b),
+                    code=code,
+                    ref=f"bind:{idx}",
+                    mapped=True,
+                    source_kind=src_kind,
+                    live_key=_live_key(src_kind, code),
+                )
+            )
     return out
 
 
-def _switch_panel(binds, outs) -> list[PanelElement]:
+def _switch_panel(binds: list[Binding], outs: list[Any]) -> list[PanelElement]:
     """Hand-drawn Saitek Switch Panel: toggle row + magneto rotary + gear, each in
     a titled group (Schalter / Magnetos / Fahrwerk) so the layout reads clearly."""
     by_code = _index_bindings(binds)
@@ -238,21 +302,27 @@ def _switch_panel(binds, outs) -> list[PanelElement]:
     els += _stacked_bars(0.05, 0.52, 0.42, 0.38, _SP_MAGNETO, by_code)
 
     # Gear indicator LEDs (three lamps) — driven by a gear_leds output if present.
-    gear_out = next(((k, o) for k, o in enumerate(outs)
-                     if isinstance(o, GearLedOutput)), None)
+    gear_out = next(((k, o) for k, o in enumerate(outs) if isinstance(o, GearLedOutput)), None)
     for j, (lbl, field) in enumerate(_SP_GEAR_LEDS):
         x = 0.60 + j * 0.13
-        els.append(PanelElement(
-            LED, lbl, x, 0.49, 0.11, 0.15,
-            name=(f"LED {field}" if gear_out else ""),
-            action=(f"gear_leds · {field}" if gear_out else ""),
-            # ref targets the output's SOLO field -> click opens THAT LED's mapping
-            ref=(f"out:{gear_out[0]}:{field}" if gear_out else None),
-            mapped=gear_out is not None,
-            # glow-from-sim: the gear-position var lights the lamp when extended
-            var=(getattr(gear_out[1], field, None) if gear_out else None),
-            on_at=(0.5 if gear_out else None),
-        ))
+        els.append(
+            PanelElement(
+                LED,
+                lbl,
+                x,
+                0.49,
+                0.11,
+                0.15,
+                name=(f"LED {field}" if gear_out else ""),
+                action=(f"gear_leds · {field}" if gear_out else ""),
+                # ref targets the output's SOLO field -> click opens THAT LED's mapping
+                ref=(f"out:{gear_out[0]}:{field}" if gear_out else None),
+                mapped=gear_out is not None,
+                # glow-from-sim: the gear-position var lights the lamp when extended
+                var=(getattr(gear_out[1], field, None) if gear_out else None),
+                on_at=(0.5 if gear_out else None),
+            )
+        )
 
     # Gear lever (bottom-right): up + down each its own clickable bar.
     els += _stacked_bars(0.60, 0.68, 0.37, 0.23, _SP_GEAR, by_code)
@@ -266,24 +336,37 @@ def _switch_panel(binds, outs) -> list[PanelElement]:
 # the top; buttons/switches/hats become a tile grid below. Same click->editor and
 # live overlay as the hand-drawn panels.
 # --------------------------------------------------------------------------- #
-def _grid_cells(n: int, x0: float, y0: float, x1: float,
-                y1: float) -> list[tuple[float, float, float, float]]:
+def _grid_cells(
+    n: int, x0: float, y0: float, x1: float, y1: float
+) -> list[tuple[float, float, float, float]]:
     """``n`` (x, y, w, h) cells filling the box, in a roughly landscape grid."""
     cols = max(1, min(n, round(sqrt(n * 1.8)) or 1))
     rows = ceil(n / cols)
     gap = 0.014
     cw = (x1 - x0 - (cols - 1) * gap) / cols
     ch = (y1 - y0 - (rows - 1) * gap) / rows
-    return [(x0 + c * (cw + gap), y0 + r * (ch + gap), cw, ch)
-            for r, c in (divmod(i, cols) for i in range(n))]
+    return [
+        (x0 + c * (cw + gap), y0 + r * (ch + gap), cw, ch)
+        for r, c in (divmod(i, cols) for i in range(n))
+    ]
 
 
-def _axis_element(i: int, b, x: float, y: float, w: float, h: float) -> PanelElement:
+def _axis_element(i: int, b: Binding, x: float, y: float, w: float, h: float) -> PanelElement:
     return PanelElement(
-        AXIS, b.name or f"Achse {b.source.code}", x, y, w, h,
-        name=b.name, action=_action_summary(b), code=b.source.code,
-        ref=f"bind:{i}", mapped=True, live_key=("axis", b.source.code),
-        raw_min=b.source.raw_min, raw_max=b.source.raw_max,
+        AXIS,
+        b.name or f"Achse {b.source.code}",
+        x,
+        y,
+        w,
+        h,
+        name=b.name,
+        action=_action_summary(b),
+        code=b.source.code,
+        ref=f"bind:{i}",
+        mapped=True,
+        live_key=("axis", b.source.code),
+        raw_min=b.source.raw_min,
+        raw_max=b.source.raw_max,
     )
 
 
@@ -309,12 +392,14 @@ def _direction_of(name: str) -> tuple[str, str] | None:
     return None
 
 
-def _pair_rockers(keys):
+def _pair_rockers(
+    keys: list[tuple[int, Binding]],
+) -> tuple[list[Any], list[tuple[int, Binding]]]:
     """Merge 'X up' / 'X down' momentary button pairs into (up, down) rockers.
 
     Returns (rockers, singles) preserving order; a control only pairs when the
     SAME base has both an up- and a down-named binding."""
-    by_base: dict[str, dict[str, tuple]] = {}
+    by_base: dict[str, dict[str, tuple[int, Binding]]] = {}
     for i, b in keys:
         d = _direction_of(b.name)
         if d is not None:
@@ -330,7 +415,7 @@ def _pair_rockers(keys):
     return rockers, singles
 
 
-def _output_element_text(o, path, g) -> tuple[str, str]:
+def _output_element_text(o: Any, path: tuple[Any, ...], g: Any) -> tuple[str, str]:
     """(SHORT tile label, hover detail) for a display element. The label is just
     the mode/bank name (no "Bank", no lowercase kind); the detail explains WHICH
     var is shown + HOW it changes (read-var = display + encoder base)."""
@@ -338,10 +423,15 @@ def _output_element_text(o, path, g) -> tuple[str, str]:
         if len(path) == 2 and path[0] == "selector":
             e = o.selector[path[1]]
             setter = e.set_event or f"SimVar {e.simvar} direkt schreiben"
-            extra = ("  · Quellen: " + ", ".join([e.simvar]
-                     + [s.simvar for s in e.alt_sources])) if e.alt_sources else ""
-            return e.label, (f"Anzeige liest {e.simvar} ({e.unit}) · ändern via "
-                             f"{setter} (±{e.step:g}, {e.min:g}..{e.max:g}){extra}")
+            extra = (
+                ("  · Quellen: " + ", ".join([e.simvar] + [s.simvar for s in e.alt_sources]))
+                if e.alt_sources
+                else ""
+            )
+            return e.label, (
+                f"Anzeige liest {e.simvar} ({e.unit}) · ändern via "
+                f"{setter} (±{e.step:g}, {e.min:g}..{e.max:g}){extra}"
+            )
         if len(path) == 4 and path[0] == "units" and path[2] == "banks":
             bank = o.units[path[1]].banks[path[3]]
             return getattr(bank, "label", g.label), g.label
@@ -350,94 +440,165 @@ def _output_element_text(o, path, g) -> tuple[str, str]:
     return g.label, str(g.value)
 
 
-def _display_var(o, p) -> str | None:
+def _display_var(o: Any, p: tuple[Any, ...]) -> str | None:
     """The sim var a display element reads (glow-from-sim), or None if not wired."""
     try:
         if len(p) == 1 and p[0] in ("nose", "left", "right"):
-            return getattr(o, p[0], None)
+            solo: str | None = getattr(o, p[0], None)
+            return solo
         if len(p) == 2 and p[0] == "selector":
-            return o.selector[p[1]].simvar
+            sv: str | None = o.selector[p[1]].simvar
+            return sv
     except (IndexError, AttributeError, TypeError):
         pass
     return None
 
 
-def _output_items(outs) -> tuple[list, list]:
+def _output_items(outs: Iterable[Any]) -> tuple[list[Any], list[Any]]:
     """(control_items, display_items) — encoders/swap vs displays/lamps.
 
     Each item is ('out', out_index, path, kind, label, detail, var, on_at, fmt). The
     two lists are laid in SEPARATE zones so buttons and displays are shown apart.
     Abstract config groups (bool_leds/alt_sources/dimmer) are skipped — mapped in the
     editor. Generic-panel LEDs/displays (a user's own device, Schritt E) glow too."""
-    controls: list = []
-    displays: list = []
+    controls: list[Any] = []
+    displays: list[Any] = []
     for k, o in enumerate(outs):
         for g in output_groups(output_nodes(o)):
             p = g.path
             if len(p) == 1 and p[0] in ("nose", "left", "right"):
-                displays.append(("out", k, p, LED, g.label, str(g.value),
-                                 _display_var(o, p), 0.5, ""))
+                displays.append(
+                    ("out", k, p, LED, g.label, str(g.value), _display_var(o, p), 0.5, "")
+                )
             elif (len(p) == 2 and p[0] == "selector") or (
-                    len(p) == 4 and p[0] == "units" and p[2] == "banks"):
+                len(p) == 4 and p[0] == "units" and p[2] == "banks"
+            ):
                 lbl, det = _output_element_text(o, p, g)  # display cell (segment)
                 # multi selector cell = integer readout (format_row); radio banks fall
                 # back here only without a hand layout (per-digit -> not glow-formatted).
                 fmt = "int" if len(p) == 2 else ""
-                displays.append(("out", k, p, SEGMENT, lbl, det, _display_var(o, p),
-                                 None, fmt))
+                displays.append(("out", k, p, SEGMENT, lbl, det, _display_var(o, p), None, fmt))
             elif len(p) == 2 and p[0] == "leds":  # generic_panel LED (glow lamp)
                 led = o.leds[p[1]]
-                displays.append(("out", k, p, LED, led.name or f"LED {p[1] + 1}",
-                                 f"{led.var} ≥ {led.on_at:g}", led.var, led.on_at, ""))
+                displays.append(
+                    (
+                        "out",
+                        k,
+                        p,
+                        LED,
+                        led.name or f"LED {p[1] + 1}",
+                        f"{led.var} ≥ {led.on_at:g}",
+                        led.var,
+                        led.on_at,
+                        "",
+                    )
+                )
             elif len(p) == 2 and p[0] == "displays":  # generic_panel 7-seg display
                 d = o.displays[p[1]]
                 fmt = f"dec:{d.decimals}" if d.decimals else "int"
-                displays.append(("out", k, p, SEGMENT, d.name or f"Anzeige {p[1] + 1}",
-                                 f"Anzeige liest {d.var}", d.var, None, fmt))
+                displays.append(
+                    (
+                        "out",
+                        k,
+                        p,
+                        SEGMENT,
+                        d.name or f"Anzeige {p[1] + 1}",
+                        f"Anzeige liest {d.var}",
+                        d.var,
+                        None,
+                        fmt,
+                    )
+                )
             elif len(p) == 2 and p[0] == "units":  # a radio unit's controls
                 try:
                     name = o.units[p[1]].name
                 except (IndexError, AttributeError):
                     name = str(p[1])
-                controls.append(("out", k, p, ENCODER, f"Encoder {name}",
-                                 f"Außen-/Innen-Drehknopf + Mode-Selektor · Einheit {name}",
-                                 None, None, ""))
-                controls.append(("out", k, p, BUTTON, f"Swap {name}",
-                                 f"ACT/STBY-Swap-Taste · Einheit {name}", None, None, ""))
+                controls.append(
+                    (
+                        "out",
+                        k,
+                        p,
+                        ENCODER,
+                        f"Encoder {name}",
+                        f"Außen-/Innen-Drehknopf + Mode-Selektor · Einheit {name}",
+                        None,
+                        None,
+                        "",
+                    )
+                )
+                controls.append(
+                    (
+                        "out",
+                        k,
+                        p,
+                        BUTTON,
+                        f"Swap {name}",
+                        f"ACT/STBY-Swap-Taste · Einheit {name}",
+                        None,
+                        None,
+                        "",
+                    )
+                )
     return controls, displays
 
 
-def _lay_tiles(items, x0: float, y0: float, x1: float, y1: float) -> list[PanelElement]:
+def _lay_tiles(
+    items: Sequence[Any], x0: float, y0: float, x1: float, y1: float
+) -> list[PanelElement]:
     """Grid ``items`` into the box (x0,y0)-(x1,y1); return the built elements."""
     out: list[PanelElement] = []
     if not items or (y1 - y0) < 0.02 or (x1 - x0) < 0.02:
         return out
-    for (cx0, cy0, w, h), it in zip(_grid_cells(len(items), x0, y0, x1, y1),
-                                    items, strict=True):
+    for (cx0, cy0, w, h), it in zip(_grid_cells(len(items), x0, y0, x1, y1), items, strict=True):
         if it[0] == "rocker":
             (ui, ub), (di, db) = it[1], it[2]
             base = ub.name.rsplit(" ", 1)[0] or ub.name
             positions = [(ub.source.code, base), (db.source.code, base)]
             local = {ub.source.code: (ui, ub), db.source.code: (di, db)}
-            out += _stacked_bars(cx0, cy0, w, h, positions, local,
-                                 src_kind=str(ub.source.kind))
+            out += _stacked_bars(cx0, cy0, w, h, positions, local, src_kind=str(ub.source.kind))
         elif it[0] == "out":
             _, k, p, okind, label, detail, evar, on_at, efmt = it
-            out.append(PanelElement(okind, label, cx0, cy0, w, h, action=detail,
-                                    ref=f"out:{k}:" + "/".join(map(str, p)), mapped=True,
-                                    var=evar, on_at=on_at, fmt=efmt))
+            out.append(
+                PanelElement(
+                    okind,
+                    label,
+                    cx0,
+                    cy0,
+                    w,
+                    h,
+                    action=detail,
+                    ref=f"out:{k}:" + "/".join(map(str, p)),
+                    mapped=True,
+                    var=evar,
+                    on_at=on_at,
+                    fmt=efmt,
+                )
+            )
         else:  # key / hat binding
             _, i, b = it
             kk = str(b.source.kind)
             kind = HAT if it[0] == "hat" else (BUTTON if kk == "button" else SWITCH)
-            out.append(PanelElement(
-                kind, b.name or f"#{i}", cx0, cy0, w, h, name=b.name,
-                action=_action_summary(b), code=b.source.code, ref=f"bind:{i}",
-                mapped=True, live_key=(None if kk == "hat" else _live_key(kk, b.source.code))))
+            out.append(
+                PanelElement(
+                    kind,
+                    b.name or f"#{i}",
+                    cx0,
+                    cy0,
+                    w,
+                    h,
+                    name=b.name,
+                    action=_action_summary(b),
+                    code=b.source.code,
+                    ref=f"bind:{i}",
+                    mapped=True,
+                    live_key=(None if kk == "hat" else _live_key(kk, b.source.code)),
+                )
+            )
     return out
 
 
-def _device_layout(binds, outs) -> list[PanelElement]:
+def _device_layout(binds: list[Binding], outs: list[Any]) -> list[PanelElement]:
     """Axes (top bars) + a CONTROLS zone and a SEPARATE DISPLAYS zone.
 
     Buttons/switches/rockers/encoders/swap live in the controls zone; segments and
@@ -445,8 +606,7 @@ def _device_layout(binds, outs) -> list[PanelElement]:
     shown separately) with a clear gap between."""
     axes = [(i, b) for i, b in enumerate(binds) if str(b.source.kind) == "axis"]
     hats = [(i, b) for i, b in enumerate(binds) if str(b.source.kind) == "hat"]
-    keys = [(i, b) for i, b in enumerate(binds)
-            if str(b.source.kind) in ("button", "switch")]
+    keys = [(i, b) for i, b in enumerate(binds) if str(b.source.kind) in ("button", "switch")]
     ctrl_out, disp_out = _output_items(outs)
     if not (axes or hats or keys or ctrl_out or disp_out):
         return []
@@ -460,22 +620,23 @@ def _device_layout(binds, outs) -> list[PanelElement]:
         avail = zone_bottom - margin
         ah = max(0.05, min(0.11, (avail - gap * (len(axes) - 1)) / len(axes)))
         for j, (i, b) in enumerate(axes):
-            els.append(_axis_element(i, b, margin, margin + j * (ah + gap),
-                                     1.0 - 2 * margin, ah))
+            els.append(_axis_element(i, b, margin, margin + j * (ah + gap), 1.0 - 2 * margin, ah))
         y = margin + len(axes) * (ah + gap)
 
     rockers, singles = _pair_rockers(keys)
-    controls = ([("rocker", u, d) for u, d in rockers]
-                + [("key", i, b) for i, b in singles]
-                + [("hat", i, b) for i, b in hats] + ctrl_out)
+    controls = (
+        [("rocker", u, d) for u, d in rockers]
+        + [("key", i, b) for i, b in singles]
+        + [("hat", i, b) for i, b in hats]
+        + ctrl_out
+    )
     displays = disp_out
 
-    def _zone(title, items, y0, y1):  # a titled group + its tiles
+    def _zone(title: str, items: list[Any], y0: float, y1: float) -> None:  # titled group + tiles
         if not items or (y1 - y0) < 0.06:
             els.extend(_lay_tiles(items, margin, y0, 1.0 - margin, y1))
             return
-        els.append(PanelElement(HEADER, title, margin, y0, 1.0 - 2 * margin, 0.05,
-                                mapped=True))
+        els.append(PanelElement(HEADER, title, margin, y0, 1.0 - 2 * margin, 0.05, mapped=True))
         els.extend(_lay_tiles(items, margin, y0 + 0.058, 1.0 - margin, y1))
 
     top = y + (gap if axes else 0.0)
@@ -486,54 +647,86 @@ def _device_layout(binds, outs) -> list[PanelElement]:
         _zone("Bedienelemente", controls, top, split - gap)
         _zone("Anzeigen", displays, split + gap, bottom)
     else:
-        _zone("Bedienelemente" if controls else "Anzeigen",
-              controls or displays, top, bottom)
+        _zone("Bedienelemente" if controls else "Anzeigen", controls or displays, top, bottom)
     return els
 
 
 # --------------------------------------------------------------------------- #
 # Saitek Pro Flight Radio Panel — faithful hand layout (scrolls when tall)
 # --------------------------------------------------------------------------- #
-def _bank_display_text(bank) -> tuple[str, str, str]:
+def _bank_display_text(bank: Any) -> tuple[str, str, str]:
     """(top-row caption, bottom-row caption, hover detail) per bank type."""
     kind = getattr(bank, "kind", "")
     if kind == "freq":
-        return ("ACT", "STBY", f"ACT {bank.active} · STBY {bank.standby} · "
-                f"außen {bank.whole_inc}/{bank.whole_dec} · innen "
-                f"{bank.fract_inc}/{bank.fract_dec} · swap {bank.swap_event}")
+        return (
+            "ACT",
+            "STBY",
+            f"ACT {bank.active} · STBY {bank.standby} · "
+            f"außen {bank.whole_inc}/{bank.whole_dec} · innen "
+            f"{bank.fract_inc}/{bank.fract_dec} · swap {bank.swap_event}",
+        )
     if kind == "dme":
         srcs = ", ".join(s.label for s in bank.sources)
         return "DME", srcs, f"DME (Anzeige) · Quellen {srcs} · Push wechselt"
     if kind == "adf":
-        return ("ADF kHz", "cursor", f"ADF-Ziffern {bank.dig1_var} / {bank.dig2_var} / "
-                f"{bank.dig3_var} · Punkt markiert aktive Ziffer (Push/Swap)")
+        return (
+            "ADF kHz",
+            "cursor",
+            f"ADF-Ziffern {bank.dig1_var} / {bank.dig2_var} / "
+            f"{bank.dig3_var} · Punkt markiert aktive Ziffer (Push/Swap)",
+        )
     if kind == "xpdr":
-        return ("SQUAWK", "QNH" if bank.baro_var else "—",
-                f"XPDR {bank.code_var} (Punkt = aktive Ziffer, Push/Swap) · "
-                f"QNH {bank.baro_var or '—'} auf außen")
+        return (
+            "SQUAWK",
+            "QNH" if bank.baro_var else "—",
+            f"XPDR {bank.code_var} (Punkt = aktive Ziffer, Push/Swap) · "
+            f"QNH {bank.baro_var or '—'} auf außen",
+        )
     return bank.label, "", ""
 
 
-def _radio_focus(bank) -> dict[str, list[str] | None]:
+def _radio_focus(bank: Any) -> dict[str, list[str] | None]:
     """Per bank type: which model fields each row element maps (None = whole bank).
 
     So each element's ref carries just its own fields and opens a FOCUSED editor
     (top display -> the ACTIVE var, outer knob -> the whole-MHz events, …)."""
     kind = getattr(bank, "kind", "")
     if kind == "freq":
-        return {"active": ["active"], "standby": ["standby"], "swap": ["swap_event"],
-                "outer": ["whole_inc", "whole_dec"], "inner": ["fract_inc", "fract_dec"],
-                "dot": ["fine_view"]}
+        return {
+            "active": ["active"],
+            "standby": ["standby"],
+            "swap": ["swap_event"],
+            "outer": ["whole_inc", "whole_dec"],
+            "inner": ["fract_inc", "fract_dec"],
+            "dot": ["fine_view"],
+        }
     if kind == "dme":
-        return {"active": ["source_var"], "standby": None, "swap": ["source_var"],
-                "outer": None, "inner": None, "dot": None}
+        return {
+            "active": ["source_var"],
+            "standby": None,
+            "swap": ["source_var"],
+            "outer": None,
+            "inner": None,
+            "dot": None,
+        }
     if kind == "adf":
-        return {"active": ["dig1_var", "dig2_var", "dig3_var"],
-                "standby": ["min_khz", "max_khz"], "swap": None, "outer": None,
-                "inner": None, "dot": None}
+        return {
+            "active": ["dig1_var", "dig2_var", "dig3_var"],
+            "standby": ["min_khz", "max_khz"],
+            "swap": None,
+            "outer": None,
+            "inner": None,
+            "dot": None,
+        }
     if kind == "xpdr":
-        return {"active": ["code_var", "set_event"], "standby": ["baro_var", "baro_scale"],
-                "swap": None, "outer": ["baro_inc", "baro_dec"], "inner": None, "dot": None}
+        return {
+            "active": ["code_var", "set_event"],
+            "standby": ["baro_var", "baro_scale"],
+            "swap": None,
+            "outer": ["baro_inc", "baro_dec"],
+            "inner": None,
+            "dot": None,
+        }
     return {k: None for k in ("active", "standby", "swap", "outer", "inner", "dot")}
 
 
@@ -542,7 +735,7 @@ def _focus_ref(base: str, fields: list[str] | None) -> str:
     return f"{base}|{','.join(fields)}" if fields else base
 
 
-def _radio_panel(binds, outs) -> list[PanelElement]:
+def _radio_panel(binds: list[Binding], outs: list[Any]) -> list[PanelElement]:
     """Per selector unit: the outer + inner encoder rings and a SEPARATE swap
     button (the encoder itself has no push), then a column of mode rows — each a
     selector position (its code in the tooltip) with an Act/Stby display. Taller
@@ -556,23 +749,55 @@ def _radio_panel(binds, outs) -> list[PanelElement]:
     y = margin
     for u, unit in enumerate(o.units):
         uref = f"out:{idx}:units/{u}"
-        els.append(PanelElement(HEADER, f"Selektor {unit.name}",
-                                margin, y, 1.0 - 2 * margin, 0.05, mapped=True))
+        els.append(
+            PanelElement(
+                HEADER, f"Selektor {unit.name}", margin, y, 1.0 - 2 * margin, 0.05, mapped=True
+            )
+        )
         y += 0.058
         # the two encoder rings + the SEPARATE swap button, one control row per unit;
         # each opens its OWN focused capture (outer ring / inner ring / swap Taster).
-        els.append(PanelElement(
-            ENCODER, "außen", margin, y, 0.30, row_h * 0.8, name=unit.name, mapped=True,
-            ref=_focus_ref(uref, ["outer_cw", "outer_ccw"]),
-            action=f"Außen-Ring (grob) · Codes {unit.outer_cw}/{unit.outer_ccw}"))
-        els.append(PanelElement(
-            ENCODER, "innen", 0.33, y, 0.30, row_h * 0.8, name=unit.name, mapped=True,
-            ref=_focus_ref(uref, ["inner_cw", "inner_ccw"]),
-            action=f"Innen-Ring (fein) · Codes {unit.inner_cw}/{unit.inner_ccw}"))
-        els.append(PanelElement(
-            BUTTON, "SWAP-Taster", 0.66, y, 0.32, row_h * 0.8, mapped=True,
-            ref=_focus_ref(uref, ["swap"]),
-            action=f"SWAP-Taster (Code {unit.swap}) — normaler Taster, eigenständig mappbar"))
+        els.append(
+            PanelElement(
+                ENCODER,
+                "außen",
+                margin,
+                y,
+                0.30,
+                row_h * 0.8,
+                name=unit.name,
+                mapped=True,
+                ref=_focus_ref(uref, ["outer_cw", "outer_ccw"]),
+                action=f"Außen-Ring (grob) · Codes {unit.outer_cw}/{unit.outer_ccw}",
+            )
+        )
+        els.append(
+            PanelElement(
+                ENCODER,
+                "innen",
+                0.33,
+                y,
+                0.30,
+                row_h * 0.8,
+                name=unit.name,
+                mapped=True,
+                ref=_focus_ref(uref, ["inner_cw", "inner_ccw"]),
+                action=f"Innen-Ring (fein) · Codes {unit.inner_cw}/{unit.inner_ccw}",
+            )
+        )
+        els.append(
+            PanelElement(
+                BUTTON,
+                "SWAP-Taster",
+                0.66,
+                y,
+                0.32,
+                row_h * 0.8,
+                mapped=True,
+                ref=_focus_ref(uref, ["swap"]),
+                action=f"SWAP-Taster (Code {unit.swap}) — normaler Taster, eigenständig mappbar",
+            )
+        )
         y += row_h * 0.8 + gap
         for b, bank in enumerate(unit.banks):
             bref = f"out:{idx}:units/{u}/banks/{b}"
@@ -584,22 +809,65 @@ def _radio_panel(binds, outs) -> list[PanelElement]:
             act_var = getattr(bank, "active", None) if is_freq else None
             stby_var = getattr(bank, "standby", None) if is_freq else None
             # LEFT column: the selector position (mode); its code is in the tooltip.
-            els.append(PanelElement(
-                SELECTOR, bank.label, margin, y, 0.27, row_h, mapped=True, ref=bref,
-                action=f"Selektor-Code {bank.code} · Mode {bank.label} · {det}"))
+            els.append(
+                PanelElement(
+                    SELECTOR,
+                    bank.label,
+                    margin,
+                    y,
+                    0.27,
+                    row_h,
+                    mapped=True,
+                    ref=bref,
+                    action=f"Selektor-Code {bank.code} · Mode {bank.label} · {det}",
+                )
+            )
             # symbolic display: Act over Stby (labels only — the mode is the left cell);
             # freq cells read NNN.NN (dec:2), the resting/coarse view of format_frequency.
             fq_fmt = "dec:2" if is_freq else ""
-            els.append(PanelElement(SEGMENT, "Act", 0.30, y, 0.30, row_h * 0.48,
-                                    ref=_focus_ref(bref, f["active"]), mapped=True,
-                                    action=det, var=act_var, fmt=fq_fmt))
-            els.append(PanelElement(SEGMENT, "Stby", 0.30, y + row_h * 0.52, 0.30,
-                                    row_h * 0.48, ref=_focus_ref(bref, f["standby"]),
-                                    mapped=True, action=det, var=stby_var, fmt=fq_fmt))
-            els.append(PanelElement(
-                DOT, ".", 0.63, y + row_h * 0.25, 0.05, row_h * 0.5,
-                ref=_focus_ref(bref, f["dot"]), mapped=True,
-                action="Dezimalpunkt / Cursor (springt bei ADF/XPDR über Push)"))
+            els.append(
+                PanelElement(
+                    SEGMENT,
+                    "Act",
+                    0.30,
+                    y,
+                    0.30,
+                    row_h * 0.48,
+                    ref=_focus_ref(bref, f["active"]),
+                    mapped=True,
+                    action=det,
+                    var=act_var,
+                    fmt=fq_fmt,
+                )
+            )
+            els.append(
+                PanelElement(
+                    SEGMENT,
+                    "Stby",
+                    0.30,
+                    y + row_h * 0.52,
+                    0.30,
+                    row_h * 0.48,
+                    ref=_focus_ref(bref, f["standby"]),
+                    mapped=True,
+                    action=det,
+                    var=stby_var,
+                    fmt=fq_fmt,
+                )
+            )
+            els.append(
+                PanelElement(
+                    DOT,
+                    ".",
+                    0.63,
+                    y + row_h * 0.25,
+                    0.05,
+                    row_h * 0.5,
+                    ref=_focus_ref(bref, f["dot"]),
+                    mapped=True,
+                    action="Dezimalpunkt / Cursor (springt bei ADF/XPDR über Push)",
+                )
+            )
             y += row_h + gap
     return els
 

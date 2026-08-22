@@ -87,9 +87,7 @@ class MultiPanelController:
         # gauge's out-of-band resets don't clobber the dialed target. Start at 0
         # (or min when 0 is out of range); only on_encoder changes them.
         self._sticky: dict[int, float] = {
-            e.code: (0.0 if e.min <= 0 <= e.max else e.min)
-            for e in config.selector
-            if e.sticky
+            e.code: (0.0 if e.min <= 0 <= e.max else e.min) for e in config.selector if e.sticky
         }
 
     def subscriptions(self) -> list[str]:
@@ -283,12 +281,15 @@ class MultiPanelController:
         ap_master = (self.values.get(self.config.ap_master) or 0) >= 0.5
         mode = self.values.get(self.config.mode_var)
         bool_leds = {
-            name: (self.values.get(var) or 0) >= 0.5
-            for name, var in self.config.bool_leds.items()
+            name: (self.values.get(var) or 0) >= 0.5 for name, var in self.config.bool_leds.items()
         }
         led = multi_button_led_byte(
-            ap_master, int(mode) if mode is not None else None, blink_on, bool_leds,
-            mode_leds=self.config.mode_leds, mode_blink_leds=self.config.mode_blink_leds,
+            ap_master,
+            int(mode) if mode is not None else None,
+            blink_on,
+            bool_leds,
+            mode_leds=self.config.mode_leds,
+            mode_blink_leds=self.config.mode_blink_leds,
         )
         return bytes([_REPORT_ID, *cells, led, 0x00])
 

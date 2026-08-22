@@ -39,8 +39,14 @@ _FLAG_BYTES = (0x00, 0x00)  # radio trailing flags; 0x00 leaves the display lit
 _WHEELS = ("nose", "left", "right")
 _WHEEL_LABEL = {"nose": "Bugrad", "left": "links", "right": "rechts"}
 _MULTI_LED_LABEL = {
-    "ap": "AP", "hdg": "HDG", "nav": "NAV", "ias": "IAS",
-    "alt": "ALT", "vs": "VS", "apr": "APR", "rev": "REV",
+    "ap": "AP",
+    "hdg": "HDG",
+    "nav": "NAV",
+    "ias": "IAS",
+    "alt": "ALT",
+    "vs": "VS",
+    "apr": "APR",
+    "rev": "REV",
 }
 
 
@@ -90,10 +96,10 @@ class TestTarget:
     cell's decimal point (``8.``); ``None`` where a dot makes no sense (LEDs).
     """
 
-    key: str        # stable id, e.g. "cell:3" or "led:hdg"
-    label: str      # short German label for the element
-    group: str      # section header (e.g. "Display oben — Aktiv")
-    report: bytes   # send this to light only this element
+    key: str  # stable id, e.g. "cell:3" or "led:hdg"
+    label: str  # short German label for the element
+    group: str  # section header (e.g. "Display oben — Aktiv")
+    report: bytes  # send this to light only this element
     dot_report: bytes | None = None
 
 
@@ -117,36 +123,43 @@ def probe_targets(output: Output) -> list[TestTarget]:
         ]
     if isinstance(output, MultiPanelOutput):
         targets = [
-            TestTarget(f"led:{b}", f"LED {_MULTI_LED_LABEL[b]}", "Knopf-LEDs",
-                       multi_led_report(b))
+            TestTarget(f"led:{b}", f"LED {_MULTI_LED_LABEL[b]}", "Knopf-LEDs", multi_led_report(b))
             for b in MULTI_BUTTON_ORDER
         ]
         for cell in range(_MULTI_CELLS):
             row = "oben" if cell < ROW_WIDTH else "unten"
-            targets.append(TestTarget(
-                key=f"cell:{cell}",
-                label=f"{row} · Stelle {cell % ROW_WIDTH + 1}",
-                group="Display-Zellen",
-                report=multi_cell_report(cell),
-                dot_report=multi_cell_report(cell, dot=True),
-            ))
+            targets.append(
+                TestTarget(
+                    key=f"cell:{cell}",
+                    label=f"{row} · Stelle {cell % ROW_WIDTH + 1}",
+                    group="Display-Zellen",
+                    report=multi_cell_report(cell),
+                    dot_report=multi_cell_report(cell, dot=True),
+                )
+            )
         return targets
     if isinstance(output, RadioPanelOutput):
         targets = []
         # Fixed HID cell map: 0..9 = upper half, 10..19 = lower half; within a
         # half the ACTIVE row is first (0..4), STANDBY second (5..9).
-        rows = (("oben", "Aktiv", 0), ("oben", "Standby", ROW_WIDTH),
-                ("unten", "Aktiv", 2 * ROW_WIDTH), ("unten", "Standby", 3 * ROW_WIDTH))
+        rows = (
+            ("oben", "Aktiv", 0),
+            ("oben", "Standby", ROW_WIDTH),
+            ("unten", "Aktiv", 2 * ROW_WIDTH),
+            ("unten", "Standby", 3 * ROW_WIDTH),
+        )
         for half, kind, base in rows:
             for k in range(ROW_WIDTH):
                 cell = base + k
-                targets.append(TestTarget(
-                    key=f"cell:{cell}",
-                    label=f"Stelle {k + 1}",
-                    group=f"Display {half} — {kind}",
-                    report=radio_cell_report(cell),
-                    dot_report=radio_cell_report(cell, dot=True),
-                ))
+                targets.append(
+                    TestTarget(
+                        key=f"cell:{cell}",
+                        label=f"Stelle {k + 1}",
+                        group=f"Display {half} — {kind}",
+                        report=radio_cell_report(cell),
+                        dot_report=radio_cell_report(cell, dot=True),
+                    )
+                )
         return targets
     return []
 

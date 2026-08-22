@@ -27,9 +27,7 @@ def apply_deadzone(value: float, deadzone: float) -> float:
     return sign * (magnitude - deadzone) / (1.0 - deadzone)
 
 
-def normalise_window(
-    raw: int, raw_min: int, raw_max: int, dead_lo: int, dead_hi: int
-) -> float:
+def normalise_window(raw: int, raw_min: int, raw_max: int, dead_lo: int, dead_hi: int) -> float:
     """Map a raw reading to [-1, 1] with an explicit raw dead window.
 
     Raw values in ``[dead_lo, dead_hi]`` return 0 (neutral). Below ``dead_lo`` the

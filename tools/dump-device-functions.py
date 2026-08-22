@@ -54,8 +54,9 @@ def dump_profile(profile_name: str, catalog) -> list[str]:
         outs = profile.outputs.get(dev.id, [])
         if not binds and not outs:
             continue
-        out.append(f"## {dev.name}  \n`id={dev.id}` · USB {dev.vendor}:{dev.product}"
-                   f" · {dev.transport}")
+        out.append(
+            f"## {dev.name}  \n`id={dev.id}` · USB {dev.vendor}:{dev.product} · {dev.transport}"
+        )
         out.append("")
 
         if binds:
@@ -78,8 +79,10 @@ def dump_profile(profile_name: str, catalog) -> list[str]:
             out.append("")
 
         t_in, t_out = gui_mapper.template_elements(dev, profile)
-        out.append(f"### Atomare Elemente (aus Vorlage projiziert) — "
-                   f"{len(t_in)} Inputs · {len(t_out)} Anzeigen")
+        out.append(
+            f"### Atomare Elemente (aus Vorlage projiziert) — "
+            f"{len(t_in)} Inputs · {len(t_out)} Anzeigen"
+        )
         out.append("")
         if t_in:
             out.append("**Inputs (Lesen):**")
@@ -96,10 +99,10 @@ def dump_profile(profile_name: str, catalog) -> list[str]:
 
 def main(argv: list[str] | None = None) -> int:
     ap = argparse.ArgumentParser(description=__doc__)
-    ap.add_argument("--profile", default="piper_arrow",
-                    help="profile name without .yaml (default: piper_arrow)")
-    ap.add_argument("--all", action="store_true",
-                    help="dump every *.yaml profile (except _schema)")
+    ap.add_argument(
+        "--profile", default="piper_arrow", help="profile name without .yaml (default: piper_arrow)"
+    )
+    ap.add_argument("--all", action="store_true", help="dump every *.yaml profile (except _schema)")
     args = ap.parse_args(argv)
 
     catalog = load_device_catalog(config.devices_file())  # incl. user overlay

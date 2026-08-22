@@ -31,9 +31,7 @@ def fetch_lvars(host: str = HOST, port: int = PORT) -> list[str]:
     """Connect, trigger the enumeration, and return the LVar names."""
     with socket.create_connection((host, port), timeout=10) as sock:
         sock.settimeout(REQUEST_TIMEOUT + 8)
-        sock.sendall(
-            (json.dumps({"op": "list_lvars", "timeout": REQUEST_TIMEOUT}) + "\n").encode()
-        )
+        sock.sendall((json.dumps({"op": "list_lvars", "timeout": REQUEST_TIMEOUT}) + "\n").encode())
         buf = b""
         while True:
             chunk = sock.recv(65536)

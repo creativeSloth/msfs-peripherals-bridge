@@ -62,6 +62,25 @@ strict = true
 ignore_missing_imports = true
 plugins = ["pydantic.mypy"]
 
+# gui.py is a ~6800-line dynamic Tkinter surface. Under strict mypy it yields
+# only dynamic-typing false positives (lambda inference, widget .destroy()
+# return values, attribute access on runtime-shaped objects), so we exempt this
+# one presentation module entirely. Everything else stays strict.
+[[tool.mypy.overrides]]
+module = ["msfs_peripherals_bridge.gui"]
+ignore_errors = true
+
+# gui_mapper.py is still checked for real type errors (arg-type, index, …); we
+# only drop the "annotate every Tkinter callback" pedantry.
+[[tool.mypy.overrides]]
+module = ["msfs_peripherals_bridge.gui_mapper"]
+disallow_untyped_defs = false
+disallow_incomplete_defs = false
+disallow_untyped_calls = false
+disallow_untyped_decorators = false
+disallow_any_generics = false
+warn_return_any = false
+
 [tool.pytest.ini_options]
 testpaths = ["tests"]
 addopts = "-q"

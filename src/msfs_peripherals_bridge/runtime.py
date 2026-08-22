@@ -12,7 +12,8 @@ import logging
 import queue
 import threading
 import time
-from typing import TYPE_CHECKING, Protocol
+from collections.abc import Callable
+from typing import TYPE_CHECKING, Protocol, cast
 
 from .devices import evdev_reader, hidraw_reader
 from .devices.base import DeviceEvent
@@ -21,7 +22,7 @@ from .models import DeviceCatalog, Profile, SourceKind
 from .simconnect.protocol import Command
 
 if TYPE_CHECKING:
-    from .outputs import OutputManager
+    from .outputs import OutputManager, StateDispatcher
 
 log = logging.getLogger(__name__)
 
@@ -83,8 +84,7 @@ def seed_local_vars(profile: Profile) -> list[Command]:
     from .simconnect.protocol import SetSimVar
 
     return [
-        SetSimVar(name=f"V:{lv.name}", unit=lv.unit, value=lv.initial)
-        for lv in profile.local_vars
+        SetSimVar(name=f"V:{lv.name}", unit=lv.unit, value=lv.initial) for lv in profile.local_vars
     ]
 
 
@@ -111,8 +111,9 @@ def run(
 
     watcher = _start_conditions(profile, present, dispatcher, stop)
     engine = MappingEngine(profile, values=watcher.get if watcher else None)
-    outputs = _start_outputs(profile, present, dispatcher, stop,
-                             state_listener=watcher.update if watcher else None)
+    outputs = _start_outputs(
+        profile, present, dispatcher, stop, state_listener=watcher.update if watcher else None
+    )
 
     for device_id, path in present.items():
         if device_id not in profile.bindings:
@@ -257,7 +258,7 @@ def _start_outputs(
     present: dict[str, str],
     dispatcher: Dispatcher,
     stop: threading.Event,
-    state_listener=None,
+    state_listener: Callable[[str, object], None] | None = None,
 ) -> OutputManager | None:
     """Start the output manager if the profile declares any outputs.
 
@@ -275,8 +276,12 @@ def _start_outputs(
 
     from .outputs import OutputManager
 
-    manager = OutputManager(profile.outputs, output_devices, dispatcher,
-                            state_listener=state_listener)
+    manager = OutputManager(
+        profile.outputs,
+        output_devices,
+        cast("StateDispatcher", dispatcher),
+        state_listener=state_listener,
+    )
     threading.Thread(target=manager.run, args=(stop,), daemon=True).start()
     log.info("Output manager started for %d device(s)", len(output_devices))
     return manager

@@ -109,8 +109,11 @@ def check_prerequisites(
         CheckItem("check.drive_c", drive_c.is_dir(), str(drive_c)),
         CheckItem("check.pythonw", pythonw.is_file(), str(pythonw)),
         CheckItem("check.python", python.is_file(), str(python)),
-        CheckItem("check.simconnect", dll is not None,
-                  str(dll) if dll else str(pybridge / "Lib" / "site-packages" / "SimConnect")),
+        CheckItem(
+            "check.simconnect",
+            dll is not None,
+            str(dll) if dll else str(pybridge / "Lib" / "site-packages" / "SimConnect"),
+        ),
         CheckItem("check.proton", proton is not None, str(proton) if proton else "—"),
         CheckItem("check.run_bridge", run_bridge.is_file(), str(run_bridge)),
         CheckItem("check.bridge_py", bridge_py.is_file(), str(bridge_py)),

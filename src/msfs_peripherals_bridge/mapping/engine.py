@@ -33,7 +33,10 @@ from .transforms import shape_axis
 log = logging.getLogger(__name__)
 
 _OPS: dict[str, Callable[[float, float], bool]] = {
-    "<": operator.lt, "<=": operator.le, ">": operator.gt, ">=": operator.ge,
+    "<": operator.lt,
+    "<=": operator.le,
+    ">": operator.gt,
+    ">=": operator.ge,
 }
 
 
@@ -57,8 +60,11 @@ def _source_matches(binding: Binding, event: DeviceEvent) -> bool:
         # (event kind BUTTON) — accept either, on any code this hat listens on.
         if event.kind not in (SourceKind.HAT, SourceKind.BUTTON):
             return False
-        codes = (binding.hat.codes(source.code) if binding.hat is not None
-                 else {source.code, source.code + 1})
+        codes = (
+            binding.hat.codes(source.code)
+            if binding.hat is not None
+            else {source.code, source.code + 1}
+        )
         return event.code in codes
     if source.kind is not event.kind:
         return False
@@ -69,6 +75,7 @@ def _step_command(step: WriteStep) -> Command:
     """One SequenceAction write -> its SimConnect command (event or SimVar set)."""
     if step.simvar is not None:
         return SetSimVar(name=step.simvar, unit=step.unit, value=step.value)
+    assert step.event is not None  # a WriteStep always sets exactly one of simvar/event
     return SendEvent(name=step.event, data=int(step.value))
 
 
@@ -79,9 +86,7 @@ class MappingEngine:
     conditions (``None`` = unknown -> the condition is NOT met, fail-closed).
     """
 
-    def __init__(
-        self, profile: Profile, values: Callable[[str], object] | None = None
-    ) -> None:
+    def __init__(self, profile: Profile, values: Callable[[str], object] | None = None) -> None:
         self.profile = profile
         self._values = values or (lambda name: None)
 
@@ -103,8 +108,13 @@ class MappingEngine:
     def _conditions_met(self, binding: Binding) -> bool:
         for cond in binding.when:
             if not _condition_holds(cond, self._values(cond.var)):
-                log.debug("Binding '%s' gated: %s %s %g not met",
-                          binding.name, cond.var, cond.op, cond.value)
+                log.debug(
+                    "Binding '%s' gated: %s %s %g not met",
+                    binding.name,
+                    cond.var,
+                    cond.op,
+                    cond.value,
+                )
                 return False
         return True
 
@@ -149,9 +159,9 @@ class MappingEngine:
             # edge (rotary detents, the gear lever). Otherwise it is *stateful*:
             # forward the live 0/1 state on both edges so a toggle switch drives
             # a `*_SET` event or a SimVar to match the physical position.
-            action = binding.action
-            momentary = isinstance(action, EventFromVarAction | RpnAction) or (
-                isinstance(action, EventAction) and action.value is not None
+            act = binding.action
+            momentary = isinstance(act, EventFromVarAction | RpnAction) or (
+                isinstance(act, EventAction) and act.value is not None
             )
             if momentary and event.value != 1:
                 return []
@@ -180,7 +190,7 @@ class MappingEngine:
         return [_step_command(step) for step in steps]
 
     @staticmethod
-    def _command_for(action: Action, value: float) -> Command:
+    def _command_for(action: Action | None, value: float) -> Command:
         if isinstance(action, SimVarAction):
             data = 1.0 - value if action.invert else value
             return SetSimVar(name=action.simvar, unit=action.unit, value=data)

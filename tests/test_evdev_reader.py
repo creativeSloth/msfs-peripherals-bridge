@@ -38,7 +38,7 @@ def test_key_edges_counts_presses_not_holds_or_releases():
 def test_key_edges_accumulates_across_drains_via_last():
     last: dict[int, int] = {}
     assert key_edges(last, [(5, 1), (5, 0)]) == {5: 1}  # first press
-    assert key_edges(last, [(5, 1)]) == {5: 1}          # a second, later drain
+    assert key_edges(last, [(5, 1)]) == {5: 1}  # a second, later drain
 
 
 def test_key_edges_no_edge_when_already_held():
@@ -52,8 +52,7 @@ def test_key_edges_winner_is_the_actuated_code():
     last: dict[int, int] = {}
     counts: dict[int, int] = {}
     # code 12 tapped three times, code 9 brushed once -> 12 wins.
-    for events in ([(12, 1), (12, 0)], [(9, 1), (9, 0)], [(12, 1), (12, 0)],
-                   [(12, 1), (12, 0)]):
+    for events in ([(12, 1), (12, 0)], [(9, 1), (9, 0)], [(12, 1), (12, 0)], [(12, 1), (12, 0)]):
         for code, n in key_edges(last, events).items():
             counts[code] = counts.get(code, 0) + n
     assert counts == {12: 3, 9: 1}

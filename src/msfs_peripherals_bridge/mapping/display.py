@@ -68,9 +68,7 @@ def format_measure(value: float | None, *, decimals: int = 1, width: int = ROW_W
     return [BLANK] * (width - len(cells)) + cells
 
 
-def format_frequency(
-    mhz: float | None, *, decimals: int = 2, width: int = ROW_WIDTH
-) -> list[int]:
+def format_frequency(mhz: float | None, *, decimals: int = 2, width: int = ROW_WIDTH) -> list[int]:
     """Encode a radio frequency (MHz) into ``width`` cells with a decimal point.
 
     The 5-cell line can't hold every significant digit of an 8.33 kHz COM channel

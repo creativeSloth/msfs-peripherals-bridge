@@ -127,9 +127,7 @@ def inventory() -> None:
         raise typer.Exit(code=1) from exc
 
     if not items:
-        console.print(
-            "[yellow]No devices detected. Plugged in? udev rules applied?[/yellow]"
-        )
+        console.print("[yellow]No devices detected. Plugged in? udev rules applied?[/yellow]")
         return
 
     table = Table(title="Connected devices")
@@ -421,7 +419,7 @@ def _resolve_profile(profile: str | None, aircraft: str | None) -> Profile | Non
         path = Path(profile)
         if not path.exists():
             path = config.profiles_dir() / f"{profile}.yaml"
-        chosen = load_profile(path)
+        chosen: Profile | None = load_profile(path)
     elif aircraft:
         chosen = select_profile(load_profiles(config.profiles_dir()), aircraft)
     else:

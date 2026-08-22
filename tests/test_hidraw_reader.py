@@ -43,8 +43,10 @@ def test_rotary_detent_move_clears_old_and_sets_new():
 
 # --- count_rising_edges: transient-pulse capture for encoders ---------------
 
+
 def _edges(frames):
     from msfs_peripherals_bridge.devices.hidraw_reader import count_rising_edges
+
     return count_rising_edges(frames)
 
 
@@ -56,8 +58,7 @@ def test_rising_edges_first_frame_only_primes():
 def test_rising_edges_counts_transient_pulses():
     # bit 0 pulses 1->0->1->0 : two rising edges, even though it ends at rest.
     # This is the encoder case the state view loses (nets back to 0).
-    frames = [b"\x00\x00\x00", b"\x01\x00\x00", b"\x00\x00\x00",
-              b"\x01\x00\x00", b"\x00\x00\x00"]
+    frames = [b"\x00\x00\x00", b"\x01\x00\x00", b"\x00\x00\x00", b"\x01\x00\x00", b"\x00\x00\x00"]
     assert _edges(frames) == {0: 2}
 
 

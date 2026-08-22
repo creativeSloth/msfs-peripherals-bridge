@@ -9,7 +9,8 @@ from __future__ import annotations
 
 import contextlib
 import logging
-from collections.abc import Iterable, Iterator
+from collections.abc import Callable, Iterable, Iterator
+from typing import Any
 
 from ..models import DeviceCatalog, SourceKind
 from .base import DeviceEvent
@@ -56,9 +57,7 @@ def discover(catalog: DeviceCatalog) -> dict[str, str]:
     return found
 
 
-def winning_axis(
-    spans: dict[int, tuple[int, int]], min_span: int = 8
-) -> int | None:
+def winning_axis(spans: dict[int, tuple[int, int]], min_span: int = 8) -> int | None:
     """Pick the axis that moved the most from accumulated ``{code: (min, max)}``; pure.
 
     The evdev analogue of :func:`hidraw_reader.winning_code` for the element-scan
@@ -74,9 +73,7 @@ def winning_axis(
     return code if hi - lo >= min_span else None
 
 
-def key_edges(
-    last: dict[int, int], events: Iterable[tuple[int, int]]
-) -> dict[int, int]:
+def key_edges(last: dict[int, int], events: Iterable[tuple[int, int]]) -> dict[int, int]:
     """Count 0->1 (press) transitions per key code from ``(code, value)`` events.
 
     Pure core of :func:`button_edge_reader`, the evdev analogue of
@@ -95,7 +92,9 @@ def key_edges(
     return edges
 
 
-def button_edge_reader(path: str):
+def button_edge_reader(
+    path: str,
+) -> tuple[Callable[[], dict[int, int] | None], Callable[[], None]] | None:
     """Open ``path`` to COUNT key press-edges per code; ``(read, close)`` or ``None``.
 
     The evdev counterpart of :func:`hidraw_reader.edge_count_reader` for the
@@ -139,7 +138,7 @@ def button_edge_reader(path: str):
     return read, close
 
 
-def axis_value_reader(path: str, code: int):
+def axis_value_reader(path: str, code: int) -> Callable[[], int | None] | None:
     """Open ``path`` and return a zero-arg callable giving that axis's live raw value.
 
     Used by the GUI's "learn raw range": the callable polls the axis's current
@@ -156,7 +155,7 @@ def axis_value_reader(path: str, code: int):
 
     def read() -> int | None:
         try:
-            return dev.absinfo(code).value
+            return int(dev.absinfo(code).value)
         except (OSError, KeyError):
             return None
 
@@ -175,7 +174,9 @@ def read_device(device_id: str, path: str) -> Iterator[DeviceEvent]:
         yield DeviceEvent(device_id=device_id, kind=kind, code=ev.code, value=ev.value)
 
 
-def live_state_reader(path: str):
+def live_state_reader(
+    path: str,
+) -> tuple[Callable[[], dict[tuple[str, int], int] | None], dict[int, tuple[int, int]]] | None:
     """Open ``path`` for the GUI's live view; ``(read, ranges)`` or ``None``.
 
     ``read()`` drains all pending events non-blocking and returns the current
@@ -187,12 +188,12 @@ def live_state_reader(path: str):
         return None
     try:
         dev = evdev.InputDevice(path)
-        caps = dev.capabilities().get(ecodes.EV_ABS, [])
+        # evdev's stub under-specifies capabilities(); at runtime EV_ABS yields
+        # (code, AbsInfo) pairs (absinfo defaults to True), so treat it as Any.
+        caps: Any = dev.capabilities().get(ecodes.EV_ABS, [])
     except OSError:
         return None
-    state: dict[tuple[str, int], int] = {
-        ("axis", code): absinfo.value for code, absinfo in caps
-    }
+    state: dict[tuple[str, int], int] = {("axis", code): absinfo.value for code, absinfo in caps}
     ranges = {code: (absinfo.min, absinfo.max) for code, absinfo in caps}
 
     def read() -> dict[tuple[str, int], int] | None:

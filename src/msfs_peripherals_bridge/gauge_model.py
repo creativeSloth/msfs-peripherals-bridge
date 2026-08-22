@@ -27,6 +27,7 @@ from __future__ import annotations
 
 import math
 from dataclasses import asdict, dataclass, field
+from typing import Any
 
 
 @dataclass
@@ -100,7 +101,7 @@ def angle_for(n: NeedleSpec, raw: float) -> float:
     """Needle angle in degrees for a raw variable value (clamped to the scale)."""
     span = n.span or 1.0
     frac = (display_value(n, raw) - n.v_min) / span
-    return n.omega + n.sweep * (frac**n.h)
+    return float(n.omega + n.sweep * (frac**n.h))
 
 
 def _steps(n: NeedleSpec, step: float) -> list[float]:
@@ -146,19 +147,20 @@ def wire_name(n: NeedleSpec) -> str | None:
 # --------------------------------------------------------------------------- #
 # persistence (gui-settings.json carries plain dicts)
 # --------------------------------------------------------------------------- #
-def to_dict(g: GaugeSpec) -> dict:
+def to_dict(g: GaugeSpec) -> dict[str, Any]:
     return asdict(g)
 
 
-def from_dict(d: dict) -> GaugeSpec:
+def from_dict(d: dict[str, Any]) -> GaugeSpec:
     needles = []
     known = set(NeedleSpec.__dataclass_fields__)
     for nd in d.get("needles", []):
         nd = {k: v for k, v in nd.items() if k in known}  # tolerate schema drift
         nd["arcs"] = [Arc(**a) for a in nd.get("arcs", [])]
         needles.append(NeedleSpec(**nd))
-    return GaugeSpec(name=str(d.get("name", "Gauge")), needles=needles,
-                     aspect=float(d.get("aspect", 1.0)) or 1.0)
+    return GaugeSpec(
+        name=str(d.get("name", "Gauge")), needles=needles, aspect=float(d.get("aspect", 1.0)) or 1.0
+    )
 
 
 # --------------------------------------------------------------------------- #
@@ -170,56 +172,194 @@ def presets() -> dict[str, GaugeSpec]:
         # MAP outer scale is linear; the Fuel-Flow inner scale is power-law
         # compressed (h = 1.8 in the lua) — the crux the user flagged. sweep 165 /
         # omega 100 with h 1.8 reproduces the lua's (ZWEI_PI/Δ·v)^1.8 + 100 exactly.
-        "MAP + Fuel Flow": GaugeSpec("MAP + Fuel Flow", [
-            NeedleSpec(label="MAP", var="ENG MANIFOLD PRESSURE:1", unit="inHg",
-                       v_min=10, v_max=50, sweep=180, omega=-90, h=1.0, major=5, minor=1,
-                       arcs=[Arc(10, 41)], radius=0.95, fmt="{:.1f}"),
-            NeedleSpec(label="FF", var="ENG FUEL FLOW GPH:1", unit="GPH",
-                       v_min=0, v_max=25, sweep=165, omega=100, h=1.8, major=5, minor=1,
-                       arcs=[Arc(0, 24), Arc(21.5, 24, "#66bb6a")],
-                       radius=0.62, color="#fbc02d", fmt="{:.1f}"),
-        ]),
-        "RPM": GaugeSpec("RPM", [
-            NeedleSpec(label="RPM", var="GENERAL ENG RPM:1", unit="rpm",
-                       v_min=0, v_max=3500, sweep=290, omega=215, major=500, minor=100,
-                       arcs=[Arc(500, 2650)], fmt="{:.0f}"),
-        ]),
-        "Airspeed": GaugeSpec("Airspeed", [
-            NeedleSpec(label="IAS", var="AIRSPEED INDICATED", unit="kt",
-                       v_min=20, v_max=190, sweep=306, omega=0, major=20, minor=5,
-                       arcs=[Arc(65, 100), Arc(100, 190, "#f9a825"),
-                             Arc(70, 77, "#1565c0")], fmt="{:.0f}"),
-        ]),
-        "EGT": GaugeSpec("EGT", [
-            NeedleSpec(label="EGT", var="GENERAL ENG EXHAUST GAS TEMPERATURE:1",
-                       unit="°F", v_min=1200, v_max=1700, sweep=100, omega=-50,
-                       major=100, minor=25, arcs=[Arc(1200, 1650)], fmt="{:.0f}"),
-        ]),
-        "Fuel links": GaugeSpec("Fuel links", [
-            NeedleSpec(label="FUEL L", var="FUEL LEFT QUANTITY", unit="gal",
-                       v_min=0, v_max=38.5, sweep=100, omega=-50, major=10, minor=2,
-                       fmt="{:.1f}"),
-        ]),
-        "Fuel rechts": GaugeSpec("Fuel rechts", [
-            NeedleSpec(label="FUEL R", var="FUEL RIGHT QUANTITY", unit="gal",
-                       v_min=0, v_max=38.5, sweep=100, omega=-50, major=10, minor=2,
-                       fmt="{:.1f}"),
-        ]),
+        "MAP + Fuel Flow": GaugeSpec(
+            "MAP + Fuel Flow",
+            [
+                NeedleSpec(
+                    label="MAP",
+                    var="ENG MANIFOLD PRESSURE:1",
+                    unit="inHg",
+                    v_min=10,
+                    v_max=50,
+                    sweep=180,
+                    omega=-90,
+                    h=1.0,
+                    major=5,
+                    minor=1,
+                    arcs=[Arc(10, 41)],
+                    radius=0.95,
+                    fmt="{:.1f}",
+                ),
+                NeedleSpec(
+                    label="FF",
+                    var="ENG FUEL FLOW GPH:1",
+                    unit="GPH",
+                    v_min=0,
+                    v_max=25,
+                    sweep=165,
+                    omega=100,
+                    h=1.8,
+                    major=5,
+                    minor=1,
+                    arcs=[Arc(0, 24), Arc(21.5, 24, "#66bb6a")],
+                    radius=0.62,
+                    color="#fbc02d",
+                    fmt="{:.1f}",
+                ),
+            ],
+        ),
+        "RPM": GaugeSpec(
+            "RPM",
+            [
+                NeedleSpec(
+                    label="RPM",
+                    var="GENERAL ENG RPM:1",
+                    unit="rpm",
+                    v_min=0,
+                    v_max=3500,
+                    sweep=290,
+                    omega=215,
+                    major=500,
+                    minor=100,
+                    arcs=[Arc(500, 2650)],
+                    fmt="{:.0f}",
+                ),
+            ],
+        ),
+        "Airspeed": GaugeSpec(
+            "Airspeed",
+            [
+                NeedleSpec(
+                    label="IAS",
+                    var="AIRSPEED INDICATED",
+                    unit="kt",
+                    v_min=20,
+                    v_max=190,
+                    sweep=306,
+                    omega=0,
+                    major=20,
+                    minor=5,
+                    arcs=[Arc(65, 100), Arc(100, 190, "#f9a825"), Arc(70, 77, "#1565c0")],
+                    fmt="{:.0f}",
+                ),
+            ],
+        ),
+        "EGT": GaugeSpec(
+            "EGT",
+            [
+                NeedleSpec(
+                    label="EGT",
+                    var="GENERAL ENG EXHAUST GAS TEMPERATURE:1",
+                    unit="°F",
+                    v_min=1200,
+                    v_max=1700,
+                    sweep=100,
+                    omega=-50,
+                    major=100,
+                    minor=25,
+                    arcs=[Arc(1200, 1650)],
+                    fmt="{:.0f}",
+                ),
+            ],
+        ),
+        "Fuel links": GaugeSpec(
+            "Fuel links",
+            [
+                NeedleSpec(
+                    label="FUEL L",
+                    var="FUEL LEFT QUANTITY",
+                    unit="gal",
+                    v_min=0,
+                    v_max=38.5,
+                    sweep=100,
+                    omega=-50,
+                    major=10,
+                    minor=2,
+                    fmt="{:.1f}",
+                ),
+            ],
+        ),
+        "Fuel rechts": GaugeSpec(
+            "Fuel rechts",
+            [
+                NeedleSpec(
+                    label="FUEL R",
+                    var="FUEL RIGHT QUANTITY",
+                    unit="gal",
+                    v_min=0,
+                    v_max=38.5,
+                    sweep=100,
+                    omega=-50,
+                    major=10,
+                    minor=2,
+                    fmt="{:.1f}",
+                ),
+            ],
+        ),
         # Wide 6:1 cluster: L tank / fuel pressure / R tank, three sub-scales at
         # their own centres (cx = 1/6, 1/2, 5/6) — the non-round shape kept 1:1.
-        "Fuel L/R + Druck (Cluster)": GaugeSpec("Fuel L/R + Druck", [
-            NeedleSpec(label="FUEL L", var="FUEL LEFT QUANTITY", unit="gal",
-                       v_min=0, v_max=38.5, sweep=100, omega=-50, major=10, minor=2,
-                       cx=1 / 6, cy=0.5, fmt="{:.1f}"),
-            NeedleSpec(label="PRESS", var="GENERAL ENG FUEL PRESSURE:1", unit="PSI",
-                       v_min=0, v_max=50, sweep=100, omega=-50, major=25, minor=5,
-                       cx=0.5, cy=0.5, color="#fbc02d", fmt="{:.0f}"),
-            NeedleSpec(label="FUEL R", var="FUEL RIGHT QUANTITY", unit="gal",
-                       v_min=0, v_max=38.5, sweep=100, omega=-50, major=10, minor=2,
-                       cx=5 / 6, cy=0.5, fmt="{:.1f}"),
-        ], aspect=6.0),
-        "Eigenes…": GaugeSpec("Neues Gauge", [
-            NeedleSpec(label="WERT", var="", v_min=0, v_max=100,
-                       sweep=270, omega=-135, major=10, fmt="{:.0f}"),
-        ]),
+        "Fuel L/R + Druck (Cluster)": GaugeSpec(
+            "Fuel L/R + Druck",
+            [
+                NeedleSpec(
+                    label="FUEL L",
+                    var="FUEL LEFT QUANTITY",
+                    unit="gal",
+                    v_min=0,
+                    v_max=38.5,
+                    sweep=100,
+                    omega=-50,
+                    major=10,
+                    minor=2,
+                    cx=1 / 6,
+                    cy=0.5,
+                    fmt="{:.1f}",
+                ),
+                NeedleSpec(
+                    label="PRESS",
+                    var="GENERAL ENG FUEL PRESSURE:1",
+                    unit="PSI",
+                    v_min=0,
+                    v_max=50,
+                    sweep=100,
+                    omega=-50,
+                    major=25,
+                    minor=5,
+                    cx=0.5,
+                    cy=0.5,
+                    color="#fbc02d",
+                    fmt="{:.0f}",
+                ),
+                NeedleSpec(
+                    label="FUEL R",
+                    var="FUEL RIGHT QUANTITY",
+                    unit="gal",
+                    v_min=0,
+                    v_max=38.5,
+                    sweep=100,
+                    omega=-50,
+                    major=10,
+                    minor=2,
+                    cx=5 / 6,
+                    cy=0.5,
+                    fmt="{:.1f}",
+                ),
+            ],
+            aspect=6.0,
+        ),
+        "Eigenes…": GaugeSpec(
+            "Neues Gauge",
+            [
+                NeedleSpec(
+                    label="WERT",
+                    var="",
+                    v_min=0,
+                    v_max=100,
+                    sweep=270,
+                    omega=-135,
+                    major=10,
+                    fmt="{:.0f}",
+                ),
+            ],
+        ),
     }

@@ -22,9 +22,7 @@ def test_every_key_defines_the_non_default_languages():
     assert set(i18n.LANGUAGES) == {"de", "en", "es", "fr"}
     required = {"en", "es", "fr"}
     missing = {
-        key: required - set(entry)
-        for key, entry in i18n._STRINGS.items()
-        if required - set(entry)
+        key: required - set(entry) for key, entry in i18n._STRINGS.items() if required - set(entry)
     }
     assert not missing, f"keys missing translations: {missing}"
 

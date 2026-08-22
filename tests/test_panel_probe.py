@@ -28,16 +28,34 @@ def _multi() -> MultiPanelOutput:
 
 def _radio() -> RadioPanelOutput:
     bank = RadioBank(
-        code=0, label="COM1", active="A", standby="S", swap_event="SW",
-        whole_inc="wi", whole_dec="wd", fract_inc="fi", fract_dec="fd",
+        code=0,
+        label="COM1",
+        active="A",
+        standby="S",
+        swap_event="SW",
+        whole_inc="wi",
+        whole_dec="wd",
+        fract_inc="fi",
+        fract_dec="fd",
     )
-    return RadioPanelOutput(units=[
-        RadioUnit(name="upper", row="upper", banks=[bank],
-                  outer_cw=0, outer_ccw=1, inner_cw=2, inner_ccw=3, swap=4),
-    ])
+    return RadioPanelOutput(
+        units=[
+            RadioUnit(
+                name="upper",
+                row="upper",
+                banks=[bank],
+                outer_cw=0,
+                outer_ccw=1,
+                inner_cw=2,
+                inner_ccw=3,
+                swap=4,
+            ),
+        ]
+    )
 
 
 # -- switch panel gear LEDs -------------------------------------------------
+
 
 def test_switch_led_report_isolates_one_wheel_and_colour():
     # nose green = bit 0 (0x01); left red = bit 4 (0x10); report id leads.
@@ -47,6 +65,7 @@ def test_switch_led_report_isolates_one_wheel_and_colour():
 
 
 # -- multi panel ------------------------------------------------------------
+
 
 def test_multi_led_report_lights_one_button_display_blank():
     rep = multi_led_report("ap")  # ap = bit 0
@@ -69,6 +88,7 @@ def test_multi_cell_report_shows_eight_in_one_cell():
 
 # -- radio panel ------------------------------------------------------------
 
+
 def test_radio_cell_report_shape_and_dot():
     rep = radio_cell_report(0)
     assert len(rep) == 23  # id + 20 cells + 2 flags
@@ -79,6 +99,7 @@ def test_radio_cell_report_shape_and_dot():
 
 # -- clear ------------------------------------------------------------------
 
+
 def test_blank_report_per_type():
     assert blank_report("gear_leds") == bytes([0x00, 0x00])
     assert blank_report("multi_panel") == bytes([0x00, *([BLANK] * 10), 0x00, 0x00])
@@ -86,6 +107,7 @@ def test_blank_report_per_type():
 
 
 # -- target enumeration -----------------------------------------------------
+
 
 def test_gear_targets_are_three_wheels_two_colours():
     ts = probe_targets(GearLedOutput())
@@ -141,7 +163,22 @@ def test_generic_blank_and_target_enumeration():
     )
 
     assert generic_blank(4) == bytes([0x00, 0x00, 0x00, 0x00, 0x00])  # id + 4 data
-    assert generic_led_targets(2) == [(0, 0), (0, 1), (0, 2), (0, 3), (0, 4), (0, 5),
-                                      (0, 6), (0, 7), (1, 0), (1, 1), (1, 2), (1, 3),
-                                      (1, 4), (1, 5), (1, 6), (1, 7)]
+    assert generic_led_targets(2) == [
+        (0, 0),
+        (0, 1),
+        (0, 2),
+        (0, 3),
+        (0, 4),
+        (0, 5),
+        (0, 6),
+        (0, 7),
+        (1, 0),
+        (1, 1),
+        (1, 2),
+        (1, 3),
+        (1, 4),
+        (1, 5),
+        (1, 6),
+        (1, 7),
+    ]
     assert generic_cell_targets(3) == [0, 1, 2]

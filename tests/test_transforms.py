@@ -74,6 +74,5 @@ def test_shape_axis_uses_raw_window_when_set():
 
 def test_shape_axis_window_takes_precedence_over_fraction():
     # both set: the raw window wins, the legacy fraction is ignored
-    t = Transform(deadzone=0.9, deadzone_min=400, deadzone_max=600,
-                  out_min=-100, out_max=100)
+    t = Transform(deadzone=0.9, deadzone_min=400, deadzone_max=600, out_min=-100, out_max=100)
     assert tf.shape_axis(800, 0, 1000, t) == 50

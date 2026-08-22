@@ -2,7 +2,9 @@
 
 from __future__ import annotations
 
+from collections.abc import Iterable
 from pathlib import Path
+from typing import Any
 
 import yaml
 
@@ -59,36 +61,30 @@ def add_device_overlay(ddef: DeviceDef, overlay: Path | None = None) -> Path:
     merged = merge_device_catalog(existing, DeviceCatalog(devices=[ddef]))
     overlay.parent.mkdir(parents=True, exist_ok=True)
     overlay.write_text(
-        yaml.safe_dump(
-            merged.model_dump(exclude_none=True), sort_keys=False, allow_unicode=True
-        ),
+        yaml.safe_dump(merged.model_dump(exclude_none=True), sort_keys=False, allow_unicode=True),
         encoding="utf-8",
     )
     return overlay
 
 
-def set_device_inputs(ddef: DeviceDef, blocks, overlay: Path | None = None) -> Path:
+def set_device_inputs(ddef: DeviceDef, blocks: Iterable[Any], overlay: Path | None = None) -> Path:
     """Persist the device explorer's READ elements (inputs) into the user overlay.
 
     Keeps the device's WRITE elements (outputs) untouched — pass the current
     ``ddef`` (as loaded from the merged catalog) so its outputs ride along.
     """
-    return add_device_overlay(
-        ddef.model_copy(update={"inputs": list(blocks)}), overlay=overlay
-    )
+    return add_device_overlay(ddef.model_copy(update={"inputs": list(blocks)}), overlay=overlay)
 
 
-def set_device_outputs(ddef: DeviceDef, blocks, overlay: Path | None = None) -> Path:
+def set_device_outputs(ddef: DeviceDef, blocks: Iterable[Any], overlay: Path | None = None) -> Path:
     """Persist the device explorer's WRITE elements (LEDs/displays) into the overlay.
 
     Counterpart to :func:`set_device_inputs`; keeps the READ elements untouched.
     """
-    return add_device_overlay(
-        ddef.model_copy(update={"outputs": list(blocks)}), overlay=overlay
-    )
+    return add_device_overlay(ddef.model_copy(update={"outputs": list(blocks)}), overlay=overlay)
 
 
-def load_output_templates(path: Path | None = None) -> dict[str, dict]:
+def load_output_templates(path: Path | None = None) -> dict[str, dict[str, Any]]:
     """Load the user's saved output-block templates ``{name: block_dict}``.
 
     Empty dict when the file is missing. Blocks are kept as plain dicts (the same
@@ -105,7 +101,7 @@ def load_output_templates(path: Path | None = None) -> dict[str, dict]:
     return dict(data.get("templates", {}))
 
 
-def save_output_template(name: str, block: dict, path: Path | None = None) -> Path:
+def save_output_template(name: str, block: dict[str, Any], path: Path | None = None) -> Path:
     """Add/replace a named output-block template in the user templates file."""
     if path is None:
         from .. import config
@@ -157,8 +153,13 @@ def load_panel_layout(device_id: str, path: Path | None = None) -> dict[str, tup
 
 
 def save_panel_layout_override(
-    device_id: str, key: str, x: float, y: float,
-    w: float | None = None, h: float | None = None, path: Path | None = None
+    device_id: str,
+    key: str,
+    x: float,
+    y: float,
+    w: float | None = None,
+    h: float | None = None,
+    path: Path | None = None,
 ) -> Path:
     """Persist where one element sits (and, when given, its size).
 
@@ -169,7 +170,7 @@ def save_panel_layout_override(
         from .. import config
 
         path = config.panel_layouts_file()
-    data = {}
+    data: dict[str, Any] = {}
     if path.exists():
         data = yaml.safe_load(path.read_text(encoding="utf-8")) or {}
     dev = data.setdefault("devices", {}).setdefault(device_id, {})
@@ -180,10 +181,10 @@ def save_panel_layout_override(
         else:
             dev[key] = [round(x, 4), round(y, 4)]
     else:
+        assert w is not None and h is not None  # size branch: both given together
         dev[key] = [round(x, 4), round(y, 4), round(float(w), 4), round(float(h), 4)]
     path.parent.mkdir(parents=True, exist_ok=True)
-    path.write_text(yaml.safe_dump(data, sort_keys=False, allow_unicode=True),
-                    encoding="utf-8")
+    path.write_text(yaml.safe_dump(data, sort_keys=False, allow_unicode=True), encoding="utf-8")
     return path
 
 
@@ -197,8 +198,9 @@ def clear_panel_layout(device_id: str, path: Path | None = None) -> Path:
         data = yaml.safe_load(path.read_text(encoding="utf-8")) or {}
         if device_id in data.get("devices", {}):
             del data["devices"][device_id]
-            path.write_text(yaml.safe_dump(data, sort_keys=False, allow_unicode=True),
-                            encoding="utf-8")
+            path.write_text(
+                yaml.safe_dump(data, sort_keys=False, allow_unicode=True), encoding="utf-8"
+            )
     return path
 
 

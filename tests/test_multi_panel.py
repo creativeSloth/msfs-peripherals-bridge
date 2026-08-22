@@ -22,14 +22,23 @@ def make_config() -> MultiPanelOutput:
         selector=[
             # ALT (code 0): no set_event -> writes the SimVar directly, clamps.
             SelectorEntry(
-                code=0, label="ALT", simvar="AUTOPILOT ALTITUDE LOCK VAR",
-                step=100, min=0, max=99999,
+                code=0,
+                label="ALT",
+                simvar="AUTOPILOT ALTITUDE LOCK VAR",
+                step=100,
+                min=0,
+                max=99999,
             ),
             # HDG (code 3): set_event + rollover at 359/0.
             SelectorEntry(
-                code=3, label="HDG", simvar="AUTOPILOT HEADING LOCK DIR",
-                set_event="HEADING_BUG_SET", step=1,
-                min=0, max=359, rollover=True,
+                code=3,
+                label="HDG",
+                simvar="AUTOPILOT HEADING LOCK DIR",
+                set_event="HEADING_BUG_SET",
+                step=1,
+                min=0,
+                max=359,
+                rollover=True,
             ),
         ],
         ap_master="AUTOPILOT MASTER",
@@ -128,9 +137,7 @@ def test_on_event_routes_selector_and_encoder():
     assert c.on_event(code=3, value=1) == []
     assert c.selector == 3
     # encoder CW tick
-    assert c.on_event(code=ENCODER_CW, value=1) == [
-        SendEvent(name="HEADING_BUG_SET", data=91)
-    ]
+    assert c.on_event(code=ENCODER_CW, value=1) == [SendEvent(name="HEADING_BUG_SET", data=91)]
     # release edges ignored
     assert c.on_event(code=ENCODER_CCW, value=0) == []
 
@@ -150,7 +157,12 @@ def test_display_rows_persist_alt_top_vs_bottom():
         selector=[
             SelectorEntry(code=0, label="ALT", simvar="AP ALT", step=100, min=0, max=99999),
             SelectorEntry(
-                code=1, label="VS", simvar="AP VS", step=100, min=-9999, max=9999,
+                code=1,
+                label="VS",
+                simvar="AP VS",
+                step=100,
+                min=-9999,
+                max=9999,
                 display_row="bottom",
             ),
         ],
@@ -169,14 +181,25 @@ def _sticky_config() -> MultiPanelOutput:
     return MultiPanelOutput(
         selector=[
             SelectorEntry(
-                code=0, label="ALT", simvar="AUTOPILOT ALTITUDE LOCK VAR",
-                set_event="AP_ALT_VAR_SET_ENGLISH", step=100, min=0, max=99999,
+                code=0,
+                label="ALT",
+                simvar="AUTOPILOT ALTITUDE LOCK VAR",
+                set_event="AP_ALT_VAR_SET_ENGLISH",
+                step=100,
+                min=0,
+                max=99999,
                 sticky=True,
             ),
             SelectorEntry(
-                code=1, label="VS", simvar="AUTOPILOT VERTICAL HOLD VAR",
-                set_event="AP_VS_VAR_SET_ENGLISH", step=100, min=-9999, max=9999,
-                display_row="bottom", sticky=True,
+                code=1,
+                label="VS",
+                simvar="AUTOPILOT VERTICAL HOLD VAR",
+                set_event="AP_VS_VAR_SET_ENGLISH",
+                step=100,
+                min=-9999,
+                max=9999,
+                display_row="bottom",
+                sticky=True,
             ),
         ],
     )
@@ -203,20 +226,26 @@ def test_sticky_value_ignores_gauge_reset():
 
 def test_sticky_values_persist_across_selector_switch():
     c = MultiPanelController(_sticky_config())
-    c.on_encoder(clockwise=True)    # ALT (top) -> 100
-    c.on_selector(1)                # VS
-    c.on_encoder(clockwise=False)   # VS (bottom) -> -100
+    c.on_encoder(clockwise=True)  # ALT (top) -> 100
+    c.on_selector(1)  # VS
+    c.on_encoder(clockwise=False)  # VS (bottom) -> -100
     report = c.render()
-    assert list(report[1:6]) == [BLANK, BLANK, 1, 0, 0]    # top ALT still "  100"
-    assert list(report[6:11]) == [BLANK, MINUS, 1, 0, 0]   # bottom VS "-100"
+    assert list(report[1:6]) == [BLANK, BLANK, 1, 0, 0]  # top ALT still "  100"
+    assert list(report[6:11]) == [BLANK, MINUS, 1, 0, 0]  # bottom VS "-100"
 
 
 def _off_above_config() -> MultiPanelOutput:
     return MultiPanelOutput(
         selector=[
             SelectorEntry(
-                code=0, label="ALT", simvar="AP ALT", set_event="AP_ALT_VAR_SET_ENGLISH",
-                step=100, min=0, max=99999, off_above=60000,
+                code=0,
+                label="ALT",
+                simvar="AP ALT",
+                set_event="AP_ALT_VAR_SET_ENGLISH",
+                step=100,
+                min=0,
+                max=99999,
+                off_above=60000,
             ),
         ],
     )
@@ -245,8 +274,14 @@ def _crs_config() -> MultiPanelOutput:
     return MultiPanelOutput(
         selector=[
             SelectorEntry(
-                code=4, label="CRS", simvar="NAV OBS:1", set_event="VOR1_SET",
-                step=1, min=0, max=359, rollover=True,
+                code=4,
+                label="CRS",
+                simvar="NAV OBS:1",
+                set_event="VOR1_SET",
+                step=1,
+                min=0,
+                max=359,
+                rollover=True,
                 alt_sources=[SelectorSource(simvar="NAV OBS:2", set_event="VOR2_SET")],
             ),
         ],
@@ -294,7 +329,11 @@ def _dimmer_config() -> MultiPanelOutput:
             SelectorEntry(code=0, label="ALT", simvar="AP ALT", step=100, min=0, max=99999),
         ],
         dimmer=MultiPanelDimmer(
-            cw=18, ccw=19, step=10, min=0, max=100,
+            cw=18,
+            ccw=19,
+            step=10,
+            min=0,
+            max=100,
             targets=[
                 DimmerTarget(event="LIGHT_POTENTIOMETER_2_SET", full=100),
                 DimmerTarget(var="L:PANEL_LIGHT", full=10),
@@ -375,9 +414,14 @@ def test_render_minus_for_negative_value():
     cfg = MultiPanelOutput(
         selector=[
             SelectorEntry(
-                code=1, label="VS", simvar="AUTOPILOT VERTICAL HOLD VAR",
-                set_event="AP_VS_VAR_SET_ENGLISH", step=100, fast_step=1000,
-                min=-9999, max=9999,
+                code=1,
+                label="VS",
+                simvar="AUTOPILOT VERTICAL HOLD VAR",
+                set_event="AP_VS_VAR_SET_ENGLISH",
+                step=100,
+                fast_step=1000,
+                min=-9999,
+                max=9999,
             )
         ],
     )

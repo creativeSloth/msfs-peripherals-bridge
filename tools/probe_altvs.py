@@ -74,22 +74,47 @@ def normalise(name: str) -> str:
 
 def parse_args(argv: list[str]) -> argparse.Namespace:
     p = argparse.ArgumentParser(description="Probe the Arrow ALT/VS mode input.")
-    p.add_argument("--watch", action="append", default=[], metavar="NAME",
-                   help="watch this var too (repeatable; replaces defaults if given)")
-    p.add_argument("--set", action="append", default=[], metavar="NAME=VALUE",
-                   dest="sets", help="write a var after the baseline (repeatable)")
-    p.add_argument("--rpn", action="append", default=[], metavar="EXPR",
-                   help="run a MobiFlight RPN after the baseline, e.g. '(>H:AP_ALT)' (repeatable)")
+    p.add_argument(
+        "--watch",
+        action="append",
+        default=[],
+        metavar="NAME",
+        help="watch this var too (repeatable; replaces defaults if given)",
+    )
+    p.add_argument(
+        "--set",
+        action="append",
+        default=[],
+        metavar="NAME=VALUE",
+        dest="sets",
+        help="write a var after the baseline (repeatable)",
+    )
+    p.add_argument(
+        "--rpn",
+        action="append",
+        default=[],
+        metavar="EXPR",
+        help="run a MobiFlight RPN after the baseline, e.g. '(>H:AP_ALT)' (repeatable)",
+    )
     p.add_argument("--unit", default="number", help="unit for --set writes (default: number)")
-    p.add_argument("--after", type=float, default=1.5,
-                   help="seconds of baseline before firing actions (default: 1.5)")
-    p.add_argument("--gap", type=float, default=0.0,
-                   help="seconds to watch after each action before the next (default: 0)")
+    p.add_argument(
+        "--after",
+        type=float,
+        default=1.5,
+        help="seconds of baseline before firing actions (default: 1.5)",
+    )
+    p.add_argument(
+        "--gap",
+        type=float,
+        default=0.0,
+        help="seconds to watch after each action before the next (default: 0)",
+    )
     return p.parse_args(argv)
 
 
-def _drain(sock: socket.socket, seen: dict[str, object], start: float,
-           buf: bytes, until: float | None) -> bytes:
+def _drain(
+    sock: socket.socket, seen: dict[str, object], start: float, buf: bytes, until: float | None
+) -> bytes:
     """Read state frames and print changes. Return once `until` passes (None = forever)."""
     while until is None or time.monotonic() < until:
         timeout = None if until is None else max(0.0, until - time.monotonic())
@@ -128,8 +153,10 @@ def main(argv: list[str]) -> int:
     try:
         sock = socket.create_connection((HOST, PORT), timeout=10)
     except OSError as exc:
-        print(f"Cannot reach the bridge on {HOST}:{PORT} ({exc}). MSFS up? mapper stopped?",
-              file=sys.stderr)
+        print(
+            f"Cannot reach the bridge on {HOST}:{PORT} ({exc}). MSFS up? mapper stopped?",
+            file=sys.stderr,
+        )
         return 1
 
     with sock:
@@ -138,8 +165,10 @@ def main(argv: list[str]) -> int:
         acting = bool(args.sets or args.rpn)
         print(f"Watching {len(names)} var(s).", file=sys.stderr)
         if not acting:
-            print("OBSERVE mode: click the cockpit ALT / VS spot — the var that flips is it.",
-                  file=sys.stderr)
+            print(
+                "OBSERVE mode: click the cockpit ALT / VS spot — the var that flips is it.",
+                file=sys.stderr,
+            )
         print("Ctrl-C to stop.\n", file=sys.stderr)
 
         seen: dict[str, object] = {}
@@ -155,8 +184,12 @@ def main(argv: list[str]) -> int:
                     print(f"--set needs NAME=VALUE, got {spec!r}", file=sys.stderr)
                     return 2
                 nm, _, val = spec.partition("=")
-                frame = {"op": "simvar", "name": normalise(nm), "unit": args.unit,
-                         "value": float(val)}
+                frame = {
+                    "op": "simvar",
+                    "name": normalise(nm),
+                    "unit": args.unit,
+                    "value": float(val),
+                }
                 sock.sendall((json.dumps(frame) + "\n").encode())
                 print(f"--> SET {frame['name']} = {frame['value']}", file=sys.stderr)
                 if args.gap > 0:

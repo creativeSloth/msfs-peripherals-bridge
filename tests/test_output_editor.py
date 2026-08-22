@@ -53,8 +53,11 @@ def test_output_nodes_radio_bank_entries_show_their_kind():
     banks = _node_at(o, ("units", 0, "banks"))
     assert banks.kind == "list" and banks.addable == "banks"
     # a bank entry (units[u].banks[i]) carries its kind tag (dme/adf/xpdr)
-    entry_labels = [n.label for n in gm.output_nodes(o)
-                    if n.kind == "entry" and len(n.path) == 4 and n.path[2] == "banks"]
+    entry_labels = [
+        n.label
+        for n in gm.output_nodes(o)
+        if n.kind == "entry" and len(n.path) == 4 and n.path[2] == "banks"
+    ]
     assert entry_labels and any("dme" in x for x in entry_labels)
 
 
@@ -108,8 +111,7 @@ def test_parse_output_value_dict_entry_is_plain_str():
 def test_every_add_template_validates_in_place():
     data = pw.load(PROFILES / "piper_arrow.yaml")
     o = ARROW.outputs["multi_panel"][0]
-    for path in (("selector",), ("selector", 0, "alt_sources"),
-                 ("dimmer", "targets")):
+    for path in (("selector",), ("selector", 0, "alt_sources"), ("dimmer", "targets")):
         for tpl in gm.output_add_options(o, path).values():
             pw.add_output_entry(data, "multi_panel", 0, path, tpl)
     r = ARROW.outputs["radio_panel"][0]
@@ -153,8 +155,13 @@ def test_set_output_value_unset_removes_key(tmp_path):
 def test_add_and_remove_output_entry(tmp_path):
     data = pw.load(PROFILES / "piper_arrow.yaml")
     before = len(ARROW.outputs["multi_panel"][0].selector)
-    pw.add_output_entry(data, "multi_panel", 0, ("selector",),
-                        {"code": 0, "label": "NEU", "simvar": "X", "min": 0, "max": 1})
+    pw.add_output_entry(
+        data,
+        "multi_panel",
+        0,
+        ("selector",),
+        {"code": 0, "label": "NEU", "simvar": "X", "min": 0, "max": 1},
+    )
     assert len(pw.validate(data).outputs["multi_panel"][0].selector) == before + 1
     pw.remove_output_entry(data, "multi_panel", 0, ("selector",), before)
     assert len(pw.validate(data).outputs["multi_panel"][0].selector) == before
@@ -192,8 +199,9 @@ def test_output_leaf_labels_are_german_where_known():
     nodes = gm.output_nodes(o)
     sim = next(n for n in nodes if n.path == ("selector", 0, "simvar"))
     assert sim.label == "Variable"
-    assert "Encoder" in gm.output_field_help(("selector", 0, "sticky")) or \
-        gm.output_field_help(("selector", 0, "sticky")).startswith("Anzeige")
+    assert "Encoder" in gm.output_field_help(("selector", 0, "sticky")) or gm.output_field_help(
+        ("selector", 0, "sticky")
+    ).startswith("Anzeige")
     assert gm.output_field_help(("selector", 0)) == ""  # containers: no leaf help
 
 

@@ -19,7 +19,7 @@ import contextlib
 import logging
 import os
 import select
-from collections.abc import Iterable, Iterator
+from collections.abc import Callable, Iterable, Iterator
 
 from ..models import DeviceCatalog, SourceKind
 from .base import DeviceEvent
@@ -140,7 +140,9 @@ def winning_code(counts: dict[int, int], min_edges: int = 1) -> int | None:
     return code if counts[code] >= min_edges else None
 
 
-def edge_count_reader(path: str):
+def edge_count_reader(
+    path: str,
+) -> tuple[Callable[[], dict[int, int] | None], Callable[[], None]] | None:
     """Open a hidraw panel to COUNT rising-edge pulses per bit; ``(read, close)``.
 
     For *capturing* transient encoder detents, which :func:`live_state_reader`
@@ -212,7 +214,9 @@ def read_device(device_id: str, path: str) -> Iterator[DeviceEvent]:
         os.close(fd)
 
 
-def live_state_reader(path: str):
+def live_state_reader(
+    path: str,
+) -> tuple[Callable[[], dict[tuple[str, int], int] | None], dict[int, tuple[int, int]]] | None:
     """Open a hidraw panel for the GUI's live view; ``(read, ranges)`` or ``None``.
 
     Mirrors :func:`evdev_reader.live_state_reader` so the GUI can treat both

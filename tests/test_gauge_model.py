@@ -143,7 +143,10 @@ def test_aspect_and_centres_roundtrip():
 
 def test_from_dict_tolerates_unknown_needle_keys():
     # a persisted gauge from an older/newer schema must still load
-    d = {"name": "X", "aspect": 1.0,
-         "needles": [{"label": "A", "v_min": 0, "v_max": 10, "bogus": 7}]}
+    d = {
+        "name": "X",
+        "aspect": 1.0,
+        "needles": [{"label": "A", "v_min": 0, "v_max": 10, "bogus": 7}],
+    }
     g = gm.from_dict(d)
     assert g.needles[0].label == "A" and g.needles[0].cx == 0.5

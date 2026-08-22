@@ -62,8 +62,11 @@ class GenericPanelController:
         for disp in self._o.displays:
             # Unpowered -> value None so the cells render blank, not stale/zero.
             value = self._values.get(disp.var) if powered else None
-            cells = (format_measure(value, decimals=disp.decimals, width=disp.cells)
-                     if disp.decimals else format_row(value, width=disp.cells))
+            cells = (
+                format_measure(value, decimals=disp.decimals, width=disp.cells)
+                if disp.decimals
+                else format_row(value, width=disp.cells)
+            )
             for i, cell in enumerate(cells):
                 pos = disp.offset + i
                 if 0 <= pos < self._o.length:

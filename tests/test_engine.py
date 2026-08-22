@@ -361,29 +361,43 @@ def test_button_hat_with_learned_codes_resolves_from_button_events():
     own learned (code, value); events arrive as BUTTON kind, distinct codes."""
     from msfs_peripherals_bridge.models import HatDirection
 
-    prof = Profile(name="t", bindings={"stick": [
-        Binding(
-            name="View", source=Source(kind=SourceKind.HAT, code=300),
-            hat=HatMap(
-                up=HatDirection(code=300, value=1, action=EventAction(event="PAN_UP", value=1)),
-                down=HatDirection(code=301, value=1,
-                                  action=EventAction(event="PAN_DOWN", value=1)),
-            ),
-        )
-    ]})
+    prof = Profile(
+        name="t",
+        bindings={
+            "stick": [
+                Binding(
+                    name="View",
+                    source=Source(kind=SourceKind.HAT, code=300),
+                    hat=HatMap(
+                        up=HatDirection(
+                            code=300, value=1, action=EventAction(event="PAN_UP", value=1)
+                        ),
+                        down=HatDirection(
+                            code=301, value=1, action=EventAction(event="PAN_DOWN", value=1)
+                        ),
+                    ),
+                )
+            ]
+        },
+    )
     engine = MappingEngine(prof)
     assert engine.resolve(DeviceEvent("stick", SourceKind.BUTTON, 300, 1)) == [
-        SendEvent(name="PAN_UP", data=1)]
+        SendEvent(name="PAN_UP", data=1)
+    ]
     assert engine.resolve(DeviceEvent("stick", SourceKind.BUTTON, 301, 1)) == [
-        SendEvent(name="PAN_DOWN", data=1)]
+        SendEvent(name="PAN_DOWN", data=1)
+    ]
     assert engine.resolve(DeviceEvent("stick", SourceKind.BUTTON, 300, 0)) == []  # release
     assert engine.resolve(DeviceEvent("stick", SourceKind.BUTTON, 999, 1)) == []  # unrelated
 
 
 def test_hat_backcompat_flat_action_still_loads():
     """The old flat direction form ({type: event, ...}) parses via convention."""
-    b = Binding(name="h", source=Source(kind=SourceKind.HAT, code=16),
-                hat=HatMap.model_validate({"up": {"type": "event", "event": "PAN_UP"}}))
+    b = Binding(
+        name="h",
+        source=Source(kind=SourceKind.HAT, code=16),
+        hat=HatMap.model_validate({"up": {"type": "event", "event": "PAN_UP"}}),
+    )
     assert b.hat.up.action.event == "PAN_UP"
     assert b.hat.up.code is None  # -> convention: base+1 = 17, value -1
     assert b.hat.entries(16) == [(17, -1, EventAction(event="PAN_UP"))]
@@ -391,8 +405,11 @@ def test_hat_backcompat_flat_action_still_loads():
 
 def test_hat_model_validation():
     with pytest.raises(ValidationError):  # hat only on hat sources
-        Binding(name="x", source=Source(kind=SourceKind.BUTTON, code=1),
-                hat=HatMap(up=EventAction(event="X")))
+        Binding(
+            name="x",
+            source=Source(kind=SourceKind.BUTTON, code=1),
+            hat=HatMap(up=EventAction(event="X")),
+        )
     with pytest.raises(ValidationError):  # hat needs at least one direction
         Binding(name="x", source=Source(kind=SourceKind.HAT, code=16), hat=HatMap())
     with pytest.raises(ValidationError):  # non-hat bindings still need an action
@@ -411,8 +428,10 @@ def _gated_profile() -> Profile:
                     name="Nur mit Avionik",
                     source=Source(kind=SourceKind.BUTTON, code=288),
                     action=EventAction(event="GEAR_TOGGLE", value=1),
-                    when=[Condition(var="AVIONICS MASTER SWITCH"),
-                          Condition(var="L:AUTOPILOT_MODE", op="<", value=3)],
+                    when=[
+                        Condition(var="AVIONICS MASTER SWITCH"),
+                        Condition(var="L:AUTOPILOT_MODE", op="<", value=3),
+                    ],
                 )
             ]
         },
@@ -437,9 +456,18 @@ def test_conditions_unknown_value_blocks():
 
 
 def test_condition_equality_tolerates_float_noise():
-    prof = Profile(name="t", bindings={"yoke": [Binding(
-        name="x", source=Source(kind=SourceKind.BUTTON, code=1),
-        action=EventAction(event="X", value=1),
-        when=[Condition(var="A", value=29.92)])]})
+    prof = Profile(
+        name="t",
+        bindings={
+            "yoke": [
+                Binding(
+                    name="x",
+                    source=Source(kind=SourceKind.BUTTON, code=1),
+                    action=EventAction(event="X", value=1),
+                    when=[Condition(var="A", value=29.92)],
+                )
+            ]
+        },
+    )
     engine = MappingEngine(prof, values={"A": 29.920000001}.get)
     assert engine.resolve(DeviceEvent("yoke", SourceKind.BUTTON, 1, 1)) != []

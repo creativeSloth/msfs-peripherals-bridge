@@ -56,7 +56,7 @@ def parse_simvars(text: str) -> list[dict]:
         if (m := _SIMVAR_CLASS.search(line)) and "Helper" not in m.group(1):
             category = _humanise(m.group(1))
             continue
-        if (m := _SIMVAR_ROW.search(line)):
+        if m := _SIMVAR_ROW.search(line):
             name, unit, settable = m.group(1), m.group(2), m.group(3)
             # ":index" is a placeholder for an instance number; default to :1 so
             # the name resolves out of the box (engine 1, nav 1, ...).
@@ -64,10 +64,14 @@ def parse_simvars(text: str) -> list[dict]:
             if not name or name in seen:
                 continue
             seen.add(name)
-            out.append({
-                "name": name, "unit": unit,
-                "settable": settable == "Y", "category": category,
-            })
+            out.append(
+                {
+                    "name": name,
+                    "unit": unit,
+                    "settable": settable == "Y",
+                    "category": category,
+                }
+            )
     return out
 
 
@@ -77,13 +81,13 @@ def parse_events(text: str) -> list[dict]:
     category = "Event"
     in_list = False
     for line in text.splitlines():
-        if (m := _EVENT_CLASS.search(line)):
+        if m := _EVENT_CLASS.search(line):
             category = _humanise(m.group(1))
             in_list = True
             continue
         if not in_list:
             continue
-        if (m := _EVENT_ROW.search(line)):
+        if m := _EVENT_ROW.search(line):
             name = m.group(1)
             if not name or name in seen:
                 continue
@@ -109,13 +113,15 @@ def main() -> None:
     args.out.write_text(
         json.dumps(
             {"attribution": ATTRIBUTION, "simvars": simvars, "events": events},
-            indent=1, ensure_ascii=False,
-        ) + "\n",
+            indent=1,
+            ensure_ascii=False,
+        )
+        + "\n",
         encoding="utf-8",
     )
     print(f"wrote {args.out}")
     print(f"  {len(simvars)} SimVars, {len(events)} events")
-    cats = sorted({v['category'] for v in simvars})
+    cats = sorted({v["category"] for v in simvars})
     print(f"  SimVar categories ({len(cats)}): {', '.join(cats)}")
 
 

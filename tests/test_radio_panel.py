@@ -17,23 +17,33 @@ from msfs_peripherals_bridge.simconnect.protocol import SendEvent, SetSimVar
 
 def _com1() -> RadioBank:
     return RadioBank(
-        code=0, label="COM1", fine_view=True,
-        active="COM ACTIVE FREQUENCY:1", standby="COM STANDBY FREQUENCY:1",
+        code=0,
+        label="COM1",
+        fine_view=True,
+        active="COM ACTIVE FREQUENCY:1",
+        standby="COM STANDBY FREQUENCY:1",
         swap_event="COM1_RADIO_SWAP",
-        whole_inc="COM_RADIO_WHOLE_INC", whole_dec="COM_RADIO_WHOLE_DEC",
-        fract_inc="COM_RADIO_FRACT_INC", fract_dec="COM_RADIO_FRACT_DEC",
-        fract_fast_inc="COM_RADIO_25_INC", fract_fast_dec="COM_RADIO_25_DEC",
+        whole_inc="COM_RADIO_WHOLE_INC",
+        whole_dec="COM_RADIO_WHOLE_DEC",
+        fract_inc="COM_RADIO_FRACT_INC",
+        fract_dec="COM_RADIO_FRACT_DEC",
+        fract_fast_inc="COM_RADIO_25_INC",
+        fract_fast_dec="COM_RADIO_25_DEC",
     )
 
 
 def _nav1() -> RadioBank:
     # NAV has no 8.33 distinction -> no fast events (fine == coarse).
     return RadioBank(
-        code=1, label="NAV1",
-        active="NAV ACTIVE FREQUENCY:1", standby="NAV STANDBY FREQUENCY:1",
+        code=1,
+        label="NAV1",
+        active="NAV ACTIVE FREQUENCY:1",
+        standby="NAV STANDBY FREQUENCY:1",
         swap_event="NAV1_RADIO_SWAP",
-        whole_inc="NAV1_RADIO_WHOLE_INC", whole_dec="NAV1_RADIO_WHOLE_DEC",
-        fract_inc="NAV1_RADIO_FRACT_INC", fract_dec="NAV1_RADIO_FRACT_DEC",
+        whole_inc="NAV1_RADIO_WHOLE_INC",
+        whole_dec="NAV1_RADIO_WHOLE_DEC",
+        fract_inc="NAV1_RADIO_FRACT_INC",
+        fract_dec="NAV1_RADIO_FRACT_DEC",
     )
 
 
@@ -49,25 +59,39 @@ def _dme() -> DmeBank:
 
 def _upper() -> RadioUnit:
     return RadioUnit(
-        name="upper", row="upper",
+        name="upper",
+        row="upper",
         banks=[_com1(), _nav1(), _dme(), XpdrBank(code=3), AdfBank(code=4)],
-        outer_cw=5, outer_ccw=6, inner_cw=7, inner_ccw=8, swap=9,
+        outer_cw=5,
+        outer_ccw=6,
+        inner_cw=7,
+        inner_ccw=8,
+        swap=9,
     )
 
 
 def _lower() -> RadioUnit:
     return RadioUnit(
-        name="lower", row="lower",
+        name="lower",
+        row="lower",
         banks=[
             RadioBank(
-                code=10, label="COM2",
-                active="COM ACTIVE FREQUENCY:2", standby="COM STANDBY FREQUENCY:2",
+                code=10,
+                label="COM2",
+                active="COM ACTIVE FREQUENCY:2",
+                standby="COM STANDBY FREQUENCY:2",
                 swap_event="COM2_RADIO_SWAP",
-                whole_inc="COM2_RADIO_WHOLE_INC", whole_dec="COM2_RADIO_WHOLE_DEC",
-                fract_inc="COM2_RADIO_FRACT_INC", fract_dec="COM2_RADIO_FRACT_DEC",
+                whole_inc="COM2_RADIO_WHOLE_INC",
+                whole_dec="COM2_RADIO_WHOLE_DEC",
+                fract_inc="COM2_RADIO_FRACT_INC",
+                fract_dec="COM2_RADIO_FRACT_DEC",
             ),
         ],
-        outer_cw=15, outer_ccw=16, inner_cw=17, inner_ccw=18, swap=19,
+        outer_cw=15,
+        outer_ccw=16,
+        inner_cw=17,
+        inner_ccw=18,
+        swap=19,
     )
 
 
@@ -84,9 +108,12 @@ def test_default_selection_is_first_bank():
 def test_subscriptions_cover_active_and_standby_of_all_banks():
     subs = set(RadioPanelController(make_config()).subscriptions())
     assert {
-        "COM ACTIVE FREQUENCY:1", "COM STANDBY FREQUENCY:1",
-        "NAV ACTIVE FREQUENCY:1", "NAV STANDBY FREQUENCY:1",
-        "COM ACTIVE FREQUENCY:2", "COM STANDBY FREQUENCY:2",
+        "COM ACTIVE FREQUENCY:1",
+        "COM STANDBY FREQUENCY:1",
+        "NAV ACTIVE FREQUENCY:1",
+        "NAV STANDBY FREQUENCY:1",
+        "COM ACTIVE FREQUENCY:2",
+        "COM STANDBY FREQUENCY:2",
     } <= subs
 
 
@@ -322,16 +349,27 @@ def test_dme_simvars_are_subscribed():
 def _dme_bidir_config() -> RadioPanelOutput:
     """Config whose upper DME (code 2) is backed by a source_var (bidirectional)."""
     dme = DmeBank(
-        code=2, source_var="L:DME_SRC",
+        code=2,
+        source_var="L:DME_SRC",
         sources=[
             DmeSource(label="1", distance="NAV DME:1", speed="NAV DMESPEED:1"),
             DmeSource(label="2", distance="NAV DME:2", speed="NAV DMESPEED:2"),
         ],
     )
-    return RadioPanelOutput(units=[RadioUnit(
-        name="upper", row="upper", banks=[_com1(), dme],
-        outer_cw=5, outer_ccw=6, inner_cw=7, inner_ccw=8, swap=9,
-    )])
+    return RadioPanelOutput(
+        units=[
+            RadioUnit(
+                name="upper",
+                row="upper",
+                banks=[_com1(), dme],
+                outer_cw=5,
+                outer_ccw=6,
+                inner_cw=7,
+                inner_ccw=8,
+                swap=9,
+            )
+        ]
+    )
 
 
 def test_dme_source_var_drives_display():
@@ -510,11 +548,20 @@ def test_adf_freq_vars_subscribed():
 
 
 def _xpdr_baro_config() -> RadioPanelOutput:
-    return RadioPanelOutput(units=[RadioUnit(
-        name="u", row="upper",
-        banks=[XpdrBank(code=3, baro_var="KOHLSMAN SETTING HG")],
-        outer_cw=5, outer_ccw=6, inner_cw=7, inner_ccw=8, swap=9,
-    )])
+    return RadioPanelOutput(
+        units=[
+            RadioUnit(
+                name="u",
+                row="upper",
+                banks=[XpdrBank(code=3, baro_var="KOHLSMAN SETTING HG")],
+                outer_cw=5,
+                outer_ccw=6,
+                inner_cw=7,
+                inner_ccw=8,
+                swap=9,
+            )
+        ]
+    )
 
 
 def test_xpdr_outer_knob_fires_baro_events():

@@ -15,6 +15,7 @@ from __future__ import annotations
 
 import re
 from dataclasses import dataclass
+from typing import Any, cast
 
 from .i18n import tr
 from .models import (
@@ -257,11 +258,17 @@ def template_elements(
         src = b.source
         if b.hat is not None:
             codes = sorted({c for c, _v, _a in b.hat.entries(src.code)})
-            inputs.append(InputBlock(kind="selector", name=b.name, code=src.code,
-                                     positions=codes))
+            inputs.append(InputBlock(kind="selector", name=b.name, code=src.code, positions=codes))
         elif src.kind == SourceKind.AXIS:
-            inputs.append(InputBlock(kind="axis", name=b.name, code=src.code,
-                                     raw_min=src.raw_min, raw_max=src.raw_max))
+            inputs.append(
+                InputBlock(
+                    kind="axis",
+                    name=b.name,
+                    code=src.code,
+                    raw_min=src.raw_min,
+                    raw_max=src.raw_max,
+                )
+            )
         elif src.kind == SourceKind.SWITCH:
             inputs.append(InputBlock(kind="switch", name=b.name, code=src.code))
         else:  # button (and any other momentary source)
@@ -269,36 +276,74 @@ def template_elements(
 
     for o in profile.outputs.get(ddef.id, []):
         if isinstance(o, MultiPanelOutput):
-            inputs.append(InputBlock(kind="encoder", name=tr("Wert-Encoder"),
-                                     cw=ENCODER_CW, ccw=ENCODER_CCW))
+            inputs.append(
+                InputBlock(kind="encoder", name=tr("Wert-Encoder"), cw=ENCODER_CW, ccw=ENCODER_CCW)
+            )
             if o.selector:
-                inputs.append(InputBlock(kind="selector", name=tr("Modus-Wahl"),
-                                         positions=[e.code for e in o.selector]))
+                inputs.append(
+                    InputBlock(
+                        kind="selector",
+                        name=tr("Modus-Wahl"),
+                        positions=[e.code for e in o.selector],
+                    )
+                )
             if o.dimmer is not None:
-                inputs.append(InputBlock(kind="encoder", name=tr("Helligkeit"),
-                                         cw=o.dimmer.cw, ccw=o.dimmer.ccw))
+                inputs.append(
+                    InputBlock(
+                        kind="encoder", name=tr("Helligkeit"), cw=o.dimmer.cw, ccw=o.dimmer.ccw
+                    )
+                )
             for name in MULTI_BUTTON_ORDER:
                 outputs.append(OutputBlock(kind="led", name=f"LED {name.upper()}"))
             # one physical 2x5 seven-segment display, ten addressable cells.
-            outputs.append(OutputBlock(kind="display", name=tr("Display"),
-                                       cells=10, display_kind="7segment"))
+            outputs.append(
+                OutputBlock(kind="display", name=tr("Display"), cells=10, display_kind="7segment")
+            )
         elif isinstance(o, RadioPanelOutput):
             for u in o.units:
                 lbl = u.name or u.row
-                inputs.append(InputBlock(kind="encoder", name=f"{lbl} · {tr('außen')}",
-                                         cw=u.outer_cw, ccw=u.outer_ccw))
-                inputs.append(InputBlock(kind="encoder", name=f"{lbl} · {tr('innen')}",
-                                         cw=u.inner_cw, ccw=u.inner_ccw))
+                inputs.append(
+                    InputBlock(
+                        kind="encoder",
+                        name=f"{lbl} · {tr('außen')}",
+                        cw=u.outer_cw,
+                        ccw=u.outer_ccw,
+                    )
+                )
+                inputs.append(
+                    InputBlock(
+                        kind="encoder",
+                        name=f"{lbl} · {tr('innen')}",
+                        cw=u.inner_cw,
+                        ccw=u.inner_ccw,
+                    )
+                )
                 inputs.append(InputBlock(kind="button", name=f"{lbl} · SWAP", code=u.swap))
                 if u.banks:
-                    inputs.append(InputBlock(kind="selector",
-                                             name=f"{lbl} · {tr('Modus-Wahl')}",
-                                             positions=[bk.code for bk in u.banks]))
+                    inputs.append(
+                        InputBlock(
+                            kind="selector",
+                            name=f"{lbl} · {tr('Modus-Wahl')}",
+                            positions=[bk.code for bk in u.banks],
+                        )
+                    )
                 # each unit shows an active + a standby five-digit display.
-                outputs.append(OutputBlock(kind="display", name=f"{lbl} · {tr('Aktiv')}",
-                                           cells=5, display_kind="7segment"))
-                outputs.append(OutputBlock(kind="display", name=f"{lbl} · {tr('Standby')}",
-                                           cells=5, display_kind="7segment"))
+                outputs.append(
+                    OutputBlock(
+                        kind="display",
+                        name=f"{lbl} · {tr('Aktiv')}",
+                        cells=5,
+                        display_kind="7segment",
+                    )
+                )
+                outputs.append(
+                    OutputBlock(
+                        kind="display",
+                        name=f"{lbl} · {tr('Standby')}",
+                        cells=5,
+                        display_kind="7segment",
+                    )
+                )
         elif isinstance(o, GearLedOutput):
             for _wheel, label in _GEAR_WHEELS:
                 outputs.append(OutputBlock(kind="led", name=f"LED {label}"))
@@ -354,16 +399,23 @@ def describe_transform(t: Transform) -> str:
 def describe_binding(binding: Binding) -> BindingRow:
     """Flatten one :class:`Binding` into its four display columns."""
     if binding.hat is not None:
-        parts = [f"{sym} {describe_action(a.action)}"
-                 for sym, a in (("▲", binding.hat.up), ("▼", binding.hat.down),
-                                ("◀", binding.hat.left), ("▶", binding.hat.right))
-                 if a is not None]
+        parts = [
+            f"{sym} {describe_action(a.action)}"
+            for sym, a in (
+                ("▲", binding.hat.up),
+                ("▼", binding.hat.down),
+                ("◀", binding.hat.left),
+                ("▶", binding.hat.right),
+            )
+            if a is not None
+        ]
         action = tr("Hat") + ": " + " · ".join(parts)
     else:
-        action = describe_action(binding.action)
+        action = describe_action(binding.action) if binding.action is not None else ""
         if binding.split is not None:
-            action += (f" · {tr('unter')} {binding.split.at}: "
-                       f"{describe_action(binding.split.action)}")
+            action += (
+                f" · {tr('unter')} {binding.split.at}: {describe_action(binding.split.action)}"
+            )
     if binding.when:  # gated bindings are recognisable in the table
         action = f"⚑{len(binding.when)} · " + action
     return BindingRow(
@@ -393,13 +445,16 @@ def _describe_gear_leds(o: GearLedOutput) -> list[str]:
 
 
 def _describe_selector(e: SelectorEntry) -> str:
-    step = f"{tr('Schritt')} {e.step:g}" + (f"/{tr('schnell')} {e.fast_step:g}"
-                                            if e.fast_step else "")
+    step = f"{tr('Schritt')} {e.step:g}" + (
+        f"/{tr('schnell')} {e.fast_step:g}" if e.fast_step else ""
+    )
     target = f"event {e.set_event}" if e.set_event else tr("SimVar-Write")
     flags = [f for f, on in (("rollover", e.rollover), ("sticky", e.sticky)) if on]
     tail = (", " + ", ".join(flags)) if flags else ""
-    return (f"{tr('Selektor')} {e.code} {e.label}: {e.simvar} "
-            f"[{step}, {e.min:g}…{e.max:g}, {target}, {tr('Zeile')} {e.display_row}{tail}]")
+    return (
+        f"{tr('Selektor')} {e.code} {e.label}: {e.simvar} "
+        f"[{step}, {e.min:g}…{e.max:g}, {target}, {tr('Zeile')} {e.display_row}{tail}]"
+    )
 
 
 def _describe_multi(o: MultiPanelOutput) -> list[str]:
@@ -413,12 +468,14 @@ def _describe_multi(o: MultiPanelOutput) -> list[str]:
     lines.append(f"{tr('Mode-Var')}: {o.mode_var}")
     lines += [f"LED {btn} ← {var}" for btn, var in o.bool_leds.items()]
     if o.source_toggle is not None:
-        lines.append(f"{tr('Quellen-Umschalter')}: "
-                     f"{o.source_toggle.device} code {o.source_toggle.code}")
+        lines.append(
+            f"{tr('Quellen-Umschalter')}: {o.source_toggle.device} code {o.source_toggle.code}"
+        )
     if o.dimmer is not None:
         tgts = ", ".join((t.var or t.event or "?") for t in o.dimmer.targets)
-        lines.append(f"{tr('Dimmer')} (cw {o.dimmer.cw}/ccw {o.dimmer.ccw}, "
-                     f"{o.dimmer.step:g}%): {tgts}")
+        lines.append(
+            f"{tr('Dimmer')} (cw {o.dimmer.cw}/ccw {o.dimmer.ccw}, {o.dimmer.step:g}%): {tgts}"
+        )
     if o.power:
         lines.append(f"{tr('Power-Gate')}: {o.power}")
     return lines
@@ -427,15 +484,19 @@ def _describe_multi(o: MultiPanelOutput) -> list[str]:
 def _describe_bank(b: object) -> str:
     if isinstance(b, RadioBank):  # COM/NAV freq
         fine = ", fine-view" if b.fine_view else ""
-        return (f"{b.code} {b.label} (freq): act={b.active}, stby={b.standby}, "
-                f"swap {b.swap_event}{fine}")
+        return (
+            f"{b.code} {b.label} (freq): act={b.active}, stby={b.standby}, "
+            f"swap {b.swap_event}{fine}"
+        )
     if isinstance(b, DmeBank):
         srcs = "/".join(s.label for s in b.sources)
         sv = f", src-var {b.source_var}" if b.source_var else ""
         return f"{b.code} {b.label} (DME, {tr('nur Anzeige')}): {tr('Quellen')} {srcs}{sv}"
     if isinstance(b, AdfBank):
-        return (f"{b.code} {b.label} (ADF): {b.dig1_var}, {b.dig2_var}, {b.dig3_var} "
-                f"[{b.min_khz}…{b.max_khz} kHz]")
+        return (
+            f"{b.code} {b.label} (ADF): {b.dig1_var}, {b.dig2_var}, {b.dig3_var} "
+            f"[{b.min_khz}…{b.max_khz} kHz]"
+        )
     if isinstance(b, XpdrBank):
         baro = f", QNH {b.baro_var}" if b.baro_var else ""
         return f"{b.code} {b.label} (XPDR): code {b.code_var}, set {b.set_event}{baro}"
@@ -445,8 +506,10 @@ def _describe_bank(b: object) -> str:
 def _describe_radio(o: RadioPanelOutput) -> list[str]:
     lines: list[str] = []
     for u in o.units:
-        lines.append(f"{tr('Einheit')} {u.name} ({u.row}): Encoder outer "
-                     f"{u.outer_cw}/{u.outer_ccw}, inner {u.inner_cw}/{u.inner_ccw}, swap {u.swap}")
+        lines.append(
+            f"{tr('Einheit')} {u.name} ({u.row}): Encoder outer "
+            f"{u.outer_cw}/{u.outer_ccw}, inner {u.inner_cw}/{u.inner_ccw}, swap {u.swap}"
+        )
         lines += ["    " + _describe_bank(b) for b in u.banks]
     if o.power:
         lines.append(f"{tr('Power-Gate')}: {o.power}")
@@ -494,8 +557,7 @@ SPLIT_ACTION_TYPES = ("event", "simvar", "rpn")
 CURVES = ("linear", "expo", "squared")
 # Hat directions with their editor symbols — evdev sign convention:
 # X (base code): left -1 / right +1; Y (base+1): up -1 / down +1.
-HAT_DIRECTIONS = (("up", "▲ oben"), ("down", "▼ unten"),
-                  ("left", "◀ links"), ("right", "▶ rechts"))
+HAT_DIRECTIONS = (("up", "▲ oben"), ("down", "▼ unten"), ("left", "◀ links"), ("right", "▶ rechts"))
 
 
 def next_copy_name(name: str, existing) -> str:
@@ -555,6 +617,7 @@ def seq_action_to_rows(action: SequenceAction) -> dict:
     Each row is a flat ``{target, name, value, unit}`` (all strings) — ``target``
     is ``event`` or ``simvar``, ``name`` the event/var name.
     """
+
     def row(s: WriteStep) -> dict:
         return {
             "target": "event" if s.event else "simvar",
@@ -562,8 +625,8 @@ def seq_action_to_rows(action: SequenceAction) -> dict:
             "value": _fmt_num(s.value),
             "unit": s.unit,
         }
-    return {"on": [row(s) for s in action.on_edge],
-            "off": [row(s) for s in action.off_edge]}
+
+    return {"on": [row(s) for s in action.on_edge], "off": [row(s) for s in action.off_edge]}
 
 
 def rows_to_seq_action(on_rows: list[dict], off_rows: list[dict]) -> dict:
@@ -573,6 +636,7 @@ def rows_to_seq_action(on_rows: list[dict], off_rows: list[dict]) -> dict:
     (mirrors :class:`~..models.SequenceAction`). ``unit`` is emitted only for a
     non-default simvar step.
     """
+
     def step(r: dict) -> dict:
         name = (r.get("name") or "").strip()
         if not name:
@@ -598,9 +662,14 @@ def rows_to_seq_action(on_rows: list[dict], off_rows: list[dict]) -> dict:
 def _blank_action_fields(prefix: str = "") -> dict:
     """Blank editor fields for one action slot (``prefix`` = ``sp_`` for split)."""
     return {
-        f"{prefix}ev_event": "", f"{prefix}ev_value": "",
-        f"{prefix}sv_simvar": "", f"{prefix}sv_unit": "number", f"{prefix}sv_invert": False,
-        f"{prefix}efv_read": "", f"{prefix}efv_event": "", f"{prefix}efv_unit": "number",
+        f"{prefix}ev_event": "",
+        f"{prefix}ev_value": "",
+        f"{prefix}sv_simvar": "",
+        f"{prefix}sv_unit": "number",
+        f"{prefix}sv_invert": False,
+        f"{prefix}efv_read": "",
+        f"{prefix}efv_event": "",
+        f"{prefix}efv_unit": "number",
         f"{prefix}rpn_code": "",
     }
 
@@ -701,8 +770,11 @@ def binding_to_form(binding: Binding) -> dict:
         "raw_max": "" if s.raw_max is None else str(s.raw_max),
         "is_axis": str(s.kind) == "axis",
     }
-    form.update(_action_fields(binding.action) if binding.action is not None
-                else {**_blank_action_fields(), "action_type": "event"})
+    form.update(
+        _action_fields(binding.action)
+        if binding.action is not None
+        else {**_blank_action_fields(), "action_type": "event"}
+    )
     form.update(_transform_fields(binding.transform))
     form.update(_hat_fields(binding.hat))
     sp = binding.split
@@ -779,9 +851,13 @@ def _form_transform(form: dict) -> dict:
             rlo, rhi = _parse_int(rmin_s, "raw_min"), _parse_int(rmax_s, "raw_max")
             lo_b, hi_b = min(rlo, rhi), max(rlo, rhi)
             if lo < lo_b or hi > hi_b:
-                raise ValueError(tr(
-                    "Totzone muss innerhalb Eingang min…max liegen ({lo}…{hi}).",
-                    lo=lo_b, hi=hi_b))
+                raise ValueError(
+                    tr(
+                        "Totzone muss innerhalb Eingang min…max liegen ({lo}…{hi}).",
+                        lo=lo_b,
+                        hi=hi_b,
+                    )
+                )
         tf["deadzone_min"] = lo
         tf["deadzone_max"] = hi
     else:
@@ -831,7 +907,7 @@ def form_to_binding(form: dict, original_action: dict | None = None) -> dict:
         # a hat binding maps its four directions in one place — no single action
         binding["hat"] = _form_hat(form)
     else:
-        binding["action"] = _form_action(form.get("action_type"), form, original_action)
+        binding["action"] = _form_action(cast(str, form.get("action_type")), form, original_action)
     if kind == "axis":
         tf = _form_transform(form)
         if tf:
@@ -851,7 +927,8 @@ def _form_split(form: dict) -> dict:
     atype = sub.get("action_type")
     if atype not in SPLIT_ACTION_TYPES:
         raise ValueError(
-            tr("Split: Aktions-Typ '{atype}' geht unterhalb des Detents nicht.", atype=atype))
+            tr("Split: Aktions-Typ '{atype}' geht unterhalb des Detents nicht.", atype=atype)
+        )
     split: dict = {
         "at": _parse_int(form.get("sp_at"), "Detent (roh)"),
         "action": _form_action(atype, sub, None),
@@ -865,9 +942,16 @@ def _form_split(form: dict) -> dict:
 def blank_binding_form(kind: str = "button") -> dict:
     """Flat form values for a brand-new binding (used by 'add')."""
     form = {
-        "name": "Neues Binding", "kind": kind, "code": "0", "raw_min": "", "raw_max": "",
-        "is_axis": kind == "axis", "action_type": "event",
-        "sp_enabled": False, "sp_at": "", "sp_action_type": "event",
+        "name": "Neues Binding",
+        "kind": kind,
+        "code": "0",
+        "raw_min": "",
+        "raw_max": "",
+        "is_axis": kind == "axis",
+        "action_type": "event",
+        "sp_enabled": False,
+        "sp_at": "",
+        "sp_action_type": "event",
     }
     form.update(_blank_action_fields())
     form.update(_blank_action_fields("sp_"))
@@ -913,39 +997,57 @@ FIELD_LABEL = {
 # (per user: raw YAML names like `fast_step` said nothing). Keyed by field
 # name — names are unique enough across the output models in practice.
 OUTPUT_FIELD_HELP: dict[str, tuple[str, str]] = {
-    "code": ("Hardware-Code", "Bit/Code des Schalters bzw. der Selektor-Position am Panel "
-             "(gemessen, s. docs/memory/*-hid.md). Nur ändern, wenn die Hardware neu "
-             "vermessen wurde."),
+    "code": (
+        "Hardware-Code",
+        "Bit/Code des Schalters bzw. der Selektor-Position am Panel "
+        "(gemessen, s. docs/memory/*-hid.md). Nur ändern, wenn die Hardware neu "
+        "vermessen wurde.",
+    ),
     "label": ("Bezeichnung", "Menschenlesbarer Name, nur für Anzeige/Logs."),
     "unit": ("Einheit", "Einheit für Lesen/Schreiben der Variable (meist number)."),
     "simvar": ("Variable", "Die Sim-Variable, deren Wert angezeigt/editiert wird."),
-    "set_event": ("Setz-Event", "K:-Event zum Setzen des Werts; leer = Variable wird "
-                  "direkt geschrieben."),
+    "set_event": (
+        "Setz-Event",
+        "K:-Event zum Setzen des Werts; leer = Variable wird direkt geschrieben.",
+    ),
     "step": ("Schritt", "Wertänderung pro Encoder-Rastung."),
-    "fast_step": ("Schnell-Schritt", "Größerer Schritt, wenn der Drehknopf schnell gedreht "
-                  "wird. Leer = keine Beschleunigung."),
+    "fast_step": (
+        "Schnell-Schritt",
+        "Größerer Schritt, wenn der Drehknopf schnell gedreht wird. Leer = keine Beschleunigung.",
+    ),
     "min": ("Minimum", "Kleinster einstellbarer Wert."),
     "max": ("Maximum", "Größter einstellbarer Wert."),
-    "rollover": ("Umlauf", "Am Ende zum Anfang weiterdrehen (z. B. Heading 359→0) statt "
-                 "anzuschlagen."),
-    "sticky": ("Encoder-eigen", "Anzeige behält den zuletzt gedrehten Wert, statt der "
-               "Live-Variable zu folgen (gegen Gauges, die den Wert überschreiben)."),
-    "off_above": ("Aus-Schwelle", "Live-Werte ab dieser Schwelle (oder fehlende) werden als "
-                  "0 angezeigt — fängt „Aus“-Parkwerte wie 80000 ab."),
+    "rollover": (
+        "Umlauf",
+        "Am Ende zum Anfang weiterdrehen (z. B. Heading 359→0) statt anzuschlagen.",
+    ),
+    "sticky": (
+        "Encoder-eigen",
+        "Anzeige behält den zuletzt gedrehten Wert, statt der "
+        "Live-Variable zu folgen (gegen Gauges, die den Wert überschreiben).",
+    ),
+    "off_above": (
+        "Aus-Schwelle",
+        "Live-Werte ab dieser Schwelle (oder fehlende) werden als "
+        "0 angezeigt — fängt „Aus“-Parkwerte wie 80000 ab.",
+    ),
     "display_row": ("Display-Zeile", "Obere oder untere Zeile des Panel-Displays."),
     "ap_master": ("AP-Master-Var", "Bool-Variable für die Autopilot-Master-LED."),
     "mode_var": ("Modus-Var", "Variable mit dem aktiven AP-Modus (steuert die Modus-LEDs)."),
-    "power": ("Power-Gate", "Bool-Variable: bei 0 bleiben Display/LEDs dunkel (z. B. "
-              "Batterie aus). Leer = immer an."),
+    "power": (
+        "Power-Gate",
+        "Bool-Variable: bei 0 bleiben Display/LEDs dunkel (z. B. Batterie aus). Leer = immer an.",
+    ),
     "device": ("Gerät", "Geräte-ID aus config/devices.yaml (z. B. yoke)."),
     "cw": ("Code rechtsdrehen", "Eingabe-Code für eine Rastung im Uhrzeigersinn (heller)."),
-    "ccw": ("Code linksdrehen", "Eingabe-Code für eine Rastung gegen den Uhrzeigersinn "
-            "(dunkler)."),
+    "ccw": ("Code linksdrehen", "Eingabe-Code für eine Rastung gegen den Uhrzeigersinn (dunkler)."),
     "var": ("Variable", "Sim-/L-Variable, die auf den skalierten Wert gesetzt wird."),
     "event": ("Event", "K:-Event, das mit dem skalierten Wert gefeuert wird."),
     "full": ("Vollwert", "Wert der Lampe bei 100 % Helligkeit (Skala des Ziels)."),
-    "follow_event": ("Folge-Event", "An/Aus-Licht, das mitschaltet, sobald der Dimmer über "
-                     "dem Minimum steht."),
+    "follow_event": (
+        "Folge-Event",
+        "An/Aus-Licht, das mitschaltet, sobald der Dimmer über dem Minimum steht.",
+    ),
     "nose": ("Bugrad-Var", "Positions-Variable des Bugfahrwerks (0=oben … 1=unten)."),
     "left": ("Links-Var", "Positions-Variable des linken Hauptfahrwerks."),
     "right": ("Rechts-Var", "Positions-Variable des rechten Hauptfahrwerks."),
@@ -954,42 +1056,57 @@ OUTPUT_FIELD_HELP: dict[str, tuple[str, str]] = {
     "row": ("Display-Hälfte", "Obere oder untere Hälfte des Radio-Panel-Displays."),
     # A Radio unit has ONE dual-concentric encoder (outer + inner rings, pushable);
     # no left/right — the two directions are the rotation sense (CW/CCW).
-    "outer_cw": ("Außen · im UZS",
-                 "Eingabe-Code: äußerer (grober) Encoder-Ring im Uhrzeigersinn."),
-    "outer_ccw": ("Außen · gegen UZS",
-                  "Eingabe-Code: äußerer Encoder-Ring gegen den Uhrzeigersinn."),
-    "inner_cw": ("Innen · im UZS",
-                 "Eingabe-Code: innerer (feiner) Encoder-Ring im Uhrzeigersinn."),
-    "inner_ccw": ("Innen · gegen UZS",
-                  "Eingabe-Code: innerer Encoder-Ring gegen den Uhrzeigersinn."),
-    "swap": ("Druck (Tausch)",
-             "Eingabe-Code des Drückens auf den Doppelencoder (ACT↔STBY-Tausch)."),
+    "outer_cw": ("Außen · im UZS", "Eingabe-Code: äußerer (grober) Encoder-Ring im Uhrzeigersinn."),
+    "outer_ccw": (
+        "Außen · gegen UZS",
+        "Eingabe-Code: äußerer Encoder-Ring gegen den Uhrzeigersinn.",
+    ),
+    "inner_cw": ("Innen · im UZS", "Eingabe-Code: innerer (feiner) Encoder-Ring im Uhrzeigersinn."),
+    "inner_ccw": (
+        "Innen · gegen UZS",
+        "Eingabe-Code: innerer Encoder-Ring gegen den Uhrzeigersinn.",
+    ),
+    "swap": (
+        "Druck (Tausch)",
+        "Eingabe-Code des Drückens auf den Doppelencoder (ACT↔STBY-Tausch).",
+    ),
     "active": ("Aktiv-Frequenz", "Variable der ACTIVE-Frequenz (obere Display-Zeile)."),
-    "standby": ("Standby-Frequenz", "Variable der STANDBY-Frequenz (wird getunt, untere "
-                "Zeile)."),
+    "standby": ("Standby-Frequenz", "Variable der STANDBY-Frequenz (wird getunt, untere Zeile)."),
     "swap_event": ("Tausch-Event", "Event, das ACTIVE und STANDBY tauscht."),
     "whole_inc": ("MHz hoch", "Event des äußeren Encoder-Rings: ganze MHz aufwärts."),
     "whole_dec": ("MHz runter", "Event des äußeren Encoder-Rings: ganze MHz abwärts."),
     "fract_inc": ("kHz hoch", "Event des inneren Encoder-Rings: Fein-Schritt aufwärts."),
     "fract_dec": ("kHz runter", "Event des inneren Encoder-Rings: Fein-Schritt abwärts."),
-    "fract_fast_inc": ("kHz hoch (schnell)", "Event bei schnellem Drehen (gröberer "
-                       "Schritt). Leer = wie kHz hoch."),
-    "fract_fast_dec": ("kHz runter (schnell)", "Event bei schnellem Drehen abwärts. "
-                       "Leer = wie kHz runter."),
-    "fine_view": ("Fein-Anzeige", "Innerer Encoder-Ring schaltet die Standby-Zeile auf 3 "
-                  "Nachkommastellen (nur COM 8.33 sinnvoll)."),
+    "fract_fast_inc": (
+        "kHz hoch (schnell)",
+        "Event bei schnellem Drehen (gröberer Schritt). Leer = wie kHz hoch.",
+    ),
+    "fract_fast_dec": (
+        "kHz runter (schnell)",
+        "Event bei schnellem Drehen abwärts. Leer = wie kHz runter.",
+    ),
+    "fine_view": (
+        "Fein-Anzeige",
+        "Innerer Encoder-Ring schaltet die Standby-Zeile auf 3 "
+        "Nachkommastellen (nur COM 8.33 sinnvoll).",
+    ),
     "distance": ("Distanz-Var", "DME-Entfernungs-Variable (nautische Meilen)."),
     "speed": ("Geschw.-Var", "DME-Geschwindigkeits-Variable (Knoten)."),
-    "source_var": ("Quellen-Var", "LVar mit der DME-Quelle (0=NAV1, 1=NAV2) — bidirektional "
-                   "mit dem Cockpit-Schalter. Leer = nur lokal durchschalten."),
+    "source_var": (
+        "Quellen-Var",
+        "LVar mit der DME-Quelle (0=NAV1, 1=NAV2) — bidirektional "
+        "mit dem Cockpit-Schalter. Leer = nur lokal durchschalten.",
+    ),
     "code_var": ("Squawk-Var", "Variable des Transponder-Codes (BCD16)."),
     "dig1_var": ("Hunderter-Var", "KR-85-Zähler der Hunderter-Gruppe (0-16)."),
     "dig2_var": ("Zehner-Var", "KR-85-Zähler der Zehnerstelle (0-9)."),
     "dig3_var": ("Einer-Var", "KR-85-Zähler der Einerstelle (0-9)."),
     "min_khz": ("kHz-Minimum", "Kleinste einstellbare ADF-Frequenz."),
     "max_khz": ("kHz-Maximum", "Größte einstellbare ADF-Frequenz."),
-    "baro_var": ("QNH-Var", "Variable des Luftdrucks für die untere Zeile (inHg). Leer = "
-                 "Zeile bleibt dunkel."),
+    "baro_var": (
+        "QNH-Var",
+        "Variable des Luftdrucks für die untere Zeile (inHg). Leer = Zeile bleibt dunkel.",
+    ),
     "baro_scale": ("QNH-Faktor", "Multiplikator der QNH-Var nach inHg (schon inHg = 1)."),
     "baro_inc": ("QNH hoch", "Event des äußeren Encoder-Rings: Luftdruck aufwärts."),
     "baro_dec": ("QNH runter", "Event des äußeren Encoder-Rings: Luftdruck abwärts."),
@@ -1004,6 +1121,7 @@ def output_field_help(path: tuple) -> str:
     entry = OUTPUT_FIELD_HELP.get(name)
     return f"{tr(entry[1])}  (YAML: {name})" if entry else ""
 
+
 # templates for "+ Eintrag" per list field; banks offer one template per kind.
 _LIST_TEMPLATES: dict[str, dict] = {
     "selector": {"code": 0, "label": "NEU", "simvar": "", "min": 0, "max": 100},
@@ -1013,11 +1131,21 @@ _LIST_TEMPLATES: dict[str, dict] = {
 }
 _BANK_TEMPLATES: dict[str, dict] = {
     "COM/NAV-Frequenz": {
-        "code": 0, "label": "NEU", "active": "", "standby": "", "swap_event": "",
-        "whole_inc": "", "whole_dec": "", "fract_inc": "", "fract_dec": "",
+        "code": 0,
+        "label": "NEU",
+        "active": "",
+        "standby": "",
+        "swap_event": "",
+        "whole_inc": "",
+        "whole_dec": "",
+        "fract_inc": "",
+        "fract_dec": "",
     },
-    "DME": {"kind": "dme", "code": 0,
-            "sources": [{"label": "1", "distance": "NAV DME:1", "speed": "NAV DMESPEED:1"}]},
+    "DME": {
+        "kind": "dme",
+        "code": 0,
+        "sources": [{"label": "1", "distance": "NAV DME:1", "speed": "NAV DMESPEED:1"}],
+    },
     "ADF (KR-85)": {"kind": "adf", "code": 0},
     "XPDR": {"kind": "xpdr", "code": 0},
 }
@@ -1094,8 +1222,13 @@ _ENTRY_WORD = {
 
 
 def _entry_label(name: str, i: int, item) -> str:
-    tag = getattr(item, "label", None) or getattr(item, "name", None) \
-        or getattr(item, "var", None) or getattr(item, "event", None) or ""
+    tag = (
+        getattr(item, "label", None)
+        or getattr(item, "name", None)
+        or getattr(item, "var", None)
+        or getattr(item, "event", None)
+        or ""
+    )
     kind = getattr(item, "kind", "")
     word = tr(_ENTRY_WORD.get(name, name))
     label = f"{word} {tag}" if tag else f"{word} {i + 1}"
@@ -1118,41 +1251,69 @@ def _walk_output(model, path: tuple, nodes: list[OutputNode]) -> None:
         kind, choices, optional = _leaf_kind(field.annotation)
         if kind is not None and not isinstance(val, BaseModel):
             label = tr(OUTPUT_FIELD_HELP.get(name, (name, ""))[0])  # German where known
-            nodes.append(OutputNode(
-                fpath, label, _display(val), kind, choices=choices, optional=optional,
-                pickable=(kind == "str" and name not in _NOT_PICKABLE),
-            ))
+            nodes.append(
+                OutputNode(
+                    fpath,
+                    label,
+                    _display(val),
+                    kind,
+                    choices=choices,
+                    optional=optional,
+                    pickable=(kind == "str" and name not in _NOT_PICKABLE),
+                )
+            )
             continue
         origin = typing.get_origin(field.annotation)
         if origin is list:
             addable = name if (name in _LIST_TEMPLATES or name == "banks") else None
-            nodes.append(OutputNode(fpath, tr(FIELD_LABEL.get(name, name)),
-                                    f"({len(val)})", "list", addable=addable))
+            nodes.append(
+                OutputNode(
+                    fpath, tr(FIELD_LABEL.get(name, name)), f"({len(val)})", "list", addable=addable
+                )
+            )
             for i, item in enumerate(val):
-                nodes.append(OutputNode((*fpath, i), _entry_label(name, i, item),
-                                        "", "entry", removable=True))
+                nodes.append(
+                    OutputNode(
+                        (*fpath, i), _entry_label(name, i, item), "", "entry", removable=True
+                    )
+                )
                 _walk_output(item, (*fpath, i), nodes)
             continue
         if origin is dict:
             if name in _RO_DICTS:  # mode->button maps: value-keyed, YAML-configured
                 summary = ", ".join(f"{k}:{v}" for k, v in val.items()) or "—"
-                nodes.append(OutputNode(fpath, tr(FIELD_LABEL.get(name, name)),
-                                        summary, "ro"))
+                nodes.append(OutputNode(fpath, tr(FIELD_LABEL.get(name, name)), summary, "ro"))
                 continue
-            nodes.append(OutputNode(fpath, tr(FIELD_LABEL.get(name, name)),  # bool_leds
-                                    f"({len(val)})", "dict", addable=name))
+            nodes.append(
+                OutputNode(
+                    fpath,
+                    tr(FIELD_LABEL.get(name, name)),  # bool_leds
+                    f"({len(val)})",
+                    "dict",
+                    addable=name,
+                )
+            )
             for key, v in val.items():
-                nodes.append(OutputNode((*fpath, key), key, str(v), "str",
-                                        pickable=True, removable=True))
+                nodes.append(
+                    OutputNode((*fpath, key), key, str(v), "str", pickable=True, removable=True)
+                )
             continue
         if isinstance(val, BaseModel):
-            nodes.append(OutputNode(fpath, tr(FIELD_LABEL.get(name, name)), "", "group",
-                                    removable=optional))
+            nodes.append(
+                OutputNode(fpath, tr(FIELD_LABEL.get(name, name)), "", "group", removable=optional)
+            )
             _walk_output(val, fpath, nodes)
             continue
         if val is None and optional:  # unset optional model (dimmer/source_toggle)
-            nodes.append(OutputNode(fpath, tr(FIELD_LABEL.get(name, name)), "—", "unset",
-                                    addable=name if name in OPTIONAL_TEMPLATES else None))
+            nodes.append(
+                OutputNode(
+                    fpath,
+                    tr(FIELD_LABEL.get(name, name)),
+                    "—",
+                    "unset",
+                    addable=name if name in OPTIONAL_TEMPLATES else None,
+                )
+            )
             continue
         nodes.append(OutputNode(fpath, name, _display(val), "ro"))
 
@@ -1196,15 +1357,17 @@ def group_fields(nodes: list[OutputNode], group_path: tuple) -> list[OutputNode]
         return [n for n in nodes if n.path == group_path]
     depth = len(group_path) + 1
     return [
-        n for n in nodes
-        if len(n.path) == depth and n.path[:-1] == group_path
+        n
+        for n in nodes
+        if len(n.path) == depth
+        and n.path[:-1] == group_path
         and n.kind in _SCALAR_KINDS
         and not (depth == 1 and n.path[0] in _SOLO_FIELDS)  # solos live apart
     ]
 
 
 def _resolve_parent(output: Output, path: tuple):
-    node = output
+    node: Any = output
     for p in path[:-1]:
         node = node[p] if isinstance(p, int) or isinstance(node, dict) else getattr(node, p)
     return node
@@ -1238,7 +1401,8 @@ def parse_output_value(output: Output, path: tuple, raw) -> object:
     if kind == "choice":
         if s not in choices:
             raise ValueError(
-                tr("{name}: muss eins von {choices} sein.", name=name, choices=", ".join(choices)))
+                tr("{name}: muss eins von {choices} sein.", name=name, choices=", ".join(choices))
+            )
         return s
     if kind == "bool":
         if s.lower() in ("1", "true", "ja", "an", "on"):
@@ -1314,23 +1478,42 @@ OUTPUT_BLOCK_TEMPLATES: dict[str, dict] = {
     "Switch Panel: Fahrwerks-LEDs": {"type": "gear_leds"},
     "Multi Panel (Selektor + Display)": {
         "type": "multi_panel",
-        "selector": [{"code": 0, "label": "ALT",
-                      "simvar": "AUTOPILOT ALTITUDE LOCK VAR", "min": 0, "max": 99999}],
+        "selector": [
+            {
+                "code": 0,
+                "label": "ALT",
+                "simvar": "AUTOPILOT ALTITUDE LOCK VAR",
+                "min": 0,
+                "max": 99999,
+            }
+        ],
     },
     "Radio Panel (2 Einheiten möglich)": {
         "type": "radio_panel",
-        "units": [{
-            "name": "upper", "row": "upper",
-            "outer_cw": 0, "outer_ccw": 1, "inner_cw": 2, "inner_ccw": 3, "swap": 4,
-            "banks": [{"code": 0, "label": "COM1",
-                       "active": "COM ACTIVE FREQUENCY:1",
-                       "standby": "COM STANDBY FREQUENCY:1",
-                       "swap_event": "COM_STBY_RADIO_SWAP",
-                       "whole_inc": "COM_RADIO_WHOLE_INC",
-                       "whole_dec": "COM_RADIO_WHOLE_DEC",
-                       "fract_inc": "COM_RADIO_FRACT_INC",
-                       "fract_dec": "COM_RADIO_FRACT_DEC"}],
-        }],
+        "units": [
+            {
+                "name": "upper",
+                "row": "upper",
+                "outer_cw": 0,
+                "outer_ccw": 1,
+                "inner_cw": 2,
+                "inner_ccw": 3,
+                "swap": 4,
+                "banks": [
+                    {
+                        "code": 0,
+                        "label": "COM1",
+                        "active": "COM ACTIVE FREQUENCY:1",
+                        "standby": "COM STANDBY FREQUENCY:1",
+                        "swap_event": "COM_STBY_RADIO_SWAP",
+                        "whole_inc": "COM_RADIO_WHOLE_INC",
+                        "whole_dec": "COM_RADIO_WHOLE_DEC",
+                        "fract_inc": "COM_RADIO_FRACT_INC",
+                        "fract_dec": "COM_RADIO_FRACT_DEC",
+                    }
+                ],
+            }
+        ],
     },
 }
 

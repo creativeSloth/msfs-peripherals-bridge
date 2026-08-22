@@ -32,6 +32,7 @@ from __future__ import annotations
 
 import copy
 from pathlib import Path
+from typing import Any
 
 from ruamel.yaml import YAML
 from ruamel.yaml.comments import CommentedMap, CommentedSeq
@@ -54,7 +55,11 @@ class _PaddedEmitter(Emitter):
     """
 
     def write_indicator(
-        self, indicator, need_whitespace, whitespace=False, indention=False
+        self,
+        indicator: str,
+        need_whitespace: bool,
+        whitespace: bool = False,
+        indention: bool = False,
     ) -> None:
         if isinstance(indicator, str):
             if indicator.endswith("{"):
@@ -132,7 +137,8 @@ def _sync(target: object, desired: object) -> object:
 # --------------------------------------------------------------------------- #
 def load(path: Path) -> CommentedMap:
     """Load a profile YAML into a round-trip document (comments preserved)."""
-    return _yaml().load(path.read_text(encoding="utf-8"))
+    doc: CommentedMap = _yaml().load(path.read_text(encoding="utf-8"))
+    return doc
 
 
 def dumps(data: CommentedMap) -> str:
@@ -198,11 +204,12 @@ def _bindings(data: CommentedMap, device_id: str) -> CommentedSeq:
     bindings = data.get("bindings")
     if not isinstance(bindings, CommentedMap) or device_id not in bindings:
         raise KeyError(f"no bindings for device '{device_id}'")
-    return bindings[device_id]
+    seq: CommentedSeq = bindings[device_id]
+    return seq
 
 
 def apply_binding_edit(
-    data: CommentedMap, device_id: str, index: int, binding: dict
+    data: CommentedMap, device_id: str, index: int, binding: dict[str, Any]
 ) -> None:
     """Replace the binding at ``(device_id, index)`` with ``binding`` in place.
 
@@ -215,7 +222,7 @@ def apply_binding_edit(
 
 
 def add_binding(
-    data: CommentedMap, device_id: str, binding: dict, index: int | None = None
+    data: CommentedMap, device_id: str, binding: dict[str, Any], index: int | None = None
 ) -> None:
     """Append (or insert at ``index``) a new binding for ``device_id``."""
     bindings = data.get("bindings")
@@ -242,7 +249,7 @@ def remove_binding(data: CommentedMap, device_id: str, index: int) -> None:
 # --------------------------------------------------------------------------- #
 # local (virtual) variable declarations
 # --------------------------------------------------------------------------- #
-def set_local_vars(data: CommentedMap, local_vars: list[dict]) -> None:
+def set_local_vars(data: CommentedMap, local_vars: list[dict[str, Any]]) -> None:
     """Replace the ``local_vars:`` block (removed entirely when the list is empty).
 
     Each entry is a plain dict (``{name, unit, initial, persist, description}``);
@@ -254,8 +261,9 @@ def set_local_vars(data: CommentedMap, local_vars: list[dict]) -> None:
             del data["local_vars"]
         return
     current = data.get("local_vars")
-    data["local_vars"] = _sync(current if isinstance(current, CommentedSeq) else CommentedSeq(),
-                               local_vars)
+    data["local_vars"] = _sync(
+        current if isinstance(current, CommentedSeq) else CommentedSeq(), local_vars
+    )
 
 
 # --------------------------------------------------------------------------- #
@@ -264,14 +272,14 @@ def set_local_vars(data: CommentedMap, local_vars: list[dict]) -> None:
 UNSET = object()  # sentinel: delete the key (fall back to the model default)
 
 
-def _output(data: CommentedMap, device_id: str, index: int):
+def _output(data: CommentedMap, device_id: str, index: int) -> Any:
     outputs = data.get("outputs")
     if not isinstance(outputs, CommentedMap) or device_id not in outputs:
         raise KeyError(f"no outputs for device '{device_id}'")
     return outputs[device_id][index]
 
 
-def _walk_to_parent(data: CommentedMap, device_id: str, index: int, path: tuple):
+def _walk_to_parent(data: CommentedMap, device_id: str, index: int, path: tuple[Any, ...]) -> Any:
     """The container holding ``path[-1]``, creating missing intermediate maps.
 
     Paths mirror the pydantic model, so an intermediate key can only be missing
@@ -286,7 +294,7 @@ def _walk_to_parent(data: CommentedMap, device_id: str, index: int, path: tuple)
 
 
 def set_output_value(
-    data: CommentedMap, device_id: str, index: int, path: tuple, value: object
+    data: CommentedMap, device_id: str, index: int, path: tuple[Any, ...], value: object
 ) -> None:
     """Set one field of an output block in place (comments/style survive).
 
@@ -304,7 +312,7 @@ def set_output_value(
 
 
 def add_output_entry(
-    data: CommentedMap, device_id: str, index: int, path: tuple, entry: dict
+    data: CommentedMap, device_id: str, index: int, path: tuple[Any, ...], entry: dict[str, Any]
 ) -> None:
     """Append ``entry`` to the list at ``path`` (created when still missing)."""
     parent = _walk_to_parent(data, device_id, index, path)
@@ -315,14 +323,14 @@ def add_output_entry(
 
 
 def remove_output_entry(
-    data: CommentedMap, device_id: str, index: int, path: tuple, key: object
+    data: CommentedMap, device_id: str, index: int, path: tuple[Any, ...], key: object
 ) -> None:
     """Delete entry ``key`` (list index / dict key) from the container at ``path``."""
     container = _walk_to_parent(data, device_id, index, (*path, "_"))
     del container[key]
 
 
-def add_output(data: CommentedMap, device_id: str, output: dict) -> None:
+def add_output(data: CommentedMap, device_id: str, output: dict[str, Any]) -> None:
     """Append a new output block (panel controller) for ``device_id``."""
     outputs = data.get("outputs")
     if not isinstance(outputs, CommentedMap):
@@ -347,7 +355,7 @@ def remove_output(data: CommentedMap, device_id: str, index: int) -> None:
 # --------------------------------------------------------------------------- #
 # transfer a whole device's mappings between profiles (Mapper right-click)
 # --------------------------------------------------------------------------- #
-def _device_block(data: CommentedMap, block: str, device_id: str):
+def _device_block(data: CommentedMap, block: str, device_id: str) -> Any:
     """The ``bindings``/``outputs`` node one profile assigns to a device, or None."""
     node = data.get(block)
     if isinstance(node, CommentedMap) and device_id in node:
@@ -359,8 +367,7 @@ def device_mapping_counts(data: CommentedMap, device_id: str) -> tuple[int, int]
     """(n_bindings, n_outputs) a profile currently assigns to ``device_id``."""
     binds = _device_block(data, "bindings", device_id)
     outs = _device_block(data, "outputs", device_id)
-    return (len(binds) if binds is not None else 0,
-            len(outs) if outs is not None else 0)
+    return (len(binds) if binds is not None else 0, len(outs) if outs is not None else 0)
 
 
 def copy_device_mappings(

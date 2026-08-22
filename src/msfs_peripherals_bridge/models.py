@@ -7,8 +7,9 @@ validated and unit-tested in isolation.
 
 from __future__ import annotations
 
+from collections.abc import Iterable
 from enum import StrEnum
-from typing import Annotated, Literal
+from typing import Annotated, Any, Literal
 
 from pydantic import BaseModel, Discriminator, Field, Tag, field_validator, model_validator
 
@@ -132,12 +133,8 @@ class SequenceAction(BaseModel):
     """
 
     type: Literal["sequence"] = "sequence"
-    on_edge: list[WriteStep] = Field(
-        ..., min_length=1, description="Writes on the on/press edge."
-    )
-    off_edge: list[WriteStep] = Field(
-        default_factory=list, description="Writes on the off edge."
-    )
+    on_edge: list[WriteStep] = Field(..., min_length=1, description="Writes on the on/press edge.")
+    off_edge: list[WriteStep] = Field(default_factory=list, description="Writes on the off edge.")
 
 
 class RpnAction(BaseModel):
@@ -194,7 +191,7 @@ class HatDirection(BaseModel):
 
     @model_validator(mode="before")
     @classmethod
-    def _accept_bare_action(cls, data):
+    def _accept_bare_action(cls, data: Any) -> Any:
         # Back-compat + ergonomics: a bare action (dict without 'action', or an
         # Action instance) IS the action; the trigger stays convention-derived.
         if isinstance(data, cls):
@@ -464,7 +461,7 @@ class MultiPanelOutput(BaseModel):
     )
 
     @staticmethod
-    def _check_led_buttons(names) -> None:
+    def _check_led_buttons(names: Iterable[str]) -> None:
         from .mapping.leds import MULTI_LED_BUTTONS
 
         unknown = set(names) - MULTI_LED_BUTTONS
@@ -632,8 +629,8 @@ class XpdrBank(BaseModel):
 # "freq", while DME/XPDR (and later ADF) tag themselves explicitly.
 def _bank_kind(value: object) -> str:
     if isinstance(value, dict):
-        return value.get("kind", "freq")
-    return getattr(value, "kind", "freq")
+        return str(value.get("kind", "freq"))
+    return str(getattr(value, "kind", "freq"))
 
 
 RadioBankT = Annotated[
@@ -687,9 +684,7 @@ class RadioPanelOutput(BaseModel):
     # on (e.g. ELECTRICAL MASTER BATTERY). Default None = always lit, so this breaks
     # no render behaviour for panels that don't set it. Matches the gear LEDs, which
     # already go dark without battery. Use AVIONICS MASTER SWITCH here for a bus gate.
-    power: str | None = Field(
-        None, description="Bool var gating the display (None = always on)."
-    )
+    power: str | None = Field(None, description="Bool var gating the display (None = always on).")
 
     def simvars(self) -> list[str]:
         """Every SimVar the displays need subscribed (per bank kind)."""

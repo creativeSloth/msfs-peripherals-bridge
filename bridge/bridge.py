@@ -95,6 +95,7 @@ _VIRTUAL_VARS: dict[str, object] = {}
 def _is_virtual(name: str) -> bool:
     return name[:2].upper() == "V:"
 
+
 # MobiFlight WASM module command channel. Writing `MF.SimVars.Set.<rpn>` to the
 # "MobiFlight.Command" ClientData area makes the module run <rpn> as calculator
 # code, which is how we set L:/H:/B: vars (`<value> (>L:NAME)`). Write-only for
@@ -193,9 +194,7 @@ class _ReadingSimConnect(SimConnect):
             self.handle_simobject_event(obj)
             return None
         if dwID == _RECV_ID_CLIENT_DATA and SIMCONNECT_RECV_CLIENT_DATA is not None:
-            recv = ctypes.cast(
-                pData, ctypes.POINTER(SIMCONNECT_RECV_CLIENT_DATA)
-            ).contents
+            recv = ctypes.cast(pData, ctypes.POINTER(SIMCONNECT_RECV_CLIENT_DATA)).contents
             if recv.dwRequestID in self._string_request_ids:
                 cb = self.on_client_string
                 if cb is not None:
@@ -204,9 +203,7 @@ class _ReadingSimConnect(SimConnect):
                 return None
             cb = self.on_client_data
             if cb is not None:
-                value = ctypes.cast(
-                    recv.dwData, ctypes.POINTER(ctypes.c_float)
-                ).contents.value
+                value = ctypes.cast(recv.dwData, ctypes.POINTER(ctypes.c_float)).contents.value
                 cb(recv.dwRequestID, value)
             return None
         return super().my_dispatch_proc(pData, cbData, pContext)
@@ -419,8 +416,13 @@ class SimConnectBridge:
         buf = ctypes.create_string_buffer(cmd.encode("ascii"), _MF_MESSAGE_SIZE)
         try:
             hr = self.sc.dll.SetClientData(
-                self.sc.hSimConnect, _MF_AREA_ID, _MF_DEF_ID, 0, 0,
-                _MF_MESSAGE_SIZE, ctypes.cast(buf, ctypes.c_void_p),
+                self.sc.hSimConnect,
+                _MF_AREA_ID,
+                _MF_DEF_ID,
+                0,
+                0,
+                _MF_MESSAGE_SIZE,
+                ctypes.cast(buf, ctypes.c_void_p),
             )
         except OSError as exc:
             self._mark_lost(exc)  # raises SimDisconnected
@@ -474,16 +476,30 @@ class SimConnectBridge:
         define_id = _MF_LVAR_DEF_BASE + idx
         request_id = _MF_LVAR_REQ_BASE + idx
         hr = self.sc.dll.AddToClientDataDefinition(
-            self.sc.hSimConnect, define_id, idx * _MF_FLOAT_SIZE, _MF_FLOAT_SIZE, 0.0,
+            self.sc.hSimConnect,
+            define_id,
+            idx * _MF_FLOAT_SIZE,
+            _MF_FLOAT_SIZE,
+            0.0,
             _SIMCONNECT_UNUSED,
         )
         if hr != 0:
-            log.error("MobiFlight: AddToClientDataDefinition failed (0x%08X) for %s",
-                      hr & 0xFFFFFFFF, name)
+            log.error(
+                "MobiFlight: AddToClientDataDefinition failed (0x%08X) for %s",
+                hr & 0xFFFFFFFF,
+                name,
+            )
             return
         hr = self.sc.dll.RequestClientData(
-            self.sc.hSimConnect, _MF_LVAR_AREA_ID, request_id, define_id,
-            _CLIENT_DATA_PERIOD_ON_SET, _CLIENT_DATA_REQUEST_FLAG_CHANGED, 0, 0, 0,
+            self.sc.hSimConnect,
+            _MF_LVAR_AREA_ID,
+            request_id,
+            define_id,
+            _CLIENT_DATA_PERIOD_ON_SET,
+            _CLIENT_DATA_REQUEST_FLAG_CHANGED,
+            0,
+            0,
+            0,
         )
         if hr != 0:
             log.error("MobiFlight: RequestClientData failed (0x%08X) for %s", hr & 0xFFFFFFFF, name)
@@ -534,18 +550,30 @@ class SimConnectBridge:
             log.error("MobiFlight: map Response area failed (0x%08X)", hr & 0xFFFFFFFF)
             return False
         hr = self.sc.dll.AddToClientDataDefinition(
-            self.sc.hSimConnect, _MF_RESPONSE_DEF_ID, 0, _MF_MESSAGE_SIZE, 0.0,
+            self.sc.hSimConnect,
+            _MF_RESPONSE_DEF_ID,
+            0,
+            _MF_MESSAGE_SIZE,
+            0.0,
             _SIMCONNECT_UNUSED,
         )
         if hr != 0:
-            log.error("MobiFlight: Response AddToClientDataDefinition failed (0x%08X)",
-                      hr & 0xFFFFFFFF)
+            log.error(
+                "MobiFlight: Response AddToClientDataDefinition failed (0x%08X)", hr & 0xFFFFFFFF
+            )
             return False
         # Flag 0 (not CHANGED): deliver every write, so no name is dropped even
         # if two consecutive Response messages happen to be equal.
         hr = self.sc.dll.RequestClientData(
-            self.sc.hSimConnect, _MF_RESPONSE_AREA_ID, _MF_RESPONSE_REQ_ID,
-            _MF_RESPONSE_DEF_ID, _CLIENT_DATA_PERIOD_ON_SET, 0, 0, 0, 0,
+            self.sc.hSimConnect,
+            _MF_RESPONSE_AREA_ID,
+            _MF_RESPONSE_REQ_ID,
+            _MF_RESPONSE_DEF_ID,
+            _CLIENT_DATA_PERIOD_ON_SET,
+            0,
+            0,
+            0,
+            0,
         )
         if hr != 0:
             log.error("MobiFlight: Response RequestClientData failed (0x%08X)", hr & 0xFFFFFFFF)
@@ -706,7 +734,9 @@ class SimConnectBridge:
                 _SIMOBJECT_ID_USER,
                 _STREAM_PERIOD,
                 _STREAM_FLAG,
-                0, 0, 0,
+                0,
+                0,
+                0,
             )
         except OSError as exc:
             self._mark_lost(exc)  # raises SimDisconnected
@@ -858,9 +888,7 @@ class ClientSession:
             if op == "event":
                 self.sim.send_event(msg["name"], int(msg.get("data", 0)))
             elif op == "event_from_var":
-                self.sim.event_from_var(
-                    msg["event"], msg["read"], msg.get("unit", "number")
-                )
+                self.sim.event_from_var(msg["event"], msg["read"], msg.get("unit", "number"))
             elif op == "simvar":
                 self.sim.set_simvar(msg["name"], float(msg["value"]))
             elif op == "rpn":

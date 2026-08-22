@@ -103,13 +103,15 @@ def test_set_device_outputs_persists_and_keeps_inputs(tmp_path):
     ddef = C.model_copy(update={"inputs": [InputBlock(name="AP", code=12)]})
     set_device_outputs(
         ddef,
-        [OutputBlock(kind="led", name="AP-Lampe"),
-         OutputBlock(kind="display", name="COM", cells=5, display_kind="7segment")],
+        [
+            OutputBlock(kind="led", name="AP-Lampe"),
+            OutputBlock(kind="display", name="COM", cells=5, display_kind="7segment"),
+        ],
         overlay=overlay,
     )
     reloaded = DeviceCatalog.model_validate(yaml.safe_load(overlay.read_text()))
     dev = reloaded.by_id("c")
-    assert [b.name for b in dev.inputs] == ["AP"]          # READ elements kept
+    assert [b.name for b in dev.inputs] == ["AP"]  # READ elements kept
     assert [b.kind for b in dev.outputs] == ["led", "display"]
     assert dev.outputs[1].cells == 5
 

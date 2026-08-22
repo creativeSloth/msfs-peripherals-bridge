@@ -37,9 +37,7 @@ def test_profile_accepts_local_vars():
 
 def test_profile_rejects_duplicate_local_var_names():
     with pytest.raises(ValidationError):
-        Profile.model_validate(
-            {"name": "T", "local_vars": [{"name": "Dup"}, {"name": "Dup"}]}
-        )
+        Profile.model_validate({"name": "T", "local_vars": [{"name": "Dup"}, {"name": "Dup"}]})
 
 
 def test_local_var_catalog_makes_virtual_picker_entries():

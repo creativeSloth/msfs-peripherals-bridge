@@ -15,8 +15,10 @@ Kept dependency-free and pure so it can be unit-tested without a display.
 from __future__ import annotations
 
 import json
+from collections.abc import Iterable
 from dataclasses import dataclass
 from pathlib import Path
+from typing import Any
 
 # Variable "kind" tags, matching docs/simvars-reference.md §1.
 KIND_SIMVAR = "A:"  # simulation variable (read, some writable)
@@ -59,17 +61,25 @@ def _load_sdk_catalog(path: Path) -> list[CatalogVar]:
     out: list[CatalogVar] = []
     for v in data.get("simvars", []) if isinstance(data, dict) else []:
         if isinstance(v, dict) and isinstance(v.get("name"), str):
-            out.append(CatalogVar(
-                name=v["name"], kind=KIND_SIMVAR,
-                unit=v.get("unit") or "", category=v.get("category") or "SimVar",
-                settable=bool(v.get("settable", False)),
-            ))
+            out.append(
+                CatalogVar(
+                    name=v["name"],
+                    kind=KIND_SIMVAR,
+                    unit=v.get("unit") or "",
+                    category=v.get("category") or "SimVar",
+                    settable=bool(v.get("settable", False)),
+                )
+            )
     for e in data.get("events", []) if isinstance(data, dict) else []:
         if isinstance(e, dict) and isinstance(e.get("name"), str):
-            out.append(CatalogVar(
-                name=e["name"], kind=KIND_EVENT, unit="",
-                category=e.get("category") or "Event",
-            ))
+            out.append(
+                CatalogVar(
+                    name=e["name"],
+                    kind=KIND_EVENT,
+                    unit="",
+                    category=e.get("category") or "Event",
+                )
+            )
     return out
 
 
@@ -116,7 +126,7 @@ def load_catalog(
     return cat
 
 
-def local_var_catalog(local_vars) -> list[CatalogVar]:
+def local_var_catalog(local_vars: Iterable[Any]) -> list[CatalogVar]:
     """Turn a profile's declared virtual vars into ``V:`` picker entries.
 
     ``local_vars`` is an iterable of :class:`~..models.LocalVar` (anything with
@@ -126,13 +136,15 @@ def local_var_catalog(local_vars) -> list[CatalogVar]:
     """
     out: list[CatalogVar] = []
     for lv in local_vars:
-        out.append(CatalogVar(
-            name=lv.name,
-            kind=KIND_VIRTUAL,
-            unit=getattr(lv, "unit", "") or "",
-            category=(getattr(lv, "description", "") or "Virtuelle Variable"),
-            settable=True,
-        ))
+        out.append(
+            CatalogVar(
+                name=lv.name,
+                kind=KIND_VIRTUAL,
+                unit=getattr(lv, "unit", "") or "",
+                category=(getattr(lv, "description", "") or "Virtuelle Variable"),
+                settable=True,
+            )
+        )
     return out
 
 
@@ -142,7 +154,5 @@ def filter_catalog(
     """Filter by ``kind`` (None = all) and a case-insensitive substring ``query``."""
     q = query.strip().lower()
     return [
-        v
-        for v in catalog
-        if (kind is None or v.kind == kind) and (not q or q in v.name.lower())
+        v for v in catalog if (kind is None or v.kind == kind) and (not q or q in v.name.lower())
     ]

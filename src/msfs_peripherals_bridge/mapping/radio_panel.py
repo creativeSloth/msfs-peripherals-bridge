@@ -120,7 +120,7 @@ def _step_khz_digit(khz: int, index: int, delta: int, *, lo: int, hi: int) -> in
     return digits[0] * 1000 + digits[1] * 100 + digits[2] * 10 + digits[3]
 
 
-def _adf_khz_from_counters(values: dict, bank: AdfBank) -> int | None:
+def _adf_khz_from_counters(values: dict[str, float | None], bank: AdfBank) -> int | None:
     """The KR-85 ADF frequency in kHz from its three digit counters, or None if any
     counter hasn't streamed yet. ``F = (dig1 + 1)*100 + dig2*10 + dig3`` (see AdfBank).
     """
@@ -161,12 +161,10 @@ class RadioPanelController:
         self.values: dict[str, float | None] = {}
         self._units = config.units
         # Per-unit bank lookup + mutable state, parallel to config.units.
-        self._banks: list[dict[int, RadioBank | DmeBank]] = [
+        self._banks: list[dict[int, RadioBank | DmeBank | XpdrBank | AdfBank]] = [
             {b.code: b for b in u.banks} for u in self._units
         ]
-        self._state: list[_UnitState] = [
-            _UnitState(selected=u.banks[0].code) for u in self._units
-        ]
+        self._state: list[_UnitState] = [_UnitState(selected=u.banks[0].code) for u in self._units]
         # code -> (unit index, role). All input codes are unique across units
         # (different physical bits), so one flat map routes every event.
         self._routes: dict[int, tuple[int, str]] = {}
@@ -449,8 +447,12 @@ class RadioPanelController:
         hundredths = round(val * bank.baro_scale * 100)
         if not 0 <= hundredths <= 9999:
             return [BLANK] * ROW_WIDTH
-        d = [(hundredths // 1000) % 10, (hundredths // 100) % 10,
-             (hundredths // 10) % 10, hundredths % 10]
+        d = [
+            (hundredths // 1000) % 10,
+            (hundredths // 100) % 10,
+            (hundredths // 10) % 10,
+            hundredths % 10,
+        ]
         d[1] += DOT  # decimal point after the 2nd digit -> NN.NN
         return [BLANK, *d]
 
@@ -468,6 +470,6 @@ class RadioPanelController:
         khz = max(0, min(9999, khz))  # display-width guard
         digits = _khz_digits(khz)
         left = st.adf_pair * 2
-        digits[left] += DOT       # two dots -> the active pair
+        digits[left] += DOT  # two dots -> the active pair
         digits[left + 1] += DOT
         return [BLANK, *digits] + [BLANK] * ROW_WIDTH

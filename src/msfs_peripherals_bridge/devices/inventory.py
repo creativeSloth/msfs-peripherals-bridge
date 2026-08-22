@@ -79,15 +79,15 @@ def classify(raws: list[RawDevice], catalog: DeviceCatalog) -> list[InventoryIte
       :func:`evdev_reader.discover`.
     """
     hidraw_usb = {d.usb_key for d in catalog.devices if d.transport == "hidraw"}
-    items: dict[tuple, InventoryItem] = {}
-    order: list[tuple] = []
+    items: dict[tuple[object, ...], InventoryItem] = {}
+    order: list[tuple[object, ...]] = []
     for raw in raws:
         if raw.transport == "evdev" and (raw.vendor, raw.product) in hidraw_usb:
             # The panel's evdev shadow — it is meant to be read via hidraw.
             continue
         match = next((d for d in catalog.devices if _matches(raw, d)), None)
         if match is not None:
-            key: tuple = ("id", match.id)
+            key: tuple[object, ...] = ("id", match.id)
         else:
             key = ("raw", raw.vendor, raw.product, raw.transport, raw.name)
         item = items.get(key)
@@ -117,10 +117,7 @@ def _enumerate_evdev() -> list[RawDevice]:  # pragma: no cover - evdev I/O
         caps = capabilities.scan()
     except RuntimeError:
         return []
-    return [
-        RawDevice(int(c.vendor, 16), int(c.product, 16), c.name, "evdev", c.path)
-        for c in caps
-    ]
+    return [RawDevice(int(c.vendor, 16), int(c.product, 16), c.name, "evdev", c.path) for c in caps]
 
 
 def _enumerate_hidraw() -> list[RawDevice]:  # pragma: no cover - sysfs I/O

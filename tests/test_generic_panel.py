@@ -8,9 +8,12 @@ from msfs_peripherals_bridge.simconnect.protocol import Subscribe
 
 def _out(**kw):
     return GenericPanelOutput(
-        leds=[GenericLed(name="A", var="VA", byte=0, bit=0),
-              GenericLed(name="B", var="VB", byte=0, bit=3)],
-        length=1, **kw,
+        leds=[
+            GenericLed(name="A", var="VA", byte=0, bit=0),
+            GenericLed(name="B", var="VB", byte=0, bit=3),
+        ],
+        length=1,
+        **kw,
     )
 
 
@@ -38,7 +41,8 @@ def test_render_sets_only_lit_bits():
 
 def test_threshold_and_nonnumeric():
     c = GenericPanelController(
-        GenericPanelOutput(leds=[GenericLed(var="V", byte=0, bit=1, on_at=0.5)], length=1))
+        GenericPanelOutput(leds=[GenericLed(var="V", byte=0, bit=1, on_at=0.5)], length=1)
+    )
     c.on_state("V", 0.4)
     assert c.render() == bytes([0x00, 0x00])  # below threshold
     c.on_state("V", 0.6)
@@ -57,8 +61,9 @@ def test_power_gate_blanks_everything():
 
 
 def test_multibyte_report_length():
-    c = GenericPanelController(GenericPanelOutput(
-        leds=[GenericLed(var="X", byte=2, bit=5)], length=3))
+    c = GenericPanelController(
+        GenericPanelOutput(leds=[GenericLed(var="X", byte=2, bit=5)], length=3)
+    )
     c.on_state("X", 1)
     assert c.render() == bytes([0x00, 0x00, 0x00, 1 << 5])
 
@@ -74,13 +79,20 @@ def test_subscriptions_and_no_input_consumption():
 def test_output_union_parses_generic_panel():
     from msfs_peripherals_bridge.models import Profile
 
-    prof = Profile.model_validate({
-        "name": "p",
-        "outputs": {"mypanel": [{
-            "type": "generic_panel", "length": 1,
-            "leds": [{"var": "V", "bit": 2}],
-        }]},
-    })
+    prof = Profile.model_validate(
+        {
+            "name": "p",
+            "outputs": {
+                "mypanel": [
+                    {
+                        "type": "generic_panel",
+                        "length": 1,
+                        "leds": [{"var": "V", "bit": 2}],
+                    }
+                ]
+            },
+        }
+    )
     (o,) = prof.outputs["mypanel"]
     assert isinstance(o, GenericPanelOutput)
     assert o.leds[0].bit == 2
@@ -109,8 +121,11 @@ def test_display_renders_integer_var_right_justified():
     from msfs_peripherals_bridge.mapping.display import BLANK
     from msfs_peripherals_bridge.models import GenericDisplay
 
-    c = GenericPanelController(GenericPanelOutput(
-        length=6, displays=[GenericDisplay(name="ALT", var="ALT", offset=0, cells=5)]))
+    c = GenericPanelController(
+        GenericPanelOutput(
+            length=6, displays=[GenericDisplay(name="ALT", var="ALT", offset=0, cells=5)]
+        )
+    )
     # unknown value -> blank cells; the trailing spare byte stays 0
     assert c.render() == bytes([0x00, BLANK, BLANK, BLANK, BLANK, BLANK, 0x00])
     c.on_state("ALT", 123)
@@ -121,8 +136,11 @@ def test_display_decimals_add_trailing_dot():
     from msfs_peripherals_bridge.mapping.display import BLANK, DOT
     from msfs_peripherals_bridge.models import GenericDisplay
 
-    c = GenericPanelController(GenericPanelOutput(
-        length=5, displays=[GenericDisplay(var="DME", offset=0, cells=5, decimals=1)]))
+    c = GenericPanelController(
+        GenericPanelOutput(
+            length=5, displays=[GenericDisplay(var="DME", offset=0, cells=5, decimals=1)]
+        )
+    )
     c.on_state("DME", 12.3)
     assert c.render() == bytes([0x00, BLANK, BLANK, 1, 2 + DOT, 3])  # "  12.3"
 
@@ -132,9 +150,11 @@ def test_display_and_led_share_report_and_power_and_subscriptions():
     from msfs_peripherals_bridge.models import GenericDisplay
 
     o = GenericPanelOutput(
-        length=6, power="PWR",
+        length=6,
+        power="PWR",
         leds=[GenericLed(var="L", byte=5, bit=0)],
-        displays=[GenericDisplay(var="N", offset=0, cells=5)])
+        displays=[GenericDisplay(var="N", offset=0, cells=5)],
+    )
     c = GenericPanelController(o)
     assert set(c.subscriptions()) == {"L", "N", "PWR"}
     c.on_state("N", 7)

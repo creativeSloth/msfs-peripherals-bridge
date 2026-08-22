@@ -50,7 +50,14 @@ def gear_led_byte(
 # Multi Panel button LEDs (feature-report byte 10). Bit per button, measured
 # 2026-06-30. This map is the single source of truth for the byte layout.
 _MULTI_BUTTON_BIT: dict[str, int] = {
-    "ap": 0, "hdg": 1, "nav": 2, "ias": 3, "alt": 4, "vs": 5, "apr": 6, "rev": 7,
+    "ap": 0,
+    "hdg": 1,
+    "nav": 2,
+    "ias": 3,
+    "alt": 4,
+    "vs": 5,
+    "apr": 6,
+    "rev": 7,
 }
 # Button names a profile may drive directly via a bool var (see bool_leds below).
 MULTI_LED_BUTTONS = frozenset(_MULTI_BUTTON_BIT)

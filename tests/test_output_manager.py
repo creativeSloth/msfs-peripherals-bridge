@@ -18,6 +18,7 @@ def _fire_now(delay, fn):
     """Test scheduler: run the refresh synchronously for deterministic assertions."""
     fn()
 
+
 NOSE_GREEN = 1 << 0
 LEFT_GREEN = 1 << 1
 RIGHT_GREEN = 1 << 2
@@ -116,9 +117,14 @@ def _multi_manager(writer):
     output = MultiPanelOutput(
         selector=[
             SelectorEntry(
-                code=3, label="HDG", simvar="AUTOPILOT HEADING LOCK DIR",
-                set_event="HEADING_BUG_SET", step=1,
-                min=0, max=359, rollover=True,
+                code=3,
+                label="HDG",
+                simvar="AUTOPILOT HEADING LOCK DIR",
+                set_event="HEADING_BUG_SET",
+                step=1,
+                min=0,
+                max=359,
+                rollover=True,
             )
         ],
     )
@@ -133,12 +139,22 @@ def _multi_manager(writer):
 def test_multi_subscribes_to_value_and_led_vars():
     dispatcher = FakeDispatcher()
     manager = OutputManager(
-        {"multi_panel": [MultiPanelOutput(
-            selector=[SelectorEntry(
-                code=3, label="HDG", simvar="AUTOPILOT HEADING LOCK DIR",
-                set_event="HEADING_BUG_SET", min=0, max=359,
-            )],
-        )]},
+        {
+            "multi_panel": [
+                MultiPanelOutput(
+                    selector=[
+                        SelectorEntry(
+                            code=3,
+                            label="HDG",
+                            simvar="AUTOPILOT HEADING LOCK DIR",
+                            set_event="HEADING_BUG_SET",
+                            min=0,
+                            max=359,
+                        )
+                    ],
+                )
+            ]
+        },
         {"multi_panel": "/dev/hidrawM"},
         dispatcher,
     )
@@ -191,8 +207,14 @@ def _crs_manager(writer):
     output = MultiPanelOutput(
         selector=[
             SelectorEntry(
-                code=4, label="CRS", simvar="NAV OBS:1", set_event="VOR1_SET",
-                step=1, min=0, max=359, rollover=True,
+                code=4,
+                label="CRS",
+                simvar="NAV OBS:1",
+                set_event="VOR1_SET",
+                step=1,
+                min=0,
+                max=359,
+                rollover=True,
                 alt_sources=[SelectorSource(simvar="NAV OBS:2", set_event="VOR2_SET")],
             )
         ],
@@ -229,15 +251,25 @@ def _radio_output() -> RadioPanelOutput:
     return RadioPanelOutput(
         units=[
             RadioUnit(
-                name="upper", row="upper",
-                outer_cw=14, outer_ccw=15, inner_cw=16, inner_ccw=17, swap=22,
+                name="upper",
+                row="upper",
+                outer_cw=14,
+                outer_ccw=15,
+                inner_cw=16,
+                inner_ccw=17,
+                swap=22,
                 banks=[
                     RadioBank(
-                        code=0, label="COM1", fine_view=True,
-                        active="COM ACTIVE FREQUENCY:1", standby="COM STANDBY FREQUENCY:1",
+                        code=0,
+                        label="COM1",
+                        fine_view=True,
+                        active="COM ACTIVE FREQUENCY:1",
+                        standby="COM STANDBY FREQUENCY:1",
                         swap_event="COM1_RADIO_SWAP",
-                        whole_inc="COM_RADIO_WHOLE_INC", whole_dec="COM_RADIO_WHOLE_DEC",
-                        fract_inc="COM_RADIO_FRACT_INC", fract_dec="COM_RADIO_FRACT_DEC",
+                        whole_inc="COM_RADIO_WHOLE_INC",
+                        whole_dec="COM_RADIO_WHOLE_DEC",
+                        fract_inc="COM_RADIO_FRACT_INC",
+                        fract_dec="COM_RADIO_FRACT_DEC",
                     ),
                 ],
             ),

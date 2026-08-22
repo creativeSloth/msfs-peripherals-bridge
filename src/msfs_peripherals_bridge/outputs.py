@@ -175,10 +175,10 @@ class OutputManager:
         """Feed a selector/encoder/aux event to the controller; rewrite its report."""
         aux = self._aux.get((device_id, code))
         if aux is not None:
-            panel_id, controller = aux
+            panel_id, aux_controller = aux
             if value == 1:  # off-panel toggle: act on the press edge only
                 with self._lock:
-                    controller.toggle_source()
+                    aux_controller.toggle_source()
                     self._write_if_changed(panel_id)
             return []
         controller = self._controllers.get(device_id)

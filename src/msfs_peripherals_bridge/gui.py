@@ -73,19 +73,26 @@ def _clean_vars(items: object) -> list[dict[str, str]]:
     out: list[dict[str, str]] = []
     if isinstance(items, list):
         for it in items:
-            if isinstance(it, dict) and isinstance(it.get("kind"), str) \
-                    and isinstance(it.get("name"), str):
+            if (
+                isinstance(it, dict)
+                and isinstance(it.get("kind"), str)
+                and isinstance(it.get("name"), str)
+            ):
                 unit = it.get("unit")
-                out.append({
-                    "kind": it["kind"], "name": it["name"],
-                    "unit": unit if isinstance(unit, str) else "",
-                })
+                out.append(
+                    {
+                        "kind": it["kind"],
+                        "name": it["name"],
+                        "unit": unit if isinstance(unit, str) else "",
+                    }
+                )
     return out
 
 
 def load_language(path: Path | None = None) -> str:
     """Restore the saved GUI language code (defaults to German)."""
     from .i18n import DEFAULT_LANG, LANGUAGES
+
     code = load_gui_settings(path).get("language")
     return code if code in LANGUAGES else DEFAULT_LANG
 
@@ -135,11 +142,13 @@ def load_panel_state(path: Path | None = None) -> dict:
             {},
         )
         col, row = src.get("col"), src.get("row")
-        tiles.append({
-            **v,
-            "col": col if isinstance(col, int) and not isinstance(col, bool) else 0,
-            "row": row if isinstance(row, int) and not isinstance(row, bool) else 0,
-        })
+        tiles.append(
+            {
+                **v,
+                "col": col if isinstance(col, int) and not isinstance(col, bool) else 0,
+                "row": row if isinstance(row, int) and not isinstance(row, bool) else 0,
+            }
+        )
     cols, rows = st.get("cols"), st.get("rows")
     geom, vis = st.get("geometry"), st.get("visible")
     return {
@@ -328,8 +337,14 @@ def _discover_present(catalog) -> set[str] | None:
 class ProcessController:
     """Owns one long-running subprocess, started in its own process group."""
 
-    def __init__(self, name: str, argv: list[str], cwd: Path, log_path: Path | None = None,
-                 env: dict[str, str] | None = None):
+    def __init__(
+        self,
+        name: str,
+        argv: list[str],
+        cwd: Path,
+        log_path: Path | None = None,
+        env: dict[str, str] | None = None,
+    ):
         self.name = name
         self.argv = argv
         self.cwd = cwd
@@ -350,8 +365,12 @@ class ProcessController:
             stdout = subprocess.DEVNULL
         full_env = {**os.environ, **self.env} if self.env else None
         self.proc = subprocess.Popen(
-            self.argv, cwd=str(self.cwd), stdout=stdout,
-            stderr=subprocess.STDOUT, start_new_session=True, env=full_env,
+            self.argv,
+            cwd=str(self.cwd),
+            stdout=stdout,
+            stderr=subprocess.STDOUT,
+            start_new_session=True,
+            env=full_env,
         )
         self._pgid = os.getpgid(self.proc.pid)
         self._kill_deadline = None
@@ -420,8 +439,16 @@ def _attach_tooltip(widget, text) -> None:
             f"+{widget.winfo_rootx() + 14}+{widget.winfo_rooty() + widget.winfo_height() + 4}"
         )
         tk.Label(
-            tip, text=msg, justify="left", background="#ffffe0", relief="solid",
-            borderwidth=1, font=("TkDefaultFont", 8), padx=6, pady=3, wraplength=340,
+            tip,
+            text=msg,
+            justify="left",
+            background="#ffffe0",
+            relief="solid",
+            borderwidth=1,
+            font=("TkDefaultFont", 8),
+            padx=6,
+            pady=3,
+            wraplength=340,
         ).pack()
         state["tip"] = tip
 
@@ -532,8 +559,13 @@ def _open_var_picker(parent, catalog, on_add) -> None:
         filter_catalog,
     )
 
-    kinds = {"Alle": None, "A: SimVar": KIND_SIMVAR, "K: Event": KIND_EVENT,
-             "L: LVar": KIND_LVAR, "V: lokal": KIND_VIRTUAL}
+    kinds = {
+        "Alle": None,
+        "A: SimVar": KIND_SIMVAR,
+        "K: Event": KIND_EVENT,
+        "L: LVar": KIND_LVAR,
+        "V: lokal": KIND_VIRTUAL,
+    }
 
     top = tk.Toplevel(parent)
     top.title("Variable auswählen")
@@ -545,8 +577,9 @@ def _open_var_picker(parent, catalog, on_add) -> None:
     filt.grid(row=0, column=0, sticky="ew")
     ttk.Label(filt, text=tr("Typ:")).pack(side="left")
     kind_var = tk.StringVar(value="Alle")
-    ttk.Combobox(filt, textvariable=kind_var, values=list(kinds), state="readonly",
-                 width=12).pack(side="left", padx=(4, 10))
+    ttk.Combobox(filt, textvariable=kind_var, values=list(kinds), state="readonly", width=12).pack(
+        side="left", padx=(4, 10)
+    )
     ttk.Label(filt, text=tr("Suche:")).pack(side="left")
     query_var = tk.StringVar()
     ttk.Entry(filt, textvariable=query_var).pack(side="left", fill="x", expand=True, padx=4)
@@ -626,31 +659,52 @@ class _PanelWindow:
         # (border-less) window; the spinboxes stay clickable, the rest drags.
         bar = tk.Frame(self.win, background="#37474f")
         bar.pack(side="top", fill="x")
-        handle = tk.Label(bar, text=tr("::"), background="#37474f", foreground="#b0bec5",
-                          font=("TkDefaultFont", 10, "bold"), cursor="fleur")
+        handle = tk.Label(
+            bar,
+            text=tr("::"),
+            background="#37474f",
+            foreground="#b0bec5",
+            font=("TkDefaultFont", 10, "bold"),
+            cursor="fleur",
+        )
         handle.pack(side="left", padx=(6, 4))
-        add_btn = tk.Button(bar, text=tr("+ Variable"), background="#455a64",
-                            foreground="#eceff1", relief="flat", cursor="hand2",
-                            activebackground="#546e7a", activeforeground="#ffffff",
-                            highlightthickness=0, borderwidth=0, padx=6,
-                            command=self._pick_var)
+        add_btn = tk.Button(
+            bar,
+            text=tr("+ Variable"),
+            background="#455a64",
+            foreground="#eceff1",
+            relief="flat",
+            cursor="hand2",
+            activebackground="#546e7a",
+            activeforeground="#ffffff",
+            highlightthickness=0,
+            borderwidth=0,
+            padx=6,
+            command=self._pick_var,
+        )
         add_btn.pack(side="left", padx=(0, 8))
-        tk.Label(bar, text=tr("Raster"), background="#37474f",
-                 foreground="#eceff1").pack(side="left")
+        tk.Label(bar, text=tr("Raster"), background="#37474f", foreground="#eceff1").pack(
+            side="left"
+        )
         self._cols_var = tk.IntVar(value=self.cols)
         self._rows_var = tk.IntVar(value=self.rows)
         for var in (self._cols_var, self._rows_var):
-            sp = tk.Spinbox(bar, from_=1, to=PANEL_MAX, width=3, textvariable=var,
-                            command=self._grid_changed)
+            sp = tk.Spinbox(
+                bar, from_=1, to=PANEL_MAX, width=3, textvariable=var, command=self._grid_changed
+            )
             sp.pack(side="left", padx=(4, 0))
             sp.bind("<Return>", lambda _e: self._grid_changed())
             sp.bind("<FocusOut>", lambda _e: self._grid_changed())
             if var is self._cols_var:
-                tk.Label(bar, text=tr("x"), background="#37474f",
-                         foreground="#eceff1").pack(side="left", padx=2)
-        hint = tk.Label(bar, background="#37474f", foreground="#90a4ae",
-                        text=tr("  ziehen = bewegen · Kacheln einrasten/tauschen · "
-                                "Rechtsklick = weg"))
+                tk.Label(bar, text=tr("x"), background="#37474f", foreground="#eceff1").pack(
+                    side="left", padx=2
+                )
+        hint = tk.Label(
+            bar,
+            background="#37474f",
+            foreground="#90a4ae",
+            text=tr("  ziehen = bewegen · Kacheln einrasten/tauschen · Rechtsklick = weg"),
+        )
         hint.pack(side="left", padx=6)
         for wgt in (bar, handle, hint):
             wgt.bind("<ButtonPress-1>", self._move_start)
@@ -662,8 +716,14 @@ class _PanelWindow:
         self.canvas.bind("<Configure>", lambda _e: self._relayout())
 
         # Resize grip pinned to the bottom-right corner (overlays the canvas).
-        grip = tk.Label(self.win, text=tr("/"), background="#cfd8dc", foreground="#546e7a",
-                        font=("TkDefaultFont", 12, "bold"), cursor="bottom_right_corner")
+        grip = tk.Label(
+            self.win,
+            text=tr("/"),
+            background="#cfd8dc",
+            foreground="#546e7a",
+            font=("TkDefaultFont", 12, "bold"),
+            cursor="bottom_right_corner",
+        )
         grip.place(relx=1.0, rely=1.0, anchor="se")
         grip.bind("<ButtonPress-1>", self._resize_start)
         grip.bind("<B1-Motion>", self._resize_move)
@@ -690,8 +750,9 @@ class _PanelWindow:
         return key in self.tiles
 
     def wires(self) -> list[str]:
-        return [w for t in self.tiles.values()
-                if (w := _wire_name(t["kind"], t["name"])) is not None]
+        return [
+            w for t in self.tiles.values() if (w := _wire_name(t["kind"], t["name"])) is not None
+        ]
 
     def add(self, kind: str, name: str, unit: str) -> bool:
         """Place a new tile in the first free cell; False if duplicate or grid full."""
@@ -702,8 +763,15 @@ class _PanelWindow:
         cell = _panel_first_free(occupied, self.cols, self.rows)
         if cell is None:
             return False
-        t = {"kind": kind, "name": name, "unit": unit,
-             "col": cell[0], "row": cell[1], "item": None, "value": None}
+        t = {
+            "kind": kind,
+            "name": name,
+            "unit": unit,
+            "col": cell[0],
+            "row": cell[1],
+            "item": None,
+            "value": None,
+        }
         self.tiles[key] = t
         self._create_item(key, t)
         self._place(t)
@@ -712,9 +780,11 @@ class _PanelWindow:
 
     def _pick_var(self) -> None:
         """Open the shared var picker; each pick drops a tile into the grid."""
+
         def _on(v):
             if self.add(v.kind, v.name, getattr(v, "unit", "") or ""):
                 self._on_change()
+
         _open_var_picker(self.win, self._catalog_provider(), _on)
 
     def destroy(self) -> None:
@@ -746,16 +816,25 @@ class _PanelWindow:
         # Compact two-line layout (name; value + unit) so a tile can shrink to
         # roughly half the old height before its text is clipped.
         tk = self._tk
-        fr = tk.Frame(self.canvas, bd=1, relief="raised", background="#ffffff",
-                      cursor="fleur")
-        tk.Label(fr, text=f"{t['kind']} {t['name']}", font=("TkDefaultFont", 8),
-                 foreground="#607d8b", background="#ffffff").pack(anchor="w", padx=5, pady=(1, 0))
+        fr = tk.Frame(self.canvas, bd=1, relief="raised", background="#ffffff", cursor="fleur")
+        tk.Label(
+            fr,
+            text=f"{t['kind']} {t['name']}",
+            font=("TkDefaultFont", 8),
+            foreground="#607d8b",
+            background="#ffffff",
+        ).pack(anchor="w", padx=5, pady=(1, 0))
         row = tk.Frame(fr, background="#ffffff")
         row.pack(anchor="w", padx=5, pady=(0, 1))
         val = tk.Label(row, text=tr("—"), font=("TkDefaultFont", 13, "bold"), background="#ffffff")
         val.pack(side="left")
-        tk.Label(row, text=t["unit"], font=("TkDefaultFont", 8), foreground="#90a4ae",
-                 background="#ffffff").pack(side="left", padx=(4, 0), pady=(3, 0))
+        tk.Label(
+            row,
+            text=t["unit"],
+            font=("TkDefaultFont", 8),
+            foreground="#90a4ae",
+            background="#ffffff",
+        ).pack(side="left", padx=(4, 0), pady=(3, 0))
         t["item"] = self.canvas.create_window(0, 0, window=fr, anchor="nw")
         t["value"] = val
         for wgt in (fr, *fr.winfo_children(), *row.winfo_children()):
@@ -770,8 +849,10 @@ class _PanelWindow:
         return cw / self.cols, ch / self.rows
 
     def _canvas_xy(self, ev):
-        return (self.canvas.canvasx(ev.x_root - self.canvas.winfo_rootx()),
-                self.canvas.canvasy(ev.y_root - self.canvas.winfo_rooty()))
+        return (
+            self.canvas.canvasx(ev.x_root - self.canvas.winfo_rootx()),
+            self.canvas.canvasy(ev.y_root - self.canvas.winfo_rooty()),
+        )
 
     def _place(self, t) -> None:
         if t["item"] is None:
@@ -779,8 +860,9 @@ class _PanelWindow:
         cellw, cellh = self._cell_size()
         pad = 3
         self.canvas.coords(t["item"], t["col"] * cellw + pad, t["row"] * cellh + pad)
-        self.canvas.itemconfigure(t["item"], width=max(1, int(cellw - 2 * pad)),
-                                  height=max(1, int(cellh - 2 * pad)))
+        self.canvas.itemconfigure(
+            t["item"], width=max(1, int(cellw - 2 * pad)), height=max(1, int(cellh - 2 * pad))
+        )
 
     def _draw_grid(self) -> None:
         self.canvas.delete("gridline")
@@ -820,11 +902,17 @@ class _PanelWindow:
         cellw, cellh = self._cell_size()
         cx, cy = self._canvas_xy(ev)
         col, row = _panel_cell_from_point(
-            cx - self._drag["dx"] + cellw / 2, cy - self._drag["dy"] + cellh / 2,
-            self.cols, self.rows, cellw, cellh,
+            cx - self._drag["dx"] + cellw / 2,
+            cy - self._drag["dy"] + cellh / 2,
+            self.cols,
+            self.rows,
+            cellw,
+            cellh,
         )
-        other = next((o for o in self.tiles.values()
-                      if o is not t and o["col"] == col and o["row"] == row), None)
+        other = next(
+            (o for o in self.tiles.values() if o is not t and o["col"] == col and o["row"] == row),
+            None,
+        )
         if other is not None:  # swap
             other["col"], other["row"] = t["col"], t["row"]
             self._place(other)
@@ -876,14 +964,25 @@ class _PanelWindow:
 
     def _save(self) -> None:
         with contextlib.suppress(self._tk.TclError):
-            save_panel_state({
-                "cols": self.cols, "rows": self.rows,
-                "geometry": self.win.winfo_geometry(),
-                # The "visible" flag is owned by run() (show/hide); preserve it.
-                "visible": load_panel_state()["visible"],
-                "tiles": [{"kind": t["kind"], "name": t["name"], "unit": t["unit"],
-                           "col": t["col"], "row": t["row"]} for t in self.tiles.values()],
-            })
+            save_panel_state(
+                {
+                    "cols": self.cols,
+                    "rows": self.rows,
+                    "geometry": self.win.winfo_geometry(),
+                    # The "visible" flag is owned by run() (show/hide); preserve it.
+                    "visible": load_panel_state()["visible"],
+                    "tiles": [
+                        {
+                            "kind": t["kind"],
+                            "name": t["name"],
+                            "unit": t["unit"],
+                            "col": t["col"],
+                            "row": t["row"],
+                        }
+                        for t in self.tiles.values()
+                    ],
+                }
+            )
 
     def _close(self) -> None:
         if self._after is not None:
@@ -914,14 +1013,15 @@ def run() -> None:
     # specific MSFS Proton prefix via env overrides; recomputed before each start.
     prefix_var_holder: dict[str, str] = {"path": load_prefix_path()}
     bridge = ProcessController(
-        "bridge", ["bash", str(root_dir / "bridge" / "run-bridge.sh")],
-        cwd=root_dir, log_path=root_dir / "bridge" / "bridge.log",
+        "bridge",
+        ["bash", str(root_dir / "bridge" / "run-bridge.sh")],
+        cwd=root_dir,
+        log_path=root_dir / "bridge" / "bridge.log",
         env=env_check.bridge_env(prefix_var_holder["path"]),
     )
     profiles = _list_profiles(root_dir)
     default_profile = (
-        "piper_arrow" if "piper_arrow" in profiles
-        else profiles[0] if profiles else "piper_arrow"
+        "piper_arrow" if "piper_arrow" in profiles else profiles[0] if profiles else "piper_arrow"
     )
     catalog = gui_catalog.load_catalog(root_dir / "docs" / "simvars-reference.md")
     monitor = _ValueMonitor()
@@ -941,56 +1041,113 @@ def run() -> None:
     with contextlib.suppress(Exception):
         style.theme_use("clam")  # the only stock theme that honours custom colours
     win.configure(bg=BG)
-    style.configure(".", background=BG, foreground=TEXT, fieldbackground=SURFACE,
-                    bordercolor="#d1d5db", lightcolor=BG, darkcolor=BG)
+    style.configure(
+        ".",
+        background=BG,
+        foreground=TEXT,
+        fieldbackground=SURFACE,
+        bordercolor="#d1d5db",
+        lightcolor=BG,
+        darkcolor=BG,
+    )
     style.configure("TFrame", background=BG)
     style.configure("TLabel", background=BG, foreground=TEXT)
     style.configure("TLabelframe", background=BG, bordercolor="#d1d5db")
     style.configure("TLabelframe.Label", background=BG, foreground=MUTED)
-    style.configure("TButton", padding=(10, 5), background="#e5e7eb", foreground=TEXT,
-                    borderwidth=0, focuscolor=BG)
-    style.map("TButton", background=[("active", "#d1d5db"), ("disabled", "#eef0f2")],
-              foreground=[("disabled", "#9aa1ab")])
+    style.configure(
+        "TButton",
+        padding=(10, 5),
+        background="#e5e7eb",
+        foreground=TEXT,
+        borderwidth=0,
+        focuscolor=BG,
+    )
+    style.map(
+        "TButton",
+        background=[("active", "#d1d5db"), ("disabled", "#eef0f2")],
+        foreground=[("disabled", "#9aa1ab")],
+    )
     style.configure("TNotebook", background=BG, borderwidth=0, tabmargins=(6, 6, 6, 0))
-    style.configure("TNotebook.Tab", padding=(14, 7), background="#e5e7eb",
-                    foreground=MUTED, borderwidth=0)
-    style.map("TNotebook.Tab", background=[("selected", SURFACE)],
-              foreground=[("selected", ACCENT)], expand=[("selected", (0, 0, 0, 0))])
-    style.configure("Treeview", background=SURFACE, fieldbackground=SURFACE, foreground=TEXT,
-                    rowheight=25, borderwidth=0)
-    style.configure("Treeview.Heading", background="#e5e7eb", foreground=MUTED,
-                    relief="flat", padding=4)
+    style.configure(
+        "TNotebook.Tab", padding=(14, 7), background="#e5e7eb", foreground=MUTED, borderwidth=0
+    )
+    style.map(
+        "TNotebook.Tab",
+        background=[("selected", SURFACE)],
+        foreground=[("selected", ACCENT)],
+        expand=[("selected", (0, 0, 0, 0))],
+    )
+    style.configure(
+        "Treeview",
+        background=SURFACE,
+        fieldbackground=SURFACE,
+        foreground=TEXT,
+        rowheight=25,
+        borderwidth=0,
+    )
+    style.configure(
+        "Treeview.Heading", background="#e5e7eb", foreground=MUTED, relief="flat", padding=4
+    )
     style.map("Treeview", background=[("selected", ACCENT)], foreground=[("selected", "#ffffff")])
     style.configure("TCombobox", padding=3)
     style.configure("TEntry", padding=3)
     # Primary/important actions and destructive actions get colour.
-    style.configure("Accent.TButton", background=ACCENT, foreground="#ffffff",
-                    padding=(12, 6), borderwidth=0)
-    style.map("Accent.TButton", background=[("active", ACCENT_ACT), ("disabled", "#a9c1f6")],
-              foreground=[("disabled", "#eef2ff")])
+    style.configure(
+        "Accent.TButton", background=ACCENT, foreground="#ffffff", padding=(12, 6), borderwidth=0
+    )
+    style.map(
+        "Accent.TButton",
+        background=[("active", ACCENT_ACT), ("disabled", "#a9c1f6")],
+        foreground=[("disabled", "#eef2ff")],
+    )
     # Inverted accent — used by the Panel toggle while the panel is open.
-    style.configure("AccentInv.TButton", background=SURFACE, foreground=ACCENT,
-                    padding=(12, 6), borderwidth=1)
-    style.map("AccentInv.TButton", background=[("active", "#eef2ff")],
-              foreground=[("disabled", "#a9c1f6")])
-    style.configure("Danger.TButton", background=DANGER, foreground="#ffffff",
-                    padding=(10, 5), borderwidth=0)
+    style.configure(
+        "AccentInv.TButton", background=SURFACE, foreground=ACCENT, padding=(12, 6), borderwidth=1
+    )
+    style.map(
+        "AccentInv.TButton",
+        background=[("active", "#eef2ff")],
+        foreground=[("disabled", "#a9c1f6")],
+    )
+    style.configure(
+        "Danger.TButton", background=DANGER, foreground="#ffffff", padding=(10, 5), borderwidth=0
+    )
     style.map("Danger.TButton", background=[("active", DANGER_ACT), ("disabled", "#eab8b8")])
     # Success (green) — positive/add actions, e.g. pulling variables into the list.
-    style.configure("Success.TButton", background="#2e7d32", foreground="#ffffff",
-                    padding=(10, 5), borderwidth=0)
-    style.map("Success.TButton", background=[("active", "#256a29"), ("disabled", "#a9d3ab")],
-              foreground=[("disabled", "#eef7ee")])
+    style.configure(
+        "Success.TButton",
+        background="#2e7d32",
+        foreground="#ffffff",
+        padding=(10, 5),
+        borderwidth=0,
+    )
+    style.map(
+        "Success.TButton",
+        background=[("active", "#256a29"), ("disabled", "#a9d3ab")],
+        foreground=[("disabled", "#eef7ee")],
+    )
     # Compact variants for dense groups (Connection tab): smaller padding, colours
     # re-declared explicitly so they don't depend on ttk style-map inheritance.
     style.configure("Small.TButton", padding=(8, 3))
-    style.configure("SmallAccent.TButton", background=ACCENT, foreground="#ffffff",
-                    padding=(8, 3), borderwidth=0)
-    style.map("SmallAccent.TButton",
-              background=[("active", ACCENT_ACT), ("disabled", "#a9c1f6")],
-              foreground=[("disabled", "#eef2ff")])
-    style.configure("SmallDanger.TButton", background=DANGER, foreground="#ffffff",
-                    padding=(8, 3), borderwidth=0)
+    style.configure(
+        "SmallAccent.TButton",
+        background=ACCENT,
+        foreground="#ffffff",
+        padding=(8, 3),
+        borderwidth=0,
+    )
+    style.map(
+        "SmallAccent.TButton",
+        background=[("active", ACCENT_ACT), ("disabled", "#a9c1f6")],
+        foreground=[("disabled", "#eef2ff")],
+    )
+    style.configure(
+        "SmallDanger.TButton",
+        background=DANGER,
+        foreground="#ffffff",
+        padding=(8, 3),
+        borderwidth=0,
+    )
     style.map("SmallDanger.TButton", background=[("active", DANGER_ACT), ("disabled", "#eab8b8")])
 
     # On/off state of the (borderless) Panel window, mirrored by the toolbar
@@ -1005,8 +1162,16 @@ def run() -> None:
     def make_mapper() -> ProcessController:
         return ProcessController(
             "mapper",
-            ["uv", "run", "python", "-m", "msfs_peripherals_bridge", "run",
-             "--profile", profile_var.get()],
+            [
+                "uv",
+                "run",
+                "python",
+                "-m",
+                "msfs_peripherals_bridge",
+                "run",
+                "--profile",
+                profile_var.get(),
+            ],
             cwd=root_dir,
         )
 
@@ -1046,7 +1211,7 @@ def run() -> None:
 
     def stop_bridge():
         bridge.stop()
-        _sweep("bridge/bridge.py")      # mop up any escaped Proton child
+        _sweep("bridge/bridge.py")  # mop up any escaped Proton child
         _sweep("bridge/run-bridge.sh")  # and the supervisor if started elsewhere
 
     def start_mapper():
@@ -1070,37 +1235,45 @@ def run() -> None:
     proc_fr.columnconfigure(1, weight=1)
     proc_fr.columnconfigure(2, weight=1)
 
-    ttk.Label(proc_fr, text=tr("conn.bridge")).grid(row=0, column=0, sticky="w",
-                                                     padx=(0, 10), pady=2)
-    b_bs = ttk.Button(proc_fr, text=tr("conn.start"), style="SmallAccent.TButton",
-                      command=start_bridge)
-    b_bx = ttk.Button(proc_fr, text=tr("conn.stop"), style="SmallDanger.TButton",
-                      command=stop_bridge)
+    ttk.Label(proc_fr, text=tr("conn.bridge")).grid(
+        row=0, column=0, sticky="w", padx=(0, 10), pady=2
+    )
+    b_bs = ttk.Button(
+        proc_fr, text=tr("conn.start"), style="SmallAccent.TButton", command=start_bridge
+    )
+    b_bx = ttk.Button(
+        proc_fr, text=tr("conn.stop"), style="SmallDanger.TButton", command=stop_bridge
+    )
     b_bs.grid(row=0, column=1, sticky="ew", padx=3, pady=2)
     b_bx.grid(row=0, column=2, sticky="ew", padx=3, pady=2)
 
-    ttk.Label(proc_fr, text=tr("conn.mapper")).grid(row=1, column=0, sticky="w",
-                                                     padx=(0, 10), pady=2)
-    b_ms = ttk.Button(proc_fr, text=tr("conn.start"), style="SmallAccent.TButton",
-                      command=start_mapper)
-    b_mx = ttk.Button(proc_fr, text=tr("conn.stop"), style="SmallDanger.TButton",
-                      command=stop_mapper)
+    ttk.Label(proc_fr, text=tr("conn.mapper")).grid(
+        row=1, column=0, sticky="w", padx=(0, 10), pady=2
+    )
+    b_ms = ttk.Button(
+        proc_fr, text=tr("conn.start"), style="SmallAccent.TButton", command=start_mapper
+    )
+    b_mx = ttk.Button(
+        proc_fr, text=tr("conn.stop"), style="SmallDanger.TButton", command=stop_mapper
+    )
     b_ms.grid(row=1, column=1, sticky="ew", padx=3, pady=2)
     b_mx.grid(row=1, column=2, sticky="ew", padx=3, pady=2)
 
-    b_all = ttk.Button(proc_fr, text=tr("conn.stop_all"), style="SmallDanger.TButton",
-                       command=stop_all)
+    b_all = ttk.Button(
+        proc_fr, text=tr("conn.stop_all"), style="SmallDanger.TButton", command=stop_all
+    )
     b_all.grid(row=2, column=0, columnspan=3, sticky="ew", padx=3, pady=(8, 2))
 
-    ttk.Label(proc_fr, text=tr("conn.single_client_note"), foreground=MUTED,
-              font=("TkDefaultFont", 8)).grid(row=3, column=0, columnspan=3,
-                                              sticky="w", pady=(6, 0))
+    ttk.Label(
+        proc_fr, text=tr("conn.single_client_note"), foreground=MUTED, font=("TkDefaultFont", 8)
+    ).grid(row=3, column=0, columnspan=3, sticky="w", pady=(6, 0))
 
     _attach_tooltip(b_bs, tr("bash bridge/run-bridge.sh   (Supervisor → bridge.py → Proton)"))
     _attach_tooltip(b_bx, tr("killpg SIGTERM + sweep 'bridge/bridge.py' / 'bridge/run-bridge.sh'"))
     _attach_tooltip(b_ms, mapper_cmd)  # dynamic: reflects the selected profile
-    _attach_tooltip(b_mx,
-                    tr("killpg SIGTERM (Mapper-Prozessgruppe) + sweep 'peripherals_bridge run'"))
+    _attach_tooltip(
+        b_mx, tr("killpg SIGTERM (Mapper-Prozessgruppe) + sweep 'peripherals_bridge run'")
+    )
     _attach_tooltip(b_all, tr("stop_mapper() + stop_bridge() — alle Strays wegräumen"))
 
     # --- group 2: environment & prerequisites (prefix + green/red checks) -- #
@@ -1108,8 +1281,9 @@ def run() -> None:
     env_fr.grid(row=1, column=0, sticky="ew", pady=(10, 0))
     env_fr.columnconfigure(1, weight=1)
 
-    ttk.Label(env_fr, text=tr("conn.prefix_label")).grid(row=0, column=0, sticky="w",
-                                                         padx=(0, 8), pady=2)
+    ttk.Label(env_fr, text=tr("conn.prefix_label")).grid(
+        row=0, column=0, sticky="w", padx=(0, 8), pady=2
+    )
     prefix_var = tk.StringVar(value=prefix_var_holder["path"])
     prefix_entry = ttk.Entry(env_fr, textvariable=prefix_var)
     prefix_entry.grid(row=0, column=1, sticky="ew", pady=2)
@@ -1117,8 +1291,9 @@ def run() -> None:
     prefix_btns.grid(row=0, column=2, sticky="e", padx=(6, 0))
 
     checks_fr = ttk.Frame(env_fr)
-    summary_lbl = tk.Label(env_fr, text=tr(""), font=("TkDefaultFont", 9, "bold"),
-                           bg=BG, anchor="w")
+    summary_lbl = tk.Label(
+        env_fr, text=tr(""), font=("TkDefaultFont", 9, "bold"), bg=BG, anchor="w"
+    )
 
     def _render_checks() -> None:
         for w in checks_fr.winfo_children():
@@ -1127,15 +1302,19 @@ def run() -> None:
         n_bad = 0
         for i, item in enumerate(items):
             n_bad += 0 if item.ok else 1
-            tk.Label(checks_fr, text=tr("✓") if item.ok else "✗", bg=BG,
-                     fg="#2e7d32" if item.ok else "#c62828",
-                     font=("TkDefaultFont", 10, "bold")).grid(row=i, column=0,
-                                                              sticky="w", padx=(0, 6))
-            tk.Label(checks_fr, text=tr(item.key), bg=BG, fg=TEXT, anchor="w"
-                     ).grid(row=i, column=1, sticky="w")
-            tk.Label(checks_fr, text=item.detail, bg=BG, fg=MUTED,
-                     font=("TkDefaultFont", 8), anchor="w").grid(row=i, column=2,
-                                                                 sticky="w", padx=(8, 0))
+            tk.Label(
+                checks_fr,
+                text=tr("✓") if item.ok else "✗",
+                bg=BG,
+                fg="#2e7d32" if item.ok else "#c62828",
+                font=("TkDefaultFont", 10, "bold"),
+            ).grid(row=i, column=0, sticky="w", padx=(0, 6))
+            tk.Label(checks_fr, text=tr(item.key), bg=BG, fg=TEXT, anchor="w").grid(
+                row=i, column=1, sticky="w"
+            )
+            tk.Label(
+                checks_fr, text=item.detail, bg=BG, fg=MUTED, font=("TkDefaultFont", 8), anchor="w"
+            ).grid(row=i, column=2, sticky="w", padx=(8, 0))
         if n_bad == 0:
             summary_lbl.config(text=tr("✓ ") + tr("conn.prereq_all_ok"), fg="#2e7d32")
         else:
@@ -1149,25 +1328,40 @@ def run() -> None:
 
     def _browse_prefix() -> None:
         from tkinter import filedialog
+
         start = prefix_var.get().strip() or str(env_check.default_prefix())
         chosen = filedialog.askdirectory(initialdir=start, title=tr("conn.prefix_label"))
         if chosen:
             prefix_var.set(chosen)
             _apply_prefix()
 
-    def _spawn_and_tail(*, title: str, argv: list[str], env: dict[str, str], on_done,
-                        log_name: str = "setup-prefix.log",
-                        running_key: str = "conn.setup_running") -> None:
+    def _spawn_and_tail(
+        *,
+        title: str,
+        argv: list[str],
+        env: dict[str, str],
+        on_done,
+        log_name: str = "setup-prefix.log",
+        running_key: str = "conn.setup_running",
+    ) -> None:
         """Run a one-shot setup subprocess and stream its output into a window."""
         top = tk.Toplevel(win)
         top.title(title)
         top.geometry("760x460")
         top.columnconfigure(0, weight=1)
         top.rowconfigure(1, weight=1)
-        ttk.Label(top, text=tr(running_key), padding=6).grid(row=0, column=0,
-                                                             columnspan=2, sticky="w")
-        txt = tk.Text(top, wrap="none", background="#0f172a", foreground="#d1d5db",
-                      font=("TkFixedFont", 9), borderwidth=0, highlightthickness=0)
+        ttk.Label(top, text=tr(running_key), padding=6).grid(
+            row=0, column=0, columnspan=2, sticky="w"
+        )
+        txt = tk.Text(
+            top,
+            wrap="none",
+            background="#0f172a",
+            foreground="#d1d5db",
+            font=("TkFixedFont", 9),
+            borderwidth=0,
+            highlightthickness=0,
+        )
         txt.grid(row=1, column=0, sticky="nsew")
         vsb = ttk.Scrollbar(top, orient="vertical", command=txt.yview)
         vsb.grid(row=1, column=1, sticky="ns")
@@ -1175,8 +1369,14 @@ def run() -> None:
         setup_log = root_dir / "bridge" / log_name
         fh = open(setup_log, "w", encoding="utf-8")  # noqa: SIM115 (closed when the child ends)
         full_env = {**os.environ, **env} if env else None
-        proc = subprocess.Popen(argv, cwd=str(root_dir), stdout=fh,
-                                stderr=subprocess.STDOUT, start_new_session=True, env=full_env)
+        proc = subprocess.Popen(
+            argv,
+            cwd=str(root_dir),
+            stdout=fh,
+            stderr=subprocess.STDOUT,
+            start_new_session=True,
+            env=full_env,
+        )
         st = {"at": 0, "done": False}
 
         def _pump():
@@ -1198,6 +1398,7 @@ def run() -> None:
                 txt.see("end")
                 with contextlib.suppress(Exception):
                     on_done()
+
         _pump()
 
     def _run_setup() -> None:
@@ -1232,48 +1433,58 @@ def run() -> None:
             running_key="udev.running",
         )
 
-    b_browse = ttk.Button(prefix_btns, text=tr("conn.browse"), style="Small.TButton",
-                          command=_browse_prefix)
-    b_save = ttk.Button(prefix_btns, text=tr("conn.save"), style="Small.TButton",
-                        command=_apply_prefix)
+    b_browse = ttk.Button(
+        prefix_btns, text=tr("conn.browse"), style="Small.TButton", command=_browse_prefix
+    )
+    b_save = ttk.Button(
+        prefix_btns, text=tr("conn.save"), style="Small.TButton", command=_apply_prefix
+    )
     b_browse.pack(side="left", padx=(0, 4))
     b_save.pack(side="left")
     prefix_entry.bind("<Return>", lambda _e: _apply_prefix())
     _attach_tooltip(b_browse, tr("filedialog.askdirectory → prefix_path (gui-settings.json)"))
-    _attach_tooltip(b_save,
-                    tr("prefix_path speichern + Bridge-Env (STEAM_COMPAT_DATA_PATH) setzen"))
+    _attach_tooltip(
+        b_save, tr("prefix_path speichern + Bridge-Env (STEAM_COMPAT_DATA_PATH) setzen")
+    )
 
-    ttk.Label(env_fr, text=tr("conn.prefix_hint"), foreground=MUTED,
-              font=("TkDefaultFont", 8), wraplength=520, justify="left"
-              ).grid(row=1, column=0, columnspan=3, sticky="w", pady=(0, 6))
-    ttk.Separator(env_fr, orient="horizontal").grid(row=2, column=0, columnspan=3,
-                                                     sticky="ew", pady=4)
-    ttk.Label(env_fr, text=tr("conn.prereq_title")).grid(row=3, column=0, columnspan=3,
-                                                          sticky="w")
+    ttk.Label(
+        env_fr,
+        text=tr("conn.prefix_hint"),
+        foreground=MUTED,
+        font=("TkDefaultFont", 8),
+        wraplength=520,
+        justify="left",
+    ).grid(row=1, column=0, columnspan=3, sticky="w", pady=(0, 6))
+    ttk.Separator(env_fr, orient="horizontal").grid(
+        row=2, column=0, columnspan=3, sticky="ew", pady=4
+    )
+    ttk.Label(env_fr, text=tr("conn.prereq_title")).grid(row=3, column=0, columnspan=3, sticky="w")
     checks_fr.grid(row=4, column=0, columnspan=3, sticky="ew", pady=(2, 4))
     checks_fr.columnconfigure(2, weight=1)
     summary_lbl.grid(row=5, column=0, columnspan=3, sticky="w", pady=(2, 4))
 
     # Device access (udev) — one-click install of the rules that make the
     # panels/yoke readable, via a graphical password prompt (no terminal).
-    ttk.Separator(env_fr, orient="horizontal").grid(row=6, column=0, columnspan=3,
-                                                     sticky="ew", pady=4)
+    ttk.Separator(env_fr, orient="horizontal").grid(
+        row=6, column=0, columnspan=3, sticky="ew", pady=4
+    )
     udev_fr = ttk.Frame(env_fr)
     udev_fr.grid(row=7, column=0, columnspan=3, sticky="w", pady=(2, 4))
     ttk.Label(udev_fr, text=tr("udev.label")).pack(side="left")
     udev_status = tk.Label(udev_fr, text="", font=("TkDefaultFont", 9))
     udev_status.pack(side="left", padx=(6, 8))
-    b_udev = ttk.Button(udev_fr, text=tr("udev.button"), style="Small.TButton",
-                        command=_run_udev)
+    b_udev = ttk.Button(udev_fr, text=tr("udev.button"), style="Small.TButton", command=_run_udev)
     b_udev.pack(side="left")
     _attach_tooltip(b_udev, tr("pkexec tools/install-udev-rules.sh  (udev-Regeln, Passwortdialog)"))
 
     env_btns = ttk.Frame(env_fr)
     env_btns.grid(row=8, column=0, columnspan=3, sticky="w", pady=(2, 0))
-    b_recheck = ttk.Button(env_btns, text=tr("conn.recheck"), style="Small.TButton",
-                           command=_render_checks)
-    b_setup = ttk.Button(env_btns, text=tr("conn.setup_prefix"), style="Small.TButton",
-                         command=_run_setup)
+    b_recheck = ttk.Button(
+        env_btns, text=tr("conn.recheck"), style="Small.TButton", command=_render_checks
+    )
+    b_setup = ttk.Button(
+        env_btns, text=tr("conn.setup_prefix"), style="Small.TButton", command=_run_setup
+    )
     b_recheck.pack(side="left", padx=(0, 4))
     b_setup.pack(side="left")
     _attach_tooltip(b_setup, tr("bash bridge/setup-prefix.sh  (Windows-Python + SimConnect)"))
@@ -1287,15 +1498,24 @@ def run() -> None:
     # the bridge "terminal" shows here instead of in a separate console.
     logtab.rowconfigure(1, weight=1)
     logtab.columnconfigure(0, weight=1)
-    ttk.Label(logtab, text=tr("conn.log_label") + " —  bridge/bridge.log",
-              foreground=MUTED).grid(row=0, column=0, sticky="w", pady=(0, 4))
+    ttk.Label(logtab, text=tr("conn.log_label") + " —  bridge/bridge.log", foreground=MUTED).grid(
+        row=0, column=0, sticky="w", pady=(0, 4)
+    )
     logfr = ttk.Frame(logtab)
     logfr.grid(row=1, column=0, sticky="nsew")
     logfr.rowconfigure(0, weight=1)
     logfr.columnconfigure(0, weight=1)
-    log_txt = tk.Text(logfr, height=12, wrap="none", background="#0f172a",
-                      foreground="#d1d5db", insertbackground="#d1d5db",
-                      font=("TkFixedFont", 9), borderwidth=0, highlightthickness=0)
+    log_txt = tk.Text(
+        logfr,
+        height=12,
+        wrap="none",
+        background="#0f172a",
+        foreground="#d1d5db",
+        insertbackground="#d1d5db",
+        font=("TkFixedFont", 9),
+        borderwidth=0,
+        highlightthickness=0,
+    )
     log_txt.grid(row=0, column=0, sticky="nsew")
     log_vsb = ttk.Scrollbar(logfr, orient="vertical", command=log_txt.yview)
     log_vsb.grid(row=0, column=1, sticky="ns")
@@ -1330,7 +1550,7 @@ def run() -> None:
                         fh.seek(max(0, size - 16384))
                         chunk = fh.read()
                         if size > 16384:
-                            chunk = "… (älteres im bridge.log)\n" + chunk[chunk.find("\n") + 1:]
+                            chunk = "… (älteres im bridge.log)\n" + chunk[chunk.find("\n") + 1 :]
                         follow = True
                     else:
                         fh.seek(_log_pos["at"])
@@ -1349,14 +1569,16 @@ def run() -> None:
     stab.rowconfigure(2, weight=1)  # the value table grows (buttons above it in row 1)
     stab.columnconfigure(0, weight=1)
 
-    ttk.Label(stab, text=tr("Live-Wertliste — Variablen zum Beobachten zusammenstellen:")
-              ).grid(row=0, column=0, columnspan=4, sticky="w")
+    ttk.Label(stab, text=tr("Live-Wertliste — Variablen zum Beobachten zusammenstellen:")).grid(
+        row=0, column=0, columnspan=4, sticky="w"
+    )
 
-    tree = ttk.Treeview(stab, columns=("kind", "name", "value", "unit"),
-                        show="headings", height=10)
+    tree = ttk.Treeview(stab, columns=("kind", "name", "value", "unit"), show="headings", height=10)
     for col, head, w, anchor in (
-        ("kind", tr("Typ"), 44, "center"), ("name", tr("Variable"), 260, "w"),
-        ("value", tr("Wert"), 90, "center"), ("unit", tr("Einheit"), 74, "center"),
+        ("kind", tr("Typ"), 44, "center"),
+        ("name", tr("Variable"), 260, "w"),
+        ("value", tr("Wert"), 90, "center"),
+        ("unit", tr("Einheit"), 74, "center"),
     ):
         tree.heading(col, text=head)
         tree.column(col, width=w, anchor=anchor)
@@ -1395,7 +1617,8 @@ def run() -> None:
         wires = []
         if _statistik_shown():
             wires += [
-                w for iid in tree.get_children("")
+                w
+                for iid in tree.get_children("")
                 if (w := _wire_name(tree.set(iid, "kind"), tree.set(iid, "name"))) is not None
             ]
         pw = panel_ref["win"]
@@ -1406,11 +1629,16 @@ def run() -> None:
         monitor.set_names(list(dict.fromkeys(wires)))
 
     def _persist_selection():
-        save_statistik_selection([
-            {"kind": tree.set(iid, "kind"), "name": tree.set(iid, "name"),
-             "unit": tree.set(iid, "unit")}
-            for iid in tree.get_children("")
-        ])
+        save_statistik_selection(
+            [
+                {
+                    "kind": tree.set(iid, "kind"),
+                    "name": tree.set(iid, "name"),
+                    "unit": tree.set(iid, "unit"),
+                }
+                for iid in tree.get_children("")
+            ]
+        )
 
     def add_var(v, *, persist=True):
         key = f"{v.kind}\t{v.name}"
@@ -1456,8 +1684,13 @@ def run() -> None:
     def _show_panel():
         pw = panel_ref["win"]
         if pw is None or not pw.alive():
-            pw = _PanelWindow(win, monitor, on_change=_resubscribe, on_close=_panel_closed,
-                              catalog_provider=_statistik_catalog)
+            pw = _PanelWindow(
+                win,
+                monitor,
+                on_change=_resubscribe,
+                on_close=_panel_closed,
+                catalog_provider=_statistik_catalog,
+            )
             panel_ref["win"] = pw
         panel_on.set(True)
         _panel_btn_open(True)
@@ -1486,8 +1719,10 @@ def run() -> None:
     for _saved in load_statistik_selection():
         add_var(
             gui_catalog.CatalogVar(
-                name=_saved["name"], kind=_saved["kind"],
-                unit=_saved.get("unit", ""), category="",
+                name=_saved["name"],
+                kind=_saved["kind"],
+                unit=_saved.get("unit", ""),
+                category="",
             ),
             persist=False,
         )
@@ -1497,18 +1732,26 @@ def run() -> None:
         # a just-declared virtual shows up in the picker without a restart.
         lvs = []
         with contextlib.suppress(Exception):
-            lvs = load_profile(profiles_dir(root_dir)
-                               / f"{profile_var.get()}.yaml").local_vars
+            lvs = load_profile(profiles_dir(root_dir) / f"{profile_var.get()}.yaml").local_vars
         return catalog + gui_catalog.local_var_catalog(lvs)
 
     sbtn = ttk.Frame(stab)
     sbtn.grid(row=1, column=0, columnspan=4, sticky="ew", pady=(2, 4))
-    b_add = ttk.Button(sbtn, text=tr("Variablen in die Liste holen"), style="Success.TButton",
-                       command=lambda: _open_var_picker(win, _statistik_catalog(), add_var))
-    b_rm = ttk.Button(sbtn, text=tr("Variablen aus Liste entfernen"), style="Danger.TButton",
-                      command=remove_selected)
-    b_toggle = ttk.Button(sbtn, textvariable=panel_btn_text, style="Accent.TButton",
-                          command=_toggle_panel)
+    b_add = ttk.Button(
+        sbtn,
+        text=tr("Variablen in die Liste holen"),
+        style="Success.TButton",
+        command=lambda: _open_var_picker(win, _statistik_catalog(), add_var),
+    )
+    b_rm = ttk.Button(
+        sbtn,
+        text=tr("Variablen aus Liste entfernen"),
+        style="Danger.TButton",
+        command=remove_selected,
+    )
+    b_toggle = ttk.Button(
+        sbtn, textvariable=panel_btn_text, style="Accent.TButton", command=_toggle_panel
+    )
     panel_btn["w"] = b_toggle
     b_add.pack(side="left")
     b_rm.pack(side="left", padx=6)
@@ -1521,11 +1764,13 @@ def run() -> None:
     # --- V: overview: declare / remove the profile's own virtual variables --- #
     # Sits below the value table. Values live in the bridge's V: hub (seeded with
     # `initial` at mapper start); declared vars show up in every var-picker.
-    vfr = ttk.Labelframe(stab, text=tr("Eigene V:-Variablen (Bridge-Hub, sim-unabhängig)"),
-                         padding=6)
+    vfr = ttk.Labelframe(
+        stab, text=tr("Eigene V:-Variablen (Bridge-Hub, sim-unabhängig)"), padding=6
+    )
     vfr.grid(row=3, column=0, columnspan=4, sticky="ew", pady=(10, 0))
-    v_list = ttk.Treeview(vfr, columns=("initial", "desc"), show="tree headings",
-                          height=4, selectmode="browse")
+    v_list = ttk.Treeview(
+        vfr, columns=("initial", "desc"), show="tree headings", height=4, selectmode="browse"
+    )
     v_list.heading("#0", text=tr("Name (V:…)"))
     v_list.column("#0", width=180, anchor="w")
     v_list.heading("initial", text=tr("Startwert"))
@@ -1552,8 +1797,13 @@ def run() -> None:
         except Exception:
             return
         for lv in prof.local_vars:
-            v_list.insert("", "end", iid=lv.name, text=f"V:{lv.name}",
-                          values=(f"{lv.initial:g}", lv.description))
+            v_list.insert(
+                "",
+                "end",
+                iid=lv.name,
+                text=f"V:{lv.name}",
+                values=(f"{lv.initial:g}", lv.description),
+            )
 
     def _vlist_save(local_vars):
         path = profiles_dir(root_dir) / f"{profile_var.get()}.yaml"
@@ -1570,7 +1820,8 @@ def run() -> None:
     def _vlist_current():
         try:
             return _local_vars_as_dicts(
-                load_profile(profiles_dir(root_dir) / f"{profile_var.get()}.yaml"))
+                load_profile(profiles_dir(root_dir) / f"{profile_var.get()}.yaml")
+            )
         except Exception:
             return []
 
@@ -1601,10 +1852,12 @@ def run() -> None:
             return
         _vlist_save([lv for lv in _vlist_current() if lv["name"] != sel[0]])
 
-    ttk.Button(vrow, text=tr("Anlegen"), style="Accent.TButton",
-               command=_vlist_add).pack(side="left", padx=(4, 4))
-    ttk.Button(vrow, text=tr("Entfernen"), style="Danger.TButton",
-               command=_vlist_remove).pack(side="left")
+    ttk.Button(vrow, text=tr("Anlegen"), style="Accent.TButton", command=_vlist_add).pack(
+        side="left", padx=(4, 4)
+    )
+    ttk.Button(vrow, text=tr("Entfernen"), style="Danger.TButton", command=_vlist_remove).pack(
+        side="left"
+    )
     profile_var.trace_add("write", _vlist_load)
     win.after(400, _vlist_load)  # deferred: load_profile is imported just below
 
@@ -1627,23 +1880,35 @@ def run() -> None:
     # switches/LEDs/displays at ~their physical position; the old detail-table view +
     # its toggle were retired — the table lives on only as a hidden data source.
     # Edit mode ("Anordnen"): drag elements onto a grid; only useful in panel view.
-    edit_btn = ttk.Button(mhdr, text=tr("✎ Anordnen"),
-                          command=lambda: _toggle_edit())
-    _attach_tooltip(edit_btn, tr("Elemente frei anordnen: im Nachbau die Knöpfe/"
-                                 "Anzeigen ins Raster ziehen, an der blauen Ecke in der "
-                                 "Größe ziehen (Rechtsklick = Größe in Pixel). Pro Gerät "
-                                 "gespeichert."))
-    reset_layout_btn = ttk.Button(mhdr, text=tr("↺"),
-                                  command=lambda: _reset_layout())
+    edit_btn = ttk.Button(mhdr, text=tr("✎ Anordnen"), command=lambda: _toggle_edit())
+    _attach_tooltip(
+        edit_btn,
+        tr(
+            "Elemente frei anordnen: im Nachbau die Knöpfe/"
+            "Anzeigen ins Raster ziehen, an der blauen Ecke in der "
+            "Größe ziehen (Rechtsklick = Größe in Pixel). Pro Gerät "
+            "gespeichert."
+        ),
+    )
+    reset_layout_btn = ttk.Button(mhdr, text=tr("↺"), command=lambda: _reset_layout())
     _attach_tooltip(reset_layout_btn, tr("Anordnung dieses Geräts zurücksetzen."))
 
     # left: one row per catalog device (bus, connected?, #bindings, #outputs)
-    dev_tree = ttk.Treeview(mtab, columns=("bus", "status", "b", "o"),
-                            show="tree headings", height=7, selectmode="browse")
+    dev_tree = ttk.Treeview(
+        mtab,
+        columns=("bus", "status", "b", "o"),
+        show="tree headings",
+        height=7,
+        selectmode="browse",
+    )
     dev_tree.heading("#0", text=tr("Gerät"))
     dev_tree.column("#0", width=170, anchor="w")
-    for col, head, w in (("bus", "Bus", 58), ("status", "Status", 96),
-                         ("b", "Bind", 42), ("o", "Out", 38)):
+    for col, head, w in (
+        ("bus", "Bus", 58),
+        ("status", "Status", 96),
+        ("b", "Bind", 42),
+        ("o", "Out", 38),
+    ):
         dev_tree.heading(col, text=head)
         dev_tree.column(col, width=w, anchor="center")
     dev_tree.grid(row=1, column=0, sticky="nsew", pady=6, padx=(0, 8))
@@ -1653,12 +1918,16 @@ def run() -> None:
     # button, and single click must only select). The trailing Live column
     # mirrors the hardware while the device is attached: pressed buttons
     # show ●, axes a filling bar — so you can find a control fast.
-    detail = ttk.Treeview(mtab, columns=("source", "action", "shape", "live"),
-                          show="tree headings", height=7)
+    detail = ttk.Treeview(
+        mtab, columns=("source", "action", "shape", "live"), show="tree headings", height=7
+    )
     detail.heading("#0", text=tr("Name"))
     detail.column("#0", width=150, anchor="w")
-    for col, head, w in (("source", "Control", 92), ("action", "Aktion", 232),
-                         ("shape", "Shaping", 100)):
+    for col, head, w in (
+        ("source", "Control", 92),
+        ("action", "Aktion", 232),
+        ("shape", "Shaping", 100),
+    ):
         detail.heading(col, text=head)
         detail.column(col, width=w, anchor="w")
     detail.heading("live", text=tr("Live"))
@@ -1672,8 +1941,9 @@ def run() -> None:
     # the table in "panel" view). Elements are drawn from the pure panel_layout;
     # `pcanvas` maps canvas items back to elements for click->editor + the live
     # switch overlay. Starts hidden (grid_remove) — the table is the default view.
-    panel_canvas = tk.Canvas(mtab, background=SURFACE, highlightthickness=1,
-                             highlightbackground="#d1d5db")
+    panel_canvas = tk.Canvas(
+        mtab, background=SURFACE, highlightthickness=1, highlightbackground="#d1d5db"
+    )
     panel_canvas.grid(row=1, column=1, sticky="nsew", pady=6)
     panel_canvas.grid_remove()
     # Vertical scrollbar for tall reconstructions (radio panel scrolls row by row).
@@ -1683,15 +1953,27 @@ def run() -> None:
     panel_canvas.configure(yscrollcommand=panel_vsb.set)
     # "live" maps a device (kind, code) -> input-element handles (physical mirror);
     # "sim" maps a sim var -> display-element handles (glow-from-sim readout).
-    pcanvas: dict = {"by_index": {}, "live": {}, "sim": {}, "device": None, "hint": None,
-                     "edit": False, "W": 0.0, "H": 0.0, "pad": 8,
-                     "drag": {"n": None, "mode": None, "rid": None,
-                              "sx": 0.0, "sy": 0.0, "moved": False}}
+    pcanvas: dict = {
+        "by_index": {},
+        "live": {},
+        "sim": {},
+        "device": None,
+        "hint": None,
+        "edit": False,
+        "W": 0.0,
+        "H": 0.0,
+        "pad": 8,
+        "drag": {"n": None, "mode": None, "rid": None, "sx": 0.0, "sy": 0.0, "moved": False},
+    }
     _PANEL_GRID = 1 / 16  # snap step + visible grid spacing in edit mode (coarse)
 
     # discovery is lazy (only when the tab is first shown) so startup stays fast.
-    mstate: dict[str, object] = {"present": None, "discovered": False, "profile": None,
-                                 "view": "panel"}  # reconstruction is the default view
+    mstate: dict[str, object] = {
+        "present": None,
+        "discovered": False,
+        "profile": None,
+        "view": "panel",
+    }  # reconstruction is the default view
 
     def _current_profile():
         try:
@@ -1716,8 +1998,9 @@ def run() -> None:
     # the bindings table (col 1), distinct from the profile buttons in the top row.
     devbtn = ttk.Frame(mtab)
     devbtn.grid(row=2, column=0, sticky="w", pady=(6, 0))
-    b_rescan = ttk.Button(devbtn, text=tr("Geräte neu erkennen"),
-                          command=lambda: _mapper_reload(rediscover=True))
+    b_rescan = ttk.Button(
+        devbtn, text=tr("Geräte neu erkennen"), command=lambda: _mapper_reload(rediscover=True)
+    )
     b_rescan.pack(side="left")
     _attach_tooltip(b_rescan, tr("evdev + hidraw discovery — welche Geräte hängen jetzt dran"))
 
@@ -1763,12 +2046,19 @@ def run() -> None:
         sc.transient(win)
         sc.lift()
         sc.focus_force()
-        ttk.Label(sc, text=tr("Lese- (Inputs) und Schreib-Elemente (Anzeigen) getrennt "
-                              "verwalten: Inputs am Gerät betätigen und benennen, Anzeigen "
-                              "(LEDs/Displays) hinzufügen."),
-                  wraplength=470, justify="left").pack(anchor="w", padx=10, pady=(10, 6))
-        lst = ttk.Treeview(sc, columns=("kind", "detail"), show="tree headings",
-                           height=10, selectmode="browse")
+        ttk.Label(
+            sc,
+            text=tr(
+                "Lese- (Inputs) und Schreib-Elemente (Anzeigen) getrennt "
+                "verwalten: Inputs am Gerät betätigen und benennen, Anzeigen "
+                "(LEDs/Displays) hinzufügen."
+            ),
+            wraplength=470,
+            justify="left",
+        ).pack(anchor="w", padx=10, pady=(10, 6))
+        lst = ttk.Treeview(
+            sc, columns=("kind", "detail"), show="tree headings", height=10, selectmode="browse"
+        )
         lst.heading("#0", text=tr("Name"))
         lst.heading("kind", text=tr("Art"))
         lst.heading("detail", text=tr("Detail"))
@@ -1801,14 +2091,17 @@ def run() -> None:
             # Read and write functions are shown SEPARATELY (per user): two groups.
             lst.insert("", "end", iid="grp:in", text=tr("Inputs (Lesen)"), open=True)
             for i, b in enumerate(inputs):
-                lst.insert("grp:in", "end", iid=f"in:{i}", text=b.name,
-                           values=(b.kind, _in_detail(b)))
+                lst.insert(
+                    "grp:in", "end", iid=f"in:{i}", text=b.name, values=(b.kind, _in_detail(b))
+                )
             lst.insert("", "end", iid="grp:out", text=tr("Anzeigen (Schreiben)"), open=True)
             for i, b in enumerate(outputs):
-                lst.insert("grp:out", "end", iid=f"out:{i}", text=b.name,
-                           values=(b.kind, _out_detail(b)))
-            state_lbl.config(text=f"{len(inputs)} " + tr("Inputs") + f" · {len(outputs)} "
-                             + tr("Anzeigen"))
+                lst.insert(
+                    "grp:out", "end", iid=f"out:{i}", text=b.name, values=(b.kind, _out_detail(b))
+                )
+            state_lbl.config(
+                text=f"{len(inputs)} " + tr("Inputs") + f" · {len(outputs)} " + tr("Anzeigen")
+            )
 
         def _persist():
             # One write keeps BOTH element lists (inputs + outputs) consistent.
@@ -1820,9 +2113,10 @@ def run() -> None:
             # is the hidraw edge reader; evdev button/switch/encoder pass their own.
             if opener is None:
                 if path is None:
-                    messagebox.showinfo(tr("Eingänge scannen"),
-                                        tr("Live-Anlernen braucht das angesteckte "
-                                           "hidraw-Panel."))
+                    messagebox.showinfo(
+                        tr("Eingänge scannen"),
+                        tr("Live-Anlernen braucht das angesteckte hidraw-Panel."),
+                    )
                     return
                 opener = lambda: hidraw_reader.edge_count_reader(path)  # noqa: E731
             cap: dict[str, int] = {}
@@ -1832,8 +2126,9 @@ def run() -> None:
             cw.title(tr("Anlernen"))
             frm = ttk.Frame(cw, padding=12)
             frm.pack(fill="both", expand=True)
-            instr = ttk.Label(frm, font=("TkDefaultFont", 11, "bold"),
-                              wraplength=380, justify="left")
+            instr = ttk.Label(
+                frm, font=("TkDefaultFont", 11, "bold"), wraplength=380, justify="left"
+            )
             instr.pack(anchor="w")
             found = ttk.Label(frm, foreground="#2e7d32")
             found.pack(anchor="w", pady=(4, 6))
@@ -1855,8 +2150,7 @@ def run() -> None:
                 w = hidraw_reader.winning_code(counts)
                 if w is not None:
                     stt["winner"] = w
-                    found.config(text=f"{tr('erkannt')}: Code {w} ({counts[w]} "
-                                      f"{tr('Flanken')})")
+                    found.config(text=f"{tr('erkannt')}: Code {w} ({counts[w]} {tr('Flanken')})")
                     b_next.config(state="normal")
                 cw.after(120, _poll)
 
@@ -1887,23 +2181,31 @@ def run() -> None:
 
             b_next = ttk.Button(row, text=tr("Weiter"), command=_advance, state="disabled")
             b_next.pack(side="left")
-            ttk.Button(row, text=tr("Abbrechen"),
-                       command=lambda: (_close_reader(), cw.destroy())).pack(side="left", padx=6)
+            ttk.Button(
+                row, text=tr("Abbrechen"), command=lambda: (_close_reader(), cw.destroy())
+            ).pack(side="left", padx=6)
             cw.protocol("WM_DELETE_WINDOW", lambda: (_close_reader(), cw.destroy()))
             _start()
             cw.lift()
 
         def _name_and_add(kind, cap):
-            nm = simpledialog.askstring(tr("Name"),
-                                        tr("Wie heißt dieses Bedienelement?"), parent=sc)
+            nm = simpledialog.askstring(
+                tr("Name"), tr("Wie heißt dieses Bedienelement?"), parent=sc
+            )
             if not nm or not nm.strip():
                 return
             if kind == "encoder":
-                b = InputBlock(kind="encoder", name=nm.strip(),
-                               cw=cap.get("cw"), ccw=cap.get("ccw"))
+                b = InputBlock(
+                    kind="encoder", name=nm.strip(), cw=cap.get("cw"), ccw=cap.get("ccw")
+                )
             elif kind == "axis":
-                b = InputBlock(kind="axis", name=nm.strip(), code=cap.get("code"),
-                               raw_min=cap.get("raw_min"), raw_max=cap.get("raw_max"))
+                b = InputBlock(
+                    kind="axis",
+                    name=nm.strip(),
+                    code=cap.get("code"),
+                    raw_min=cap.get("raw_min"),
+                    raw_max=cap.get("raw_max"),
+                )
             else:
                 b = InputBlock(kind=kind, name=nm.strip(), code=cap.get("code"))
             inputs.append(b)
@@ -1921,8 +2223,11 @@ def run() -> None:
             if evdev_path is None:
                 messagebox.showinfo(
                     tr("Achse anlernen"),
-                    tr("Achsen-Anlernen geht nur für angesteckte evdev-Geräte "
-                       "(Yoke/Pedale/Quadrant)."))
+                    tr(
+                        "Achsen-Anlernen geht nur für angesteckte evdev-Geräte "
+                        "(Yoke/Pedale/Quadrant)."
+                    ),
+                )
                 return
             from .devices import evdev_reader
 
@@ -1937,9 +2242,13 @@ def run() -> None:
             cw.title(tr("Achse anlernen"))
             frm = ttk.Frame(cw, padding=12)
             frm.pack(fill="both", expand=True)
-            ttk.Label(frm, font=("TkDefaultFont", 11, "bold"), wraplength=380,
-                      justify="left",
-                      text=tr("Achse von Anschlag zu Anschlag bewegen.")).pack(anchor="w")
+            ttk.Label(
+                frm,
+                font=("TkDefaultFont", 11, "bold"),
+                wraplength=380,
+                justify="left",
+                text=tr("Achse von Anschlag zu Anschlag bewegen."),
+            ).pack(anchor="w")
             found = ttk.Label(frm, foreground="#2e7d32")
             found.pack(anchor="w", pady=(4, 6))
             st: dict = {"win": None}
@@ -1987,8 +2296,10 @@ def run() -> None:
                 _capture_axis(lambda c: _name_and_add("axis", c))
                 return
             if kind == "encoder":
-                steps = [("cw", tr("Encoder im Uhrzeigersinn drehen.")),
-                         ("ccw", tr("Encoder gegen den Uhrzeigersinn drehen."))]
+                steps = [
+                    ("cw", tr("Encoder im Uhrzeigersinn drehen.")),
+                    ("ccw", tr("Encoder gegen den Uhrzeigersinn drehen.")),
+                ]
             elif kind == "switch":
                 steps = [("code", tr("Schalter mehrmals umlegen."))]
             else:
@@ -2000,8 +2311,11 @@ def run() -> None:
                 if evdev_path is None:
                     messagebox.showinfo(
                         tr("Eingänge scannen"),
-                        tr("Live-Anlernen geht nur für angesteckte evdev-Geräte "
-                           "(Yoke/Pedale/Quadrant)."))
+                        tr(
+                            "Live-Anlernen geht nur für angesteckte evdev-Geräte "
+                            "(Yoke/Pedale/Quadrant)."
+                        ),
+                    )
                     return
                 from .devices import evdev_reader
 
@@ -2012,18 +2326,22 @@ def run() -> None:
         # count so each cell is addressable (like the DME). Output live-scan
         # (identify which report drives it) is the later Schritt D.
         def _add_output(kind):
-            nm = simpledialog.askstring(tr("Name"),
-                                        tr("Wie heißt diese Anzeige?"), parent=sc)
+            nm = simpledialog.askstring(tr("Name"), tr("Wie heißt diese Anzeige?"), parent=sc)
             if not nm or not nm.strip():
                 return
             if kind == "display":
                 cells = simpledialog.askinteger(
-                    tr("Segmente"), tr("Wie viele Stellen/Segmente hat das Display?"),
-                    parent=sc, minvalue=1, initialvalue=5)
+                    tr("Segmente"),
+                    tr("Wie viele Stellen/Segmente hat das Display?"),
+                    parent=sc,
+                    minvalue=1,
+                    initialvalue=5,
+                )
                 if not cells:
                     return
-                b = OutputBlock(kind="display", name=nm.strip(), cells=cells,
-                                display_kind="7segment")
+                b = OutputBlock(
+                    kind="display", name=nm.strip(), cells=cells, display_kind="7segment"
+                )
             else:
                 b = OutputBlock(kind="led", name=nm.strip())
             outputs.append(b)
@@ -2050,14 +2368,20 @@ def run() -> None:
             if not new_in and not new_out:
                 messagebox.showinfo(
                     tr("Aus Vorlage füllen"),
-                    tr("Nichts hinzuzufügen — alle Vorlage-Elemente sind schon da."))
+                    tr("Nichts hinzuzufügen — alle Vorlage-Elemente sind schon da."),
+                )
                 return
             if not messagebox.askyesno(
-                    tr("Aus Vorlage füllen"),
-                    tr("Aus dem aktuellen Mapping übernehmen:")
-                    + f"\n\n{len(new_in)} " + tr("Inputs") + f" · {len(new_out)} "
-                    + tr("Anzeigen") + "\n\n" + tr("Vorhandene Elemente bleiben erhalten."),
-                    parent=sc):
+                tr("Aus Vorlage füllen"),
+                tr("Aus dem aktuellen Mapping übernehmen:")
+                + f"\n\n{len(new_in)} "
+                + tr("Inputs")
+                + f" · {len(new_out)} "
+                + tr("Anzeigen")
+                + "\n\n"
+                + tr("Vorhandene Elemente bleiben erhalten."),
+                parent=sc,
+            ):
                 return
             inputs.extend(new_in)
             outputs.extend(new_out)
@@ -2079,8 +2403,12 @@ def run() -> None:
             _refill()
 
         # Two CONSISTENT menus (per user): one for inputs, one for displays.
-        in_kinds = [("button", tr("Taster")), ("switch", tr("Schalter")),
-                    ("axis", tr("Achse")), ("encoder", tr("Encoder"))]
+        in_kinds = [
+            ("button", tr("Taster")),
+            ("switch", tr("Schalter")),
+            ("axis", tr("Achse")),
+            ("encoder", tr("Encoder")),
+        ]
         out_kinds = [("led", tr("LED")), ("display", tr("Display (7-Segment)"))]
 
         br = ttk.Frame(sc)
@@ -2099,10 +2427,16 @@ def run() -> None:
         b_out.pack(side="left", padx=6)
         b_tmpl = ttk.Button(br, text=tr("Aus Vorlage füllen…"), command=_fill_from_template)
         b_tmpl.pack(side="left", padx=6)
-        _attach_tooltip(b_tmpl, tr("Elemente aus dem aktuellen Mapping übernehmen "
-                                   "(Bindings + Panel-Controls/LEDs/Display)"))
-        ttk.Button(br, text=tr("Entfernen"), style="Danger.TButton",
-                   command=_remove).pack(side="left", padx=12)
+        _attach_tooltip(
+            b_tmpl,
+            tr(
+                "Elemente aus dem aktuellen Mapping übernehmen "
+                "(Bindings + Panel-Controls/LEDs/Display)"
+            ),
+        )
+        ttk.Button(br, text=tr("Entfernen"), style="Danger.TButton", command=_remove).pack(
+            side="left", padx=12
+        )
         ttk.Button(br, text=tr("Schließen"), command=sc.destroy).pack(side="right")
         _refill()
 
@@ -2118,12 +2452,23 @@ def run() -> None:
         ex = tk.Toplevel(win)
         ex.title(tr("Geräte-Explorer"))
         ex.transient(win)
-        ttk.Label(ex, text=tr("Alle angeschlossenen Geräte — auch noch nicht registrierte. "
-                              "Ein unregistriertes Gerät markieren und „Registrieren…“, "
-                              "damit es im Profil mappbar wird."),
-                  wraplength=520, justify="left").pack(anchor="w", padx=10, pady=(10, 6))
-        tree = ttk.Treeview(ex, columns=("usb", "via", "status"), show="tree headings",
-                            height=10, selectmode="browse")
+        ttk.Label(
+            ex,
+            text=tr(
+                "Alle angeschlossenen Geräte — auch noch nicht registrierte. "
+                "Ein unregistriertes Gerät markieren und „Registrieren…“, "
+                "damit es im Profil mappbar wird."
+            ),
+            wraplength=520,
+            justify="left",
+        ).pack(anchor="w", padx=10, pady=(10, 6))
+        tree = ttk.Treeview(
+            ex,
+            columns=("usb", "via", "status"),
+            show="tree headings",
+            height=10,
+            selectmode="browse",
+        )
         tree.heading("#0", text=tr("Gerät"))
         tree.heading("usb", text="USB")
         tree.heading("via", text=tr("Transport"))
@@ -2147,13 +2492,22 @@ def run() -> None:
             found = inv_mod.inventory(cat)
             items.extend(found)
             for i, it in enumerate(found):
-                status = (tr("registriert als ") + str(it.catalog_id)) if it.registered \
+                status = (
+                    (tr("registriert als ") + str(it.catalog_id))
+                    if it.registered
                     else tr("nicht registriert")
-                tree.insert("", "end", iid=str(i), text=it.name or "?",
-                            values=(it.usb, it.transport, status))
+                )
+                tree.insert(
+                    "",
+                    "end",
+                    iid=str(i),
+                    text=it.name or "?",
+                    values=(it.usb, it.transport, status),
+                )
             n_new = sum(1 for it in found if not it.registered)
-            state_lbl.config(text=f"{len(found)} " + tr("Geräte") + f" · {n_new} "
-                             + tr("nicht registriert"))
+            state_lbl.config(
+                text=f"{len(found)} " + tr("Geräte") + f" · {n_new} " + tr("nicht registriert")
+            )
 
         def _register():
             sel = tree.focus()
@@ -2161,14 +2515,17 @@ def run() -> None:
                 return
             it = items[int(sel)]
             if it.registered:
-                messagebox.showinfo(tr("Geräte-Explorer"),
-                                    tr("Dieses Gerät ist bereits registriert."))
+                messagebox.showinfo(
+                    tr("Geräte-Explorer"), tr("Dieses Gerät ist bereits registriert.")
+                )
                 return
             suggested = _slug(it.name) or ("dev_" + it.usb.replace(":", "_"))
             dev_id = simpledialog.askstring(
                 tr("Gerät registrieren"),
                 tr("Kurz-ID für dieses Gerät (Profile referenzieren sie):"),
-                initialvalue=suggested, parent=ex)
+                initialvalue=suggested,
+                parent=ex,
+            )
             if not dev_id or not dev_id.strip():
                 return
             ambiguous = (it.vendor, it.product) == (0, 0) and bool(it.name)
@@ -2195,27 +2552,33 @@ def run() -> None:
                 return
             it = items[int(sel)]
             if not it.registered:
-                messagebox.showinfo(tr("Geräte-Explorer"),
-                                    tr("Erst registrieren, dann Elemente verwalten."))
+                messagebox.showinfo(
+                    tr("Geräte-Explorer"), tr("Erst registrieren, dann Elemente verwalten.")
+                )
                 return
             _open_input_scan(it.catalog_id)
 
         btnrow = ttk.Frame(ex)
         btnrow.pack(fill="x", padx=10, pady=10)
-        ttk.Button(btnrow, text=tr("Registrieren…"), style="Success.TButton",
-                   command=_register).pack(side="left")
-        ttk.Button(btnrow, text=tr("Geräteelemente…"),
-                   command=_scan_inputs).pack(side="left", padx=6)
-        ttk.Button(btnrow, text=tr("Aktualisieren"),
-                   command=_refill).pack(side="left", padx=6)
+        ttk.Button(
+            btnrow, text=tr("Registrieren…"), style="Success.TButton", command=_register
+        ).pack(side="left")
+        ttk.Button(btnrow, text=tr("Geräteelemente…"), command=_scan_inputs).pack(
+            side="left", padx=6
+        )
+        ttk.Button(btnrow, text=tr("Aktualisieren"), command=_refill).pack(side="left", padx=6)
         ttk.Button(btnrow, text=tr("Schließen"), command=ex.destroy).pack(side="right")
         _refill()
 
-    b_explore = ttk.Button(devbtn, text=tr("🔍 Geräte-Explorer…"),
-                           command=_open_device_explorer)
+    b_explore = ttk.Button(devbtn, text=tr("🔍 Geräte-Explorer…"), command=_open_device_explorer)
     b_explore.pack(side="left", padx=6)
-    _attach_tooltip(b_explore, tr("Alle angeschlossenen Geräte anzeigen (auch fremde, "
-                                  "noch nicht registrierte) und neue Geräte anlegen"))
+    _attach_tooltip(
+        b_explore,
+        tr(
+            "Alle angeschlossenen Geräte anzeigen (auch fremde, "
+            "noch nicht registrierte) und neue Geräte anlegen"
+        ),
+    )
 
     bindbtn = ttk.Frame(mtab)
     bindbtn.grid(row=2, column=1, columnspan=2, sticky="ew", pady=(6, 0))
@@ -2233,11 +2596,15 @@ def run() -> None:
         cat_ = _device_catalog()
         ddef = cat_.by_id(dev) if cat_ else None
         if ddef is None or ddef.transport != "hidraw":
-            m_state.config(text=f"„{dev}“ ist kein Panel — ganze Panel-Vorlagen gibt es "
-                                "nur für die Saitek-Panels (hidraw).")
+            m_state.config(
+                text=f"„{dev}“ ist kein Panel — ganze Panel-Vorlagen gibt es "
+                "nur für die Saitek-Panels (hidraw)."
+            )
             return
-        _edit_profile(lambda d: profile_writer.add_output(d, dev, dict(block)),
-                      f"Vorlage angelegt ({block.get('type')}) ✓")
+        _edit_profile(
+            lambda d: profile_writer.add_output(d, dev, dict(block)),
+            f"Vorlage angelegt ({block.get('type')}) ✓",
+        )
 
     def _save_current_as_template():
         dev = _sel(dev_tree)
@@ -2249,8 +2616,9 @@ def run() -> None:
         if not outs:
             m_state.config(text=tr("Dieses Gerät hat keine Anzeige/Ausgabe zum Speichern."))
             return
-        name = simpledialog.askstring(tr("Als Vorlage speichern"),
-                                      tr("Name der Vorlage:"), parent=win)
+        name = simpledialog.askstring(
+            tr("Als Vorlage speichern"), tr("Name der Vorlage:"), parent=win
+        )
         if not name or not name.strip():
             return
         from .mapping.loader import save_output_template
@@ -2264,26 +2632,27 @@ def run() -> None:
         from .mapping.loader import delete_output_template, load_output_templates
 
         addtmpl_menu.delete(0, "end")
-        addtmpl_menu.add_command(label=tr("Ganzes Panel (Knöpfe + Anzeigen):"),
-                                 state="disabled")
+        addtmpl_menu.add_command(label=tr("Ganzes Panel (Knöpfe + Anzeigen):"), state="disabled")
         for _name, _block in gui_mapper.OUTPUT_BLOCK_TEMPLATES.items():
-            addtmpl_menu.add_command(label=f"  {_name}",
-                                     command=lambda b=_block: _add_panel(b))
+            addtmpl_menu.add_command(label=f"  {_name}", command=lambda b=_block: _add_panel(b))
         user = load_output_templates()
         if user:
             addtmpl_menu.add_separator()
             addtmpl_menu.add_command(label=tr("Eigene Vorlagen:"), state="disabled")
             for _name, _block in user.items():
                 sub = tk.Menu(addtmpl_menu, tearoff=0)
-                sub.add_command(label=tr("Auf gewähltes Gerät anlegen"),
-                                command=lambda b=_block: _add_panel(b))
-                sub.add_command(label=tr("Löschen"),
-                                command=lambda n=_name: (delete_output_template(n),
-                                                         _rebuild_template_menu()))
+                sub.add_command(
+                    label=tr("Auf gewähltes Gerät anlegen"), command=lambda b=_block: _add_panel(b)
+                )
+                sub.add_command(
+                    label=tr("Löschen"),
+                    command=lambda n=_name: (delete_output_template(n), _rebuild_template_menu()),
+                )
                 addtmpl_menu.add_cascade(label=f"  {_name}", menu=sub)
         addtmpl_menu.add_separator()
-        addtmpl_menu.add_command(label=tr("Aktuelles Gerät als Vorlage speichern…"),
-                                 command=_save_current_as_template)
+        addtmpl_menu.add_command(
+            label=tr("Aktuelles Gerät als Vorlage speichern…"), command=_save_current_as_template
+        )
 
     def _add_generic_output(kind):
         """„+ Ausgabe" (Schritt E): map one of the device's lamps/readouts to a sim
@@ -2308,15 +2677,26 @@ def run() -> None:
         _row(0, tr("Name"), ttk.Entry(frm, textvariable=nm, width=24))
         vrow = ttk.Frame(frm)
         ttk.Entry(vrow, textvariable=var).pack(side="left", fill="x", expand=True)
-        ttk.Button(vrow, text="…", width=3,
-                   command=lambda: _open_var_picker(win, _var_catalog(),
-                                                    lambda v: var.set(_var_name(v)))
-                   ).pack(side="left", padx=(4, 0))
+        ttk.Button(
+            vrow,
+            text="…",
+            width=3,
+            command=lambda: _open_var_picker(win, _var_catalog(), lambda v: var.set(_var_name(v))),
+        ).pack(side="left", padx=(4, 0))
         _row(1, tr("Variable"), vrow)
-        specs = ([("byte", tr("Report-Byte"), "0"), ("bit", tr("Bit (0-7)"), "0"),
-                  ("on_at", tr("Schwelle (an ab)"), "0.5")] if kind == "led" else
-                 [("offset", tr("Erstes Byte (Offset)"), "0"), ("cells", tr("Zellen"), "5"),
-                  ("decimals", tr("Nachkommastellen"), "0")])
+        specs = (
+            [
+                ("byte", tr("Report-Byte"), "0"),
+                ("bit", tr("Bit (0-7)"), "0"),
+                ("on_at", tr("Schwelle (an ab)"), "0.5"),
+            ]
+            if kind == "led"
+            else [
+                ("offset", tr("Erstes Byte (Offset)"), "0"),
+                ("cells", tr("Zellen"), "5"),
+                ("decimals", tr("Nachkommastellen"), "0"),
+            ]
+        )
         fields = {}
         for i, (key, label, default) in enumerate(specs, start=2):
             fields[key] = tk.StringVar(value=default)
@@ -2346,16 +2726,24 @@ def run() -> None:
             sw.title(tr("Ausgang-Scan"))
             sf = ttk.Frame(sw, padding=12)
             sf.pack(fill="both", expand=True)
-            ttk.Label(sf, wraplength=420, justify="left", foreground="#555",
-                      text=tr("Ein Testimpuls wandert über die Report-Adressen. Sobald am "
-                              "Gerät die richtige LED/Ziffer aufleuchtet: „Das ist es!“. "
-                              "Nur wenn der Mapper NICHT läuft.")).pack(anchor="w")
+            ttk.Label(
+                sf,
+                wraplength=420,
+                justify="left",
+                foreground="#555",
+                text=tr(
+                    "Ein Testimpuls wandert über die Report-Adressen. Sobald am "
+                    "Gerät die richtige LED/Ziffer aufleuchtet: „Das ist es!“. "
+                    "Nur wenn der Mapper NICHT läuft."
+                ),
+            ).pack(anchor="w")
             lenrow = ttk.Frame(sf)
             lenrow.pack(anchor="w", pady=(6, 0))
             ttk.Label(lenrow, text=tr("Report-Bytes:")).pack(side="left")
             len_v = tk.IntVar(value=12)
-            ttk.Spinbox(lenrow, from_=1, to=64, width=5,
-                        textvariable=len_v).pack(side="left", padx=6)
+            ttk.Spinbox(lenrow, from_=1, to=64, width=5, textvariable=len_v).pack(
+                side="left", padx=6
+            )
             cur = ttk.Label(sf, font=("TkDefaultFont", 12, "bold"))
             cur.pack(anchor="w", pady=(8, 2))
             warn2 = ttk.Label(sf, foreground="#c62828", wraplength=420)
@@ -2363,8 +2751,11 @@ def run() -> None:
             st = {"i": 0, "targets": []}
 
             def _targets(length):
-                return (panel_probe.generic_led_targets(length) if kind == "led"
-                        else panel_probe.generic_cell_targets(length))
+                return (
+                    panel_probe.generic_led_targets(length)
+                    if kind == "led"
+                    else panel_probe.generic_cell_targets(length)
+                )
 
             def _probe():
                 if _mapper_running():
@@ -2379,21 +2770,30 @@ def run() -> None:
                 if not st["targets"]:
                     return
                 t = st["targets"][st["i"] % len(st["targets"])]
-                report = (panel_probe.generic_led_report(length, t[0], t[1]) if kind == "led"
-                          else panel_probe.generic_cell_report(length, t))
+                report = (
+                    panel_probe.generic_led_report(length, t[0], t[1])
+                    if kind == "led"
+                    else panel_probe.generic_cell_report(length, t)
+                )
                 try:
                     hidraw_reader.write_feature_report(path, report)
                 except OSError as exc:
                     warn2.config(text=f"{tr('Senden fehlgeschlagen:')} {exc}")
                     return
                 warn2.config(text="")
-                cur.config(text=(f"{tr('Adresse')}: Byte {t[0]} · Bit {t[1]}" if kind == "led"
-                                 else f"{tr('Adresse')}: Zelle @ Byte {t}"))
+                cur.config(
+                    text=(
+                        f"{tr('Adresse')}: Byte {t[0]} · Bit {t[1]}"
+                        if kind == "led"
+                        else f"{tr('Adresse')}: Zelle @ Byte {t}"
+                    )
+                )
 
             def _blank():
                 with contextlib.suppress(Exception):
-                    hidraw_reader.write_feature_report(_path(), panel_probe.generic_blank(
-                        max(1, len_v.get())))
+                    hidraw_reader.write_feature_report(
+                        _path(), panel_probe.generic_blank(max(1, len_v.get()))
+                    )
 
             def _next():
                 st["i"] += 1
@@ -2427,7 +2827,8 @@ def run() -> None:
             sw.focus_force()
 
         ttk.Button(frm, text=tr("🔦 Adresse finden…"), command=_scan_address).grid(
-            row=5, column=1, sticky="w", pady=(4, 0))
+            row=5, column=1, sticky="w", pady=(4, 0)
+        )
 
         def _save():
             v = var.get().strip()
@@ -2456,8 +2857,9 @@ def run() -> None:
                 entry["name"] = nm.get().strip()
             prof = mstate["profile"]
             outs = list(prof.outputs.get(dev, [])) if prof is not None else []
-            gp = next((i for i, o in enumerate(outs)
-                       if getattr(o, "type", None) == "generic_panel"), None)
+            gp = next(
+                (i for i, o in enumerate(outs) if getattr(o, "type", None) == "generic_panel"), None
+            )
             cur_len = outs[gp].length if gp is not None else 1
             idx = gp if gp is not None else len(outs)
 
@@ -2479,51 +2881,74 @@ def run() -> None:
 
     b_addtmpl = ttk.Menubutton(bindbtn, text=tr("Vorlage ▾"))
     b_addtmpl.pack(side="right", padx=6)
-    _attach_tooltip(b_addtmpl,
-                    tr("Ganzes Panel in einem Rutsch anlegen — eine Vorlage aus "
-                       "Knöpfen + Anzeigen. Die Saitek-Panels sind eingebaut (hidraw); "
-                       "eigene Anordnungen als Vorlage speicherbar."))
+    _attach_tooltip(
+        b_addtmpl,
+        tr(
+            "Ganzes Panel in einem Rutsch anlegen — eine Vorlage aus "
+            "Knöpfen + Anzeigen. Die Saitek-Panels sind eingebaut (hidraw); "
+            "eigene Anordnungen als Vorlage speicherbar."
+        ),
+    )
     addtmpl_menu = tk.Menu(b_addtmpl, tearoff=0)
     b_addtmpl.configure(menu=addtmpl_menu)
 
     b_addout = ttk.Menubutton(bindbtn, text=tr("+ Ausgabe ▾"))
     b_addout.pack(side="right", padx=6)
-    _attach_tooltip(b_addout,
-                    tr("Eine Anzeige des Geräts an eine Variable binden — LED (ein Bit) "
-                       "oder Display (7-Segment-Wert ← Var). Legt bei Bedarf den "
-                       "generischen Ausgabe-Block an (Schritt E)."))
+    _attach_tooltip(
+        b_addout,
+        tr(
+            "Eine Anzeige des Geräts an eine Variable binden — LED (ein Bit) "
+            "oder Display (7-Segment-Wert ← Var). Legt bei Bedarf den "
+            "generischen Ausgabe-Block an (Schritt E)."
+        ),
+    )
     addout_menu = tk.Menu(b_addout, tearoff=0)
     addout_menu.add_command(label=tr("LED…"), command=lambda: _add_generic_output("led"))
-    addout_menu.add_command(label=tr("Display (7-Segment)…"),
-                            command=lambda: _add_generic_output("display"))
+    addout_menu.add_command(
+        label=tr("Display (7-Segment)…"), command=lambda: _add_generic_output("display")
+    )
     b_addout.configure(menu=addout_menu)
 
     b_addinput = ttk.Menubutton(bindbtn, text=tr("+ Eingabe ▾"))
     b_addinput.pack(side="right", padx=6)
-    _attach_tooltip(b_addinput,
-                    tr("Eine einzelne Eingabe an ein Event/eine Variable binden — "
-                       "Taster/Schalter/Achse/Hat. Ein Encoder (2 Richtungen) wird an "
-                       "generischen Geräten in einem Rutsch angelernt; die Saitek-Panels "
-                       "steuern ihre Encoder über die Vorlage (kein eigener Schritt)."))
+    _attach_tooltip(
+        b_addinput,
+        tr(
+            "Eine einzelne Eingabe an ein Event/eine Variable binden — "
+            "Taster/Schalter/Achse/Hat. Ein Encoder (2 Richtungen) wird an "
+            "generischen Geräten in einem Rutsch angelernt; die Saitek-Panels "
+            "steuern ihre Encoder über die Vorlage (kein eigener Schritt)."
+        ),
+    )
 
     def _rebuild_input_menu():
         # rebuilt on open (postcommand) so 'Encoder' only shows for generic devices
         addin_menu.delete(0, "end")
-        for _k, _lbl in (("button", tr("Taster")), ("switch", tr("Schalter")),
-                         ("axis", tr("Achse")), ("hat", tr("Hat"))):
+        for _k, _lbl in (
+            ("button", tr("Taster")),
+            ("switch", tr("Schalter")),
+            ("axis", tr("Achse")),
+            ("hat", tr("Hat")),
+        ):
             addin_menu.add_command(label=_lbl, command=lambda kk=_k: _new_binding(kk))
         dev = _sel(dev_tree)
         if dev is not None and not _is_static_panel(dev):
             addin_menu.add_separator()
-            addin_menu.add_command(label=tr("Encoder (2 Richtungen)…"),
-                                   command=_add_encoder_binding)
+            addin_menu.add_command(
+                label=tr("Encoder (2 Richtungen)…"), command=_add_encoder_binding
+            )
 
     addin_menu = tk.Menu(b_addinput, tearoff=0, postcommand=_rebuild_input_menu)
     b_addinput.configure(menu=addin_menu)
 
-    ttk.Label(bindbtn, text=tr("Klick auf ein Element öffnet den Editor · "
-                            "Rechtsklick: Bearbeiten / Duplizieren / Entfernen"),
-              foreground="#666").pack(side="left")
+    ttk.Label(
+        bindbtn,
+        text=tr(
+            "Klick auf ein Element öffnet den Editor · "
+            "Rechtsklick: Bearbeiten / Duplizieren / Entfernen"
+        ),
+        foreground="#666",
+    ).pack(side="left")
     _rebuild_template_menu()
 
     # --- editor: a separate, on-demand window (opened per element) -------- #
@@ -2540,30 +2965,50 @@ def run() -> None:
     ed.columnconfigure(2, weight=1)
     etgt: dict = {"device": None, "index": None, "original_action": None}
     ev = {
-        "name": tk.StringVar(), "kind": tk.StringVar(), "code": tk.StringVar(),
-        "raw_min": tk.StringVar(), "raw_max": tk.StringVar(),  # shown for axes only
+        "name": tk.StringVar(),
+        "kind": tk.StringVar(),
+        "code": tk.StringVar(),
+        "raw_min": tk.StringVar(),
+        "raw_max": tk.StringVar(),  # shown for axes only
         "action_type": tk.StringVar(),
-        "ev_event": tk.StringVar(), "ev_value": tk.StringVar(),
-        "sv_simvar": tk.StringVar(), "sv_unit": tk.StringVar(), "sv_invert": tk.BooleanVar(),
-        "efv_read": tk.StringVar(), "efv_event": tk.StringVar(), "efv_unit": tk.StringVar(),
+        "ev_event": tk.StringVar(),
+        "ev_value": tk.StringVar(),
+        "sv_simvar": tk.StringVar(),
+        "sv_unit": tk.StringVar(),
+        "sv_invert": tk.BooleanVar(),
+        "efv_read": tk.StringVar(),
+        "efv_event": tk.StringVar(),
+        "efv_unit": tk.StringVar(),
         "rpn_code": tk.StringVar(),
         "tf_deadzone": tk.StringVar(),  # legacy 0..1 fraction (hidden passthrough)
-        "tf_dz_min": tk.StringVar(), "tf_dz_max": tk.StringVar(),  # raw dead window
-        "tf_curve": tk.StringVar(), "tf_expo": tk.StringVar(),
-        "tf_invert": tk.BooleanVar(), "tf_out_min": tk.StringVar(), "tf_out_max": tk.StringVar(),
+        "tf_dz_min": tk.StringVar(),
+        "tf_dz_max": tk.StringVar(),  # raw dead window
+        "tf_curve": tk.StringVar(),
+        "tf_expo": tk.StringVar(),
+        "tf_invert": tk.BooleanVar(),
+        "tf_out_min": tk.StringVar(),
+        "tf_out_max": tk.StringVar(),
         # detent split: the second (below-detent) mapping slot of an axis binding
-        "sp_enabled": tk.BooleanVar(), "sp_at": tk.StringVar(),
+        "sp_enabled": tk.BooleanVar(),
+        "sp_at": tk.StringVar(),
         "sp_action_type": tk.StringVar(value="event"),
-        "sp_ev_event": tk.StringVar(), "sp_ev_value": tk.StringVar(),
-        "sp_sv_simvar": tk.StringVar(), "sp_sv_unit": tk.StringVar(),
+        "sp_ev_event": tk.StringVar(),
+        "sp_ev_value": tk.StringVar(),
+        "sp_sv_simvar": tk.StringVar(),
+        "sp_sv_unit": tk.StringVar(),
         "sp_sv_invert": tk.BooleanVar(),
-        "sp_efv_read": tk.StringVar(), "sp_efv_event": tk.StringVar(),
-        "sp_efv_unit": tk.StringVar(), "sp_rpn_code": tk.StringVar(),
+        "sp_efv_read": tk.StringVar(),
+        "sp_efv_event": tk.StringVar(),
+        "sp_efv_unit": tk.StringVar(),
+        "sp_rpn_code": tk.StringVar(),
         "sp_tf_deadzone": tk.StringVar(),
-        "sp_tf_dz_min": tk.StringVar(), "sp_tf_dz_max": tk.StringVar(),
+        "sp_tf_dz_min": tk.StringVar(),
+        "sp_tf_dz_max": tk.StringVar(),
         "sp_tf_curve": tk.StringVar(),
-        "sp_tf_expo": tk.StringVar(), "sp_tf_invert": tk.BooleanVar(),
-        "sp_tf_out_min": tk.StringVar(), "sp_tf_out_max": tk.StringVar(),
+        "sp_tf_expo": tk.StringVar(),
+        "sp_tf_invert": tk.BooleanVar(),
+        "sp_tf_out_min": tk.StringVar(),
+        "sp_tf_out_max": tk.StringVar(),
     }
     # hat: four direction slots (type follows the picked var, like everywhere)
     for _d, _sym in gui_mapper.HAT_DIRECTIONS:
@@ -2572,8 +3017,11 @@ def run() -> None:
         ev[f"hat_{_d}_value"] = tk.StringVar()
 
     def _var_catalog():
-        extra = gui_catalog.local_var_catalog(mstate["profile"].local_vars) \
-            if mstate["profile"] is not None else []
+        extra = (
+            gui_catalog.local_var_catalog(mstate["profile"].local_vars)
+            if mstate["profile"] is not None
+            else []
+        )
         return catalog + extra
 
     def _var_name(v):  # CatalogVar -> the string the engine/writer expect
@@ -2584,10 +3032,12 @@ def run() -> None:
 
     def _pick_seq_step(st):
         """Pick a sequence step's target — its event/simvar kind follows the var."""
+
         def on_pick(v):
             st["target"].set("event" if v.kind == "K:" else "simvar")
             st["name"].set(_var_name(v))
             _seq_render()  # refresh the row's grey kind label
+
         _open_var_picker(win, _var_catalog(), on_pick)
 
     def _pick_action():
@@ -2596,6 +3046,7 @@ def run() -> None:
         This is the main path: the user just picks from the filtered list and does
         not have to understand the event/simvar distinction (that follows the kind).
         """
+
         def on_pick(v):
             if v.kind == "K:":
                 ev["action_type"].set("event")
@@ -2604,6 +3055,7 @@ def run() -> None:
                 ev["action_type"].set("simvar")
                 ev["sv_simvar"].set(_var_name(v))
             _ed_show_fields()
+
         _open_var_picker(win, _var_catalog(), on_pick)
 
     def _info(parent, text):
@@ -2634,14 +3086,21 @@ def run() -> None:
     ttk.Label(ed, text=tr("Quelle")).grid(row=1, column=0, sticky="w", padx=(0, 6), pady=2)
     k1 = ttk.Frame(ed)
     k1.grid(row=1, column=1, sticky="w", pady=2)
-    kind_cb = ttk.Combobox(k1, textvariable=kind_disp,
-                           values=[label for _, label in _KIND_CHOICES],
-                           state="readonly", width=28)
+    kind_cb = ttk.Combobox(
+        k1,
+        textvariable=kind_disp,
+        values=[label for _, label in _KIND_CHOICES],
+        state="readonly",
+        width=28,
+    )
     kind_cb.pack(side="left", padx=(0, 4))
-    _info(k1, "Muss zum physischen Bedienelement passen, sonst reagiert das Binding nicht: "
-              "Achse = Hebel/Drehachse · Taster = Druckknopf (löst beim Drücken aus) · "
-              "Schalter = haltender Kippschalter (meldet Einschalten UND Ausschalten — "
-              "alle Saitek-Panel-Schalter) · Hat = Rundblick-Kreuz am Yoke.")
+    _info(
+        k1,
+        "Muss zum physischen Bedienelement passen, sonst reagiert das Binding nicht: "
+        "Achse = Hebel/Drehachse · Taster = Druckknopf (löst beim Drücken aus) · "
+        "Schalter = haltender Kippschalter (meldet Einschalten UND Ausschalten — "
+        "alle Saitek-Panel-Schalter) · Hat = Rundblick-Kreuz am Yoke.",
+    )
     srcfr = ttk.Frame(ed)
     srcfr.grid(row=1, column=2, sticky="w")
     ttk.Label(srcfr, text=tr("Code")).pack(side="left", padx=(0, 4))
@@ -2668,19 +3127,30 @@ def run() -> None:
         for label, kind, code in srcs:
             named_menu.add_command(
                 label=f"{label}  ({kind} {code})",
-                command=lambda k=kind, c=code: _pick_named_source(k, c))
+                command=lambda k=kind, c=code: _pick_named_source(k, c),
+            )
 
     b_named = ttk.Menubutton(srcfr, text=tr("📋 Benannt"))
     named_menu = tk.Menu(b_named, tearoff=0, postcommand=lambda: _fill_named_menu())
     b_named["menu"] = named_menu
     b_named.pack(side="left")
-    _attach_tooltip(b_named, tr("Einen bereits gescannten, benannten Eingang des Geräts wählen "
-                    "(Geräte-Explorer, Eingänge scannen) — füllt Art und Code automatisch."))
-    _attach_tooltip(b_learn, tr("Bedienelement anlernen: lauscht live am angeschlossenen Gerät des "
-                    "Bindings — gewünschten Knopf/Schalter EINMAL betätigen oder den Hebel "
-                    "deutlich bewegen, dann werden Art (Taster/Schalter/Achse/Hat) und Code "
-                    "erkannt und oben eingetragen.\n\nFunktioniert für Achsen-Hardware (evdev) "
-                    "UND die Saitek-Panels (hidraw). Voraussetzung: das Gerät hängt am USB."))
+    _attach_tooltip(
+        b_named,
+        tr(
+            "Einen bereits gescannten, benannten Eingang des Geräts wählen "
+            "(Geräte-Explorer, Eingänge scannen) — füllt Art und Code automatisch."
+        ),
+    )
+    _attach_tooltip(
+        b_learn,
+        tr(
+            "Bedienelement anlernen: lauscht live am angeschlossenen Gerät des "
+            "Bindings — gewünschten Knopf/Schalter EINMAL betätigen oder den Hebel "
+            "deutlich bewegen, dann werden Art (Taster/Schalter/Achse/Hat) und Code "
+            "erkannt und oben eingetragen.\n\nFunktioniert für Achsen-Hardware (evdev) "
+            "UND die Saitek-Panels (hidraw). Voraussetzung: das Gerät hängt am USB."
+        ),
+    )
 
     # row 2: action — ONE button. Pick from the list and everything follows the
     # picked kind: a K: entry fires that event, an A:/L:/V: entry sets that
@@ -2689,72 +3159,94 @@ def run() -> None:
     # edited below). RPN / event_from_var have NO create path here — they only
     # show up (read-only-ish, with an ⓘ) when the opened binding already uses them.
     _TYPE_NOTE = {
-        "event": "→ Event feuern", "simvar": "→ Variable setzen",
-        "event_from_var": "→ Spezial: Event aus Variable", "rpn": "→ Spezial: RPN",
+        "event": "→ Event feuern",
+        "simvar": "→ Variable setzen",
+        "event_from_var": "→ Spezial: Event aus Variable",
+        "rpn": "→ Spezial: RPN",
         "sequence": "→ Events s. unten",
     }
     act_lbl = ttk.Label(ed, text=tr("Aktion"))
     act_lbl.grid(row=2, column=0, sticky="w", padx=(0, 6), pady=2)
     a1 = ttk.Frame(ed)
     a1.grid(row=2, column=1, sticky="w", pady=2)
-    ttk.Button(a1, text=tr("Wählen…"), style="Accent.TButton",
-               command=lambda: _pick_action()).pack(side="left", padx=(0, 4))
-    _info(a1, "Aus der Liste wählen (oben nach A:/K:/L:/V: filtern). Was du wählst, bestimmt "
-              "automatisch, was beim Auslösen passiert: ein K:-Event wird gefeuert, eine "
-              "A:/L:/V:-Variable gesetzt — den Unterschied musst du nicht kennen.")
+    ttk.Button(a1, text=tr("Wählen…"), style="Accent.TButton", command=lambda: _pick_action()).pack(
+        side="left", padx=(0, 4)
+    )
+    _info(
+        a1,
+        "Aus der Liste wählen (oben nach A:/K:/L:/V: filtern). Was du wählst, bestimmt "
+        "automatisch, was beim Auslösen passiert: ein K:-Event wird gefeuert, eine "
+        "A:/L:/V:-Variable gesetzt — den Unterschied musst du nicht kennen.",
+    )
     type_note = ttk.Label(a1, text=tr(""), foreground="#666")
     type_note.pack(side="left", padx=(0, 8))
     seq_on = tk.BooleanVar(value=False)
-    ttk.Checkbutton(a1, text=tr("Mehrere Events"), variable=seq_on,
-                    command=lambda: _seq_toggle()).pack(side="left")
-    _info(a1, "Statt einer einzelnen Aktion mehrere Events je Betätigung — die Liste unten "
-              "bearbeiten. Bei einem Taster: mehrere Events beim Drücken. Bei einem Schalter: "
-              "getrennt beim Ein- und Ausschalten.")
+    ttk.Checkbutton(
+        a1, text=tr("Mehrere Events"), variable=seq_on, command=lambda: _seq_toggle()
+    ).pack(side="left")
+    _info(
+        a1,
+        "Statt einer einzelnen Aktion mehrere Events je Betätigung — die Liste unten "
+        "bearbeiten. Bei einem Taster: mehrere Events beim Drücken. Bei einem Schalter: "
+        "getrennt beim Ein- und Ausschalten.",
+    )
     afh = ttk.Frame(ed)
     afh.grid(row=2, column=2, sticky="ew", pady=2)
     af: dict = {}
     fe = ttk.Frame(afh)
     ttk.Label(fe, text=tr("Event")).pack(side="left")
-    ttk.Entry(fe, textvariable=ev["ev_event"], width=24,
-              state="readonly").pack(side="left", padx=4)
+    ttk.Entry(fe, textvariable=ev["ev_event"], width=24, state="readonly").pack(side="left", padx=4)
     ttk.Label(fe, text=tr("Wert")).pack(side="left", padx=(8, 0))
     ttk.Entry(fe, textvariable=ev["ev_value"], width=6).pack(side="left", padx=(4, 2))
-    _info(fe, "Leer = automatisch: ein Taster sendet 1 beim Drücken, ein Schalter seinen "
-              "Zustand (1/0), eine Achse ihren Ausgangs-Wert. Eine Zahl hier erzwingt "
-              "stattdessen immer genau diesen festen Wert.")
+    _info(
+        fe,
+        "Leer = automatisch: ein Taster sendet 1 beim Drücken, ein Schalter seinen "
+        "Zustand (1/0), eine Achse ihren Ausgangs-Wert. Eine Zahl hier erzwingt "
+        "stattdessen immer genau diesen festen Wert.",
+    )
     af["event"] = fe
     fs = ttk.Frame(afh)
     ttk.Label(fs, text=tr("SimVar")).pack(side="left")
-    ttk.Entry(fs, textvariable=ev["sv_simvar"], width=24,
-              state="readonly").pack(side="left", padx=4)
+    ttk.Entry(fs, textvariable=ev["sv_simvar"], width=24, state="readonly").pack(
+        side="left", padx=4
+    )
     ttk.Label(fs, text=tr("Unit")).pack(side="left", padx=(8, 0))
     ttk.Entry(fs, textvariable=ev["sv_unit"], width=8).pack(side="left", padx=4)
     ttk.Checkbutton(fs, text=tr("invert"), variable=ev["sv_invert"]).pack(side="left", padx=6)
     af["simvar"] = fs
     ff = ttk.Frame(afh)
-    _info(ff, "Spezialfall „Event aus Variable“: liest beim Auslösen die Read-Variable "
-              "und feuert das Event mit deren Wert (z. B. Flaps-Stufe aus einer LVar).")
+    _info(
+        ff,
+        "Spezialfall „Event aus Variable“: liest beim Auslösen die Read-Variable "
+        "und feuert das Event mit deren Wert (z. B. Flaps-Stufe aus einer LVar).",
+    )
     ttk.Label(ff, text=tr("Read")).pack(side="left")
-    ttk.Entry(ff, textvariable=ev["efv_read"], width=16,
-              state="readonly").pack(side="left", padx=4)
-    ttk.Button(ff, text=tr("…"), width=2,
-               command=lambda: _pick_into(ev["efv_read"])).pack(side="left")
+    ttk.Entry(ff, textvariable=ev["efv_read"], width=16, state="readonly").pack(side="left", padx=4)
+    ttk.Button(ff, text=tr("…"), width=2, command=lambda: _pick_into(ev["efv_read"])).pack(
+        side="left"
+    )
     ttk.Label(ff, text=tr("Event")).pack(side="left", padx=(8, 0))
-    ttk.Entry(ff, textvariable=ev["efv_event"], width=16,
-              state="readonly").pack(side="left", padx=4)
-    ttk.Button(ff, text=tr("…"), width=2,
-               command=lambda: _pick_into(ev["efv_event"])).pack(side="left")
+    ttk.Entry(ff, textvariable=ev["efv_event"], width=16, state="readonly").pack(
+        side="left", padx=4
+    )
+    ttk.Button(ff, text=tr("…"), width=2, command=lambda: _pick_into(ev["efv_event"])).pack(
+        side="left"
+    )
     af["event_from_var"] = ff
     fr = ttk.Frame(afh)
-    _info(fr, "RPN = Rechenausdruck (MobiFlight-Kalkulator) für Spezialfälle, z. B. eine "
-              "LVar umschalten: (L:X) ! (>L:X). Nur für Fortgeschrittene — im Normalfall "
-              "einfach „Wählen…“ benutzen.")
+    _info(
+        fr,
+        "RPN = Rechenausdruck (MobiFlight-Kalkulator) für Spezialfälle, z. B. eine "
+        "LVar umschalten: (L:X) ! (>L:X). Nur für Fortgeschrittene — im Normalfall "
+        "einfach „Wählen…“ benutzen.",
+    )
     ttk.Label(fr, text=tr("RPN")).pack(side="left")
     ttk.Entry(fr, textvariable=ev["rpn_code"], width=40).pack(side="left", padx=4)
     af["rpn"] = fr
     fq = ttk.Frame(afh)
-    ttk.Label(fq, text=tr("mehrere Events je Betätigung — unten bearbeiten ↓"),
-              foreground="#444").pack(side="left")
+    ttk.Label(
+        fq, text=tr("mehrere Events je Betätigung — unten bearbeiten ↓"), foreground="#444"
+    ).pack(side="left")
     af["sequence"] = fq
 
     # row 3: axis shaping — stacked rows (Eingang / Verarbeitung / Ausgang) so the
@@ -2767,24 +3259,30 @@ def run() -> None:
     inrow = ttk.Frame(axfr)
     inrow.pack(anchor="w")
     ttk.Label(inrow, text=tr("Eingang (roh)")).pack(side="left", padx=(0, 2))
-    _info(inrow,
-          "Roh-Wertebereich der Hardware, den dieses Binding nutzt. Leer = der kalibrierte "
-          "Bereich der Achse (steht rechts in grau). Roh-Werte außerhalb min…max werden "
-          "geklemmt.")
+    _info(
+        inrow,
+        "Roh-Wertebereich der Hardware, den dieses Binding nutzt. Leer = der kalibrierte "
+        "Bereich der Achse (steht rechts in grau). Roh-Werte außerhalb min…max werden "
+        "geklemmt.",
+    )
     ttk.Label(inrow, text=tr("min")).pack(side="left")
     ttk.Entry(inrow, textvariable=ev["raw_min"], width=7).pack(side="left", padx=(2, 8))
     ttk.Label(inrow, text=tr("max")).pack(side="left")
     ttk.Entry(inrow, textvariable=ev["raw_max"], width=7).pack(side="left", padx=(2, 8))
     b_wand_raw = ttk.Button(inrow, text=tr("🪄"), width=3, command=lambda: _learn_raw())
     b_wand_raw.pack(side="left")
-    _attach_tooltip(b_wand_raw,
-                    tr("Öffnet ein Live-Fenster, das den ROHWERT dieser Achse direkt vom "
-                    "angeschlossenen Gerät liest (evdev) — gelesen wird die Achse aus dem "
-                    "Code-Feld oben am Gerät dieses Bindings.\n\n"
-                    "Voraussetzung VORHER: Quelle = Achse, der Code stimmt und das Gerät "
-                    "hängt am USB. Dann Hebel bewegen: der aktuelle Rohwert erscheint live "
-                    "und lässt sich per Knopf als Eingang-min, Eingang-max oder Detent "
-                    "übernehmen. Es wird nichts gesendet — nur gelesen."))
+    _attach_tooltip(
+        b_wand_raw,
+        tr(
+            "Öffnet ein Live-Fenster, das den ROHWERT dieser Achse direkt vom "
+            "angeschlossenen Gerät liest (evdev) — gelesen wird die Achse aus dem "
+            "Code-Feld oben am Gerät dieses Bindings.\n\n"
+            "Voraussetzung VORHER: Quelle = Achse, der Code stimmt und das Gerät "
+            "hängt am USB. Dann Hebel bewegen: der aktuelle Rohwert erscheint live "
+            "und lässt sich per Knopf als Eingang-min, Eingang-max oder Detent "
+            "übernehmen. Es wird nichts gesendet — nur gelesen."
+        ),
+    )
     ttk.Label(inrow, textvariable=cal_hint, foreground="#666").pack(side="left", padx=(4, 0))
 
     def _tf_rows(parent, p):
@@ -2792,44 +3290,56 @@ def run() -> None:
         procrow = ttk.Frame(parent)
         procrow.pack(anchor="w", pady=(2, 0))
         ttk.Label(procrow, text=tr("Verarbeitung")).pack(side="left", padx=(0, 2))
-        _info(procrow,
-              "Pipeline: Roh → auf -1…1 normieren (Eingang min/max) → Deadzone → Kurve/Expo "
-              "→ invert → auf Ausgang min…max skalieren → an Event/SimVar.")
+        _info(
+            procrow,
+            "Pipeline: Roh → auf -1…1 normieren (Eingang min/max) → Deadzone → Kurve/Expo "
+            "→ invert → auf Ausgang min…max skalieren → an Event/SimVar.",
+        )
         ttk.Label(procrow, text=tr("Totzone (roh)")).pack(side="left")
         ttk.Label(procrow, text=tr("min")).pack(side="left")
-        ttk.Entry(procrow, textvariable=ev[p + "dz_min"],
-                  width=6).pack(side="left", padx=(2, 2))
+        ttk.Entry(procrow, textvariable=ev[p + "dz_min"], width=6).pack(side="left", padx=(2, 2))
         ttk.Label(procrow, text=tr("max")).pack(side="left")
-        ttk.Entry(procrow, textvariable=ev[p + "dz_max"],
-                  width=6).pack(side="left", padx=(2, 6))
-        _info(procrow, "Totzone in ROH-Eingangswerten: Werte zwischen min und max gelten als "
-                       "neutral (0), außerhalb läuft die Achse stufenlos weiter (kein Sprung). "
-                       "Beide leer = keine Totzone. Plausibel: min < max und innerhalb "
-                       "Eingang min…max.")
+        ttk.Entry(procrow, textvariable=ev[p + "dz_max"], width=6).pack(side="left", padx=(2, 6))
+        _info(
+            procrow,
+            "Totzone in ROH-Eingangswerten: Werte zwischen min und max gelten als "
+            "neutral (0), außerhalb läuft die Achse stufenlos weiter (kein Sprung). "
+            "Beide leer = keine Totzone. Plausibel: min < max und innerhalb "
+            "Eingang min…max.",
+        )
         ttk.Label(procrow, text=tr("Kurve")).pack(side="left")
-        ttk.Combobox(procrow, textvariable=ev[p + "curve"], values=list(gui_mapper.CURVES),
-                     state="readonly", width=8).pack(side="left", padx=(2, 2))
-        _info(procrow, "Kennlinie: linear (1:1), expo (weicher/feiner um die Mitte) "
-                       "oder squared.")
+        ttk.Combobox(
+            procrow,
+            textvariable=ev[p + "curve"],
+            values=list(gui_mapper.CURVES),
+            state="readonly",
+            width=8,
+        ).pack(side="left", padx=(2, 2))
+        _info(procrow, "Kennlinie: linear (1:1), expo (weicher/feiner um die Mitte) oder squared.")
         ttk.Label(procrow, text=tr("expo")).pack(side="left")
         ttk.Entry(procrow, textvariable=ev[p + "expo"], width=5).pack(side="left", padx=(2, 2))
-        _info(procrow, "Stärke der Expo-Kurve (0…1): höher = weicher um die Mitte, spitzer "
-                       "an den Enden. Nur bei Kurve=expo wirksam. Leer = 0.")
-        ttk.Checkbutton(procrow, text=tr("invert"),
-                        variable=ev[p + "invert"]).pack(side="left", padx=(0, 2))
+        _info(
+            procrow,
+            "Stärke der Expo-Kurve (0…1): höher = weicher um die Mitte, spitzer "
+            "an den Enden. Nur bei Kurve=expo wirksam. Leer = 0.",
+        )
+        ttk.Checkbutton(procrow, text=tr("invert"), variable=ev[p + "invert"]).pack(
+            side="left", padx=(0, 2)
+        )
         _info(procrow, "Richtung umkehren (Achse läuft andersherum).")
         outrow = ttk.Frame(parent)
         outrow.pack(anchor="w", pady=(2, 0))
         ttk.Label(outrow, text=tr("Ausgang (out)")).pack(side="left", padx=(0, 2))
-        _info(outrow, "Wertebereich, der an Event/SimVar geht: min wird bei Eingang-min "
-                      "gesendet, max bei Eingang-max. Leer = 0…1. Achsen-*_SET-Events "
-                      "brauchen meist -16383…16383, ein SimVar oft 0…1.")
+        _info(
+            outrow,
+            "Wertebereich, der an Event/SimVar geht: min wird bei Eingang-min "
+            "gesendet, max bei Eingang-max. Leer = 0…1. Achsen-*_SET-Events "
+            "brauchen meist -16383…16383, ein SimVar oft 0…1.",
+        )
         ttk.Label(outrow, text=tr("min")).pack(side="left")
-        ttk.Entry(outrow, textvariable=ev[p + "out_min"],
-                  width=7).pack(side="left", padx=(2, 8))
+        ttk.Entry(outrow, textvariable=ev[p + "out_min"], width=7).pack(side="left", padx=(2, 8))
         ttk.Label(outrow, text=tr("max")).pack(side="left")
-        ttk.Entry(outrow, textvariable=ev[p + "out_max"],
-                  width=7).pack(side="left", padx=(2, 2))
+        ttk.Entry(outrow, textvariable=ev[p + "out_max"], width=7).pack(side="left", padx=(2, 2))
 
     _tf_rows(axfr, "tf_")
 
@@ -2837,28 +3347,40 @@ def run() -> None:
     # second mapping area for the range below the detent (its own action+shaping).
     sprow = ttk.Frame(axfr)
     sprow.pack(anchor="w", pady=(6, 0))
-    ttk.Checkbutton(sprow, text=tr("Achse am Detent teilen"), variable=ev["sp_enabled"],
-                    command=lambda: _ed_show_fields()).pack(side="left")
-    _info(sprow, "Für Hebel mit Raste (Reverse/Feather/Cutoff): oberhalb des Detents gilt "
-                 "die Aktion oben, unterhalb eine EIGENE Aktion — beides in EINEM Binding. "
-                 "Jeder Teilbereich wird über seine eigene Spanne skaliert (der Detent ist "
-                 "Ausgang-min des oberen und Ausgang-max des unteren Teils).")
+    ttk.Checkbutton(
+        sprow,
+        text=tr("Achse am Detent teilen"),
+        variable=ev["sp_enabled"],
+        command=lambda: _ed_show_fields(),
+    ).pack(side="left")
+    _info(
+        sprow,
+        "Für Hebel mit Raste (Reverse/Feather/Cutoff): oberhalb des Detents gilt "
+        "die Aktion oben, unterhalb eine EIGENE Aktion — beides in EINEM Binding. "
+        "Jeder Teilbereich wird über seine eigene Spanne skaliert (der Detent ist "
+        "Ausgang-min des oberen und Ausgang-max des unteren Teils).",
+    )
     ttk.Label(sprow, text=tr("Detent (roh)")).pack(side="left", padx=(8, 0))
     ttk.Entry(sprow, textvariable=ev["sp_at"], width=7).pack(side="left", padx=(2, 2))
     b_wand_det = ttk.Button(sprow, text=tr("🪄"), width=3, command=lambda: _learn_raw())
     b_wand_det.pack(side="left", padx=(2, 0))
-    _attach_tooltip(b_wand_det,
-                    tr("Detent anlernen: liest den Rohwert der Achse live vom angeschlossenen "
-                    "Gerät (evdev, Achse = Code-Feld oben). Voraussetzung: Quelle = Achse, "
-                    "Code stimmt, Gerät angesteckt. Hebel an die Raste fahren und den "
-                    "angezeigten Wert mit „→ als Detent“ übernehmen."))
+    _attach_tooltip(
+        b_wand_det,
+        tr(
+            "Detent anlernen: liest den Rohwert der Achse live vom angeschlossenen "
+            "Gerät (evdev, Achse = Code-Feld oben). Voraussetzung: Quelle = Achse, "
+            "Code stimmt, Gerät angesteckt. Hebel an die Raste fahren und den "
+            "angezeigten Wert mit „→ als Detent“ übernehmen."
+        ),
+    )
     _info(sprow, "Roh-Wert der Raste = Grenze der beiden Bereiche — per 🪄 live ablesbar.")
 
     spfr = ttk.Labelframe(axfr, text=tr("⬇ Unterhalb des Detents — eigene Aktion"), padding=6)
     sp1 = ttk.Frame(spfr)
     sp1.pack(anchor="w")
-    ttk.Button(sp1, text=tr("Wählen…"), style="Accent.TButton",
-               command=lambda: _pick_sp_action()).pack(side="left", padx=(0, 4))
+    ttk.Button(
+        sp1, text=tr("Wählen…"), style="Accent.TButton", command=lambda: _pick_sp_action()
+    ).pack(side="left", padx=(0, 4))
     sp_note = ttk.Label(sp1, text=tr(""), foreground="#666")
     sp_note.pack(side="left", padx=(0, 8))
     spah = ttk.Frame(sp1)
@@ -2866,16 +3388,18 @@ def run() -> None:
     spf: dict = {}
     sfe = ttk.Frame(spah)
     ttk.Label(sfe, text=tr("Event")).pack(side="left")
-    ttk.Entry(sfe, textvariable=ev["sp_ev_event"], width=24,
-              state="readonly").pack(side="left", padx=4)
+    ttk.Entry(sfe, textvariable=ev["sp_ev_event"], width=24, state="readonly").pack(
+        side="left", padx=4
+    )
     ttk.Label(sfe, text=tr("Wert")).pack(side="left", padx=(8, 0))
     ttk.Entry(sfe, textvariable=ev["sp_ev_value"], width=6).pack(side="left", padx=(4, 2))
     _info(sfe, "Leer = automatisch: die Achse sendet ihren Ausgangs-Wert (s. Ausgang unten).")
     spf["event"] = sfe
     sfs = ttk.Frame(spah)
     ttk.Label(sfs, text=tr("SimVar")).pack(side="left")
-    ttk.Entry(sfs, textvariable=ev["sp_sv_simvar"], width=24,
-              state="readonly").pack(side="left", padx=4)
+    ttk.Entry(sfs, textvariable=ev["sp_sv_simvar"], width=24, state="readonly").pack(
+        side="left", padx=4
+    )
     ttk.Label(sfs, text=tr("Unit")).pack(side="left", padx=(8, 0))
     ttk.Entry(sfs, textvariable=ev["sp_sv_unit"], width=8).pack(side="left", padx=4)
     ttk.Checkbutton(sfs, text=tr("invert"), variable=ev["sp_sv_invert"]).pack(side="left", padx=6)
@@ -2896,8 +3420,12 @@ def run() -> None:
     seq_state: dict[str, list] = {"on": [], "off": []}  # each item: dict of StringVars
 
     def _seq_step_vars(target="event", name="", value="0", unit="number"):
-        return {"target": tk.StringVar(value=target), "name": tk.StringVar(value=name),
-                "value": tk.StringVar(value=value), "unit": tk.StringVar(value=unit)}
+        return {
+            "target": tk.StringVar(value=target),
+            "name": tk.StringVar(value=name),
+            "value": tk.StringVar(value=value),
+            "unit": tk.StringVar(value=unit),
+        }
 
     def _seq_rows(edge):
         return [{k: v.get() for k, v in st.items()} for st in seq_state[edge]]
@@ -2917,9 +3445,11 @@ def run() -> None:
         # only fires on press -> a single "Events" list. The off list also stays
         # visible if a loaded binding already has off-events (no silent data loss).
         is_switch = ev["kind"].get() == "switch"
-        ttk.Label(seqfr, foreground="#444",
-                  text=tr("Mehrere Events je Betätigung (Event feuern / Variable setzen):")
-                  ).pack(anchor="w")
+        ttk.Label(
+            seqfr,
+            foreground="#444",
+            text=tr("Mehrere Events je Betätigung (Event feuern / Variable setzen):"),
+        ).pack(anchor="w")
         edges = [("on", tr("Beim Einschalten") if is_switch else tr("Events (beim Drücken)"))]
         if is_switch or seq_state["off"]:
             edges.append(("off", tr("Beim Ausschalten — leer = nichts")))
@@ -2927,23 +3457,34 @@ def run() -> None:
             head = ttk.Frame(seqfr)
             head.pack(anchor="w", pady=(4, 0))
             ttk.Label(head, text=title, foreground="#555").pack(side="left")
-            ttk.Button(head, text=tr("+ Event"),
-                       command=lambda e=edge: _seq_add(e)).pack(side="left", padx=6)
+            ttk.Button(head, text=tr("+ Event"), command=lambda e=edge: _seq_add(e)).pack(
+                side="left", padx=6
+            )
             for i, st in enumerate(seq_state[edge]):
                 row = ttk.Frame(seqfr)
                 row.pack(anchor="w", padx=(16, 0))
                 # target follows the picked var (K:=event else simvar) — no dropdown
-                ttk.Label(row, width=9, foreground="#666",
-                          text=tr("Event") if st["target"].get() == "event" else "Variable"
-                          ).pack(side="left")
-                ttk.Entry(row, textvariable=st["name"], width=26,
-                          state="readonly").pack(side="left", padx=3)
-                ttk.Button(row, text=tr("…"), width=2,
-                           command=lambda s=st: _pick_seq_step(s)).pack(side="left")
+                ttk.Label(
+                    row,
+                    width=9,
+                    foreground="#666",
+                    text=tr("Event") if st["target"].get() == "event" else "Variable",
+                ).pack(side="left")
+                ttk.Entry(row, textvariable=st["name"], width=26, state="readonly").pack(
+                    side="left", padx=3
+                )
+                ttk.Button(row, text=tr("…"), width=2, command=lambda s=st: _pick_seq_step(s)).pack(
+                    side="left"
+                )
                 ttk.Label(row, text=tr("Wert")).pack(side="left", padx=(6, 0))
                 ttk.Entry(row, textvariable=st["value"], width=7).pack(side="left", padx=3)
-                ttk.Button(row, text=tr("✕"), width=2, style="Danger.TButton",
-                           command=lambda e=edge, ix=i: _seq_del(e, ix)).pack(side="left")
+                ttk.Button(
+                    row,
+                    text=tr("✕"),
+                    width=2,
+                    style="Danger.TButton",
+                    command=lambda e=edge, ix=i: _seq_del(e, ix),
+                ).pack(side="left")
 
     def _seq_load(action):
         rows = gui_mapper.seq_action_to_rows(action)
@@ -2963,36 +3504,45 @@ def run() -> None:
     hatfr.grid(row=2, column=1, columnspan=2, sticky="ew", pady=2)
     hh = ttk.Frame(hatfr)
     hh.pack(anchor="w")
-    ttk.Label(hh, text=tr("Hat — vier Richtungen, ein Binding"),
-              foreground="#444").pack(side="left")
-    _info(hh, "Der Code oben ist die X-Achse des Hats (◀▶); die Y-Achse (▲▼) ist "
-              "automatisch Code+1 — du musst nur den Basis-Code kennen (🪄 erkennt ihn "
-              "beim Drücken des Hats). Je Richtung eine Aktion wählen; leere Richtungen "
-              "tun nichts.")
+    ttk.Label(hh, text=tr("Hat — vier Richtungen, ein Binding"), foreground="#444").pack(
+        side="left"
+    )
+    _info(
+        hh,
+        "Der Code oben ist die X-Achse des Hats (◀▶); die Y-Achse (▲▼) ist "
+        "automatisch Code+1 — du musst nur den Basis-Code kennen (🪄 erkennt ihn "
+        "beim Drücken des Hats). Je Richtung eine Aktion wählen; leere Richtungen "
+        "tun nichts.",
+    )
 
     def _pick_hat(d):
         def on_pick(v):
             ev[f"hat_{d}_type"].set("event" if v.kind == "K:" else "simvar")
             ev[f"hat_{d}_name"].set(_var_name(v))
+
         _open_var_picker(win, _var_catalog(), on_pick)
 
     for _d, _sym in gui_mapper.HAT_DIRECTIONS:
         hrow = ttk.Frame(hatfr)
         hrow.pack(anchor="w", pady=1)
         ttk.Label(hrow, text=_sym, width=8).pack(side="left")
-        ttk.Button(hrow, text=tr("Wählen…"),
-                   command=lambda d=_d: _pick_hat(d)).pack(side="left", padx=(0, 4))
-        ttk.Entry(hrow, textvariable=ev[f"hat_{_d}_name"], width=28,
-                  state="readonly").pack(side="left")
+        ttk.Button(hrow, text=tr("Wählen…"), command=lambda d=_d: _pick_hat(d)).pack(
+            side="left", padx=(0, 4)
+        )
+        ttk.Entry(hrow, textvariable=ev[f"hat_{_d}_name"], width=28, state="readonly").pack(
+            side="left"
+        )
         ttk.Label(hrow, text=tr("Wert")).pack(side="left", padx=(6, 0))
-        ttk.Entry(hrow, textvariable=ev[f"hat_{_d}_value"], width=6
-                  ).pack(side="left", padx=(2, 2))
-        _info(hrow, "Nur bei Events: leer = 1 beim Auslösen; eine Zahl erzwingt diesen "
-                    "festen Wert.")
-        ttk.Button(hrow, text=tr("✕"), width=2,
-                   command=lambda d=_d: (ev[f"hat_{d}_name"].set(""),
-                                         ev[f"hat_{d}_value"].set(""))
-                   ).pack(side="left", padx=4)
+        ttk.Entry(hrow, textvariable=ev[f"hat_{_d}_value"], width=6).pack(side="left", padx=(2, 2))
+        _info(
+            hrow, "Nur bei Events: leer = 1 beim Auslösen; eine Zahl erzwingt diesen festen Wert."
+        )
+        ttk.Button(
+            hrow,
+            text=tr("✕"),
+            width=2,
+            command=lambda d=_d: (ev[f"hat_{d}_name"].set(""), ev[f"hat_{d}_value"].set("")),
+        ).pack(side="left", padx=4)
 
     # row 5: this window's actions (all act on THIS one binding) + feedback
     # conditions: a visually separated gate section (applies to EVERY source
@@ -3002,8 +3552,13 @@ def run() -> None:
     cond_state: list[dict] = []
 
     def _cond_add(var="", op="==", value="1"):
-        cond_state.append({"var": tk.StringVar(value=var), "op": tk.StringVar(value=op),
-                           "value": tk.StringVar(value=value)})
+        cond_state.append(
+            {
+                "var": tk.StringVar(value=var),
+                "op": tk.StringVar(value=op),
+                "value": tk.StringVar(value=value),
+            }
+        )
         _cond_render()
 
     def _cond_del(index):
@@ -3018,29 +3573,43 @@ def run() -> None:
             w.destroy()
         chead = ttk.Frame(condfr)
         chead.pack(anchor="w")
-        ttk.Button(chead, text=tr("+ Bedingung"),
-                   command=lambda: _cond_add()).pack(side="left", padx=(0, 4))
-        _info(chead, "Das Binding löst nur aus, solange ALLE Bedingungen erfüllt sind — "
-                     "geprüft gegen live gelesene Variablen (A:/L:) oder lokale "
-                     "V:-Variablen. Solange ein Wert noch unbekannt ist, gilt die "
-                     "Bedingung als NICHT erfüllt. Ohne Bedingungen läuft das Binding "
-                     "immer.")
+        ttk.Button(chead, text=tr("+ Bedingung"), command=lambda: _cond_add()).pack(
+            side="left", padx=(0, 4)
+        )
+        _info(
+            chead,
+            "Das Binding löst nur aus, solange ALLE Bedingungen erfüllt sind — "
+            "geprüft gegen live gelesene Variablen (A:/L:) oder lokale "
+            "V:-Variablen. Solange ein Wert noch unbekannt ist, gilt die "
+            "Bedingung als NICHT erfüllt. Ohne Bedingungen läuft das Binding "
+            "immer.",
+        )
         if not cond_state:
-            ttk.Label(chead, text=tr("keine — gilt immer"),
-                      foreground="#666").pack(side="left", padx=4)
+            ttk.Label(chead, text=tr("keine — gilt immer"), foreground="#666").pack(
+                side="left", padx=4
+            )
         for i, row in enumerate(cond_state):
             fr = ttk.Frame(condfr)
             fr.pack(anchor="w", pady=1)
-            ttk.Button(fr, text=tr("Wählen…"),
-                       command=lambda r=row: _pick_into(r["var"])).pack(side="left",
-                                                                        padx=(0, 3))
-            ttk.Entry(fr, textvariable=row["var"], width=28,
-                      state="readonly").pack(side="left")
-            ttk.Combobox(fr, textvariable=row["op"], values=list(gui_mapper.CONDITION_OPS),
-                         state="readonly", width=4).pack(side="left", padx=3)
+            ttk.Button(fr, text=tr("Wählen…"), command=lambda r=row: _pick_into(r["var"])).pack(
+                side="left", padx=(0, 3)
+            )
+            ttk.Entry(fr, textvariable=row["var"], width=28, state="readonly").pack(side="left")
+            ttk.Combobox(
+                fr,
+                textvariable=row["op"],
+                values=list(gui_mapper.CONDITION_OPS),
+                state="readonly",
+                width=4,
+            ).pack(side="left", padx=3)
             ttk.Entry(fr, textvariable=row["value"], width=8).pack(side="left")
-            ttk.Button(fr, text=tr("✕"), width=2, style="Danger.TButton",
-                       command=lambda ix=i: _cond_del(ix)).pack(side="left", padx=4)
+            ttk.Button(
+                fr,
+                text=tr("✕"),
+                width=2,
+                style="Danger.TButton",
+                command=lambda ix=i: _cond_del(ix),
+            ).pack(side="left", padx=4)
 
     def _cond_load(when):
         cond_state.clear()
@@ -3052,10 +3621,12 @@ def run() -> None:
 
     edbtn = ttk.Frame(ed)
     edbtn.grid(row=6, column=0, columnspan=3, sticky="ew", pady=(6, 0))
-    ttk.Button(edbtn, text=tr("Übernehmen"), style="Accent.TButton",
-               command=lambda: _ed_apply()).pack(side="left")
-    ttk.Button(edbtn, text=tr("Zurücksetzen"),
-               command=lambda: _ed_reset()).pack(side="left", padx=6)
+    ttk.Button(
+        edbtn, text=tr("Übernehmen"), style="Accent.TButton", command=lambda: _ed_apply()
+    ).pack(side="left")
+    ttk.Button(edbtn, text=tr("Zurücksetzen"), command=lambda: _ed_reset()).pack(
+        side="left", padx=6
+    )
     ttk.Button(edbtn, text=tr("Abbrechen"), command=lambda: _ed_close()).pack(side="left")
     ed_status = ttk.Label(edbtn, text=tr(""), foreground="#666")
     ed_status.pack(side="left", padx=10)
@@ -3104,15 +3675,20 @@ def run() -> None:
         cap.transient(ed_win)
         frm = ttk.Frame(cap, padding=12)
         frm.pack(fill="both", expand=True)
-        ttk.Label(frm, justify="left",
-                  text=("Das gewünschte Bedienelement MEHRMALS betätigen\n"
-                        "(Schalter/Taster · Encoder drehen · Swap drücken):"
-                        if is_panel else
-                        "Jetzt den gewünschten Knopf drücken\n"
-                        "oder den Hebel deutlich bewegen:")).pack(anchor="w")
+        ttk.Label(
+            frm,
+            justify="left",
+            text=(
+                "Das gewünschte Bedienelement MEHRMALS betätigen\n"
+                "(Schalter/Taster · Encoder drehen · Swap drücken):"
+                if is_panel
+                else "Jetzt den gewünschten Knopf drücken\noder den Hebel deutlich bewegen:"
+            ),
+        ).pack(anchor="w")
         found = tk.StringVar(value="— lausche —")
-        ttk.Label(frm, textvariable=found,
-                  font=("TkDefaultFont", 13, "bold")).pack(anchor="w", pady=6)
+        ttk.Label(frm, textvariable=found, font=("TkDefaultFont", 13, "bold")).pack(
+            anchor="w", pady=6
+        )
         st = {"kind": None, "code": None}
         _KIND_WORD = {"button": "Taster", "axis": "Achse", "hat": "Hat", "switch": "Schalter"}
 
@@ -3135,8 +3711,9 @@ def run() -> None:
 
         btns = ttk.Frame(frm)
         btns.pack(anchor="w", pady=(8, 0))
-        b_ok = ttk.Button(btns, text=tr("Übernehmen"), style="Accent.TButton",
-                          command=_apply, state="disabled")
+        b_ok = ttk.Button(
+            btns, text=tr("Übernehmen"), style="Accent.TButton", command=_apply, state="disabled"
+        )
         b_ok.pack(side="left")
         ttk.Button(btns, text=tr("Schließen"), command=_close).pack(side="left", padx=6)
         cap.protocol("WM_DELETE_WINDOW", _close)
@@ -3208,9 +3785,16 @@ def run() -> None:
         ttk.Label(frm, text=tr("Hebel/Achse bewegen — aktueller Rohwert:")).pack(anchor="w")
         cur = tk.StringVar(value="—")
         ttk.Label(frm, textvariable=cur, font=("TkDefaultFont", 18)).pack(anchor="w", pady=4)
-        ttk.Label(frm, foreground="#666", wraplength=320, justify="left",
-                  text=tr("Hebel an ein Ende / an die Raste fahren, Wert ablesen und übernehmen. "
-                       "„als Detent“ füllt die Split-Grenze (Achse teilen).")).pack(anchor="w")
+        ttk.Label(
+            frm,
+            foreground="#666",
+            wraplength=320,
+            justify="left",
+            text=tr(
+                "Hebel an ein Ende / an die Raste fahren, Wert ablesen und übernehmen. "
+                "„als Detent“ füllt die Split-Grenze (Achse teilen)."
+            ),
+        ).pack(anchor="w")
         st = {"val": None}
 
         _GRAB_LABEL = {"raw_min": "Eingang min", "raw_max": "Eingang max", "sp_at": "Detent"}
@@ -3223,10 +3807,10 @@ def run() -> None:
         btns = ttk.Frame(frm)
         btns.pack(anchor="w", pady=(8, 0))
         ttk.Button(btns, text=tr("→ als min"), command=lambda: _grab("raw_min")).pack(side="left")
-        ttk.Button(btns, text=tr("→ als max"),
-                   command=lambda: _grab("raw_max")).pack(side="left", padx=6)
-        ttk.Button(btns, text=tr("→ als Detent"),
-                   command=lambda: _grab("sp_at")).pack(side="left")
+        ttk.Button(btns, text=tr("→ als max"), command=lambda: _grab("raw_max")).pack(
+            side="left", padx=6
+        )
+        ttk.Button(btns, text=tr("→ als Detent"), command=lambda: _grab("sp_at")).pack(side="left")
         ttk.Button(btns, text=tr("Schließen"), command=cap.destroy).pack(side="left", padx=6)
 
         def _tick():
@@ -3303,6 +3887,7 @@ def run() -> None:
 
     def _pick_sp_action():
         """Pick the below-detent target; the action kind follows the picked var."""
+
         def on_pick(v):
             if v.kind == "K:":
                 ev["sp_action_type"].set("event")
@@ -3311,6 +3896,7 @@ def run() -> None:
                 ev["sp_action_type"].set("simvar")
                 ev["sp_sv_simvar"].set(_var_name(v))
             _ed_show_fields()
+
         _open_var_picker(win, _var_catalog(), on_pick)
 
     def _ed_set_form(form):
@@ -3426,8 +4012,7 @@ def run() -> None:
         cap_win.title(tr("Encoder anlernen"))
         frm = ttk.Frame(cap_win, padding=12)
         frm.pack(fill="both", expand=True)
-        instr = ttk.Label(frm, font=("TkDefaultFont", 11, "bold"), wraplength=380,
-                          justify="left")
+        instr = ttk.Label(frm, font=("TkDefaultFont", 11, "bold"), wraplength=380, justify="left")
         instr.pack(anchor="w")
         found = ttk.Label(frm, foreground="#2e7d32")
         found.pack(anchor="w", pady=(4, 6))
@@ -3480,8 +4065,9 @@ def run() -> None:
 
         b_next = ttk.Button(row, text=tr("Weiter"), command=_advance, state="disabled")
         b_next.pack(side="left")
-        ttk.Button(row, text=tr("Abbrechen"),
-                   command=lambda: (_close_reader(), cap_win.destroy())).pack(side="left", padx=6)
+        ttk.Button(
+            row, text=tr("Abbrechen"), command=lambda: (_close_reader(), cap_win.destroy())
+        ).pack(side="left", padx=6)
         cap_win.protocol("WM_DELETE_WINDOW", lambda: (_close_reader(), cap_win.destroy()))
         _start()
         cap_win.lift()
@@ -3508,11 +4094,15 @@ def run() -> None:
             m_state.config(text=tr("Kein Gerät gewählt — links ein Gerät markieren."))
             return
         if _is_static_panel(dev):
-            m_state.config(text=f"„{dev}“ ist ein Saitek-Panel — seine Encoder kommen aus "
-                                "der Vorlage, kein eigenes Anlernen nötig.")
+            m_state.config(
+                text=f"„{dev}“ ist ein Saitek-Panel — seine Encoder kommen aus "
+                "der Vorlage, kein eigenes Anlernen nötig."
+            )
             return
-        steps = [("cw", tr("Encoder mehrmals IM Uhrzeigersinn drehen.")),
-                 ("ccw", tr("Encoder mehrmals GEGEN den Uhrzeigersinn drehen."))]
+        steps = [
+            ("cw", tr("Encoder mehrmals IM Uhrzeigersinn drehen.")),
+            ("ccw", tr("Encoder mehrmals GEGEN den Uhrzeigersinn drehen.")),
+        ]
 
         def _done(codes):
             cwc, ccwc = codes.get("cw"), codes.get("ccw")
@@ -3521,13 +4111,15 @@ def run() -> None:
                 return
             name = simpledialog.askstring(
                 tr("Encoder-Name"),
-                tr("Wie heißt dieser Encoder? (z. B. „Heading“, „Höhe“)"), parent=win)
+                tr("Wie heißt dieser Encoder? (z. B. „Heading“, „Höhe“)"),
+                parent=win,
+            )
             if not name or not name.strip():
                 return
             name = name.strip()
             _open_encoder_direction(
-                dev, name, "CW", cwc,
-                then=lambda: _open_encoder_direction(dev, name, "CCW", ccwc))
+                dev, name, "CW", cwc, then=lambda: _open_encoder_direction(dev, name, "CCW", ccwc)
+            )
 
         _capture_codes(dev, steps, _done)
 
@@ -3568,9 +4160,7 @@ def run() -> None:
                 override = gui_mapper.rows_to_seq_action(_seq_rows("on"), _seq_rows("off"))
             else:
                 override = etgt["original_action"]
-            binding = gui_mapper.form_to_binding(
-                {k: var.get() for k, var in ev.items()}, override
-            )
+            binding = gui_mapper.form_to_binding({k: var.get() for k, var in ev.items()}, override)
             conds = gui_mapper.rows_to_conditions(_cond_rows())
             if conds:
                 binding["when"] = conds
@@ -3602,7 +4192,8 @@ def run() -> None:
             return
         binding = mstate["profile"].bindings[dev][idx]
         dup = gui_mapper.form_to_binding(
-            gui_mapper.binding_to_form(binding), _seq_original(binding))
+            gui_mapper.binding_to_form(binding), _seq_original(binding)
+        )
         if binding.when:  # conditions ride along on duplicate
             dup["when"] = [c.model_dump(exclude_defaults=True) for c in binding.when]
         existing = {b.name for b in mstate["profile"].bindings.get(dev, [])}
@@ -3665,11 +4256,17 @@ def run() -> None:
         tw.title(f"{tr('Panel testen')} — {device_id}")
         frm = ttk.Frame(tw, padding=12)
         frm.pack(fill="both", expand=True)
-        ttk.Label(frm, wraplength=470, justify="left", foreground="#555",
-                  text=tr("Ein Element aufleuchten lassen, um es am echten Panel zu "
-                          "identifizieren. Geht nur, wenn der Mapper das Panel NICHT "
-                          "steuert (er würde den Test sofort überschreiben).")
-                  ).pack(anchor="w")
+        ttk.Label(
+            frm,
+            wraplength=470,
+            justify="left",
+            foreground="#555",
+            text=tr(
+                "Ein Element aufleuchten lassen, um es am echten Panel zu "
+                "identifizieren. Geht nur, wenn der Mapper das Panel NICHT "
+                "steuert (er würde den Test sofort überschreiben)."
+            ),
+        ).pack(anchor="w")
         warn = ttk.Label(frm, foreground="#c62828", wraplength=470, justify="left")
         warn.pack(anchor="w", pady=(4, 0))
         status = ttk.Label(frm, foreground="#2e7d32")
@@ -3684,8 +4281,12 @@ def run() -> None:
 
         def _write(report) -> bool:
             if _mapper_running():
-                warn.config(text=tr("⚠ Der Mapper läuft und steuert das Panel — bitte "
-                                    "erst im Connection-Tab stoppen."))
+                warn.config(
+                    text=tr(
+                        "⚠ Der Mapper läuft und steuert das Panel — bitte "
+                        "erst im Connection-Tab stoppen."
+                    )
+                )
                 return False
             path = _path()
             if path is None:
@@ -3722,42 +4323,49 @@ def run() -> None:
         canvas = tk.Canvas(mid, highlightthickness=0, height=360, width=380)
         sb = ttk.Scrollbar(mid, orient="vertical", command=canvas.yview)
         body = ttk.Frame(canvas)
-        body.bind("<Configure>",
-                  lambda e: canvas.configure(scrollregion=canvas.bbox("all")))
+        body.bind("<Configure>", lambda e: canvas.configure(scrollregion=canvas.bbox("all")))
         canvas.create_window((0, 0), window=body, anchor="nw")
         canvas.configure(yscrollcommand=sb.set)
         canvas.pack(side="left", fill="both", expand=True)
         sb.pack(side="right", fill="y")
         canvas.bind_all("<Button-4>", lambda e: canvas.yview_scroll(-1, "units"))
         canvas.bind_all("<Button-5>", lambda e: canvas.yview_scroll(1, "units"))
-        tw.bind("<Destroy>", lambda e: (canvas.unbind_all("<Button-4>"),
-                                        canvas.unbind_all("<Button-5>"))
-                if e.widget is tw else None)
+        tw.bind(
+            "<Destroy>",
+            lambda e: (
+                (canvas.unbind_all("<Button-4>"), canvas.unbind_all("<Button-5>"))
+                if e.widget is tw
+                else None
+            ),
+        )
 
         row, last_group = 0, None
         for t in targets:
             if t.group != last_group:
-                ttk.Label(body, text=t.group, font=("TkDefaultFont", 9, "bold"),
-                          foreground="#333").grid(row=row, column=0, columnspan=3,
-                                                  sticky="w", pady=(8, 1))
+                ttk.Label(
+                    body, text=t.group, font=("TkDefaultFont", 9, "bold"), foreground="#333"
+                ).grid(row=row, column=0, columnspan=3, sticky="w", pady=(8, 1))
                 row += 1
                 last_group = t.group
-            ttk.Label(body, text=t.label).grid(row=row, column=0, sticky="w",
-                                               padx=(14, 8))
-            ttk.Button(body, text=tr("🔦"), width=3,
-                       command=lambda r=t.report, la=t.label: _send(r, la)
-                       ).grid(row=row, column=1)
+            ttk.Label(body, text=t.label).grid(row=row, column=0, sticky="w", padx=(14, 8))
+            ttk.Button(
+                body, text=tr("🔦"), width=3, command=lambda r=t.report, la=t.label: _send(r, la)
+            ).grid(row=row, column=1)
             if t.dot_report is not None:  # radio/multi cell: also flash its dot ("8.")
-                ttk.Button(body, text=tr("🔦."), width=3,
-                           command=lambda r=t.dot_report, la=f"{t.label} .": _send(r, la)
-                           ).grid(row=row, column=2, padx=3)
+                ttk.Button(
+                    body,
+                    text=tr("🔦."),
+                    width=3,
+                    command=lambda r=t.dot_report, la=f"{t.label} .": _send(r, la),
+                ).grid(row=row, column=2, padx=3)
             row += 1
 
         foot = ttk.Frame(frm)
         foot.pack(anchor="w", pady=(8, 0))
         ttk.Button(foot, text=tr("Alles aus"), command=_all_off).pack(side="left")
-        ttk.Button(foot, text=tr("Schließen"),
-                   command=lambda: (_all_off(), tw.destroy())).pack(side="left", padx=6)
+        ttk.Button(foot, text=tr("Schließen"), command=lambda: (_all_off(), tw.destroy())).pack(
+            side="left", padx=6
+        )
         tw.protocol("WM_DELETE_WINDOW", lambda: (_all_off(), tw.destroy()))
         tw.minsize(420, 300)
         tw.lift()
@@ -3831,8 +4439,9 @@ def run() -> None:
             frm.pack(fill="both", expand=True)
             ttk.Label(frm, text=instruction, wraplength=360, justify="left").pack(anchor="w")
             found = tk.StringVar(value=tr("— warte auf Bewegung —"))
-            ttk.Label(frm, textvariable=found,
-                      font=("TkDefaultFont", 12, "bold")).pack(anchor="w", pady=6)
+            ttk.Label(frm, textvariable=found, font=("TkDefaultFont", 12, "bold")).pack(
+                anchor="w", pady=6
+            )
             st = {"w": None}
 
             def _poll():
@@ -3861,8 +4470,13 @@ def run() -> None:
 
             btns = ttk.Frame(frm)
             btns.pack(anchor="w", pady=(8, 0))
-            b_ok = ttk.Button(btns, text=tr("Übernehmen"), style="Accent.TButton",
-                              command=_apply, state="disabled")
+            b_ok = ttk.Button(
+                btns,
+                text=tr("Übernehmen"),
+                style="Accent.TButton",
+                command=_apply,
+                state="disabled",
+            )
             b_ok.pack(side="left")
             ttk.Button(btns, text=tr("Abbrechen"), command=_cancel).pack(side="left", padx=6)
             cw.protocol("WM_DELETE_WINDOW", _cancel)
@@ -3871,8 +4485,9 @@ def run() -> None:
 
         def _field_row(row, node):
             """One form line: German label · widget · ⓘ help. Returns a getter."""
-            ttk.Label(form, text=node.label).grid(row=row, column=0,
-                                                  sticky="w", padx=(0, 8), pady=2)
+            ttk.Label(form, text=node.label).grid(
+                row=row, column=0, sticky="w", padx=(0, 8), pady=2
+            )
             cell = ttk.Frame(form)
             cell.grid(row=row, column=1, sticky="w", pady=2)
             if node.kind == "bool":
@@ -3881,29 +4496,36 @@ def run() -> None:
                 getter = var.get
             elif node.kind == "choice":
                 var = tk.StringVar(value=node.value)
-                ttk.Combobox(cell, textvariable=var, values=list(node.choices),
-                             state="readonly", width=10).pack(side="left")
+                ttk.Combobox(
+                    cell, textvariable=var, values=list(node.choices), state="readonly", width=10
+                ).pack(side="left")
                 getter = var.get
             else:
                 var = tk.StringVar(value="" if node.value == "—" else node.value)
-                ttk.Entry(cell, textvariable=var, width=30,
-                          state="readonly" if node.pickable else "normal"
-                          ).pack(side="left")
+                ttk.Entry(
+                    cell,
+                    textvariable=var,
+                    width=30,
+                    state="readonly" if node.pickable else "normal",
+                ).pack(side="left")
                 if node.pickable:  # same wording as the binding editor
-                    ttk.Button(cell, text=tr("Wählen…"),
-                               command=lambda v=var: _pick_into(v)).pack(side="left", padx=3)
+                    ttk.Button(cell, text=tr("Wählen…"), command=lambda v=var: _pick_into(v)).pack(
+                        side="left", padx=3
+                    )
                 # A selector-position code is a hardware input like any button —
                 # capture it by rotating the mode selector to this position.
-                elif (node.path and node.path[-1] == "code"
-                      and node.path[0] != "source_toggle"):
-                    ttk.Button(cell, text=tr("🎚 anlernen"),
-                               command=lambda v=var: _capture_code_into(
-                                   v, tr("den Mode-Selektor mehrmals auf DIESE "
-                                         "Position drehen"))
-                               ).pack(side="left", padx=3)
+                elif node.path and node.path[-1] == "code" and node.path[0] != "source_toggle":
+                    ttk.Button(
+                        cell,
+                        text=tr("🎚 anlernen"),
+                        command=lambda v=var: _capture_code_into(
+                            v, tr("den Mode-Selektor mehrmals auf DIESE Position drehen")
+                        ),
+                    ).pack(side="left", padx=3)
                 if node.optional:
-                    ttk.Label(cell, text=tr("(leer = Standard)"),
-                              foreground="#666").pack(side="left", padx=4)
+                    ttk.Label(cell, text=tr("(leer = Standard)"), foreground="#666").pack(
+                        side="left", padx=4
+                    )
                 getter = var.get
             help_text = gui_mapper.output_field_help(node.path)
             if help_text:
@@ -3920,47 +4542,68 @@ def run() -> None:
             buttons) are transient, hence edge-counting."""
             specs = []
             if "outer_cw" in field_names:  # outer (coarse) ring
-                specs.append({
-                    "title": tr("Außen-Ring"),
-                    "steps": [
-                        ("outer_cw", tr("den ÄUSSEREN Ring mehrmals IM Uhrzeigersinn drehen")),
-                        ("outer_ccw", tr("den ÄUSSEREN Ring mehrmals GEGEN den "
-                                         "Uhrzeigersinn drehen")),
-                    ],
-                    "inverts": [(tr("Richtung"), "outer_cw", "outer_ccw")],
-                    "summary": lambda c: (f"{tr('im UZS')} {c('outer_cw')}  ·  "
-                                          f"{tr('gegen')} {c('outer_ccw')}"),
-                })
+                specs.append(
+                    {
+                        "title": tr("Außen-Ring"),
+                        "steps": [
+                            ("outer_cw", tr("den ÄUSSEREN Ring mehrmals IM Uhrzeigersinn drehen")),
+                            (
+                                "outer_ccw",
+                                tr("den ÄUSSEREN Ring mehrmals GEGEN den Uhrzeigersinn drehen"),
+                            ),
+                        ],
+                        "inverts": [(tr("Richtung"), "outer_cw", "outer_ccw")],
+                        "summary": lambda c: (
+                            f"{tr('im UZS')} {c('outer_cw')}  ·  {tr('gegen')} {c('outer_ccw')}"
+                        ),
+                    }
+                )
             if "inner_cw" in field_names:  # inner (fine) ring
-                specs.append({
-                    "title": tr("Innen-Ring"),
-                    "steps": [
-                        ("inner_cw", tr("den INNEREN Ring mehrmals IM Uhrzeigersinn drehen")),
-                        ("inner_ccw", tr("den INNEREN Ring mehrmals GEGEN den "
-                                         "Uhrzeigersinn drehen")),
-                    ],
-                    "inverts": [(tr("Richtung"), "inner_cw", "inner_ccw")],
-                    "summary": lambda c: (f"{tr('im UZS')} {c('inner_cw')}  ·  "
-                                          f"{tr('gegen')} {c('inner_ccw')}"),
-                })
+                specs.append(
+                    {
+                        "title": tr("Innen-Ring"),
+                        "steps": [
+                            ("inner_cw", tr("den INNEREN Ring mehrmals IM Uhrzeigersinn drehen")),
+                            (
+                                "inner_ccw",
+                                tr("den INNEREN Ring mehrmals GEGEN den Uhrzeigersinn drehen"),
+                            ),
+                        ],
+                        "inverts": [(tr("Richtung"), "inner_cw", "inner_ccw")],
+                        "summary": lambda c: (
+                            f"{tr('im UZS')} {c('inner_cw')}  ·  {tr('gegen')} {c('inner_ccw')}"
+                        ),
+                    }
+                )
             if "swap" in field_names:  # the SEPARATE swap push-button (a normal Taster)
-                specs.append({
-                    "title": tr("SWAP-Taster"),
-                    "steps": [("swap", tr("den SWAP-Taster mehrmals drücken"))],
-                    "inverts": [],
-                    "summary": lambda c: f"{tr('Code')} {c('swap')}",
-                })
+                specs.append(
+                    {
+                        "title": tr("SWAP-Taster"),
+                        "steps": [("swap", tr("den SWAP-Taster mehrmals drücken"))],
+                        "inverts": [],
+                        "summary": lambda c: f"{tr('Code')} {c('swap')}",
+                    }
+                )
             if "cw" in field_names and "ccw" in field_names:  # Multi trim wheel (dimmer)
-                specs.append({
-                    "title": tr("Trimmrad"),
-                    "steps": [
-                        ("cw", tr("das Trimmrad mehrmals nach oben / im Uhrzeigersinn drehen")),
-                        ("ccw", tr("das Trimmrad mehrmals nach unten / gegen den "
-                                   "Uhrzeigersinn drehen")),
-                    ],
-                    "inverts": [(tr("Richtung"), "cw", "ccw")],
-                    "summary": lambda c: f"{tr('hoch')} {c('cw')}  ·  {tr('runter')} {c('ccw')}",
-                })
+                specs.append(
+                    {
+                        "title": tr("Trimmrad"),
+                        "steps": [
+                            ("cw", tr("das Trimmrad mehrmals nach oben / im Uhrzeigersinn drehen")),
+                            (
+                                "ccw",
+                                tr(
+                                    "das Trimmrad mehrmals nach unten / gegen den "
+                                    "Uhrzeigersinn drehen"
+                                ),
+                            ),
+                        ],
+                        "inverts": [(tr("Richtung"), "cw", "ccw")],
+                        "summary": lambda c: (
+                            f"{tr('hoch')} {c('cw')}  ·  {tr('runter')} {c('ccw')}"
+                        ),
+                    }
+                )
             return specs
 
         def _encoder_block(row, group_path, spec, enc_nodes):
@@ -3972,12 +4615,14 @@ def run() -> None:
 
             box = ttk.Frame(form)
             box.grid(row=row, column=0, columnspan=3, sticky="w", pady=(8, 2))
-            ttk.Label(box, text=spec["title"],
-                      font=("TkDefaultFont", 9, "bold")).pack(anchor="w")
+            ttk.Label(box, text=spec["title"], font=("TkDefaultFont", 9, "bold")).pack(anchor="w")
             ttk.Label(box, foreground="#555", text=spec["summary"](c)).pack(anchor="w")
-            ttk.Button(box, text=tr("🎚 Anlernen…"), style="Accent.TButton",
-                       command=lambda: _open_encoder_capture(group_path, spec)).pack(
-                           anchor="w", pady=(3, 0))
+            ttk.Button(
+                box,
+                text=tr("🎚 Anlernen…"),
+                style="Accent.TButton",
+                command=lambda: _open_encoder_capture(group_path, spec),
+            ).pack(anchor="w", pady=(3, 0))
 
         def _open_encoder_capture(group_path, spec):
             """Guided capture of a rotary control's codes (#2, edge-counting).
@@ -4005,8 +4650,9 @@ def run() -> None:
             cw.title(f"{spec['title']} {tr('anlernen')} — {device_id}")
             frm = ttk.Frame(cw, padding=12)
             frm.pack(fill="both", expand=True)
-            instr = ttk.Label(frm, font=("TkDefaultFont", 11, "bold"),
-                              wraplength=390, justify="left")
+            instr = ttk.Label(
+                frm, font=("TkDefaultFont", 11, "bold"), wraplength=390, justify="left"
+            )
             instr.pack(anchor="w")
             found = ttk.Label(frm, foreground="#2e7d32")
             found.pack(anchor="w", pady=(4, 2))
@@ -4018,11 +4664,17 @@ def run() -> None:
             for label, fa, fb in spec["inverts"]:
                 v = tk.BooleanVar()
                 inv_vars[(fa, fb)] = v
-                ttk.Checkbutton(invfr, text=f"{label} {tr('invertieren')}",
-                                variable=v).pack(side="left", padx=(0, 8))
+                ttk.Checkbutton(invfr, text=f"{label} {tr('invertieren')}", variable=v).pack(
+                    side="left", padx=(0, 8)
+                )
             if spec["inverts"]:
-                _info(invfr, tr("Falls die Drehrichtungen vertauscht sind — tauscht "
-                                "die beiden Codes beim Speichern."))
+                _info(
+                    invfr,
+                    tr(
+                        "Falls die Drehrichtungen vertauscht sind — tauscht "
+                        "die beiden Codes beim Speichern."
+                    ),
+                )
             btnrow = ttk.Frame(frm)
             btnrow.pack(anchor="w", pady=(8, 0))
 
@@ -4044,8 +4696,10 @@ def run() -> None:
                 if counts:
                     w = max(counts, key=lambda k: counts[k])
                     stt["winner"] = w
-                    found.config(text=f"{tr('erkannt')}: Code {w}  ({counts[w]} "
-                                      f"{tr('Flanken')}) — {tr('weiterdrehen oder «Weiter»')}")
+                    found.config(
+                        text=f"{tr('erkannt')}: Code {w}  ({counts[w]} "
+                        f"{tr('Flanken')}) — {tr('weiterdrehen oder «Weiter»')}"
+                    )
                     b_next.config(state="normal")
                 cw.after(120, _poll)
 
@@ -4087,7 +4741,8 @@ def run() -> None:
                 def mutate(doc):
                     for f, v in codes.items():
                         profile_writer.set_output_value(
-                            doc, device_id, out_index, (*group_path, f), v)
+                            doc, device_id, out_index, (*group_path, f), v
+                        )
 
                 cw.destroy()
                 _save(mutate, "Encoder-Codes gespeichert ✓")
@@ -4098,17 +4753,19 @@ def run() -> None:
                 found.config(text="")
                 b_next.pack_forget()
                 b_skip.pack_forget()
-                ttk.Button(btnrow, text=tr("Übernehmen"), style="Accent.TButton",
-                           command=_apply).pack(side="left")
+                ttk.Button(
+                    btnrow, text=tr("Übernehmen"), style="Accent.TButton", command=_apply
+                ).pack(side="left")
 
-            b_next = ttk.Button(btnrow, text=tr("Weiter"),
-                                command=lambda: _advance(True), state="disabled")
+            b_next = ttk.Button(
+                btnrow, text=tr("Weiter"), command=lambda: _advance(True), state="disabled"
+            )
             b_next.pack(side="left")
-            b_skip = ttk.Button(btnrow, text=tr("Überspringen"),
-                                command=lambda: _advance(False))
+            b_skip = ttk.Button(btnrow, text=tr("Überspringen"), command=lambda: _advance(False))
             b_skip.pack(side="left", padx=6)
-            ttk.Button(btnrow, text=tr("Abbrechen"),
-                       command=lambda: (_close_reader(), cw.destroy())).pack(side="left", padx=6)
+            ttk.Button(
+                btnrow, text=tr("Abbrechen"), command=lambda: (_close_reader(), cw.destroy())
+            ).pack(side="left", padx=6)
             cw.protocol("WM_DELETE_WINDOW", lambda: (_close_reader(), cw.destroy()))
             _start()
             cw.lift()
@@ -4130,13 +4787,18 @@ def run() -> None:
             fields = [n for n in fields if n not in enc_nodes]
             getters = [(node, _field_row(row, node)) for row, node in enumerate(fields)]
             if not fields and not enc_nodes:
-                ttk.Label(form, foreground="#666", wraplength=430, justify="left",
-                          text=tr("Diese Gruppe hat keine direkten Felder — die "
-                               "Untergruppen stehen im Baum der Haupttabelle.")
-                          ).grid(row=0, column=0, columnspan=2, sticky="w")
+                ttk.Label(
+                    form,
+                    foreground="#666",
+                    wraplength=430,
+                    justify="left",
+                    text=tr(
+                        "Diese Gruppe hat keine direkten Felder — die "
+                        "Untergruppen stehen im Baum der Haupttabelle."
+                    ),
+                ).grid(row=0, column=0, columnspan=2, sticky="w")
             for k, s in enumerate(specs):
-                block_nodes = [n for n in enc_nodes
-                               if n.path[-1] in {f for f, _ in s["steps"]}]
+                block_nodes = [n for n in enc_nodes if n.path[-1] in {f for f, _ in s["steps"]}]
                 _encoder_block(len(fields) + k, group.path, s, block_nodes)
 
             def _apply():
@@ -4144,8 +4806,9 @@ def run() -> None:
                 try:
                     for node, getter in getters:
                         raw = getter()
-                        if isinstance(raw, str) and raw == ("" if node.value == "—"
-                                                            else node.value):
+                        if isinstance(raw, str) and raw == (
+                            "" if node.value == "—" else node.value
+                        ):
                             continue  # untouched
                         val = gui_mapper.parse_output_value(ost["output"], node.path, raw)
                         changes.append((node.path, val))
@@ -4164,92 +4827,134 @@ def run() -> None:
                 _save(mutate, "Gespeichert ✓")
 
             btns = ttk.Frame(form)
-            btns.grid(row=len(fields) + len(specs) + 1, column=0, columnspan=2,
-                      sticky="w", pady=(10, 0))
+            btns.grid(
+                row=len(fields) + len(specs) + 1, column=0, columnspan=2, sticky="w", pady=(10, 0)
+            )
             if fields:  # same button row as the binding editor
-                ttk.Button(btns, text=tr("Übernehmen"), style="Accent.TButton",
-                           command=_apply).pack(side="left")
-                ttk.Button(btns, text=tr("Zurücksetzen"),
-                           command=_reload).pack(side="left", padx=6)
-            ttk.Button(btns, text=tr("Schließen"),
-                       command=ow.destroy).pack(side="left", padx=(0, 6))
+                ttk.Button(
+                    btns, text=tr("Übernehmen"), style="Accent.TButton", command=_apply
+                ).pack(side="left")
+                ttk.Button(btns, text=tr("Zurücksetzen"), command=_reload).pack(side="left", padx=6)
+            ttk.Button(btns, text=tr("Schließen"), command=ow.destroy).pack(
+                side="left", padx=(0, 6)
+            )
             # The LEDs/Display test belongs to OUTPUT contexts only — an input
             # control (encoder ring, swap, trim wheel) shows just its Anlernen.
             if not specs:
-                ttk.Button(btns, text=tr("🔦 LEDs/Display testen…"),
-                           command=lambda: _open_panel_test(device_id, ost["output"])
-                           ).pack(side="left", padx=(6, 0))
+                ttk.Button(
+                    btns,
+                    text=tr("🔦 LEDs/Display testen…"),
+                    command=lambda: _open_panel_test(device_id, ost["output"]),
+                ).pack(side="left", padx=(6, 0))
             return btns
 
         def _render_group(group):
             if group.kind in ("root", "group", "entry", "solo"):
                 btns = _fields_form(group)
                 if group.kind == "root":
+
                     def _remove_block():
                         if messagebox.askyesno(
-                                "Panel-Block entfernen",
-                                "Diesen ganzen Panel-Block aus dem Profil entfernen?",
-                                parent=ow):
+                            "Panel-Block entfernen",
+                            "Diesen ganzen Panel-Block aus dem Profil entfernen?",
+                            parent=ow,
+                        ):
                             ow.destroy()
                             _bg_remove_output()
-                    ttk.Button(btns, text=tr("✕ Panel-Block entfernen"),
-                               style="Danger.TButton",
-                               command=_remove_block).pack(side="left", padx=8)
+
+                    ttk.Button(
+                        btns,
+                        text=tr("✕ Panel-Block entfernen"),
+                        style="Danger.TButton",
+                        command=_remove_block,
+                    ).pack(side="left", padx=8)
                 elif group.kind == "group" and group.removable:
+
                     def _remove_opt():
-                        if messagebox.askyesno("Block entfernen",
-                                               f"„{group.label}“ entfernen?", parent=ow):
-                            _save(lambda d: profile_writer.set_output_value(
-                                d, device_id, out_index, group.path,
-                                profile_writer.UNSET), f"{group.label} entfernt")
-                    ttk.Button(btns, text=f"✕ {group.label} entfernen",
-                               style="Danger.TButton",
-                               command=_remove_opt).pack(side="left", padx=8)
+                        if messagebox.askyesno(
+                            "Block entfernen", f"„{group.label}“ entfernen?", parent=ow
+                        ):
+                            _save(
+                                lambda d: profile_writer.set_output_value(
+                                    d, device_id, out_index, group.path, profile_writer.UNSET
+                                ),
+                                f"{group.label} entfernt",
+                            )
+
+                    ttk.Button(
+                        btns,
+                        text=f"✕ {group.label} entfernen",
+                        style="Danger.TButton",
+                        command=_remove_opt,
+                    ).pack(side="left", padx=8)
                 elif group.kind == "entry":
+
                     def _remove_entry():
                         if messagebox.askyesno(
-                                "Eintrag entfernen",
-                                f"„{group.label}“ wirklich entfernen?", parent=ow):
+                            "Eintrag entfernen", f"„{group.label}“ wirklich entfernen?", parent=ow
+                        ):
                             ow.destroy()
                             _bg_remove_entry(group.path)
-                    ttk.Button(btns, text=tr("✕ Eintrag entfernen"), style="Danger.TButton",
-                               command=_remove_entry).pack(side="left", padx=8)
+
+                    ttk.Button(
+                        btns,
+                        text=tr("✕ Eintrag entfernen"),
+                        style="Danger.TButton",
+                        command=_remove_entry,
+                    ).pack(side="left", padx=8)
             elif group.kind in ("list", "unset"):
                 opts = gui_mapper.output_add_options(ost["output"], group.path)
-                ttk.Label(form, foreground="#666", wraplength=430, justify="left",
-                          text=(f"Die Einträge von „{group.label}“ stehen als eigene "
-                                "Zeilen im Baum der Haupttabelle — hier neue anlegen:"
-                                if group.kind == "list" else
-                                f"„{group.label}“ ist noch nicht angelegt.")
-                          ).grid(row=0, column=0, sticky="w")
+                ttk.Label(
+                    form,
+                    foreground="#666",
+                    wraplength=430,
+                    justify="left",
+                    text=(
+                        f"Die Einträge von „{group.label}“ stehen als eigene "
+                        "Zeilen im Baum der Haupttabelle — hier neue anlegen:"
+                        if group.kind == "list"
+                        else f"„{group.label}“ ist noch nicht angelegt."
+                    ),
+                ).grid(row=0, column=0, sticky="w")
                 if opts:
                     labels = list(opts)
                     tv = tk.StringVar(value=labels[0])
                     row1 = ttk.Frame(form)
                     row1.grid(row=1, column=0, sticky="w", pady=(8, 0))
                     if len(labels) > 1:
-                        ttk.Combobox(row1, textvariable=tv, values=labels,
-                                     state="readonly", width=18).pack(side="left",
-                                                                      padx=(0, 4))
+                        ttk.Combobox(
+                            row1, textvariable=tv, values=labels, state="readonly", width=18
+                        ).pack(side="left", padx=(0, 4))
 
                     def _add():
                         tpl = opts[tv.get()]
                         if group.kind == "unset":
-                            _save(lambda d: profile_writer.set_output_value(
-                                d, device_id, out_index, group.path, tpl),
-                                f"{group.label} angelegt")
+                            _save(
+                                lambda d: profile_writer.set_output_value(
+                                    d, device_id, out_index, group.path, tpl
+                                ),
+                                f"{group.label} angelegt",
+                            )
                         else:
-                            _save(lambda d: profile_writer.add_output_entry(
-                                d, device_id, out_index, group.path, tpl),
-                                "Eintrag angelegt — neue Zeile im Baum")
+                            _save(
+                                lambda d: profile_writer.add_output_entry(
+                                    d, device_id, out_index, group.path, tpl
+                                ),
+                                "Eintrag angelegt — neue Zeile im Baum",
+                            )
 
-                    ttk.Button(row1, text=tr("+ Eintrag") if group.kind == "list"
-                               else "+ Anlegen", style="Accent.TButton",
-                               command=_add).pack(side="left")
+                    ttk.Button(
+                        row1,
+                        text=tr("+ Eintrag") if group.kind == "list" else "+ Anlegen",
+                        style="Accent.TButton",
+                        command=_add,
+                    ).pack(side="left")
             elif group.kind == "dict":  # bool_leds: LED button -> variable
-                entries = [n for n in ost["nodes"]
-                           if len(n.path) == len(group.path) + 1
-                           and n.path[:-1] == group.path]
+                entries = [
+                    n
+                    for n in ost["nodes"]
+                    if len(n.path) == len(group.path) + 1 and n.path[:-1] == group.path
+                ]
                 for row, node in enumerate(entries):
                     getter = _field_row(row, node)
 
@@ -4259,47 +4964,65 @@ def run() -> None:
                         except ValueError as exc:
                             _status(str(exc), error=True)
                             return
-                        _save(lambda d: profile_writer.set_output_value(
-                            d, device_id, out_index, nd.path, val), "Gespeichert ✓")
+                        _save(
+                            lambda d: profile_writer.set_output_value(
+                                d, device_id, out_index, nd.path, val
+                            ),
+                            "Gespeichert ✓",
+                        )
 
                     def _del_led(nd=node):
-                        _save(lambda d: profile_writer.remove_output_entry(
-                            d, device_id, out_index, nd.path[:-1], nd.path[-1]),
-                            "LED-Eintrag entfernt")
+                        _save(
+                            lambda d: profile_writer.remove_output_entry(
+                                d, device_id, out_index, nd.path[:-1], nd.path[-1]
+                            ),
+                            "LED-Eintrag entfernt",
+                        )
 
                     cell = ttk.Frame(form)
                     cell.grid(row=row, column=2, sticky="w", padx=4)
-                    ttk.Button(cell, text=tr("✓"), width=2,
-                               command=_set_led).pack(side="left")
-                    ttk.Button(cell, text=tr("✕"), width=2, style="Danger.TButton",
-                               command=_del_led).pack(side="left", padx=2)
+                    ttk.Button(cell, text=tr("✓"), width=2, command=_set_led).pack(side="left")
+                    ttk.Button(
+                        cell, text=tr("✕"), width=2, style="Danger.TButton", command=_del_led
+                    ).pack(side="left", padx=2)
                 free = gui_mapper.output_dict_key_options(ost["output"], group.path)
                 addrow = ttk.Frame(form)
-                addrow.grid(row=len(entries) + 1, column=0, columnspan=3,
-                            sticky="w", pady=(10, 0))
+                addrow.grid(row=len(entries) + 1, column=0, columnspan=3, sticky="w", pady=(10, 0))
                 if free:
                     kv = tk.StringVar(value=free[0])
                     ttk.Label(addrow, text=tr("LED-Knopf:")).pack(side="left")
-                    ttk.Combobox(addrow, textvariable=kv, values=free, state="readonly",
-                                 width=10).pack(side="left", padx=4)
-                    ttk.Button(addrow, text=tr("+ Eintrag"), style="Accent.TButton",
-                               command=lambda: _save(
-                                   lambda d: profile_writer.set_output_value(
-                                       d, device_id, out_index,
-                                       (*group.path, kv.get()), ""),
-                                   f"LED {kv.get()} angelegt — Variable wählen")
-                               ).pack(side="left")
+                    ttk.Combobox(
+                        addrow, textvariable=kv, values=free, state="readonly", width=10
+                    ).pack(side="left", padx=4)
+                    ttk.Button(
+                        addrow,
+                        text=tr("+ Eintrag"),
+                        style="Accent.TButton",
+                        command=lambda: _save(
+                            lambda d: profile_writer.set_output_value(
+                                d, device_id, out_index, (*group.path, kv.get()), ""
+                            ),
+                            f"LED {kv.get()} angelegt — Variable wählen",
+                        ),
+                    ).pack(side="left")
                 else:
-                    ttk.Label(addrow, text=tr("alle LED-Knöpfe belegt"),
-                              foreground="#666").pack(side="left")
+                    ttk.Label(addrow, text=tr("alle LED-Knöpfe belegt"), foreground="#666").pack(
+                        side="left"
+                    )
 
         def _bg_remove_entry(path):
-            _edit_profile(lambda d: profile_writer.remove_output_entry(
-                d, device_id, out_index, path[:-1], path[-1]), "Eintrag entfernt")
+            _edit_profile(
+                lambda d: profile_writer.remove_output_entry(
+                    d, device_id, out_index, path[:-1], path[-1]
+                ),
+                "Eintrag entfernt",
+            )
 
         def _bg_remove_output():
-            _edit_profile(lambda d: profile_writer.remove_output(
-                d, device_id, out_index), "Panel-Block entfernt")
+            _edit_profile(
+                lambda d: profile_writer.remove_output(d, device_id, out_index),
+                "Panel-Block entfernt",
+            )
 
         def _reload():
             prof2 = _current_profile()
@@ -4309,14 +5032,19 @@ def run() -> None:
                 return
             ost["output"] = outs2[out_index]
             ost["nodes"] = gui_mapper.output_nodes(ost["output"])
-            group = next((g for g in gui_mapper.output_groups(ost["nodes"])
-                          if g.path == tuple(group_path)), None)
+            group = next(
+                (g for g in gui_mapper.output_groups(ost["nodes"]) if g.path == tuple(group_path)),
+                None,
+            )
             if group is None:  # this row is gone (entry removed elsewhere)
                 ow.destroy()
                 return
             ost["group"] = group
-            title = (f"{group.label} {group.value}".strip() if group.path
-                     else gui_mapper.describe_output(ost["output"]))
+            title = (
+                f"{group.label} {group.value}".strip()
+                if group.path
+                else gui_mapper.describe_output(ost["output"])
+            )
             ow.title(f"{title} — {device_id}")
             head.config(text=title)
             role = gui_mapper.group_role(tuple(group_path))
@@ -4346,23 +5074,39 @@ def run() -> None:
             return
         parts = sid.split(":", 2)
         idx = int(parts[1])
-        gpath = tuple(int(s) if s.isdigit() else s
-                      for s in parts[2].split("/")) if len(parts) > 2 else ()
+        gpath = (
+            tuple(int(s) if s.isdigit() else s for s in parts[2].split("/"))
+            if len(parts) > 2
+            else ()
+        )
         if not gpath:  # the panel block row itself
-            if messagebox.askyesno(tr("Panel-Block entfernen"),
-                                   tr("Diesen ganzen Panel-Block aus dem Profil entfernen?")):
-                _edit_profile(lambda d: profile_writer.remove_output(d, dev, idx),
-                              "Panel-Block entfernt ✓")
+            if messagebox.askyesno(
+                tr("Panel-Block entfernen"),
+                tr("Diesen ganzen Panel-Block aus dem Profil entfernen?"),
+            ):
+                _edit_profile(
+                    lambda d: profile_writer.remove_output(d, dev, idx), "Panel-Block entfernt ✓"
+                )
         elif isinstance(gpath[-1], int):  # a list entry (Position/Bank/Ziel/…)
-            _edit_profile(lambda d: profile_writer.remove_output_entry(
-                d, dev, idx, gpath[:-1], gpath[-1]), "Eintrag entfernt ✓")
+            _edit_profile(
+                lambda d: profile_writer.remove_output_entry(d, dev, idx, gpath[:-1], gpath[-1]),
+                "Eintrag entfernt ✓",
+            )
         elif len(gpath) == 1 and gpath[0] in gui_mapper.OPTIONAL_TEMPLATES:
             if messagebox.askyesno("Block entfernen", f"„{gpath[0]}“ entfernen?"):
-                _edit_profile(lambda d: profile_writer.set_output_value(
-                    d, dev, idx, gpath, profile_writer.UNSET), "Block entfernt ✓")
+                _edit_profile(
+                    lambda d: profile_writer.set_output_value(
+                        d, dev, idx, gpath, profile_writer.UNSET
+                    ),
+                    "Block entfernt ✓",
+                )
         else:
-            m_state.config(text=tr("Diese Zeile lässt sich nicht entfernen — Einträge oder "
-                                "ganze Panel-Blöcke markieren."))
+            m_state.config(
+                text=tr(
+                    "Diese Zeile lässt sich nicht entfernen — Einträge oder "
+                    "ganze Panel-Blöcke markieren."
+                )
+            )
 
     def _open_row(row):
         """Open the editor for a detail row: bind:<i> or out:<i>[:<path>][|<fields>].
@@ -4380,8 +5124,11 @@ def run() -> None:
             body, _, foc = sid.partition("|")
             focus = [f for f in foc.split(",") if f] or None
             parts = body.split(":", 2)
-            gpath = tuple(int(s) if s.isdigit() else s
-                          for s in parts[2].split("/")) if len(parts) > 2 else ()
+            gpath = (
+                tuple(int(s) if s.isdigit() else s for s in parts[2].split("/"))
+                if len(parts) > 2
+                else ()
+            )
             _open_output_editor(dev, int(parts[1]), gpath, focus)
 
     def _on_detail_activate(_e=None):
@@ -4410,34 +5157,48 @@ def run() -> None:
         if prof is None or not device_id:
             return
         binds = gui_mapper.device_bindings(prof, device_id)
-        bnode = detail.insert("", "end", text=f"Eingaben — Bindings ({len(binds)})",
-                              open=True)
+        bnode = detail.insert("", "end", text=f"Eingaben — Bindings ({len(binds)})", open=True)
         for i, br in enumerate(binds):
-            detail.insert(bnode, "end", iid=f"bind:{i}", text=br.name,
-                          values=(br.source, br.action, br.transform, ""))
+            detail.insert(
+                bnode,
+                "end",
+                iid=f"bind:{i}",
+                text=br.name,
+                values=(br.source, br.action, br.transform, ""),
+            )
         out_objs = prof.outputs.get(device_id, [])
         if out_objs:
             # panel controllers as a REAL tree (per user): Panel -> Selektor-
             # Position[x] -> …, short labels, Eingabe/Anzeige role in the
             # Control column. Double-click a row = settings for THAT row only.
-            onode = detail.insert("", "end", open=True,
-                                  text=f"Panel-Controller ({len(out_objs)})")
+            onode = detail.insert("", "end", open=True, text=f"Panel-Controller ({len(out_objs)})")
             for i, o in enumerate(out_objs):
-                detail.insert(onode, "end", iid=f"out:{i}", open=True,
-                              text=gui_mapper.describe_output(o),
-                              values=("", "", "", ""))
+                detail.insert(
+                    onode,
+                    "end",
+                    iid=f"out:{i}",
+                    open=True,
+                    text=gui_mapper.describe_output(o),
+                    values=("", "", "", ""),
+                )
                 for g in gui_mapper.output_groups(gui_mapper.output_nodes(o)):
                     if not g.path:
                         continue
-                    parent = (f"out:{i}:" + "/".join(map(str, g.path[:-1]))
-                              if len(g.path) > 1 else f"out:{i}")
+                    parent = (
+                        f"out:{i}:" + "/".join(map(str, g.path[:-1]))
+                        if len(g.path) > 1
+                        else f"out:{i}"
+                    )
                     if not detail.exists(parent):
                         parent = f"out:{i}"
-                    detail.insert(parent, "end",
-                                  iid=f"out:{i}:" + "/".join(map(str, g.path)),
-                                  open=len(g.path) < 2,
-                                  text=f"{g.label} {g.value}".strip(),
-                                  values=(gui_mapper.group_role(g.path), "", "", ""))
+                    detail.insert(
+                        parent,
+                        "end",
+                        iid=f"out:{i}:" + "/".join(map(str, g.path)),
+                        open=len(g.path) < 2,
+                        text=f"{g.label} {g.value}".strip(),
+                        values=(gui_mapper.group_role(g.path), "", "", ""),
+                    )
         # Just highlight the row after a reload; editing is opened on demand only.
         if reselect_index is not None and binds:
             idx = min(reselect_index, len(binds) - 1)
@@ -4467,9 +5228,32 @@ def run() -> None:
     def _round_rect(c, x0, y0, x1, y1, rad, **kw):
         """A rounded rectangle / capsule as a smoothed polygon."""
         rad = max(0.0, min(rad, (x1 - x0) / 2, (y1 - y0) / 2))
-        pts = [x0 + rad, y0, x1 - rad, y0, x1, y0, x1, y0 + rad, x1, y1 - rad,
-               x1, y1, x1 - rad, y1, x0 + rad, y1, x0, y1, x0, y1 - rad,
-               x0, y0 + rad, x0, y0]
+        pts = [
+            x0 + rad,
+            y0,
+            x1 - rad,
+            y0,
+            x1,
+            y0,
+            x1,
+            y0 + rad,
+            x1,
+            y1 - rad,
+            x1,
+            y1,
+            x1 - rad,
+            y1,
+            x0 + rad,
+            y1,
+            x0,
+            y1,
+            x0,
+            y1 - rad,
+            x0,
+            y0 + rad,
+            x0,
+            y0,
+        ]
         return c.create_polygon(pts, smooth=True, **kw)
 
     # Each control kind gets its OWN shape so the type reads at a glance (user:
@@ -4479,131 +5263,279 @@ def run() -> None:
         midy = (y0 + y1) / 2 + 5
         trh = min((y1 - y0) * 0.45, 15)
         ty0, ty1 = midy - trh / 2, midy + trh / 2
-        _round_rect(c, x0, ty0, x1, ty1, trh / 2, fill="#e2e8f0", outline="#94a3b8",
-                    width=1, tags=(tag,))
+        _round_rect(
+            c, x0, ty0, x1, ty1, trh / 2, fill="#e2e8f0", outline="#94a3b8", width=1, tags=(tag,)
+        )
         fill_id = c.create_rectangle(x0, ty0, x0, ty1, fill=ACCENT, outline="", tags=(tag,))
         hr = trh * 0.72
-        handle = c.create_oval(x0 - hr, midy - hr, x0 + hr, midy + hr,
-                               fill="#475569", outline="#f8fafc", width=1, tags=(tag,))
-        c.create_text(x0 + 2, y0 + 7, anchor="w", text="⇔ " + (el.name or el.label),
-                      fill=TEXT, font=("TkDefaultFont", 8, "bold"), tags=(tag,))
-        val_id = c.create_text(x1 - 3, y0 + 7, anchor="e", text="—", fill=MUTED,
-                               font=("TkDefaultFont", 8), tags=(tag,))
+        handle = c.create_oval(
+            x0 - hr,
+            midy - hr,
+            x0 + hr,
+            midy + hr,
+            fill="#475569",
+            outline="#f8fafc",
+            width=1,
+            tags=(tag,),
+        )
+        c.create_text(
+            x0 + 2,
+            y0 + 7,
+            anchor="w",
+            text="⇔ " + (el.name or el.label),
+            fill=TEXT,
+            font=("TkDefaultFont", 8, "bold"),
+            tags=(tag,),
+        )
+        val_id = c.create_text(
+            x1 - 3, y0 + 7, anchor="e", text="—", fill=MUTED, font=("TkDefaultFont", 8), tags=(tag,)
+        )
         if el.live_key is not None:
             pcanvas["live"].setdefault(el.live_key, []).append(
-                {"kind": "axis", "fill": fill_id, "text": val_id, "handle": handle,
-                 "x0": x0, "y0": ty0, "x1": x1, "y1": ty1, "midy": midy, "hr": hr,
-                 "lo": el.raw_min, "hi": el.raw_max})
+                {
+                    "kind": "axis",
+                    "fill": fill_id,
+                    "text": val_id,
+                    "handle": handle,
+                    "x0": x0,
+                    "y0": ty0,
+                    "x1": x1,
+                    "y1": ty1,
+                    "midy": midy,
+                    "hr": hr,
+                    "lo": el.raw_min,
+                    "hi": el.raw_max,
+                }
+            )
 
     def _draw_switch(c, tag, el, x0, y0, x1, y1):
         muted = not el.mapped
         body = "#eceff1" if muted else SURFACE
         edge = "#cbd5e1" if muted else "#94a3b8"
         # single caption above the toggle (full name is on hover / in the editor)
-        c.create_text((x0 + x1) / 2, y0 + 7, text=el.label, fill=MUTED if muted else TEXT,
-                      font=("TkDefaultFont", 8, "bold"), tags=(tag,))
+        c.create_text(
+            (x0 + x1) / 2,
+            y0 + 7,
+            text=el.label,
+            fill=MUTED if muted else TEXT,
+            font=("TkDefaultFont", 8, "bold"),
+            tags=(tag,),
+        )
         cxm = (x0 + x1) / 2
         bw = min((x1 - x0) * 0.55, 24)
         by0, by1 = y0 + 15, y1 - 4
-        _round_rect(c, cxm - bw / 2, by0, cxm + bw / 2, by1, bw / 2, fill=body,
-                    outline=edge, width=1, tags=(tag,))
+        _round_rect(
+            c,
+            cxm - bw / 2,
+            by0,
+            cxm + bw / 2,
+            by1,
+            bw / 2,
+            fill=body,
+            outline=edge,
+            width=1,
+            tags=(tag,),
+        )
         kr = bw * 0.40
         y_off, y_on = by1 - kr - 2, by0 + kr + 2
-        knob = c.create_oval(cxm - kr, y_off - kr, cxm + kr, y_off + kr,
-                             fill="#cfd8dc" if muted else "#78909c", outline="", tags=(tag,))
+        knob = c.create_oval(
+            cxm - kr,
+            y_off - kr,
+            cxm + kr,
+            y_off + kr,
+            fill="#cfd8dc" if muted else "#78909c",
+            outline="",
+            tags=(tag,),
+        )
         if el.live_key is not None:
             pcanvas["live"].setdefault(el.live_key, []).append(
-                {"kind": "toggle", "knob": knob, "cx": cxm, "kr": kr,
-                 "y_off": y_off, "y_on": y_on,
-                 "off": "#cfd8dc" if muted else "#78909c"})
+                {
+                    "kind": "toggle",
+                    "knob": knob,
+                    "cx": cxm,
+                    "kr": kr,
+                    "y_off": y_off,
+                    "y_on": y_on,
+                    "off": "#cfd8dc" if muted else "#78909c",
+                }
+            )
 
     def _draw_button(c, tag, el, x0, y0, x1, y1):
         muted = not el.mapped
         fill = "#eceff1" if muted else SURFACE
         edge = "#cbd5e1" if muted else "#94a3b8"
         bx0, by0, bx1, by1 = x0 + 3, y0 + 3, x1 - 3, y1 - 3
-        rect = _round_rect(c, bx0, by0, bx1, by1, (by1 - by0) / 2, fill=fill,
-                           outline=edge, width=2, tags=(tag,))
+        rect = _round_rect(
+            c, bx0, by0, bx1, by1, (by1 - by0) / 2, fill=fill, outline=edge, width=2, tags=(tag,)
+        )
         # single caption centred on the button (full name is on hover)
-        c.create_text((bx0 + bx1) / 2, (by0 + by1) / 2, text=el.label,
-                      fill=MUTED if muted else TEXT, font=("TkDefaultFont", 8, "bold"),
-                      width=max(28.0, bx1 - bx0 - 6), tags=(tag,))
+        c.create_text(
+            (bx0 + bx1) / 2,
+            (by0 + by1) / 2,
+            text=el.label,
+            fill=MUTED if muted else TEXT,
+            font=("TkDefaultFont", 8, "bold"),
+            width=max(28.0, bx1 - bx0 - 6),
+            tags=(tag,),
+        )
         if el.live_key is not None:
             pcanvas["live"].setdefault(el.live_key, []).append(
-                {"kind": "onoff", "rect": rect, "off": fill})
+                {"kind": "onoff", "rect": rect, "off": fill}
+            )
 
     def _draw_hat(c, tag, el, x0, y0, x1, y1):
         muted = not el.mapped
         cxm, cym = (x0 + x1) / 2, (y0 + y1) / 2 + 5
         rr = min(x1 - x0, y1 - y0) * 0.34
-        c.create_polygon(cxm, cym - rr, cxm + rr, cym, cxm, cym + rr, cxm - rr, cym,
-                         fill="#eceff1" if muted else "#eef2f7",
-                         outline="#cbd5e1" if muted else "#64748b", width=2, tags=(tag,))
-        c.create_text(cxm, y0 + 7, text="✛ " + el.label, fill=MUTED if muted else TEXT,
-                      font=("TkDefaultFont", 8, "bold"), tags=(tag,))
+        c.create_polygon(
+            cxm,
+            cym - rr,
+            cxm + rr,
+            cym,
+            cxm,
+            cym + rr,
+            cxm - rr,
+            cym,
+            fill="#eceff1" if muted else "#eef2f7",
+            outline="#cbd5e1" if muted else "#64748b",
+            width=2,
+            tags=(tag,),
+        )
+        c.create_text(
+            cxm,
+            y0 + 7,
+            text="✛ " + el.label,
+            fill=MUTED if muted else TEXT,
+            font=("TkDefaultFont", 8, "bold"),
+            tags=(tag,),
+        )
 
     def _draw_led(c, tag, el, x0, y0, x1, y1):
         fill, edge = _panel_fill(el)
         oval = c.create_oval(x0, y0, x1, y1, fill=fill, outline=edge, width=2, tags=(tag,))
-        c.create_text((x0 + x1) / 2, (y0 + y1) / 2, text=el.label, fill="#e2e8f0",
-                      font=("TkDefaultFont", 8, "bold"), tags=(tag,))
+        c.create_text(
+            (x0 + x1) / 2,
+            (y0 + y1) / 2,
+            text=el.label,
+            fill="#e2e8f0",
+            font=("TkDefaultFont", 8, "bold"),
+            tags=(tag,),
+        )
         if el.var:  # glow-from-sim: the value monitor lights this lamp live
             pcanvas["sim"].setdefault(el.var, []).append(
-                {"kind": "lamp", "id": oval, "on_at": el.on_at,
-                 "off_fill": fill, "off_edge": edge})
+                {"kind": "lamp", "id": oval, "on_at": el.on_at, "off_fill": fill, "off_edge": edge}
+            )
 
     def _draw_segment(c, tag, el, x0, y0, x1, y1):
         # a digital DISPLAY — unmistakably NOT a button: rectangular metal bezel,
         # black screen, 7-seg-style readout (sharp corners, no pill shape). The
         # Radio Panel's display is RED, the Multi Panel's amber (per hardware).
         ink = "#ff3b30" if pcanvas.get("device") == "radio_panel" else "#ffb000"
-        c.create_rectangle(x0 + 2, y0 + 2, x1 - 2, y1 - 2, fill="#1c1c1c",
-                           outline="#6b7280", width=1, tags=(tag,))  # metal bezel
+        c.create_rectangle(
+            x0 + 2, y0 + 2, x1 - 2, y1 - 2, fill="#1c1c1c", outline="#6b7280", width=1, tags=(tag,)
+        )  # metal bezel
         sx0, sy0, sx1, sy1 = x0 + 5, y0 + 5, x1 - 5, y1 - 5
-        c.create_rectangle(sx0, sy0, sx1, sy1, fill="#0a0202" if ink == "#ff3b30"
-                           else "#050805", outline="#000000", width=1, tags=(tag,))
-        txt = c.create_text((x0 + x1) / 2, (y0 + y1) / 2, text=el.label, fill=ink,
-                            font=("TkFixedFont", 9, "bold"),
-                            width=max(26.0, sx1 - sx0 - 4), tags=(tag,))
+        c.create_rectangle(
+            sx0,
+            sy0,
+            sx1,
+            sy1,
+            fill="#0a0202" if ink == "#ff3b30" else "#050805",
+            outline="#000000",
+            width=1,
+            tags=(tag,),
+        )
+        txt = c.create_text(
+            (x0 + x1) / 2,
+            (y0 + y1) / 2,
+            text=el.label,
+            fill=ink,
+            font=("TkFixedFont", 9, "bold"),
+            width=max(26.0, sx1 - sx0 - 4),
+            tags=(tag,),
+        )
         if el.var:  # glow-from-sim: show the live value in place of the caption
             pcanvas["sim"].setdefault(el.var, []).append(
-                {"kind": "segment", "id": txt, "label": el.label, "fmt": el.fmt})
+                {"kind": "segment", "id": txt, "label": el.label, "fmt": el.fmt}
+            )
 
     def _draw_button_light(c, tag, el, x0, y0, x1, y1):
         # a button backlight (amber), pill-shaped like a button
         bx0, by0, bx1, by1 = x0 + 3, y0 + 3, x1 - 3, y1 - 3
-        _round_rect(c, bx0, by0, bx1, by1, (by1 - by0) / 2, fill="#3a2f10",
-                    outline="#d4a418", width=2, tags=(tag,))
-        c.create_text((bx0 + bx1) / 2, (by0 + by1) / 2, text=el.label, fill="#ffd45e",
-                      font=("TkDefaultFont", 8, "bold"),
-                      width=max(30.0, bx1 - bx0 - 8), tags=(tag,))
+        _round_rect(
+            c,
+            bx0,
+            by0,
+            bx1,
+            by1,
+            (by1 - by0) / 2,
+            fill="#3a2f10",
+            outline="#d4a418",
+            width=2,
+            tags=(tag,),
+        )
+        c.create_text(
+            (bx0 + bx1) / 2,
+            (by0 + by1) / 2,
+            text=el.label,
+            fill="#ffd45e",
+            font=("TkDefaultFont", 8, "bold"),
+            width=max(30.0, bx1 - bx0 - 8),
+            tags=(tag,),
+        )
 
     def _draw_dot(c, tag, el, x0, y0, x1, y1):
         # the decimal point / cursor — red on the Radio Panel to match its display.
-        glow, ring = (("#ff3b30", "#7a1f1f") if pcanvas.get("device") == "radio_panel"
-                      else ("#3ee08a", "#1f7a4d"))
+        glow, ring = (
+            ("#ff3b30", "#7a1f1f")
+            if pcanvas.get("device") == "radio_panel"
+            else ("#3ee08a", "#1f7a4d")
+        )
         r = min(x1 - x0, y1 - y0) * 0.18
         cx2, cy2 = (x0 + x1) / 2, (y0 + y1) / 2
-        c.create_oval(cx2 - r, cy2 - r, cx2 + r, cy2 + r, fill=glow,
-                      outline=ring, width=1, tags=(tag,))
-        c.create_text(cx2, cy2 + r + 7, text=el.label, fill=MUTED,
-                      font=("TkDefaultFont", 7), tags=(tag,))
+        c.create_oval(
+            cx2 - r, cy2 - r, cx2 + r, cy2 + r, fill=glow, outline=ring, width=1, tags=(tag,)
+        )
+        c.create_text(
+            cx2, cy2 + r + 7, text=el.label, fill=MUTED, font=("TkDefaultFont", 7), tags=(tag,)
+        )
 
     def _draw_encoder(c, tag, el, x0, y0, x1, y1):
         # a rotary encoder knob: a disc with a pointer notch, caption above
-        c.create_text((x0 + x1) / 2, y0 + 7, text="⟳ " + el.label, fill=TEXT,
-                      font=("TkDefaultFont", 8, "bold"),
-                      width=max(30.0, x1 - x0 - 6), tags=(tag,))
+        c.create_text(
+            (x0 + x1) / 2,
+            y0 + 7,
+            text="⟳ " + el.label,
+            fill=TEXT,
+            font=("TkDefaultFont", 8, "bold"),
+            width=max(30.0, x1 - x0 - 6),
+            tags=(tag,),
+        )
         cx2, cy2 = (x0 + x1) / 2, (y0 + y1) / 2 + 6
         r = min(x1 - x0, y1 - y0) * 0.28
-        c.create_oval(cx2 - r, cy2 - r, cx2 + r, cy2 + r, fill="#cfd8dc",
-                      outline="#607d8b", width=2, tags=(tag,))
+        c.create_oval(
+            cx2 - r,
+            cy2 - r,
+            cx2 + r,
+            cy2 + r,
+            fill="#cfd8dc",
+            outline="#607d8b",
+            width=2,
+            tags=(tag,),
+        )
         c.create_line(cx2, cy2, cx2, cy2 - r, fill="#37474f", width=2, tags=(tag,))
 
     def _draw_header(c, tag, el, x0, y0, x1, y1):
         # a group heading: bold accent title + a separator line under it
-        c.create_text(x0 + 2, (y0 + y1) / 2, anchor="w", text=el.label, fill=ACCENT,
-                      font=("TkDefaultFont", 9, "bold"), tags=(tag,))
+        c.create_text(
+            x0 + 2,
+            (y0 + y1) / 2,
+            anchor="w",
+            text=el.label,
+            fill=ACCENT,
+            font=("TkDefaultFont", 9, "bold"),
+            tags=(tag,),
+        )
         c.create_line(x0, y1 - 1, x1, y1 - 1, fill="#94a3b8", width=1, tags=(tag,))
 
     def _draw_block(c, tag, el, x0, y0, x1, y1):
@@ -4611,16 +5543,28 @@ def run() -> None:
         _round_rect(c, x0, y0, x1, y1, 8, fill=fill, outline=edge, width=2, tags=(tag,))
         glyph = "⟳" if el.kind == panel_layout.SELECTOR else "⭥"
         # single caption (full detail on hover), centred in the block
-        c.create_text((x0 + x1) / 2, (y0 + y1) / 2, text=f"{glyph} {el.label}",
-                      fill=TEXT if el.mapped else MUTED,
-                      font=("TkDefaultFont", 8, "bold"),
-                      width=max(30.0, x1 - x0 - 6), tags=(tag,))
+        c.create_text(
+            (x0 + x1) / 2,
+            (y0 + y1) / 2,
+            text=f"{glyph} {el.label}",
+            fill=TEXT if el.mapped else MUTED,
+            font=("TkDefaultFont", 8, "bold"),
+            width=max(30.0, x1 - x0 - 6),
+            tags=(tag,),
+        )
 
-    _PANEL_DRAW = {panel_layout.AXIS: _draw_axis, panel_layout.SWITCH: _draw_switch,
-                   panel_layout.BUTTON: _draw_button, panel_layout.HAT: _draw_hat,
-                   panel_layout.LED: _draw_led, panel_layout.SEGMENT: _draw_segment,
-                   panel_layout.BUTTON_LIGHT: _draw_button_light, panel_layout.DOT: _draw_dot,
-                   panel_layout.ENCODER: _draw_encoder, panel_layout.HEADER: _draw_header}
+    _PANEL_DRAW = {
+        panel_layout.AXIS: _draw_axis,
+        panel_layout.SWITCH: _draw_switch,
+        panel_layout.BUTTON: _draw_button,
+        panel_layout.HAT: _draw_hat,
+        panel_layout.LED: _draw_led,
+        panel_layout.SEGMENT: _draw_segment,
+        panel_layout.BUTTON_LIGHT: _draw_button_light,
+        panel_layout.DOT: _draw_dot,
+        panel_layout.ENCODER: _draw_encoder,
+        panel_layout.HEADER: _draw_header,
+    }
 
     def _render_panel_canvas(device_id):
         c = panel_canvas
@@ -4640,11 +5584,17 @@ def run() -> None:
         els = panel_layout.panel_layout(prof, device_id)
         if not els:
             c.configure(scrollregion=(0, 0, cw, ch))
-            c.create_text(pad, pad, anchor="nw", fill=MUTED,
-                          text=tr("Für dieses Gerät gibt es noch keinen Nachbau."))
+            c.create_text(
+                pad,
+                pad,
+                anchor="nw",
+                fill=MUTED,
+                text=tr("Für dieses Gerät gibt es noch keinen Nachbau."),
+            )
             return
         # Overlay the user's drag-rearrangement (edit mode) on the generated layout.
         from .mapping.loader import load_panel_layout
+
         els = panel_layout.apply_layout_overrides(els, load_panel_layout(device_id))
         # y is in "viewport" units (1.0 = one canvas height): a layout taller than
         # 1.0 (the radio panel) becomes scrollable content below the fold.
@@ -4672,19 +5622,31 @@ def run() -> None:
             if pcanvas["edit"] and el.kind != panel_layout.HEADER:
                 # bottom-right resize grip (drawn on top so it wins the hit-test)
                 gs = 9
-                c.create_rectangle(x1 - gs, y1 - gs, x1, y1, fill="#2563eb",
-                                   outline="white", tags=(f"pgrip:{n}",))
+                c.create_rectangle(
+                    x1 - gs, y1 - gs, x1, y1, fill="#2563eb", outline="white", tags=(f"pgrip:{n}",)
+                )
         content_px = pad + content * H + pad
         c.configure(scrollregion=(0, 0, cw, content_px))
         if content <= 1.0:
             c.yview_moveto(0.0)  # nothing to scroll
         pcanvas["hint"] = c.create_text(
-            pad, content_px - 4, anchor="sw", fill=MUTED, font=("TkDefaultFont", 8),
-            text=(tr("Anordnen: ziehen = verschieben · blaue Ecke ziehen = Größe · "
-                     "Rechtsklick = Größe in Pixel · „✓ Fertig“ zum Beenden")
-                  if pcanvas["edit"] else
-                  tr("Klick: gemappt → Editor, leerer Platzhalter → neu mappen · "
-                     "Schalter/Achsen live")))
+            pad,
+            content_px - 4,
+            anchor="sw",
+            fill=MUTED,
+            font=("TkDefaultFont", 8),
+            text=(
+                tr(
+                    "Anordnen: ziehen = verschieben · blaue Ecke ziehen = Größe · "
+                    "Rechtsklick = Größe in Pixel · „✓ Fertig“ zum Beenden"
+                )
+                if pcanvas["edit"]
+                else tr(
+                    "Klick: gemappt → Editor, leerer Platzhalter → neu mappen · "
+                    "Schalter/Achsen live"
+                )
+            ),
+        )
         # the drawn display vars just changed -> refresh the shared subscription so
         # the value monitor pulls exactly this panel's LEDs/segments (glow-from-sim).
         _resubscribe()
@@ -4717,16 +5679,25 @@ def run() -> None:
                 el = pcanvas["by_index"].get(gi)
                 W, H, pad = pcanvas["W"] or 1, pcanvas["H"] or 1, pcanvas["pad"]
                 x0, y0 = pad + el.x * W, pad + el.y * H
-                rid = panel_canvas.create_rectangle(x0, y0, cx, cy, outline="#2563eb",
-                                                    dash=(3, 2), width=2)
-                pcanvas["drag"].update(mode="resize", n=gi, x0=x0, y0=y0, rid=rid,
-                                       moved=False)
+                rid = panel_canvas.create_rectangle(
+                    x0, y0, cx, cy, outline="#2563eb", dash=(3, 2), width=2
+                )
+                pcanvas["drag"].update(mode="resize", n=gi, x0=x0, y0=y0, rid=rid, moved=False)
                 return
             n = _panel_idx_at(event)
             el = pcanvas["by_index"].get(n) if n is not None else None
-            pcanvas["drag"].update(mode="move", n=n, rid=None, sx=cx, sy=cy, lx=cx, ly=cy,
-                                   ox=(el.x if el else 0.0), oy=(el.y if el else 0.0),
-                                   moved=False)
+            pcanvas["drag"].update(
+                mode="move",
+                n=n,
+                rid=None,
+                sx=cx,
+                sy=cy,
+                lx=cx,
+                ly=cy,
+                ox=(el.x if el else 0.0),
+                oy=(el.y if el else 0.0),
+                moved=False,
+            )
             return
         _panel_click(event)
 
@@ -4755,6 +5726,7 @@ def run() -> None:
         el = pcanvas["by_index"].get(n)
         W, H = pcanvas["W"] or 1, pcanvas["H"] or 1
         from .mapping.loader import save_panel_layout_override
+
         if d["mode"] == "resize":
             if d["rid"] is not None:
                 panel_canvas.delete(d["rid"])
@@ -4766,8 +5738,9 @@ def run() -> None:
             nh = panel_layout.snap((panel_canvas.canvasy(event.y) - d["y0"]) / H, _PANEL_GRID)
             nw = max(_PANEL_GRID, min(1.0 - el.x, nw))
             nh = max(_PANEL_GRID, nh)
-            save_panel_layout_override(pcanvas["device"], panel_layout.element_key(el),
-                                       el.x, el.y, nw, nh)
+            save_panel_layout_override(
+                pcanvas["device"], panel_layout.element_key(el), el.x, el.y, nw, nh
+            )
             _render_panel_canvas(pcanvas["device"])
             return
         if el is None or not d["moved"]:
@@ -4816,19 +5789,27 @@ def run() -> None:
         px value is honoured directly (converted to the layout's normalised units at
         the current canvas size)."""
         W, H = pcanvas["W"] or 1, pcanvas["H"] or 1
-        w = simpledialog.askinteger(tr("Breite"), tr("Breite in Pixel:"),
-                                    initialvalue=round(el.w * W), minvalue=8, parent=win)
+        w = simpledialog.askinteger(
+            tr("Breite"),
+            tr("Breite in Pixel:"),
+            initialvalue=round(el.w * W),
+            minvalue=8,
+            parent=win,
+        )
         if w is None:
             return
-        h = simpledialog.askinteger(tr("Höhe"), tr("Höhe in Pixel:"),
-                                    initialvalue=round(el.h * H), minvalue=8, parent=win)
+        h = simpledialog.askinteger(
+            tr("Höhe"), tr("Höhe in Pixel:"), initialvalue=round(el.h * H), minvalue=8, parent=win
+        )
         if h is None:
             return
         nw = min(1.0 - el.x, w / W)
         nh = h / H
         from .mapping.loader import save_panel_layout_override
-        save_panel_layout_override(pcanvas["device"], panel_layout.element_key(el),
-                                   el.x, el.y, nw, nh)
+
+        save_panel_layout_override(
+            pcanvas["device"], panel_layout.element_key(el), el.x, el.y, nw, nh
+        )
         _render_panel_canvas(pcanvas["device"])
 
     def _panel_menu(event):
@@ -4840,8 +5821,7 @@ def run() -> None:
             if el is None or el.kind == panel_layout.HEADER:
                 return
             menu = tk.Menu(panel_canvas, tearoff=0)
-            menu.add_command(label=tr("Größe in Pixel…"),
-                             command=lambda: _panel_size_dialog(el))
+            menu.add_command(label=tr("Größe in Pixel…"), command=lambda: _panel_size_dialog(el))
             menu.tk_popup(event.x_root, event.y_root)
             return
         if el is None or el.kind == panel_layout.HEADER:
@@ -4850,13 +5830,19 @@ def run() -> None:
         if el.ref:
             menu.add_command(label=tr("Bearbeiten…"), command=lambda: _open_row(el.ref))
             if str(el.ref).startswith("bind:"):
-                menu.add_command(label=tr("Duplizieren"),
-                                 command=lambda: _ctx_do(el.ref, _ed_duplicate))
+                menu.add_command(
+                    label=tr("Duplizieren"), command=lambda: _ctx_do(el.ref, _ed_duplicate)
+                )
             menu.add_separator()
-            menu.add_command(label=tr("Mapping entfernen"),
-                             command=lambda: _ctx_do(el.ref, _remove_selected_row))
+            menu.add_command(
+                label=tr("Mapping entfernen"), command=lambda: _ctx_do(el.ref, _remove_selected_row)
+            )
         elif el.code is not None and (el.source_kind or el.kind) in (
-                "switch", "button", "axis", "hat"):
+            "switch",
+            "button",
+            "axis",
+            "hat",
+        ):
             menu.add_command(label=tr("Neu mappen…"), command=lambda: _panel_map_empty(el))
         else:
             return
@@ -4867,8 +5853,9 @@ def run() -> None:
             return
         el = _panel_el_at(event)
         if el is None:
-            txt = tr("Klick: gemappt → Editor, leerer Platzhalter → neu mappen · "
-                     "Schalter/Achsen live")
+            txt = tr(
+                "Klick: gemappt → Editor, leerer Platzhalter → neu mappen · Schalter/Achsen live"
+            )
         elif el.kind == panel_layout.HEADER:
             txt = el.label  # a group heading, not a control
         elif el.mapped:
@@ -4890,9 +5877,10 @@ def run() -> None:
         dev = pcanvas["device"] or _sel(dev_tree)
         if not dev:
             return
-        if messagebox.askyesno(tr("Anordnung zurücksetzen"),
-                               tr("Die eigene Anordnung dieses Geräts verwerfen und "
-                                  "zum Standard-Nachbau zurück?")):
+        if messagebox.askyesno(
+            tr("Anordnung zurücksetzen"),
+            tr("Die eigene Anordnung dieses Geräts verwerfen und zum Standard-Nachbau zurück?"),
+        ):
             from .mapping.loader import clear_panel_layout
 
             clear_panel_layout(dev)
@@ -4926,8 +5914,12 @@ def run() -> None:
     panel_canvas.bind("<Motion>", _panel_hover)
     panel_canvas.bind(
         "<Configure>",
-        lambda _e: _render_panel_canvas(pcanvas["device"] or _sel(dev_tree))
-        if mstate["view"] == "panel" else None)
+        lambda _e: (
+            _render_panel_canvas(pcanvas["device"] or _sel(dev_tree))
+            if mstate["view"] == "panel"
+            else None
+        ),
+    )
     _apply_view()  # reconstruction is the default view (table stays a click away)
 
     def _mapper_reload(rediscover: bool = False, keep_device=None):
@@ -4946,8 +5938,13 @@ def run() -> None:
         mstate["profile"] = prof
         ids = set()
         for r in rows:
-            dev_tree.insert("", "end", iid=r.id, text=r.name,
-                            values=(r.transport, r.status, r.inputs, r.outputs))
+            dev_tree.insert(
+                "",
+                "end",
+                iid=r.id,
+                text=r.name,
+                values=(r.transport, r.status, r.inputs, r.outputs),
+            )
             ids.add(r.id)
         target = keep_device if keep_device in ids else (rows[0].id if rows else None)
         if target:
@@ -4971,8 +5968,9 @@ def run() -> None:
         nb_in = len(prof.bindings.get(device_id, []))
         no_out = len(prof.outputs.get(device_id, []))
         if nb_in == 0 and no_out == 0:
-            messagebox.showinfo(tr("Übertragen"),
-                                tr("Dieses Gerät hat im aktuellen Profil keine Mappings."))
+            messagebox.showinfo(
+                tr("Übertragen"), tr("Dieses Gerät hat im aktuellen Profil keine Mappings.")
+            )
             return
         cur = profile_var.get()
         targets = [p for p in _list_profiles(root_dir) if p != cur]
@@ -4982,9 +5980,15 @@ def run() -> None:
         dlg = tk.Toplevel(win)
         dlg.title(tr("Mappings übertragen"))
         dlg.transient(win)
-        ttk.Label(dlg, text=tr("„{dev}“ ({nb} Eingaben / {no} Anzeigen) übertragen nach:",
-                               dev=device_id, nb=nb_in, no=no_out)
-                  ).pack(anchor="w", padx=10, pady=(10, 4))
+        ttk.Label(
+            dlg,
+            text=tr(
+                "„{dev}“ ({nb} Eingaben / {no} Anzeigen) übertragen nach:",
+                dev=device_id,
+                nb=nb_in,
+                no=no_out,
+            ),
+        ).pack(anchor="w", padx=10, pady=(10, 4))
         lb = tk.Listbox(dlg, height=min(8, len(targets)), exportselection=False)
         for t in targets:
             lb.insert("end", t)
@@ -5002,9 +6006,16 @@ def run() -> None:
                 dst_data = profile_writer.load(dst_path)
                 eb, eo = profile_writer.device_mapping_counts(dst_data, device_id)
                 if (eb or eo) and not messagebox.askyesno(
-                        tr("Überschreiben?"),
-                        tr("„{t}“ hat für dieses Gerät schon {eb} Eingaben / {eo} Anzeigen. "
-                           "Überschreiben?", t=target, eb=eb, eo=eo), parent=dlg):
+                    tr("Überschreiben?"),
+                    tr(
+                        "„{t}“ hat für dieses Gerät schon {eb} Eingaben / {eo} Anzeigen. "
+                        "Überschreiben?",
+                        t=target,
+                        eb=eb,
+                        eo=eo,
+                    ),
+                    parent=dlg,
+                ):
                     return
                 wb, wo = profile_writer.copy_device_mappings(src_data, dst_data, device_id)
                 profile_writer.validate(dst_data)  # reject a broken result before writing
@@ -5013,15 +6024,23 @@ def run() -> None:
                 messagebox.showerror(tr("Übertragen"), str(exc), parent=dlg)
                 return
             dlg.destroy()
-            m_state.config(text=tr("„{dev}“ → „{t}“: {wb} Eingaben / {wo} Anzeigen übertragen ✓",
-                                   dev=device_id, t=target, wb=wb, wo=wo))
+            m_state.config(
+                text=tr(
+                    "„{dev}“ → „{t}“: {wb} Eingaben / {wo} Anzeigen übertragen ✓",
+                    dev=device_id,
+                    t=target,
+                    wb=wb,
+                    wo=wo,
+                )
+            )
             if target == profile_var.get():
                 _mapper_reload(rediscover=False)
 
         btns = ttk.Frame(dlg)
         btns.pack(fill="x", padx=10, pady=10)
-        ttk.Button(btns, text=tr("Übertragen"), style="Success.TButton",
-                   command=_do).pack(side="left")
+        ttk.Button(btns, text=tr("Übertragen"), style="Success.TButton", command=_do).pack(
+            side="left"
+        )
         ttk.Button(btns, text=tr("Abbrechen"), command=dlg.destroy).pack(side="right")
 
     def _dev_menu(event):
@@ -5032,8 +6051,10 @@ def run() -> None:
         dev_tree.selection_set(row)
         dev_tree.focus(row)
         menu = tk.Menu(dev_tree, tearoff=0)
-        menu.add_command(label=tr("Mappings in anderes Profil übertragen…"),
-                         command=lambda: _transfer_device(row))
+        menu.add_command(
+            label=tr("Mappings in anderes Profil übertragen…"),
+            command=lambda: _transfer_device(row),
+        )
         menu.tk_popup(event.x_root, event.y_root)
 
     def _on_kind_change(_e=None):
@@ -5070,7 +6091,8 @@ def run() -> None:
     panel_glow["wires"] = lambda: (
         list(pcanvas["sim"].keys())
         if str(nb.select()) == str(mtab) and mstate["view"] == "panel"
-        else [])
+        else []
+    )
 
     def _live_open(device_id):
         live.update(id=device_id, read=None, ranges={}, retry=0)
@@ -5124,14 +6146,17 @@ def run() -> None:
                             if e["kind"] == "onoff":
                                 if panel_canvas.type(e["rect"]) is not None:
                                     panel_canvas.itemconfigure(
-                                        e["rect"], fill=_PANEL_ON if val else e["off"])
+                                        e["rect"], fill=_PANEL_ON if val else e["off"]
+                                    )
                             elif e["kind"] == "toggle":
                                 if panel_canvas.type(e["knob"]) is not None:
                                     yy, kr = (e["y_on"] if val else e["y_off"]), e["kr"]
-                                    panel_canvas.coords(e["knob"], e["cx"] - kr, yy - kr,
-                                                        e["cx"] + kr, yy + kr)
+                                    panel_canvas.coords(
+                                        e["knob"], e["cx"] - kr, yy - kr, e["cx"] + kr, yy + kr
+                                    )
                                     panel_canvas.itemconfigure(
-                                        e["knob"], fill=_PANEL_ON if val else e["off"])
+                                        e["knob"], fill=_PANEL_ON if val else e["off"]
+                                    )
                             elif panel_canvas.type(e["fill"]) is not None:  # axis slider
                                 lo, hi = e["lo"], e["hi"]
                                 if lo is None or hi is None:
@@ -5141,13 +6166,13 @@ def run() -> None:
                                 fx = e["x0"] + frac * (e["x1"] - e["x0"])
                                 panel_canvas.coords(e["fill"], e["x0"], e["y0"], fx, e["y1"])
                                 hr = e["hr"]
-                                panel_canvas.coords(e["handle"], fx - hr, e["midy"] - hr,
-                                                    fx + hr, e["midy"] + hr)
+                                panel_canvas.coords(
+                                    e["handle"], fx - hr, e["midy"] - hr, fx + hr, e["midy"] + hr
+                                )
                                 panel_canvas.itemconfigure(e["text"], text=f"{val:g}")
             # glow-from-sim: paint LED/segment display elements from the value
             # monitor, independent of the physical device (works even unplugged).
-            if (pcanvas["sim"] and mstate["view"] == "panel"
-                    and str(nb.select()) == str(mtab)):
+            if pcanvas["sim"] and mstate["view"] == "panel" and str(nb.select()) == str(mtab):
                 sim_vals = monitor.values()
                 for var, entries in pcanvas["sim"].items():
                     if var not in sim_vals:
@@ -5159,11 +6184,14 @@ def run() -> None:
                         if e["kind"] == "lamp":
                             lit = panel_layout.lamp_lit(val, e["on_at"])
                             panel_canvas.itemconfigure(
-                                e["id"], fill=_LAMP_ON if lit else e["off_fill"],
-                                outline=_LAMP_ON_EDGE if lit else e["off_edge"])
+                                e["id"],
+                                fill=_LAMP_ON if lit else e["off_fill"],
+                                outline=_LAMP_ON_EDGE if lit else e["off_edge"],
+                            )
                         elif e["kind"] == "segment" and val is not None:
                             panel_canvas.itemconfigure(
-                                e["id"], text=panel_layout.format_segment(val, e.get("fmt", "")))
+                                e["id"], text=panel_layout.format_segment(val, e.get("fmt", ""))
+                            )
         finally:
             win.after(100, _live_tick)
 
@@ -5177,8 +6205,9 @@ def run() -> None:
     prow = ttk.Frame(ptab)
     prow.grid(row=0, column=0, columnspan=2, sticky="ew", pady=(0, 12))
     ttk.Label(prow, text=tr("Aktives Profil:")).pack(side="left")
-    profile_cb = ttk.Combobox(prow, textvariable=profile_var, values=profiles,
-                              state="readonly", width=26)
+    profile_cb = ttk.Combobox(
+        prow, textvariable=profile_var, values=profiles, state="readonly", width=26
+    )
     profile_cb.pack(side="left", padx=6)
 
     def _refresh_profiles(select=None):
@@ -5203,8 +6232,9 @@ def run() -> None:
         name = _ask_profile_name("Neues Profil")
         if name is None:
             return
-        profile_writer.dump(profile_writer.new_profile(name),
-                            profiles_dir(root_dir) / f"{name}.yaml")
+        profile_writer.dump(
+            profile_writer.new_profile(name), profiles_dir(root_dir) / f"{name}.yaml"
+        )
         _refresh_profiles(select=name)
 
     def _profile_duplicate():
@@ -5224,21 +6254,25 @@ def run() -> None:
         name = profile_var.get()
         names = _list_profiles(root_dir)
         if len(names) <= 1:
-            messagebox.showerror(tr("Nicht möglich"),
-                                 tr("Das letzte Profil kann nicht entfernt werden."))
+            messagebox.showerror(
+                tr("Nicht möglich"), tr("Das letzte Profil kann nicht entfernt werden.")
+            )
             return
-        if not messagebox.askyesno("Profil entfernen",
-                                   f"Profil '{name}' wirklich löschen? Das lässt sich nicht "
-                                   "rückgängig machen."):
+        if not messagebox.askyesno(
+            "Profil entfernen",
+            f"Profil '{name}' wirklich löschen? Das lässt sich nicht rückgängig machen.",
+        ):
             return
         (profiles_dir(root_dir) / f"{name}.yaml").unlink(missing_ok=True)
         _refresh_profiles(select=next(n for n in names if n != name))
 
-    ttk.Button(prow, text=tr("+ Neu"), style="Accent.TButton",
-               command=_profile_new).pack(side="left", padx=(8, 0))
+    ttk.Button(prow, text=tr("+ Neu"), style="Accent.TButton", command=_profile_new).pack(
+        side="left", padx=(8, 0)
+    )
     ttk.Button(prow, text=tr("Duplizieren"), command=_profile_duplicate).pack(side="left", padx=6)
-    ttk.Button(prow, text=tr("Entfernen"), style="Danger.TButton",
-               command=_profile_remove).pack(side="left")
+    ttk.Button(prow, text=tr("Entfernen"), style="Danger.TButton", command=_profile_remove).pack(
+        side="left"
+    )
 
     ttk.Label(ptab, text=tr("Beschreibung")).grid(row=1, column=0, sticky="w", pady=2, padx=(0, 8))
     p_desc = tk.StringVar()
@@ -5246,9 +6280,14 @@ def run() -> None:
     ttk.Label(ptab, text=tr("Auto-Auswahl")).grid(row=2, column=0, sticky="w", pady=2, padx=(0, 8))
     p_match = tk.StringVar()
     ttk.Entry(ptab, textvariable=p_match).grid(row=2, column=1, sticky="ew", pady=2)
-    ttk.Label(ptab, text=tr("Flugzeug-Titel (Komma-getrennt) — wählt dieses Profil automatisch, "
-                         "wenn der Titel passt."), foreground=MUTED).grid(
-                             row=3, column=1, sticky="w")
+    ttk.Label(
+        ptab,
+        text=tr(
+            "Flugzeug-Titel (Komma-getrennt) — wählt dieses Profil automatisch, "
+            "wenn der Titel passt."
+        ),
+        foreground=MUTED,
+    ).grid(row=3, column=1, sticky="w")
 
     p_status = ttk.Label(ptab, text=tr(""), foreground=MUTED)
 
@@ -5275,8 +6314,9 @@ def run() -> None:
         except Exception as exc:
             p_status.config(text=f"Fehler: {exc}", foreground=DANGER)
 
-    ttk.Button(ptab, text=tr("Beschreibung speichern"), style="Accent.TButton",
-               command=_profile_meta_save).grid(row=4, column=1, sticky="w", pady=(10, 0))
+    ttk.Button(
+        ptab, text=tr("Beschreibung speichern"), style="Accent.TButton", command=_profile_meta_save
+    ).grid(row=4, column=1, sticky="w", pady=(10, 0))
     p_status.grid(row=5, column=1, sticky="w", pady=(4, 0))
 
     profile_var.trace_add("write", _profile_meta_load)
@@ -5299,13 +6339,20 @@ def run() -> None:
     gbar.grid(row=0, column=0, sticky="ew")
     g_add = ttk.Menubutton(gbar, text=tr("+ Gauge"))
     g_add.pack(side="left")
-    _attach_tooltip(g_add, tr("Instrument hinzufügen: erst aus Bibliothek (bereits gemappte "
-                           "Gauges) oder Vorlage wählen, dann die Zeiger auf Variablen "
-                           "mappen — danach liegt es auf dem Panel."))
-    ttk.Button(gbar, text=tr("✎ Mappen"), command=lambda: _g_edit_selected()
-               ).pack(side="left", padx=6)
-    ttk.Button(gbar, text=tr("✕ Entfernen"), style="Danger.TButton",
-               command=lambda: _g_remove()).pack(side="left")
+    _attach_tooltip(
+        g_add,
+        tr(
+            "Instrument hinzufügen: erst aus Bibliothek (bereits gemappte "
+            "Gauges) oder Vorlage wählen, dann die Zeiger auf Variablen "
+            "mappen — danach liegt es auf dem Panel."
+        ),
+    )
+    ttk.Button(gbar, text=tr("✎ Mappen"), command=lambda: _g_edit_selected()).pack(
+        side="left", padx=6
+    )
+    ttk.Button(
+        gbar, text=tr("✕ Entfernen"), style="Danger.TButton", command=lambda: _g_remove()
+    ).pack(side="left")
     g_hint = ttk.Label(gbar, text=tr("Klick wählt · Doppelklick mappt"), foreground="#666")
     g_hint.pack(side="left", padx=10)
 
@@ -5348,9 +6395,7 @@ def run() -> None:
                     wires.append(w)
         return wires
 
-    gauge_hook["wires"] = (
-        lambda: _g_wires() if str(nb.select()) == str(gtab) else []
-    )
+    gauge_hook["wires"] = lambda: _g_wires() if str(nb.select()) == str(gtab) else []
 
     def _g_layout() -> tuple[int, float]:
         """(cols, cell size) maximising the gauge size for the canvas."""
@@ -5384,48 +6429,98 @@ def run() -> None:
         edge = "#64b5f6" if selected else "#3a3a3a"
         if round_face:
             mx, my = fx + fw / 2, fy + fh / 2
-            canvas.create_oval(mx - base_R, my - base_R, mx + base_R, my + base_R,
-                               fill="#141414", outline=edge, width=3 if selected else 2)
+            canvas.create_oval(
+                mx - base_R,
+                my - base_R,
+                mx + base_R,
+                my + base_R,
+                fill="#141414",
+                outline=edge,
+                width=3 if selected else 2,
+            )
         else:
-            canvas.create_rectangle(fx + 2, fy + 2, fx + fw - 2, fy + fh - 2,
-                                    fill="#141414", outline=edge, width=3 if selected else 2)
-        canvas.create_text(fx + fw / 2, fy + fh * 0.055, text=g.name, fill="#9e9e9e",
-                           font=("TkDefaultFont", max(7, int(fh * 0.045))))
+            canvas.create_rectangle(
+                fx + 2,
+                fy + 2,
+                fx + fw - 2,
+                fy + fh - 2,
+                fill="#141414",
+                outline=edge,
+                width=3 if selected else 2,
+            )
+        canvas.create_text(
+            fx + fw / 2,
+            fy + fh * 0.055,
+            text=g.name,
+            fill="#9e9e9e",
+            font=("TkDefaultFont", max(7, int(fh * 0.045))),
+        )
         needles = []
         for idx, n in enumerate(g.needles):
             ncx, ncy = fx + n.cx * fw, fy + n.cy * fh
             r = base_R * n.radius
             if not round_face:  # each sub-scale gets its own faint ring
-                canvas.create_oval(ncx - r * 1.05, ncy - r * 1.05, ncx + r * 1.05,
-                                   ncy + r * 1.05, outline="#2b2b2b", width=1)
+                canvas.create_oval(
+                    ncx - r * 1.05,
+                    ncy - r * 1.05,
+                    ncx + r * 1.05,
+                    ncy + r * 1.05,
+                    outline="#2b2b2b",
+                    width=1,
+                )
             for arc in n.arcs:
                 a1, a2 = gauge_model.arc_angles(n, arc)
-                canvas.create_arc(ncx - r, ncy - r, ncx + r, ncy + r,
-                                  start=90 - a2, extent=a2 - a1, style="arc",
-                                  outline=arc.color, width=max(3, int(r * 0.07)))
+                canvas.create_arc(
+                    ncx - r,
+                    ncy - r,
+                    ncx + r,
+                    ncy + r,
+                    start=90 - a2,
+                    extent=a2 - a1,
+                    style="arc",
+                    outline=arc.color,
+                    width=max(3, int(r * 0.07)),
+                )
             for value, ang, major in gauge_model.ticks(n):
                 ln = r * (0.15 if major else 0.08)
-                canvas.create_line(*gauge_model.polar(ncx, ncy, r - ln, ang),
-                                   *gauge_model.polar(ncx, ncy, r, ang),
-                                   fill="#e8e8e8", width=2 if major else 1)
+                canvas.create_line(
+                    *gauge_model.polar(ncx, ncy, r - ln, ang),
+                    *gauge_model.polar(ncx, ncy, r, ang),
+                    fill="#e8e8e8",
+                    width=2 if major else 1,
+                )
                 if major:
                     canvas.create_text(
                         *gauge_model.polar(ncx, ncy, r - ln - r * 0.13, ang),
-                        text=f"{value:g}", fill="#d0d0d0",
-                        font=("TkDefaultFont", max(6, int(r * 0.11))))
+                        text=f"{value:g}",
+                        fill="#d0d0d0",
+                        font=("TkDefaultFont", max(6, int(r * 0.11))),
+                    )
             frac = None if sample is None else max(0.0, min(1.0, sample))
-            ang0 = n.omega + n.sweep * (frac ** n.h) if frac is not None \
+            ang0 = (
+                n.omega + n.sweep * (frac**n.h)
+                if frac is not None
                 else gauge_model.angle_for(n, n.v_min)
+            )
             line = canvas.create_line(
                 *gauge_model.polar(ncx, ncy, r * 0.14, ang0 + 180),
                 *gauge_model.polar(ncx, ncy, r * 0.82, ang0),
-                fill=n.color, width=max(2, int(r * 0.045)), capstyle="round")
+                fill=n.color,
+                width=max(2, int(r * 0.045)),
+                capstyle="round",
+            )
             ry = ncy + r * (0.5 + 0.15 * idx) if round_face else ncy + r * 0.55
-            text = canvas.create_text(ncx, ry, text=f"{n.label} —", fill=n.color,
-                                      font=("TkDefaultFont", max(7, int(r * 0.13))))
+            text = canvas.create_text(
+                ncx,
+                ry,
+                text=f"{n.label} —",
+                fill=n.color,
+                font=("TkDefaultFont", max(7, int(r * 0.13))),
+            )
             hub = max(2.0, r * 0.05)
-            canvas.create_oval(ncx - hub, ncy - hub, ncx + hub, ncy + hub,
-                               fill="#bdbdbd", outline="")
+            canvas.create_oval(
+                ncx - hub, ncy - hub, ncx + hub, ncy + hub, fill="#bdbdbd", outline=""
+            )
             needles.append((n, line, text, ncx, ncy, r))
         return needles
 
@@ -5434,9 +6529,17 @@ def run() -> None:
         g_state["items"] = []
         specs = g_state["specs"]
         if not specs:
-            gcv.create_text(16, 16, anchor="nw", fill="#9e9e9e", justify="left",
-                            text=tr("Noch keine Gauges.\n„+ Gauge“ → Vorlage/Bibliothek wählen "
-                                 "→ Zeiger auf Variablen mappen → aufs Panel."))
+            gcv.create_text(
+                16,
+                16,
+                anchor="nw",
+                fill="#9e9e9e",
+                justify="left",
+                text=tr(
+                    "Noch keine Gauges.\n„+ Gauge“ → Vorlage/Bibliothek wählen "
+                    "→ Zeiger auf Variablen mappen → aufs Panel."
+                ),
+            )
             return
         cols, cell = _g_layout()
         for i, g in enumerate(specs):
@@ -5455,8 +6558,11 @@ def run() -> None:
                         value = vals.get(wire) if wire else None
                         if isinstance(value, (int, float)) and not isinstance(value, bool):
                             ang = gauge_model.angle_for(n, float(value))
-                            gcv.coords(line, *gauge_model.polar(cx, cy, r * 0.14, ang + 180),
-                                       *gauge_model.polar(cx, cy, r * 0.82, ang))
+                            gcv.coords(
+                                line,
+                                *gauge_model.polar(cx, cy, r * 0.14, ang + 180),
+                                *gauge_model.polar(cx, cy, r * 0.82, ang),
+                            )
                             shown = gauge_model.display_value(n, float(value))
                             gcv.itemconfigure(text, text=f"{n.label} {n.fmt.format(shown)}")
                         else:
@@ -5518,11 +6624,11 @@ def run() -> None:
         right.grid(row=0, column=1, sticky="n", padx=(14, 0))
 
         # live preview (right) — redrawn on every change, needle parked mid-scale
-        pcv = tk.Canvas(right, width=300, height=300, background="#232323",
-                        highlightthickness=0)
+        pcv = tk.Canvas(right, width=300, height=300, background="#232323", highlightthickness=0)
         pcv.pack()
-        ttk.Label(right, text=tr("Live-Vorschau (Nadel bei ~65 %)"),
-                  foreground="#666").pack(pady=(4, 0))
+        ttk.Label(right, text=tr("Live-Vorschau (Nadel bei ~65 %)"), foreground="#666").pack(
+            pady=(4, 0)
+        )
 
         def _preview(*_a):
             pcv.delete("all")
@@ -5554,6 +6660,7 @@ def run() -> None:
                 except ValueError:
                     return
                 _preview()
+
             var.trace_add("write", _on_write)
             ttk.Entry(parent, textvariable=var, width=width).pack(side="left")
             return var
@@ -5571,6 +6678,7 @@ def run() -> None:
                 setter(fv)
                 val.config(text=fmt.format(fv))
                 _preview()
+
             sc.config(command=_cmd)
             sc.pack(side="left", fill="x", expand=True, padx=6)
 
@@ -5587,8 +6695,10 @@ def run() -> None:
 
             def _pick(vk=v_kind, vv=v_var):
                 _open_var_picker(win, catalog, lambda v: (vk.set(v.kind), vv.set(v.name)))
-            ttk.Button(vrow, text=tr("Wählen…"), style="Accent.TButton",
-                       command=_pick).pack(side="left", padx=4)
+
+            ttk.Button(vrow, text=tr("Wählen…"), style="Accent.TButton", command=_pick).pack(
+                side="left", padx=4
+            )
             ttk.Label(vrow, text=tr("Faktor")).pack(side="left", padx=(6, 1))
             ttk.Entry(vrow, textvariable=v_factor, width=6).pack(side="left")
             # --- value range + ticks (entries) ---------------------------- #
@@ -5597,19 +6707,18 @@ def run() -> None:
 
             def _set(attr, nn=n):
                 return lambda val: setattr(nn, attr, val)
+
             _num_entry(r1, "min", lambda nn=n: nn.v_min, _set("v_min"))
             _num_entry(r1, "max", lambda nn=n: nn.v_max, _set("v_max"))
             _num_entry(r1, "Haupt", lambda nn=n: nn.major, _set("major"))
             _num_entry(r1, "Neben", lambda nn=n: nn.minor, _set("minor"))
             # --- scale + needle sliders (the core wish) ------------------- #
-            _slider(tabf, "Winkelbereich", 20, 360, lambda nn=n: nn.sweep,
-                    _set("sweep"), "{:.0f}°")
-            _slider(tabf, "Startwinkel", -180, 360, lambda nn=n: nn.omega,
-                    _set("omega"), "{:.0f}°")
-            _slider(tabf, "Skalen-Verzerrung", 0.3, 3.0, lambda nn=n: nn.h,
-                    _set("h"), "{:.2f}")
-            _slider(tabf, "Radius (Nadel)", 0.2, 1.0, lambda nn=n: nn.radius,
-                    _set("radius"), "{:.2f}")
+            _slider(tabf, "Winkelbereich", 20, 360, lambda nn=n: nn.sweep, _set("sweep"), "{:.0f}°")
+            _slider(tabf, "Startwinkel", -180, 360, lambda nn=n: nn.omega, _set("omega"), "{:.0f}°")
+            _slider(tabf, "Skalen-Verzerrung", 0.3, 3.0, lambda nn=n: nn.h, _set("h"), "{:.2f}")
+            _slider(
+                tabf, "Radius (Nadel)", 0.2, 1.0, lambda nn=n: nn.radius, _set("radius"), "{:.2f}"
+            )
             # --- placement inside a cluster face -------------------------- #
             r2 = ttk.Frame(tabf)
             r2.pack(fill="x", pady=2)
@@ -5620,10 +6729,16 @@ def run() -> None:
         # shape (whole gauge)
         srow = ttk.Frame(left)
         srow.grid(row=2, column=0, sticky="w", pady=(8, 0))
-        _num_entry(srow, "Form (Breite:Höhe)", lambda: spec.aspect,
-                   lambda v: setattr(spec, "aspect", v or 1.0))
-        _info(srow, "1 = rund, 6 = breiter Cluster (Fuel L/R+Druck). Nadeln über "
-                    "Mitte X/Y platzieren.")
+        _num_entry(
+            srow,
+            "Form (Breite:Höhe)",
+            lambda: spec.aspect,
+            lambda v: setattr(spec, "aspect", v or 1.0),
+        )
+        _info(
+            srow,
+            "1 = rund, 6 = breiter Cluster (Fuel L/R+Druck). Nadeln über Mitte X/Y platzieren.",
+        )
 
         g_status = ttk.Label(left, text=tr(""), foreground="#c62828")
         g_status.grid(row=3, column=0, sticky="w", pady=(6, 0))
@@ -5661,15 +6776,19 @@ def run() -> None:
             _g_redraw()
             dlg.destroy()
 
-        ttk.Button(btns, text=tr("Übernehmen"), style="Accent.TButton",
-                   command=_apply).pack(side="left")
+        ttk.Button(btns, text=tr("Übernehmen"), style="Accent.TButton", command=_apply).pack(
+            side="left"
+        )
         ttk.Button(btns, text=tr("Abbrechen"), command=_cancel).pack(side="left", padx=6)
         if spec.name in _g_library():
+
             def _unlib():
                 _g_lib_delete(name_var.get().strip() or spec.name)
                 g_status.config(text=tr("Aus der Bibliothek gelöscht (Panel unberührt)."))
-            ttk.Button(btns, text=tr("Aus Bibliothek löschen"), style="Danger.TButton",
-                       command=_unlib).pack(side="left", padx=6)
+
+            ttk.Button(
+                btns, text=tr("Aus Bibliothek löschen"), style="Danger.TButton", command=_unlib
+            ).pack(side="left", padx=6)
         dlg.protocol("WM_DELETE_WINDOW", _cancel)
         dlg.after(50, _preview)
         dlg.lift()
@@ -5714,22 +6833,33 @@ def run() -> None:
     lang_fr.grid(row=0, column=0, sticky="ew")
     lang_fr.columnconfigure(1, weight=1)
 
-    ttk.Label(lang_fr, text=tr("settings.language_label")).grid(row=0, column=0,
-                                                                sticky="w", padx=(0, 10))
+    ttk.Label(lang_fr, text=tr("settings.language_label")).grid(
+        row=0, column=0, sticky="w", padx=(0, 10)
+    )
     lang_var = tk.StringVar(value=language_name(get_language()))
-    lang_box = ttk.Combobox(lang_fr, values=list(available_languages().values()),
-                            textvariable=lang_var, state="readonly", width=18)
+    lang_box = ttk.Combobox(
+        lang_fr,
+        values=list(available_languages().values()),
+        textvariable=lang_var,
+        state="readonly",
+        width=18,
+    )
     lang_box.grid(row=0, column=1, sticky="w")
 
-    ttk.Label(lang_fr, text=tr("settings.language_hint"), foreground=MUTED,
-              font=("TkDefaultFont", 8), wraplength=520, justify="left"
-              ).grid(row=1, column=0, columnspan=2, sticky="w", pady=(6, 0))
+    ttk.Label(
+        lang_fr,
+        text=tr("settings.language_hint"),
+        foreground=MUTED,
+        font=("TkDefaultFont", 8),
+        wraplength=520,
+        justify="left",
+    ).grid(row=1, column=0, columnspan=2, sticky="w", pady=(6, 0))
     restart_note = ttk.Label(lang_fr, text=tr(""), foreground=DANGER)
     restart_note.grid(row=2, column=0, columnspan=2, sticky="w", pady=(8, 0))
 
     def _on_lang_change(_e=None):
         code = code_for_name(lang_var.get())
-        save_language(code)   # persist immediately so the choice is remembered
+        save_language(code)  # persist immediately so the choice is remembered
         set_language(code)
         restart_note.config(text=tr("settings.restart_needed"))
 
@@ -5745,8 +6875,9 @@ def run() -> None:
         except OSError as exc:  # pragma: no cover - platform dependent
             messagebox.showinfo(tr("dialog.note"), str(exc))
 
-    ttk.Button(lang_fr, text=tr("settings.apply_restart"), style="Accent.TButton",
-               command=_restart_gui).grid(row=3, column=0, columnspan=2, sticky="w", pady=(10, 0))
+    ttk.Button(
+        lang_fr, text=tr("settings.apply_restart"), style="Accent.TButton", command=_restart_gui
+    ).grid(row=3, column=0, columnspan=2, sticky="w", pady=(10, 0))
 
     # tab order per user (2026-07-17): Mapper after Connection, then Statistik,
     # Gauges to its right, Profile, Settings last. nb.insert() on an already-managed
@@ -5758,8 +6889,9 @@ def run() -> None:
     ttk.Separator(win, orient="horizontal").grid(row=2, column=0, sticky="ew", pady=(8, 0))
     bar = ttk.Frame(win, padding=(10, 3))
     bar.grid(row=3, column=0, sticky="ew")
-    ttk.Label(bar, text=tr("status.label"), foreground="#666",
-              font=("TkDefaultFont", 8)).pack(side="left", padx=(0, 8))
+    ttk.Label(bar, text=tr("status.label"), foreground="#666", font=("TkDefaultFont", 8)).pack(
+        side="left", padx=(0, 8)
+    )
     lamps: dict[str, tk.Label] = {}
     for key in ("MSFS", "Bridge", "Mapper"):
         lamp = tk.Label(bar, text=f"● {key}", font=("TkDefaultFont", 8), fg="#999")
@@ -5770,8 +6902,9 @@ def run() -> None:
     # title) — the selector itself lives on the Profile tab and can be hidden.
     prof_badge = tk.Label(bar, text=tr(""), font=("TkDefaultFont", 9, "bold"), fg="#1565c0")
     prof_badge.pack(side="right")
-    ttk.Label(bar, text=tr("status.profile"), foreground="#666",
-              font=("TkDefaultFont", 8)).pack(side="right", padx=(0, 4))
+    ttk.Label(bar, text=tr("status.profile"), foreground="#666", font=("TkDefaultFont", 8)).pack(
+        side="right", padx=(0, 4)
+    )
 
     def _update_profile_badge(*_):
         prof_badge.config(text=profile_var.get())
@@ -5823,8 +6956,7 @@ def main() -> None:
         run()
     except Exception as exc:  # pragma: no cover - GUI/display errors
         print(f"GUI konnte nicht starten: {exc}", file=sys.stderr)
-        print("Läuft ein Display? Ist python3-tk installiert (import tkinter)?",
-              file=sys.stderr)
+        print("Läuft ein Display? Ist python3-tk installiert (import tkinter)?", file=sys.stderr)
         raise SystemExit(1) from exc
 
 

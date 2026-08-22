@@ -59,8 +59,14 @@ def test_apply_binding_edit_changes_only_the_target():
             "name": "Aileron (roll)",
             "source": {"kind": "axis", "code": 0},
             "action": {"type": "event", "event": "AILERON_SET_X"},
-            "transform": {"deadzone": 0.03, "curve": "expo", "expo": 0.25,
-                          "invert": True, "out_min": -16383, "out_max": 16383},
+            "transform": {
+                "deadzone": 0.03,
+                "curve": "expo",
+                "expo": 0.25,
+                "invert": True,
+                "out_min": -16383,
+                "out_max": 16383,
+            },
         },
     )
     out = pw.dumps(data)
@@ -177,7 +183,9 @@ def test_set_local_vars_round_trips_and_clears():
 def test_validate_raises_on_bad_edit():
     data = pw.load(PROFILES / "default.yaml")
     pw.apply_binding_edit(
-        data, "yoke", 0,
+        data,
+        "yoke",
+        0,
         {"name": "Broken", "source": {"kind": "axis", "code": 0}, "action": {"type": "nonsense"}},
     )
     with pytest.raises(ValidationError):
@@ -202,9 +210,15 @@ def test_new_profile_validates_and_round_trips():
     assert "name: my_plane" in text
     assert "im Mapper-Tab bearbeiten" in text  # start comment survives
     # and a binding can be added to the empty skeleton without extra scaffolding
-    pw.add_binding(data, "yoke",
-                   {"name": "b", "source": {"kind": "button", "code": 1},
-                    "action": {"type": "event", "event": "AP_MASTER"}})
+    pw.add_binding(
+        data,
+        "yoke",
+        {
+            "name": "b",
+            "source": {"kind": "button", "code": 1},
+            "action": {"type": "event", "event": "AP_MASTER"},
+        },
+    )
     assert pw.validate(data).bindings["yoke"][0].name == "b"
 
 
@@ -235,9 +249,11 @@ def test_apply_binding_edit_can_add_a_detent_split(tmp_path):
         "source": {"kind": "axis", "code": prof.bindings[dev][idx].source.code},
         "action": {"type": "event", "event": "THROTTLE1_SET"},
         "transform": {"out_min": 0, "out_max": 16383},
-        "split": {"at": 120,
-                  "action": {"type": "event", "event": "THROTTLE_REVERSE_THRUST_TOGGLE"},
-                  "transform": {"invert": True}},
+        "split": {
+            "at": 120,
+            "action": {"type": "event", "event": "THROTTLE_REVERSE_THRUST_TOGGLE"},
+            "transform": {"invert": True},
+        },
     }
     pw.apply_binding_edit(data, dev, idx, edited)
     pw.validate(data)
@@ -257,12 +273,18 @@ def test_add_generic_output_led_and_display_round_trip():
     data = pw.new_profile("p")
     # first „+ Ausgabe · LED" -> block created, LED appended, length grown to byte+1
     pw.add_output(data, "mypanel", {"type": "generic_panel", "length": 1})
-    pw.add_output_entry(data, "mypanel", 0, ("leds",),
-                        {"var": "AUTOPILOT MASTER", "byte": 5, "bit": 0, "on_at": 0.5})
+    pw.add_output_entry(
+        data,
+        "mypanel",
+        0,
+        ("leds",),
+        {"var": "AUTOPILOT MASTER", "byte": 5, "bit": 0, "on_at": 0.5},
+    )
     pw.set_output_value(data, "mypanel", 0, ("length",), max(1, 5 + 1))
     # second „+ Ausgabe · Display" -> appended to same block, length grown to offset+cells
-    pw.add_output_entry(data, "mypanel", 0, ("displays",),
-                        {"var": "ALT", "offset": 0, "cells": 5, "decimals": 0})
+    pw.add_output_entry(
+        data, "mypanel", 0, ("displays",), {"var": "ALT", "offset": 0, "cells": 5, "decimals": 0}
+    )
     pw.set_output_value(data, "mypanel", 0, ("length",), max(6, 0 + 5))
 
     prof = pw.validate(data)
