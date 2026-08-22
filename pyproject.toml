@@ -30,7 +30,7 @@ dev = [
 msfs-bridge = "msfs_peripherals_bridge.cli:app"
 
 [project.urls]
-Repository = "https://github.com/creativeSloth/msfs_peripherals-bridge"
+Repository = "https://github.com/creativeSloth/msfs-peripherals-bridge"
 
 [build-system]
 requires = ["hatchling"]
