@@ -424,3 +424,26 @@ def test_panel_layout_persistence_round_trip(tmp_path):
     clear_panel_layout("switch_panel", path=path)
     assert load_panel_layout("switch_panel", path) == {}
     assert load_panel_layout("multi_panel", path) == {"button:7": (0.2, 0.2)}  # kept
+
+
+def test_apply_layout_overrides_resizes_with_four_tuple():
+    from msfs_peripherals_bridge.panel_layout import PanelElement, apply_layout_overrides
+
+    els = [PanelElement(SWITCH, "BAT", 0.0, 0.0, 0.1, 0.1, code=0, live_key=("switch", 0))]
+    out = apply_layout_overrides(els, {"switch:0": (0.5, 0.25, 0.3, 0.2)})
+    assert (out[0].x, out[0].y, out[0].w, out[0].h) == (0.5, 0.25, 0.3, 0.2)
+
+
+def test_panel_layout_persists_size_and_move_keeps_it(tmp_path):
+    from msfs_peripherals_bridge.mapping.loader import (
+        load_panel_layout,
+        save_panel_layout_override,
+    )
+
+    path = tmp_path / "panel-layouts.yaml"
+    # resize -> full (x, y, w, h) stored
+    save_panel_layout_override("dev", "switch:0", 0.1, 0.2, 0.3, 0.4, path=path)
+    assert load_panel_layout("dev", path) == {"switch:0": (0.1, 0.2, 0.3, 0.4)}
+    # a later plain move (no w/h) keeps the previously stored size
+    save_panel_layout_override("dev", "switch:0", 0.5, 0.6, path=path)
+    assert load_panel_layout("dev", path) == {"switch:0": (0.5, 0.6, 0.3, 0.4)}

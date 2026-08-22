@@ -672,15 +672,22 @@ def snap(value: float, step: float) -> float:
 
 
 def apply_layout_overrides(
-    elements: list[PanelElement], overrides: dict[str, tuple[float, float]]
+    elements: list[PanelElement], overrides: dict[str, tuple[float, ...]]
 ) -> list[PanelElement]:
-    """Return elements with x/y replaced from ``{element_key: (x, y)}``. Pure.
+    """Return elements with position (and optionally size) replaced from overrides.
 
-    Elements without an override keep their generated position, so a partial
-    rearrangement (or a stale override after the profile changed) degrades cleanly.
+    Each override is ``(x, y)`` — reposition only — or ``(x, y, w, h)`` — reposition
+    AND resize (the arrange-mode grip / px dialog). Pure. Elements without an override
+    keep their generated geometry, so a partial rearrangement (or a stale override
+    after the profile changed) degrades cleanly.
     """
     out: list[PanelElement] = []
     for el in elements:
         ov = overrides.get(element_key(el))
-        out.append(replace(el, x=ov[0], y=ov[1]) if ov is not None else el)
+        if ov is None:
+            out.append(el)
+        elif len(ov) >= 4:
+            out.append(replace(el, x=ov[0], y=ov[1], w=ov[2], h=ov[3]))
+        else:
+            out.append(replace(el, x=ov[0], y=ov[1]))
     return out

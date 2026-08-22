@@ -13,6 +13,7 @@ what it is handed.
 
 from __future__ import annotations
 
+import re
 from dataclasses import dataclass
 
 from .i18n import tr
@@ -497,6 +498,23 @@ HAT_DIRECTIONS = (("up", "▲ oben"), ("down", "▼ unten"),
                   ("left", "◀ links"), ("right", "▶ rechts"))
 
 
+def next_copy_name(name: str, existing) -> str:
+    """A duplicate's name: ``name`` -> ``name_1``, or the next free ``name_N``.
+
+    A trailing ``_<digits>`` is stripped first so re-duplicating ``Foo_1`` yields
+    ``Foo_2`` (not ``Foo_1_1``); ``N`` climbs until the name is free among
+    ``existing``. Pure."""
+    base = name
+    m = re.match(r"^(.*)_(\d+)$", name)
+    if m:
+        base = m.group(1)
+    taken = set(existing)
+    n = 1
+    while f"{base}_{n}" in taken:
+        n += 1
+    return f"{base}_{n}"
+
+
 def _fmt_num(x: float) -> str:
     return f"{x:g}"
 
@@ -558,7 +576,7 @@ def rows_to_seq_action(on_rows: list[dict], off_rows: list[dict]) -> dict:
     def step(r: dict) -> dict:
         name = (r.get("name") or "").strip()
         if not name:
-            raise ValueError(tr("Sequence-Schritt: Name fehlt."))
+            raise ValueError(tr("Event: Name fehlt."))
         val = _parse_num(r.get("value"), "Wert")
         if r.get("target") == "simvar":
             d: dict = {"simvar": name, "value": val}
@@ -569,7 +587,7 @@ def rows_to_seq_action(on_rows: list[dict], off_rows: list[dict]) -> dict:
         return {"event": name, "value": val}
 
     if not on_rows:
-        raise ValueError(tr("Sequence braucht mindestens einen on-Schritt."))
+        raise ValueError(tr("Mindestens ein Event beim Drücken/Einschalten nötig."))
     action: dict = {"type": "sequence", "on_edge": [step(r) for r in on_rows]}
     off = [step(r) for r in off_rows]
     if off:
@@ -608,7 +626,9 @@ def _action_fields(a: Action, prefix: str = "") -> dict:
 def _transform_fields(t: Transform, prefix: str = "tf_") -> dict:
     """Editor fields for one transform (``prefix`` = ``sp_tf_`` for split)."""
     return {
-        f"{prefix}deadzone": _fmt_num(t.deadzone),
+        f"{prefix}deadzone": _fmt_num(t.deadzone),  # legacy fraction (hidden passthrough)
+        f"{prefix}dz_min": "" if t.deadzone_min is None else str(t.deadzone_min),
+        f"{prefix}dz_max": "" if t.deadzone_max is None else str(t.deadzone_max),
         f"{prefix}curve": str(t.curve),
         f"{prefix}expo": _fmt_num(t.expo),
         f"{prefix}invert": bool(t.invert),
@@ -743,9 +763,31 @@ def _form_action(atype: str, form: dict, original_action: dict | None) -> dict:
 
 def _form_transform(form: dict) -> dict:
     tf: dict = {}
-    dz = _parse_float(form.get("tf_deadzone"), "Deadzone", 0.0)
-    if dz:
-        tf["deadzone"] = dz
+    dz_min_s = str(form.get("tf_dz_min") or "").strip()
+    dz_max_s = str(form.get("tf_dz_max") or "").strip()
+    if dz_min_s or dz_max_s:
+        # explicit raw dead window (user-entered) — plausibility-checked
+        if not (dz_min_s and dz_max_s):
+            raise ValueError(tr("Totzone: min UND max angeben (oder beide leer)."))
+        lo = _parse_int(dz_min_s, "Totzone min")
+        hi = _parse_int(dz_max_s, "Totzone max")
+        if hi <= lo:
+            raise ValueError(tr("Totzone: max muss größer als min sein."))
+        rmin_s = str(form.get("raw_min") or "").strip()
+        rmax_s = str(form.get("raw_max") or "").strip()
+        if rmin_s and rmax_s:  # keep the window inside the axis' raw travel
+            rlo, rhi = _parse_int(rmin_s, "raw_min"), _parse_int(rmax_s, "raw_max")
+            lo_b, hi_b = min(rlo, rhi), max(rlo, rhi)
+            if lo < lo_b or hi > hi_b:
+                raise ValueError(tr(
+                    "Totzone muss innerhalb Eingang min…max liegen ({lo}…{hi}).",
+                    lo=lo_b, hi=hi_b))
+        tf["deadzone_min"] = lo
+        tf["deadzone_max"] = hi
+    else:
+        dz = _parse_float(form.get("tf_deadzone"), "Deadzone", 0.0)
+        if dz:
+            tf["deadzone"] = dz
     curve = form.get("tf_curve") or "linear"
     if curve != "linear":
         tf["curve"] = curve

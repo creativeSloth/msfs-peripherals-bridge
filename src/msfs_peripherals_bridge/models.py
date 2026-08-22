@@ -35,9 +35,23 @@ class Transform(BaseModel):
 
     The pipeline is: raw -> normalise to [-1, 1] -> deadzone -> curve ->
     invert -> rescale to [out_min, out_max].
+
+    The deadzone can be given two ways. The legacy ``deadzone`` is a symmetric
+    *fraction* (0..1) around the calibrated centre. ``deadzone_min``/``deadzone_max``
+    (raw input counts) express an explicit dead *window*: raw readings inside
+    ``[deadzone_min, deadzone_max]`` map to 0 (neutral), and each side outside the
+    window is rescaled smoothly to the full ``[-1, 0]`` / ``[0, 1]`` swing so there
+    is no jump at the window edge. When both window edges are set they take
+    precedence over the fraction.
     """
 
     deadzone: float = Field(0.0, ge=0.0, lt=1.0)
+    deadzone_min: int | None = Field(
+        None, description="Raw dead-window low edge (with deadzone_max)."
+    )
+    deadzone_max: int | None = Field(
+        None, description="Raw dead-window high edge (with deadzone_min)."
+    )
     curve: CurveKind = CurveKind.LINEAR
     expo: float = Field(0.0, ge=0.0, le=1.0, description="Strength of the expo curve.")
     invert: bool = False

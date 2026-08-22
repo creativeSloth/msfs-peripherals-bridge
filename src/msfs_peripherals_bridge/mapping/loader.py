@@ -138,10 +138,11 @@ def delete_output_template(name: str, path: Path | None = None) -> Path:
     return path
 
 
-def load_panel_layout(device_id: str, path: Path | None = None) -> dict[str, tuple[float, float]]:
-    """Load one device's Nachbau layout overrides ``{element_key: (x, y)}``.
+def load_panel_layout(device_id: str, path: Path | None = None) -> dict[str, tuple[float, ...]]:
+    """Load one device's Nachbau layout overrides.
 
-    Empty dict when nothing was rearranged. Consumed by
+    Each value is ``(x, y)`` (repositioned only) or ``(x, y, w, h)`` (also resized
+    in arrange mode). Empty dict when nothing was rearranged. Consumed by
     :func:`..panel_layout.apply_layout_overrides`.
     """
     if path is None:
@@ -152,13 +153,18 @@ def load_panel_layout(device_id: str, path: Path | None = None) -> dict[str, tup
         return {}
     data = yaml.safe_load(path.read_text(encoding="utf-8")) or {}
     dev = (data.get("devices", {}) or {}).get(device_id, {}) or {}
-    return {k: (float(v[0]), float(v[1])) for k, v in dev.items()}
+    return {k: tuple(float(n) for n in v) for k, v in dev.items()}
 
 
 def save_panel_layout_override(
-    device_id: str, key: str, x: float, y: float, path: Path | None = None
+    device_id: str, key: str, x: float, y: float,
+    w: float | None = None, h: float | None = None, path: Path | None = None
 ) -> Path:
-    """Persist where one element was dragged (device id + element key -> x, y)."""
+    """Persist where one element sits (and, when given, its size).
+
+    ``w``/``h`` ``None`` = a plain move: only x/y change, and any previously saved
+    size for this element is preserved. With ``w``/``h`` the full ``[x, y, w, h]`` is
+    stored (arrange-mode resize / px dialog)."""
     if path is None:
         from .. import config
 
@@ -166,8 +172,15 @@ def save_panel_layout_override(
     data = {}
     if path.exists():
         data = yaml.safe_load(path.read_text(encoding="utf-8")) or {}
-    devices = data.setdefault("devices", {})
-    devices.setdefault(device_id, {})[key] = [round(x, 4), round(y, 4)]
+    dev = data.setdefault("devices", {}).setdefault(device_id, {})
+    if w is None and h is None:
+        prev = dev.get(key)
+        if isinstance(prev, list) and len(prev) >= 4:  # keep the existing size
+            dev[key] = [round(x, 4), round(y, 4), prev[2], prev[3]]
+        else:
+            dev[key] = [round(x, 4), round(y, 4)]
+    else:
+        dev[key] = [round(x, 4), round(y, 4), round(float(w), 4), round(float(h), 4)]
     path.parent.mkdir(parents=True, exist_ok=True)
     path.write_text(yaml.safe_dump(data, sort_keys=False, allow_unicode=True),
                     encoding="utf-8")

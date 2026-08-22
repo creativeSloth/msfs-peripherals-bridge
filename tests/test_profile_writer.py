@@ -113,6 +113,37 @@ def test_add_and_remove_binding():
     assert len(pw.validate(data).bindings["yoke"]) == before
 
 
+def test_copy_device_mappings_transfers_independently():
+    src = pw.load(PROFILES / "piper_arrow.yaml")
+    dst = pw.new_profile("Empty")
+    sb, so = pw.device_mapping_counts(src, "switch_panel")
+    assert sb > 0  # the source profile maps the switch panel
+    assert pw.device_mapping_counts(dst, "switch_panel") == (0, 0)
+
+    wb, wo = pw.copy_device_mappings(src, dst, "switch_panel")
+    assert (wb, wo) == (sb, so)
+    prof = pw.validate(dst)
+    assert len(prof.bindings["switch_panel"]) == sb
+
+    # deep copy -> mutating the destination does not touch the source document
+    del dst["bindings"]["switch_panel"][0]
+    assert len(src["bindings"]["switch_panel"]) == sb
+
+
+def test_copy_device_mappings_respects_overwrite_flag():
+    src = pw.load(PROFILES / "cessna_172.yaml")
+    dst = pw.load(PROFILES / "piper_arrow.yaml")  # already maps the yoke
+    before, _ = pw.device_mapping_counts(dst, "yoke")
+    assert before > 0
+    wb, _ = pw.copy_device_mappings(src, dst, "yoke", overwrite=False)
+    assert wb == 0  # existing block left untouched
+    assert pw.device_mapping_counts(dst, "yoke")[0] == before
+    # with overwrite it replaces the block
+    src_n, _ = pw.device_mapping_counts(src, "yoke")
+    pw.copy_device_mappings(src, dst, "yoke", overwrite=True)
+    assert pw.device_mapping_counts(dst, "yoke")[0] == src_n
+
+
 def test_add_binding_creates_new_device_block():
     data = pw.load(PROFILES / "default.yaml")
     assert "trim" not in data.get("bindings", {})

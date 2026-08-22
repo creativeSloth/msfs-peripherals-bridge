@@ -221,6 +221,50 @@ _STRINGS: dict[str, dict[str, str]] = {
         "de": "Prefix-Einrichtung", "en": "Prefix setup",
         "es": "Configuración del prefijo", "fr": "Configuration du préfixe"},
 
+    # ----- device access (udev) rules installer --------------------------- #
+    "udev.label": {
+        "de": "Geräte lesbar (udev):", "en": "Devices readable (udev):",
+        "es": "Dispositivos legibles (udev):", "fr": "Périphériques lisibles (udev) :"},
+    "udev.button": {
+        "de": "Geräte freischalten…", "en": "Enable devices…",
+        "es": "Habilitar dispositivos…", "fr": "Activer les périphériques…"},
+    "udev.installed": {
+        "de": "✓ installiert", "en": "✓ installed",
+        "es": "✓ instalado", "fr": "✓ installé"},
+    "udev.not_installed": {
+        "de": "✗ nicht installiert", "en": "✗ not installed",
+        "es": "✗ no instalado", "fr": "✗ non installé"},
+    "udev.title": {
+        "de": "Geräte freischalten (udev)", "en": "Enable devices (udev)",
+        "es": "Habilitar dispositivos (udev)", "fr": "Activer les périphériques (udev)"},
+    "udev.confirm": {
+        "de": "Die udev-Regeln installieren, damit die App deine Panels/den Yoke "
+              "lesen darf? Es erscheint eine Passwort-Abfrage.",
+        "en": "Install the udev rules so the app may read your panels/yoke? "
+              "A password prompt will appear.",
+        "es": "¿Instalar las reglas udev para que la app pueda leer tus paneles/yugo? "
+              "Aparecerá una solicitud de contraseña.",
+        "fr": "Installer les règles udev pour que l'app puisse lire vos panneaux/yoke ? "
+              "Une demande de mot de passe apparaîtra."},
+    "udev.running": {
+        "de": "Geräte-Regeln werden installiert — eine grafische Passwort-Abfrage "
+              "sollte erscheinen. Danach die Geräte einmal ab- und anstecken.",
+        "en": "Installing device rules — a graphical password prompt should appear. "
+              "Afterwards, unplug and replug your devices once.",
+        "es": "Instalando reglas de dispositivos — debería aparecer una solicitud de "
+              "contraseña. Después, desconecta y reconecta los dispositivos una vez.",
+        "fr": "Installation des règles — une demande de mot de passe devrait apparaître. "
+              "Ensuite, débranchez puis rebranchez vos périphériques une fois."},
+    "udev.no_pkexec": {
+        "de": "Keine grafische Rechte-Abfrage (pkexec) gefunden. Bitte im Terminal "
+              "ausführen:\n\n    sudo ./tools/install-udev-rules.sh",
+        "en": "No graphical privilege prompt (pkexec) found. Please run this in a "
+              "terminal instead:\n\n    sudo ./tools/install-udev-rules.sh",
+        "es": "No se encontró pkexec. Ejecuta esto en una terminal:\n\n"
+              "    sudo ./tools/install-udev-rules.sh",
+        "fr": "pkexec introuvable. Exécutez ceci dans un terminal :\n\n"
+              "    sudo ./tools/install-udev-rules.sh"},
+
     # ===================================================================== #
     # Bulk GUI strings, keyed by their German source text (gettext-msgid style):
     # a missing "de" entry means tr() returns the key itself. Only en/es/fr are

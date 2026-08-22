@@ -359,6 +359,48 @@ bindings:
 # transit / off=up — and dark when the battery is off. Mirrors the SPAD.neXt
 # Arrow logic: GEAR x POSITION (Percent Over 100), green at >=0.95, gated by
 # ELECTRICAL MASTER BATTERY. The nose wheel is the *centre* gear in MSFS.
+  logitech_extreme_3d:
+    - name: Brake
+      source: { kind: button, code: 288 }
+      action: { type: event, event: BRAKES }
+    - name: Parking Brakes
+      source: { kind: button, code: 289 }
+      action: { type: event, event: PARKING_BRAKES }
+    - name: Throttle
+      source: { kind: axis, code: 6, raw_min: 255, raw_max: 0 }
+      action: { type: event, event: THROTTLE1_SET }
+      transform: { out_min: -16383.0, out_max: 16383.0 }
+    - name: Pitch-Axis
+      source: { kind: axis, code: 1, raw_min: 0, raw_max: 1023 }
+      action: { type: event, event: ELEVATOR_SET }
+      transform: { out_min: -16383.0, out_max: 16383.0 }
+    - name: Roll-Axis
+      source: { kind: axis, code: 0, raw_min: 0, raw_max: 1020 }
+      action: { type: event, event: AILERON_SET }
+      transform: { out_min: -16383.0, out_max: 16383.0 }
+    - name: Neues Binding
+      source: { kind: axis, code: 5, raw_min: 0, raw_max: 255 }
+      action: { type: event, event: RUDDER_SET }
+      transform: { out_min: -16383.0, out_max: 16383.0 }
+    - name: Sicht
+      source: { kind: hat, code: 16 }
+      hat:
+        up: { type: event, event: PAN_UP }
+        down: { type: event, event: PAN_DOWN }
+        left: { type: event, event: PAN_LEFT }
+        right: { type: event, event: PAN_RIGHT }
+    - name: Trim up
+      source: { kind: button, code: 291 }
+      action: { type: event, event: ELEV_TRIM_UP }
+    - name: Trim down
+      source: { kind: button, code: 293 }
+      action: { type: event, event: ELEV_TRIM_DN }
+    - name: Flaps up
+      source: { kind: button, code: 290 }
+      action: { type: event, event: FLAPS_UP }
+    - name: Flaps Down
+      source: { kind: button, code: 292 }
+      action: { type: event, event: FLAPS_DOWN }
 outputs:
   switch_panel:
     - type: gear_leds

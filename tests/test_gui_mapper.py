@@ -15,6 +15,7 @@ from msfs_peripherals_bridge.gui_mapper import (
     device_bindings,
     device_outputs,
     form_to_binding,
+    next_copy_name,
     rows_to_seq_action,
     seq_action_to_rows,
 )
@@ -306,6 +307,41 @@ def test_form_round_trip_preserves_binding(binding_dict):
     assert rebuilt == original
 
 
+def test_deadzone_raw_window_round_trip():
+    b = _binding({
+        "name": "Roll",
+        "source": {"kind": "axis", "code": 0, "raw_min": 0, "raw_max": 4095},
+        "action": {"type": "event", "event": "AILERON_SET"},
+        "transform": {"deadzone_min": 1900, "deadzone_max": 2200,
+                      "out_min": -16383, "out_max": 16383},
+    })
+    f = binding_to_form(b)
+    assert (f["tf_dz_min"], f["tf_dz_max"]) == ("1900", "2200")
+    rebuilt = _binding(form_to_binding(f))
+    assert (rebuilt.transform.deadzone_min, rebuilt.transform.deadzone_max) == (1900, 2200)
+
+
+def test_deadzone_window_plausibility():
+    base = binding_to_form(_binding({
+        "name": "Roll",
+        "source": {"kind": "axis", "code": 0, "raw_min": 0, "raw_max": 4095},
+        "action": {"type": "event", "event": "AILERON_SET"},
+    }))
+    with pytest.raises(ValueError, match="größer"):  # max must exceed min
+        form_to_binding({**base, "tf_dz_min": "2200", "tf_dz_max": "1900"})
+    with pytest.raises(ValueError, match="min UND max"):  # both edges required
+        form_to_binding({**base, "tf_dz_min": "1900", "tf_dz_max": ""})
+    with pytest.raises(ValueError, match="innerhalb"):  # inside the raw travel
+        form_to_binding({**base, "tf_dz_min": "1900", "tf_dz_max": "5000"})
+
+
+def test_next_copy_name_increments_and_strips_suffix():
+    assert next_copy_name("Aileron", set()) == "Aileron_1"
+    assert next_copy_name("Aileron", {"Aileron_1"}) == "Aileron_2"
+    assert next_copy_name("Gear_1", {"Gear_1"}) == "Gear_2"  # re-dup strips _N
+    assert next_copy_name("Gear_1", {"Gear_1", "Gear_2"}) == "Gear_3"
+
+
 def test_form_to_binding_preserves_sequence_via_original():
     original_action = {"type": "sequence", "on_edge": [{"simvar": "L:HDG", "value": 1}]}
     form = blank_binding_form("switch")
@@ -368,7 +404,7 @@ def test_rows_to_seq_action_round_trips_through_the_model():
 
 
 def test_rows_to_seq_action_validates_inputs():
-    with pytest.raises(ValueError, match="mindestens einen on-Schritt"):
+    with pytest.raises(ValueError, match="Mindestens ein Event"):
         rows_to_seq_action([], [])
     with pytest.raises(ValueError, match="Name fehlt"):
         rows_to_seq_action([{"target": "event", "name": "  ", "value": "1"}], [])

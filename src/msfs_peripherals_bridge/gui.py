@@ -38,7 +38,7 @@ import threading
 import time
 from pathlib import Path
 
-from . import env_check
+from . import env_check, udev_setup
 from .config import calibration_file, gui_settings_file, profiles_dir, project_root
 from .i18n import tr
 
@@ -1155,22 +1155,24 @@ def run() -> None:
             prefix_var.set(chosen)
             _apply_prefix()
 
-    def _spawn_and_tail(*, title: str, argv: list[str], env: dict[str, str], on_done) -> None:
+    def _spawn_and_tail(*, title: str, argv: list[str], env: dict[str, str], on_done,
+                        log_name: str = "setup-prefix.log",
+                        running_key: str = "conn.setup_running") -> None:
         """Run a one-shot setup subprocess and stream its output into a window."""
         top = tk.Toplevel(win)
         top.title(title)
         top.geometry("760x460")
         top.columnconfigure(0, weight=1)
         top.rowconfigure(1, weight=1)
-        ttk.Label(top, text=tr("conn.setup_running"), padding=6).grid(row=0, column=0,
-                                                                      columnspan=2, sticky="w")
+        ttk.Label(top, text=tr(running_key), padding=6).grid(row=0, column=0,
+                                                             columnspan=2, sticky="w")
         txt = tk.Text(top, wrap="none", background="#0f172a", foreground="#d1d5db",
                       font=("TkFixedFont", 9), borderwidth=0, highlightthickness=0)
         txt.grid(row=1, column=0, sticky="nsew")
         vsb = ttk.Scrollbar(top, orient="vertical", command=txt.yview)
         vsb.grid(row=1, column=1, sticky="ns")
         txt.config(yscrollcommand=vsb.set)
-        setup_log = root_dir / "bridge" / "setup-prefix.log"
+        setup_log = root_dir / "bridge" / log_name
         fh = open(setup_log, "w", encoding="utf-8")  # noqa: SIM115 (closed when the child ends)
         full_env = {**os.environ, **env} if env else None
         proc = subprocess.Popen(argv, cwd=str(root_dir), stdout=fh,
@@ -1208,6 +1210,28 @@ def run() -> None:
             on_done=_render_checks,
         )
 
+    def _render_udev() -> None:
+        if udev_setup.is_installed(root_dir):
+            udev_status.config(text=tr("udev.installed"), fg="#2e7d32")
+        else:
+            udev_status.config(text=tr("udev.not_installed"), fg="#c62828")
+
+    def _run_udev() -> None:
+        argv = udev_setup.install_argv(root_dir)
+        if argv is None:  # no polkit/pkexec — show the terminal fallback
+            messagebox.showinfo(tr("udev.title"), tr("udev.no_pkexec"))
+            return
+        if not messagebox.askyesno(tr("dialog.confirm"), tr("udev.confirm")):
+            return
+        _spawn_and_tail(
+            title=tr("udev.title"),
+            argv=argv,
+            env={},
+            on_done=_render_udev,
+            log_name="udev-install.log",
+            running_key="udev.running",
+        )
+
     b_browse = ttk.Button(prefix_btns, text=tr("conn.browse"), style="Small.TButton",
                           command=_browse_prefix)
     b_save = ttk.Button(prefix_btns, text=tr("conn.save"), style="Small.TButton",
@@ -1230,8 +1254,22 @@ def run() -> None:
     checks_fr.columnconfigure(2, weight=1)
     summary_lbl.grid(row=5, column=0, columnspan=3, sticky="w", pady=(2, 4))
 
+    # Device access (udev) — one-click install of the rules that make the
+    # panels/yoke readable, via a graphical password prompt (no terminal).
+    ttk.Separator(env_fr, orient="horizontal").grid(row=6, column=0, columnspan=3,
+                                                     sticky="ew", pady=4)
+    udev_fr = ttk.Frame(env_fr)
+    udev_fr.grid(row=7, column=0, columnspan=3, sticky="w", pady=(2, 4))
+    ttk.Label(udev_fr, text=tr("udev.label")).pack(side="left")
+    udev_status = tk.Label(udev_fr, text="", font=("TkDefaultFont", 9))
+    udev_status.pack(side="left", padx=(6, 8))
+    b_udev = ttk.Button(udev_fr, text=tr("udev.button"), style="Small.TButton",
+                        command=_run_udev)
+    b_udev.pack(side="left")
+    _attach_tooltip(b_udev, tr("pkexec tools/install-udev-rules.sh  (udev-Regeln, Passwortdialog)"))
+
     env_btns = ttk.Frame(env_fr)
-    env_btns.grid(row=6, column=0, columnspan=3, sticky="w", pady=(2, 0))
+    env_btns.grid(row=8, column=0, columnspan=3, sticky="w", pady=(2, 0))
     b_recheck = ttk.Button(env_btns, text=tr("conn.recheck"), style="Small.TButton",
                            command=_render_checks)
     b_setup = ttk.Button(env_btns, text=tr("conn.setup_prefix"), style="Small.TButton",
@@ -1241,6 +1279,7 @@ def run() -> None:
     _attach_tooltip(b_setup, tr("bash bridge/setup-prefix.sh  (Windows-Python + SimConnect)"))
 
     _render_checks()  # initial green/red status the moment the tab is built
+    _render_udev()
 
     # --- log sub-tab: the tailed bridge "terminal" ------------------------- #
     # bridge.py logs every record to bridge/bridge.log (flushed per record — the
@@ -1591,7 +1630,9 @@ def run() -> None:
     edit_btn = ttk.Button(mhdr, text=tr("✎ Anordnen"),
                           command=lambda: _toggle_edit())
     _attach_tooltip(edit_btn, tr("Elemente frei anordnen: im Nachbau die Knöpfe/"
-                                 "Anzeigen ins Raster ziehen. Pro Gerät gespeichert."))
+                                 "Anzeigen ins Raster ziehen, an der blauen Ecke in der "
+                                 "Größe ziehen (Rechtsklick = Größe in Pixel). Pro Gerät "
+                                 "gespeichert."))
     reset_layout_btn = ttk.Button(mhdr, text=tr("↺"),
                                   command=lambda: _reset_layout())
     _attach_tooltip(reset_layout_btn, tr("Anordnung dieses Geräts zurücksetzen."))
@@ -1644,8 +1685,9 @@ def run() -> None:
     # "sim" maps a sim var -> display-element handles (glow-from-sim readout).
     pcanvas: dict = {"by_index": {}, "live": {}, "sim": {}, "device": None, "hint": None,
                      "edit": False, "W": 0.0, "H": 0.0, "pad": 8,
-                     "drag": {"n": None, "sx": 0.0, "sy": 0.0, "moved": False}}
-    _PANEL_GRID = 1 / 24  # snap step + visible grid spacing in edit mode
+                     "drag": {"n": None, "mode": None, "rid": None,
+                              "sx": 0.0, "sy": 0.0, "moved": False}}
+    _PANEL_GRID = 1 / 16  # snap step + visible grid spacing in edit mode (coarse)
 
     # discovery is lazy (only when the tab is first shown) so startup stays fast.
     mstate: dict[str, object] = {"present": None, "discovered": False, "profile": None,
@@ -2505,7 +2547,9 @@ def run() -> None:
         "sv_simvar": tk.StringVar(), "sv_unit": tk.StringVar(), "sv_invert": tk.BooleanVar(),
         "efv_read": tk.StringVar(), "efv_event": tk.StringVar(), "efv_unit": tk.StringVar(),
         "rpn_code": tk.StringVar(),
-        "tf_deadzone": tk.StringVar(), "tf_curve": tk.StringVar(), "tf_expo": tk.StringVar(),
+        "tf_deadzone": tk.StringVar(),  # legacy 0..1 fraction (hidden passthrough)
+        "tf_dz_min": tk.StringVar(), "tf_dz_max": tk.StringVar(),  # raw dead window
+        "tf_curve": tk.StringVar(), "tf_expo": tk.StringVar(),
         "tf_invert": tk.BooleanVar(), "tf_out_min": tk.StringVar(), "tf_out_max": tk.StringVar(),
         # detent split: the second (below-detent) mapping slot of an axis binding
         "sp_enabled": tk.BooleanVar(), "sp_at": tk.StringVar(),
@@ -2515,7 +2559,9 @@ def run() -> None:
         "sp_sv_invert": tk.BooleanVar(),
         "sp_efv_read": tk.StringVar(), "sp_efv_event": tk.StringVar(),
         "sp_efv_unit": tk.StringVar(), "sp_rpn_code": tk.StringVar(),
-        "sp_tf_deadzone": tk.StringVar(), "sp_tf_curve": tk.StringVar(),
+        "sp_tf_deadzone": tk.StringVar(),
+        "sp_tf_dz_min": tk.StringVar(), "sp_tf_dz_max": tk.StringVar(),
+        "sp_tf_curve": tk.StringVar(),
         "sp_tf_expo": tk.StringVar(), "sp_tf_invert": tk.BooleanVar(),
         "sp_tf_out_min": tk.StringVar(), "sp_tf_out_max": tk.StringVar(),
     }
@@ -2645,7 +2691,7 @@ def run() -> None:
     _TYPE_NOTE = {
         "event": "→ Event feuern", "simvar": "→ Variable setzen",
         "event_from_var": "→ Spezial: Event aus Variable", "rpn": "→ Spezial: RPN",
-        "sequence": "→ Schritte s. unten",
+        "sequence": "→ Events s. unten",
     }
     act_lbl = ttk.Label(ed, text=tr("Aktion"))
     act_lbl.grid(row=2, column=0, sticky="w", padx=(0, 6), pady=2)
@@ -2659,10 +2705,11 @@ def run() -> None:
     type_note = ttk.Label(a1, text=tr(""), foreground="#666")
     type_note.pack(side="left", padx=(0, 8))
     seq_on = tk.BooleanVar(value=False)
-    ttk.Checkbutton(a1, text=tr("Mehrschritt"), variable=seq_on,
+    ttk.Checkbutton(a1, text=tr("Mehrere Events"), variable=seq_on,
                     command=lambda: _seq_toggle()).pack(side="left")
-    _info(a1, "Mehrere Schritte je Flanke ausführen (z. B. beim Einschalten gleich mehrere "
-              "Events/Variablen setzen) — die Schritte unten bearbeiten.")
+    _info(a1, "Statt einer einzelnen Aktion mehrere Events je Betätigung — die Liste unten "
+              "bearbeiten. Bei einem Taster: mehrere Events beim Drücken. Bei einem Schalter: "
+              "getrennt beim Ein- und Ausschalten.")
     afh = ttk.Frame(ed)
     afh.grid(row=2, column=2, sticky="ew", pady=2)
     af: dict = {}
@@ -2706,7 +2753,7 @@ def run() -> None:
     ttk.Entry(fr, textvariable=ev["rpn_code"], width=40).pack(side="left", padx=4)
     af["rpn"] = fr
     fq = ttk.Frame(afh)
-    ttk.Label(fq, text=tr("mehrere Schritte je Flanke — unten bearbeiten ↓"),
+    ttk.Label(fq, text=tr("mehrere Events je Betätigung — unten bearbeiten ↓"),
               foreground="#444").pack(side="left")
     af["sequence"] = fq
 
@@ -2748,11 +2795,17 @@ def run() -> None:
         _info(procrow,
               "Pipeline: Roh → auf -1…1 normieren (Eingang min/max) → Deadzone → Kurve/Expo "
               "→ invert → auf Ausgang min…max skalieren → an Event/SimVar.")
-        ttk.Label(procrow, text=tr("dz")).pack(side="left")
-        ttk.Entry(procrow, textvariable=ev[p + "deadzone"],
-                  width=5).pack(side="left", padx=(2, 2))
-        _info(procrow, "Deadzone (0…1): kleine Auslenkung um die Mitte ignorieren — gegen "
-                       "Zittern/Drift der Mittelstellung. Leer = 0 (aus).")
+        ttk.Label(procrow, text=tr("Totzone (roh)")).pack(side="left")
+        ttk.Label(procrow, text=tr("min")).pack(side="left")
+        ttk.Entry(procrow, textvariable=ev[p + "dz_min"],
+                  width=6).pack(side="left", padx=(2, 2))
+        ttk.Label(procrow, text=tr("max")).pack(side="left")
+        ttk.Entry(procrow, textvariable=ev[p + "dz_max"],
+                  width=6).pack(side="left", padx=(2, 6))
+        _info(procrow, "Totzone in ROH-Eingangswerten: Werte zwischen min und max gelten als "
+                       "neutral (0), außerhalb läuft die Achse stufenlos weiter (kein Sprung). "
+                       "Beide leer = keine Totzone. Plausibel: min < max und innerhalb "
+                       "Eingang min…max.")
         ttk.Label(procrow, text=tr("Kurve")).pack(side="left")
         ttk.Combobox(procrow, textvariable=ev[p + "curve"], values=list(gui_mapper.CURVES),
                      state="readonly", width=8).pack(side="left", padx=(2, 2))
@@ -2834,9 +2887,10 @@ def run() -> None:
     spf["rpn"] = sfr
     _tf_rows(spfr, "sp_tf_")
 
-    # row 4: sequence step editor (only visible when action type = sequence).
-    # A sequence fires several writes per edge — on_edge on press/switch-on,
-    # off_edge on release. Each step fires an event OR sets a SimVar/LVar.
+    # row 4: multi-event editor (only visible when action type = sequence).
+    # Kind-aware: a Taster shows one "Events (beim Drücken)" list (on_edge only); a
+    # Schalter shows "beim Einschalten"/"beim Ausschalten" (on_edge/off_edge). Each
+    # event fires a K: event OR sets a SimVar/LVar.
     seqfr = ttk.Frame(ed)
     seqfr.grid(row=4, column=0, columnspan=3, sticky="ew", pady=2)
     seq_state: dict[str, list] = {"on": [], "off": []}  # each item: dict of StringVars
@@ -2859,15 +2913,21 @@ def run() -> None:
     def _seq_render():
         for w in seqfr.winfo_children():
             w.destroy()
+        # A switch has an on- and an off-position (getrennte Listen); a Taster/other
+        # only fires on press -> a single "Events" list. The off list also stays
+        # visible if a loaded binding already has off-events (no silent data loss).
+        is_switch = ev["kind"].get() == "switch"
         ttk.Label(seqfr, foreground="#444",
-                  text=tr("Sequence — mehrere Schritte je Flanke (Event feuern / SimVar setzen):")
+                  text=tr("Mehrere Events je Betätigung (Event feuern / Variable setzen):")
                   ).pack(anchor="w")
-        for edge, title in (("on", "Beim Einschalten / Drücken (on)"),
-                            ("off", "Beim Ausschalten (off) — leer = momentan")):
+        edges = [("on", tr("Beim Einschalten") if is_switch else tr("Events (beim Drücken)"))]
+        if is_switch or seq_state["off"]:
+            edges.append(("off", tr("Beim Ausschalten — leer = nichts")))
+        for edge, title in edges:
             head = ttk.Frame(seqfr)
             head.pack(anchor="w", pady=(4, 0))
             ttk.Label(head, text=title, foreground="#555").pack(side="left")
-            ttk.Button(head, text=tr("+ Schritt"),
+            ttk.Button(head, text=tr("+ Event"),
                        command=lambda e=edge: _seq_add(e)).pack(side="left", padx=6)
             for i, st in enumerate(seq_state[edge]):
                 row = ttk.Frame(seqfr)
@@ -3226,6 +3286,7 @@ def run() -> None:
         else:
             axfr.grid_remove()
         if atype == "sequence":
+            _seq_render()  # re-render so the list matches the current kind (Taster/Schalter)
             seqfr.grid()
         else:
             seqfr.grid_remove()
@@ -3309,6 +3370,15 @@ def run() -> None:
         ed_win.lift()
         ed_win.focus_set()
 
+    def _axis_out_defaults():
+        """Pre-fill a NEW axis binding's output range with the usual sim swing.
+
+        Almost every ``*_SET`` axis event expects -16383…16383, so a fresh axis
+        starts there instead of the generic 0…1 (the user overrides if needed)."""
+        if ev["kind"].get() == "axis":
+            ev["tf_out_min"].set("-16383")
+            ev["tf_out_max"].set("16383")
+
     def _new_binding(kind="button"):
         dev = _sel(dev_tree)
         if dev is None:
@@ -3316,6 +3386,7 @@ def run() -> None:
             return
         _open_editor(dev, None)
         ev["kind"].set(kind)  # pre-select the source kind (matches the physical control)
+        _axis_out_defaults()
         _ed_show_fields()
 
     def _is_static_panel(dev):
@@ -3534,7 +3605,8 @@ def run() -> None:
             gui_mapper.binding_to_form(binding), _seq_original(binding))
         if binding.when:  # conditions ride along on duplicate
             dup["when"] = [c.model_dump(exclude_defaults=True) for c in binding.when]
-        dup["name"] = binding.name + " (Kopie)"
+        existing = {b.name for b in mstate["profile"].bindings.get(dev, [])}
+        dup["name"] = gui_mapper.next_copy_name(binding.name, existing)
         err = _ed_save(lambda d: profile_writer.add_binding(d, dev, dup, index=idx + 1))
         if err:
             m_state.config(text=f"Nicht dupliziert: {err}")
@@ -4579,26 +4651,37 @@ def run() -> None:
         content = max(1.0, max(el.y + el.h for el in els))
         W, H = cw - 2 * pad, ch - 2 * pad
         pcanvas["W"], pcanvas["H"], pcanvas["pad"] = W, H, pad
-        if pcanvas["edit"]:  # faint snap grid behind the elements
+        if pcanvas["edit"]:  # faint snap grid (both directions) behind the elements
             step = _PANEL_GRID
             k = 0
             while k * step <= 1.0001:
                 gx = pad + k * step * W
                 c.create_line(gx, pad, gx, pad + content * H, fill="#e8e8e8")
                 k += 1
+            m = 0
+            while m * step <= content + 0.0001:
+                gy = pad + m * step * H
+                c.create_line(pad, gy, pad + W, gy, fill="#e8e8e8")
+                m += 1
         for n, el in enumerate(els):
             tag = f"pel:{n}"
             pcanvas["by_index"][n] = el
             x0, y0 = pad + el.x * W, pad + el.y * H
             x1, y1 = x0 + el.w * W, y0 + el.h * H
             _PANEL_DRAW.get(el.kind, _draw_block)(c, tag, el, x0, y0, x1, y1)
+            if pcanvas["edit"] and el.kind != panel_layout.HEADER:
+                # bottom-right resize grip (drawn on top so it wins the hit-test)
+                gs = 9
+                c.create_rectangle(x1 - gs, y1 - gs, x1, y1, fill="#2563eb",
+                                   outline="white", tags=(f"pgrip:{n}",))
         content_px = pad + content * H + pad
         c.configure(scrollregion=(0, 0, cw, content_px))
         if content <= 1.0:
             c.yview_moveto(0.0)  # nothing to scroll
         pcanvas["hint"] = c.create_text(
             pad, content_px - 4, anchor="sw", fill=MUTED, font=("TkDefaultFont", 8),
-            text=(tr("Anordnen: Element ins Raster ziehen · „✎ Anordnen“ zum Beenden")
+            text=(tr("Anordnen: ziehen = verschieben · blaue Ecke ziehen = Größe · "
+                     "Rechtsklick = Größe in Pixel · „✓ Fertig“ zum Beenden")
                   if pcanvas["edit"] else
                   tr("Klick: gemappt → Editor, leerer Platzhalter → neu mappen · "
                      "Schalter/Achsen live")))
@@ -4619,12 +4702,29 @@ def run() -> None:
                 return int(t.split(":")[1])
         return None
 
+    def _panel_grip_at(_event):
+        """The element index whose resize grip is under the cursor, or None."""
+        for t in panel_canvas.gettags("current"):
+            if t.startswith("pgrip:"):
+                return int(t.split(":")[1])
+        return None
+
     def _panel_press(event):
-        if pcanvas["edit"]:  # edit mode: begin dragging the element under the cursor
+        if pcanvas["edit"]:  # edit mode: begin a move OR a resize (grip under cursor)
+            cx, cy = panel_canvas.canvasx(event.x), panel_canvas.canvasy(event.y)
+            gi = _panel_grip_at(event)
+            if gi is not None:  # resize: rubber-band from the element's fixed top-left
+                el = pcanvas["by_index"].get(gi)
+                W, H, pad = pcanvas["W"] or 1, pcanvas["H"] or 1, pcanvas["pad"]
+                x0, y0 = pad + el.x * W, pad + el.y * H
+                rid = panel_canvas.create_rectangle(x0, y0, cx, cy, outline="#2563eb",
+                                                    dash=(3, 2), width=2)
+                pcanvas["drag"].update(mode="resize", n=gi, x0=x0, y0=y0, rid=rid,
+                                       moved=False)
+                return
             n = _panel_idx_at(event)
             el = pcanvas["by_index"].get(n) if n is not None else None
-            cx, cy = panel_canvas.canvasx(event.x), panel_canvas.canvasy(event.y)
-            pcanvas["drag"].update(n=n, sx=cx, sy=cy, lx=cx, ly=cy,
+            pcanvas["drag"].update(mode="move", n=n, rid=None, sx=cx, sy=cy, lx=cx, ly=cy,
                                    ox=(el.x if el else 0.0), oy=(el.y if el else 0.0),
                                    moved=False)
             return
@@ -4635,7 +4735,15 @@ def run() -> None:
         if not pcanvas["edit"] or d["n"] is None:
             return
         cx, cy = panel_canvas.canvasx(event.x), panel_canvas.canvasy(event.y)
+        if d["mode"] == "resize":  # stretch the rubber-band; keep a minimum cell
+            W, H = pcanvas["W"] or 1, pcanvas["H"] or 1
+            x1 = max(d["x0"] + _PANEL_GRID * W, cx)
+            y1 = max(d["y0"] + _PANEL_GRID * H, cy)
+            panel_canvas.coords(d["rid"], d["x0"], d["y0"], x1, y1)
+            d["moved"] = True
+            return
         panel_canvas.move(f"pel:{d['n']}", cx - d["lx"], cy - d["ly"])
+        panel_canvas.move(f"pgrip:{d['n']}", cx - d["lx"], cy - d["ly"])
         d["lx"], d["ly"], d["moved"] = cx, cy, True
 
     def _panel_drop(event):
@@ -4645,15 +4753,30 @@ def run() -> None:
         n = d["n"]
         d["n"] = None
         el = pcanvas["by_index"].get(n)
+        W, H = pcanvas["W"] or 1, pcanvas["H"] or 1
+        from .mapping.loader import save_panel_layout_override
+        if d["mode"] == "resize":
+            if d["rid"] is not None:
+                panel_canvas.delete(d["rid"])
+                d["rid"] = None
+            if el is None or not d["moved"]:
+                return
+            # New size = grip pixel delta from the fixed top-left, normalised + snapped.
+            nw = panel_layout.snap((panel_canvas.canvasx(event.x) - d["x0"]) / W, _PANEL_GRID)
+            nh = panel_layout.snap((panel_canvas.canvasy(event.y) - d["y0"]) / H, _PANEL_GRID)
+            nw = max(_PANEL_GRID, min(1.0 - el.x, nw))
+            nh = max(_PANEL_GRID, nh)
+            save_panel_layout_override(pcanvas["device"], panel_layout.element_key(el),
+                                       el.x, el.y, nw, nh)
+            _render_panel_canvas(pcanvas["device"])
+            return
         if el is None or not d["moved"]:
             return
         # New position = original + total pixel delta, back to normalised, snapped.
-        W, H = pcanvas["W"] or 1, pcanvas["H"] or 1
         nx = d["ox"] + (panel_canvas.canvasx(event.x) - d["sx"]) / W
         ny = d["oy"] + (panel_canvas.canvasy(event.y) - d["sy"]) / H
         nx = max(0.0, min(1.0 - el.w, panel_layout.snap(nx, _PANEL_GRID)))
         ny = max(0.0, panel_layout.snap(ny, _PANEL_GRID))
-        from .mapping.loader import save_panel_layout_override
         save_panel_layout_override(pcanvas["device"], panel_layout.element_key(el), nx, ny)
         _render_panel_canvas(pcanvas["device"])
 
@@ -4676,6 +4799,7 @@ def run() -> None:
             ev["kind"].set(src)
             ev["code"].set(str(el.code))
             ev["name"].set(el.label or tr("Neues Binding"))
+            _axis_out_defaults()
             _ed_show_fields()
             ed_win.title(f"Neu mappen — {dev} · {el.label} (Code {el.code})")
 
@@ -4687,12 +4811,39 @@ def run() -> None:
             detail.see(ref)
         fn()
 
+    def _panel_size_dialog(el):
+        """Set an element's size in exact pixels (arrange mode). No grid snap — the
+        px value is honoured directly (converted to the layout's normalised units at
+        the current canvas size)."""
+        W, H = pcanvas["W"] or 1, pcanvas["H"] or 1
+        w = simpledialog.askinteger(tr("Breite"), tr("Breite in Pixel:"),
+                                    initialvalue=round(el.w * W), minvalue=8, parent=win)
+        if w is None:
+            return
+        h = simpledialog.askinteger(tr("Höhe"), tr("Höhe in Pixel:"),
+                                    initialvalue=round(el.h * H), minvalue=8, parent=win)
+        if h is None:
+            return
+        nw = min(1.0 - el.x, w / W)
+        nh = h / H
+        from .mapping.loader import save_panel_layout_override
+        save_panel_layout_override(pcanvas["device"], panel_layout.element_key(el),
+                                   el.x, el.y, nw, nh)
+        _render_panel_canvas(pcanvas["device"])
+
     def _panel_menu(event):
         """Right-click on a Nachbau element: Bearbeiten / Duplizieren / Entfernen —
-        the per-element actions, now that the Nachbau is the single mapper surface."""
-        if pcanvas["edit"]:  # in arrange mode a right-click shouldn't map/remove
-            return
+        the per-element actions, now that the Nachbau is the single mapper surface.
+        In arrange mode it instead offers the exact-pixel size dialog."""
         el = _panel_el_at(event)
+        if pcanvas["edit"]:  # arrange mode: right-click sets the exact px size
+            if el is None or el.kind == panel_layout.HEADER:
+                return
+            menu = tk.Menu(panel_canvas, tearoff=0)
+            menu.add_command(label=tr("Größe in Pixel…"),
+                             command=lambda: _panel_size_dialog(el))
+            menu.tk_popup(event.x_root, event.y_root)
+            return
         if el is None or el.kind == panel_layout.HEADER:
             return
         menu = tk.Menu(panel_canvas, tearoff=0)
@@ -4811,12 +4962,87 @@ def run() -> None:
             n = sum(1 for r in rows if r.present)
             m_state.config(text=f"{n}/{len(rows)} verbunden · Profil „{prof.name}“")
 
+    def _transfer_device(device_id):
+        """Copy this device's bindings+outputs from the current profile into another,
+        with an overwrite prompt if the target already maps the device."""
+        prof = mstate.get("profile") or _current_profile()
+        if prof is None:
+            return
+        nb_in = len(prof.bindings.get(device_id, []))
+        no_out = len(prof.outputs.get(device_id, []))
+        if nb_in == 0 and no_out == 0:
+            messagebox.showinfo(tr("Übertragen"),
+                                tr("Dieses Gerät hat im aktuellen Profil keine Mappings."))
+            return
+        cur = profile_var.get()
+        targets = [p for p in _list_profiles(root_dir) if p != cur]
+        if not targets:
+            messagebox.showinfo(tr("Übertragen"), tr("Kein anderes Profil vorhanden."))
+            return
+        dlg = tk.Toplevel(win)
+        dlg.title(tr("Mappings übertragen"))
+        dlg.transient(win)
+        ttk.Label(dlg, text=tr("„{dev}“ ({nb} Eingaben / {no} Anzeigen) übertragen nach:",
+                               dev=device_id, nb=nb_in, no=no_out)
+                  ).pack(anchor="w", padx=10, pady=(10, 4))
+        lb = tk.Listbox(dlg, height=min(8, len(targets)), exportselection=False)
+        for t in targets:
+            lb.insert("end", t)
+        lb.selection_set(0)
+        lb.pack(fill="both", expand=True, padx=10)
+
+        def _do():
+            sel = lb.curselection()
+            if not sel:
+                return
+            target = targets[sel[0]]
+            dst_path = profiles_dir(root_dir) / f"{target}.yaml"
+            try:
+                src_data = profile_writer.load(profiles_dir(root_dir) / f"{cur}.yaml")
+                dst_data = profile_writer.load(dst_path)
+                eb, eo = profile_writer.device_mapping_counts(dst_data, device_id)
+                if (eb or eo) and not messagebox.askyesno(
+                        tr("Überschreiben?"),
+                        tr("„{t}“ hat für dieses Gerät schon {eb} Eingaben / {eo} Anzeigen. "
+                           "Überschreiben?", t=target, eb=eb, eo=eo), parent=dlg):
+                    return
+                wb, wo = profile_writer.copy_device_mappings(src_data, dst_data, device_id)
+                profile_writer.validate(dst_data)  # reject a broken result before writing
+                profile_writer.dump(dst_data, dst_path)
+            except Exception as exc:
+                messagebox.showerror(tr("Übertragen"), str(exc), parent=dlg)
+                return
+            dlg.destroy()
+            m_state.config(text=tr("„{dev}“ → „{t}“: {wb} Eingaben / {wo} Anzeigen übertragen ✓",
+                                   dev=device_id, t=target, wb=wb, wo=wo))
+            if target == profile_var.get():
+                _mapper_reload(rediscover=False)
+
+        btns = ttk.Frame(dlg)
+        btns.pack(fill="x", padx=10, pady=10)
+        ttk.Button(btns, text=tr("Übertragen"), style="Success.TButton",
+                   command=_do).pack(side="left")
+        ttk.Button(btns, text=tr("Abbrechen"), command=dlg.destroy).pack(side="right")
+
+    def _dev_menu(event):
+        """Right-click on a device row → transfer its mappings to another profile."""
+        row = dev_tree.identify_row(event.y)
+        if not row:
+            return
+        dev_tree.selection_set(row)
+        dev_tree.focus(row)
+        menu = tk.Menu(dev_tree, tearoff=0)
+        menu.add_command(label=tr("Mappings in anderes Profil übertragen…"),
+                         command=lambda: _transfer_device(row))
+        menu.tk_popup(event.x_root, event.y_root)
+
     def _on_kind_change(_e=None):
         ev["kind"].set(_kind_of_label.get(kind_disp.get(), kind_disp.get()))
         _ed_show_fields()
 
     kind_cb.bind("<<ComboboxSelected>>", _on_kind_change)
     dev_tree.bind("<<TreeviewSelect>>", lambda *_: _render_detail(_sel(dev_tree)))
+    dev_tree.bind("<Button-3>", _dev_menu)
     detail.bind("<Return>", _on_detail_activate)
     detail.bind("<Double-Button-1>", _on_detail_double)
     profile_var.trace_add("write", lambda *_: _mapper_reload(rediscover=False))

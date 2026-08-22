@@ -30,6 +30,7 @@ blocks; comments, quotes, structure and every ``bindings`` line are byte-exact.
 
 from __future__ import annotations
 
+import copy
 from pathlib import Path
 
 from ruamel.yaml import YAML
@@ -341,3 +342,48 @@ def remove_output(data: CommentedMap, device_id: str, index: int) -> None:
         del data["outputs"][device_id]  # keep the YAML free of empty stubs
     if not data["outputs"]:
         del data["outputs"]
+
+
+# --------------------------------------------------------------------------- #
+# transfer a whole device's mappings between profiles (Mapper right-click)
+# --------------------------------------------------------------------------- #
+def _device_block(data: CommentedMap, block: str, device_id: str):
+    """The ``bindings``/``outputs`` node one profile assigns to a device, or None."""
+    node = data.get(block)
+    if isinstance(node, CommentedMap) and device_id in node:
+        return node[device_id]
+    return None
+
+
+def device_mapping_counts(data: CommentedMap, device_id: str) -> tuple[int, int]:
+    """(n_bindings, n_outputs) a profile currently assigns to ``device_id``."""
+    binds = _device_block(data, "bindings", device_id)
+    outs = _device_block(data, "outputs", device_id)
+    return (len(binds) if binds is not None else 0,
+            len(outs) if outs is not None else 0)
+
+
+def copy_device_mappings(
+    src: CommentedMap, dst: CommentedMap, device_id: str, overwrite: bool = True
+) -> tuple[int, int]:
+    """Copy a device's ``bindings`` + ``outputs`` YAML nodes from ``src`` into ``dst``.
+
+    Deep-copies the source nodes so comments/flow-style survive and the two
+    documents stay independent. When ``overwrite`` the device's existing dst block
+    is replaced; otherwise a block already present in dst is left untouched (and not
+    counted). Returns the (n_bindings, n_outputs) actually written. Validate ``dst``
+    before saving."""
+    written = [0, 0]
+    for i, block in enumerate(("bindings", "outputs")):
+        node = _device_block(src, block, device_id)
+        if node is None or len(node) == 0:
+            continue
+        target = dst.get(block)
+        if not isinstance(target, CommentedMap):
+            target = CommentedMap()
+            dst[block] = target
+        if device_id in target and not overwrite:
+            continue
+        target[device_id] = copy.deepcopy(node)
+        written[i] = len(node)
+    return tuple(written)  # type: ignore[return-value]
