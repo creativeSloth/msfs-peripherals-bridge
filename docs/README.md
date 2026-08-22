@@ -14,6 +14,7 @@ one-line description each.
 | **Install the software and start it** — no Linux/Python knowledge, copy-paste only | **[QUICKSTART.md](QUICKSTART.md)** |
 | Set up a fresh machine in full — udev, the Wine bridge, all the details | [INSTALL.md](INSTALL.md) |
 | Use **hardware that isn't one of the supported devices** — detect, register, teach, map it | [geraete-workflow.md](geraete-workflow.md) 🇩🇪 |
+| **Reuse an existing SPAD.neXt profile** — pull its mapping semantics into ours | [spadnext-import.md](spadnext-import.md) |
 | Run it day-to-day and tune a mapping live | [running.md](running.md) |
 | Look up a **command** | [cheatsheet.md](cheatsheet.md) |
 | Look up a **SimVar / event** for a mapping | [simvars-reference.md](simvars-reference.md) |
@@ -58,6 +59,7 @@ Separate programs, not required by this project.
 | Document | What it covers |
 |---|---|
 | [spadnext-install.md](spadnext-install.md) 🇩🇪 | Installing SPAD.neXt into the MSFS Proton prefix. |
+| [spadnext-import.md](spadnext-import.md) | Reuse an existing SPAD.neXt profile: extract its mapping semantics into ours (`tools/spadnext_import.py`). |
 | [littlenavmap-install.md](littlenavmap-install.md) 🇩🇪 | Installing Little Navmap. |
 | [justflight-bundle-install.md](justflight-bundle-install.md) 🇩🇪 | Installing a JustFlight aircraft bundle *(personal notes for this machine)*. |
 
