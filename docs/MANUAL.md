@@ -1,11 +1,11 @@
-# Handbook — msfs-peripherals-bridge
+# User Manual — msfs-peripherals-bridge
 
 The **one** document that takes you from zero to flying: install, set up devices,
 map, share profiles, and the bridge to real MSFS. For **everyone** — no Python,
 Linux or terminal experience required.
 
 > **How to read this:**
-> - Just get going? → **[Part A · Quick start](#part-a--quick-start-4-commands)** (4 commands, then everything is buttons).
+> - Just get going? → **[Part A · Quick start](#part-a--quick-start)** (a handful of commands, then everything is buttons).
 > - Full detail, your own hardware, real flying? → **[Part B](#part-b--the-full-guide)**.
 > - **Every step** has a **🖱 in the app** *and* a **⌨ in the terminal** path — take whichever you prefer.
 > - Green **✓** boxes tell you how to know a step worked.
@@ -33,7 +33,7 @@ mappings works with the app alone.
 
 ---
 
-# Part A · Quick start (4 commands)
+# Part A · Quick start
 
 For you if you **don't know Python/Linux** and just want to paste a few lines.
 Afterwards almost everything runs via **buttons in the app**.
@@ -97,7 +97,7 @@ the catalog and unlock rules already fit.
 ## 1. Install
 
 The standard path (git+curl → `git clone` → `./install.sh`) is in
-[Part A](#part-a--quick-start-4-commands); the script fetches uv+Python, builds
+[Part A](#part-a--quick-start); the script fetches uv+Python, builds
 the venv and installs packages + udev rules.
 
 Prefer to do it by hand? [`uv`](https://docs.astral.sh/uv/) fetches Python
@@ -317,7 +317,7 @@ Python, `SimConnect.dll`, Proton, scripts — green/red):
    ```bash
    ./tools/find-prefix.sh
    ```
-   Paste the printed folder into the **"Prefix"** field → **Save**.
+   Paste the printed folder into the **"MSFS Proton prefix"** field → **Save**.
 2. Click **"Set up prefix…"** (downloads Windows Python + SimConnect into the
    prefix — needs internet). Wait until it finishes.
 3. Click **"Re-check"**.
