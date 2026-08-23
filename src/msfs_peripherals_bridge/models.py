@@ -709,16 +709,69 @@ class RadioPanelOutput(BaseModel):
         return names
 
 
+LedOp = Literal["<", "<=", ">", ">=", "==", "!="]
+
+
+def led_compare(value: float, op: str, threshold: float) -> bool:
+    """Evaluate ``value <op> threshold`` for a generic-LED condition. Shared by the
+    controller and the GUI glow so both light identically."""
+    if op == "<":
+        return value < threshold
+    if op == "<=":
+        return value <= threshold
+    if op == ">":
+        return value > threshold
+    if op == ">=":
+        return value >= threshold
+    if op == "==":
+        return value == threshold
+    if op == "!=":
+        return value != threshold
+    return False
+
+
 class GenericLed(BaseModel):
     """One LED on a user-declared panel: a bit in a feature-report data byte, lit
     straight from a sim variable. The generic counterpart to the hardcoded panel
-    LEDs — a stranger maps their own device's lamps without a bespoke controller."""
+    LEDs — a stranger maps their own device's lamps without a bespoke controller.
+
+    The lit condition is up to **two comparisons** (``value <op> threshold``),
+    combined with AND, so one entry covers every case without declaring the same
+    LED twice:
+
+    * one comparison             → e.g. ``>= 0.5`` (indicator on), ``< 30`` (on
+      below a limit), ``== 2`` (a specific mode), ``!= 0`` …;
+    * two comparisons            → a window, e.g. ``>= 0.01`` AND ``< 0.95`` for a
+      "gear in transit" lamp (on once it leaves locked, off again once fully up).
+
+    ``on_at``/``on_op`` is the first comparison, ``off_at``/``off_op`` the second;
+    a ``null`` threshold drops that comparison. The default ``>=`` / ``<`` keeps
+    old profiles (``on_at``-only, ``on_at`` + ``off_at``) behaving as before.
+    """
 
     name: str = Field("", description="Element alias (for the GUI; not used at runtime).")
-    var: str = Field(..., description="Sim variable; the LED lights when var >= on_at.")
+    var: str = Field(..., description="Sim variable driving the LED.")
     byte: int = Field(0, ge=0, description="Data-byte index in the feature report (after id).")
     bit: int = Field(..., ge=0, le=7, description="Bit within that byte.")
-    on_at: float = Field(0.5, description="Threshold: var >= on_at -> lit.")
+    on_at: float | None = Field(0.5, description="First comparison threshold. null = no first test.")
+    on_op: LedOp = Field(">=", description="Operator for the first comparison (value <op> on_at).")
+    off_at: float | None = Field(
+        None, description="Second comparison threshold. null = no second test."
+    )
+    off_op: LedOp = Field("<", description="Operator for the second comparison (value <op> off_at).")
+
+    def lit(self, value: float | None) -> bool:
+        """Whether the LED is on for a sim ``value`` (None = no reading yet → off)."""
+        if value is None:
+            return False
+        conds = []
+        if self.on_at is not None:
+            conds.append(led_compare(value, self.on_op, self.on_at))
+        if self.off_at is not None:
+            conds.append(led_compare(value, self.off_op, self.off_at))
+        if not conds:  # no threshold set at all → treat as a plain boolean lamp
+            return value >= 0.5
+        return all(conds)
 
 
 class GenericDisplay(BaseModel):

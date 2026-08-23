@@ -111,6 +111,24 @@ _STRINGS: dict[str, dict[str, str]] = {
         "es": "Detener todo (limpiar)",
         "fr": "Tout arrêter (nettoyer)",
     },
+    "conn.start_all": {
+        "de": "Alles starten (Bridge + Mapper)",
+        "en": "Start everything (bridge + mapper)",
+        "es": "Iniciar todo (puente + mapeo)",
+        "fr": "Tout démarrer (pont + mappage)",
+    },
+    "conn.start_all_no_port": {
+        "de": "Die Bridge lauscht noch nicht auf Port 7842 — der Mapper wurde NICHT "
+        "gestartet. Läuft MSFS mit geladenem Flug? Dann „Alles starten“ erneut klicken "
+        "(oder nur den Mapper starten).",
+        "en": "The bridge is not listening on port 7842 yet — the mapper was NOT "
+        "started. Is MSFS running with a flight loaded? Then click “Start everything” "
+        "again (or start just the mapper).",
+        "es": "El puente aún no escucha en el puerto 7842: el mapeo NO se inició. "
+        "¿MSFS está en marcha con un vuelo cargado? Pulsa «Iniciar todo» de nuevo.",
+        "fr": "Le pont n'écoute pas encore sur le port 7842 — le mappage n'a PAS "
+        "démarré. MSFS tourne-t-il avec un vol chargé ? Recliquez « Tout démarrer ».",
+    },
     "conn.single_client_note": {
         "de": "Die Bridge ist single-client — Mapper ODER ein Werkzeug.",
         "en": "The bridge is single-client — the mapper OR one tool.",
@@ -141,6 +159,35 @@ _STRINGS: dict[str, dict[str, str]] = {
         "(détection automatique de Steam).",
     },
     "conn.browse": {"de": "Durchsuchen…", "en": "Browse…", "es": "Examinar…", "fr": "Parcourir…"},
+    "conn.detect": {"de": "Suchen…", "en": "Detect…", "es": "Detectar…", "fr": "Détecter…"},
+    "conn.detect_title": {
+        "de": "Prefix suchen",
+        "en": "Detect prefix",
+        "es": "Detectar prefijo",
+        "fr": "Détecter le préfixe",
+    },
+    "conn.detect_none": {
+        "de": "Kein MSFS-Prefix gefunden. Wurde MSFS über Steam+Proton schon einmal "
+        "gestartet? Sonst den Pfad per „Durchsuchen…“ wählen.",
+        "en": "No MSFS prefix found. Has MSFS been started once via Steam+Proton? "
+        "Otherwise pick the path via “Browse…”.",
+        "es": "No se encontró prefijo de MSFS. ¿Se inició MSFS con Steam+Proton? "
+        "Si no, elige la ruta con «Examinar…».",
+        "fr": "Aucun préfixe MSFS trouvé. MSFS a-t-il été lancé via Steam+Proton ? "
+        "Sinon, choisissez le chemin via « Parcourir… ».",
+    },
+    "conn.detect_multi": {
+        "de": "Mehrere Prefixe gefunden — wähle das richtige:",
+        "en": "Several prefixes found — pick the right one:",
+        "es": "Varios prefijos encontrados: elige el correcto:",
+        "fr": "Plusieurs préfixes trouvés — choisissez le bon :",
+    },
+    "conn.detect_found": {
+        "de": "Prefix gesetzt: {path}",
+        "en": "Prefix set: {path}",
+        "es": "Prefijo establecido: {path}",
+        "fr": "Préfixe défini : {path}",
+    },
     "conn.save": {"de": "Speichern", "en": "Save", "es": "Guardar", "fr": "Enregistrer"},
     "conn.recheck": {
         "de": "Erneut prüfen",

@@ -15,6 +15,7 @@ from msfs_peripherals_bridge.panel_layout import (
     format_segment,
     has_hand_layout,
     lamp_lit,
+    led_condition_text,
     panel_layout,
 )
 
@@ -169,6 +170,49 @@ def test_lamp_lit_reads_bool_number_and_threshold():
     assert lamp_lit(1.0, 0.5) is True and lamp_lit(0.0, 0.5) is False
     assert lamp_lit(0.4, 0.5) is False and lamp_lit(0.5, 0.5) is True
     assert lamp_lit("on", None) is True  # non-numeric truthy string -> lit
+
+
+def test_lamp_lit_window_and_below():
+    # below-only (no lower bound): lit under the ceiling, dark at/above it
+    assert lamp_lit(20, None, 30) is True and lamp_lit(30, None, 30) is False
+    # window: lit strictly inside, dark past either edge
+    assert lamp_lit(0.5, 0.01, 0.95) is True
+    assert lamp_lit(1.0, 0.01, 0.95) is False and lamp_lit(0.0, 0.01, 0.95) is False
+
+
+def test_led_condition_text_describes_each_shape():
+    assert led_condition_text("V", 0.5, None) == "V >= 0.5"
+    assert led_condition_text("V", None, 30) == "V < 30"
+    assert led_condition_text("POS", 0.01, 0.95) == "POS >= 0.01 und POS < 0.95"
+    assert led_condition_text("M", 2, None, on_op="==") == "M == 2"
+
+
+def test_generic_led_appended_below_switch_panel_hand_layout():
+    """A generic_panel LED added to the switch panel is shown (below the hand layout)
+    even though the hand builder only knows its own controls + gear LEDs."""
+    prof = Profile.model_validate(
+        {
+            "name": "T",
+            "outputs": {
+                "switch_panel": [
+                    {"type": "gear_leds"},
+                    {
+                        "type": "generic_panel",
+                        "length": 1,
+                        "leds": [
+                            {"name": "AP warn", "var": "W", "bit": 0, "on_at": None, "off_at": 30}
+                        ],
+                    },
+                ]
+            },
+        }
+    )
+    els = panel_layout(prof, "switch_panel")
+    extra = [e for e in els if e.ref == "out:1:leds/0"]
+    assert len(extra) == 1  # the generic LED IS in the layout (ref = real output index 1)
+    led = extra[0]
+    assert led.kind == LED and led.var == "W" and led.off_at == 30
+    assert led.y > 1.0  # placed below the normalised hand layout (canvas scrolls to it)
 
 
 def test_format_segment_is_controller_faithful():

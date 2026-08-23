@@ -89,3 +89,31 @@ def test_simconnect_versioned_dir(tmp_path, monkeypatch):
     (sc / "SimConnect.dll").write_text("")
     items = {c.key: c for c in env_check.check_prerequisites(pfx, repo)}
     assert items["check.simconnect"].ok
+
+
+def test_detect_prefixes_finds_standard_roots(tmp_path, monkeypatch):
+    monkeypatch.delenv("STEAM_ROOT", raising=False)
+    native = tmp_path / ".steam" / "steam" / "steamapps" / "compatdata" / "1250410" / "pfx"
+    flatpak = (
+        tmp_path
+        / ".var"
+        / "app"
+        / "com.valvesoftware.Steam"
+        / ".local"
+        / "share"
+        / "Steam"
+        / "steamapps"
+        / "compatdata"
+        / "1250410"
+        / "pfx"
+    )
+    native.mkdir(parents=True)
+    flatpak.mkdir(parents=True)
+    found = env_check.detect_prefixes(home=tmp_path)
+    assert native in found and flatpak in found
+    assert found[0] == native  # standard native root ranks first
+
+
+def test_detect_prefixes_empty_when_none(tmp_path, monkeypatch):
+    monkeypatch.delenv("STEAM_ROOT", raising=False)
+    assert env_check.detect_prefixes(home=tmp_path) == []

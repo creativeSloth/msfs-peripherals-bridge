@@ -238,7 +238,9 @@ From here you **don't need MSFS yet**. In the **Mapper tab**:
 
 1. **Pick the device on the left** — the **replica** shows switches/axes/displays
    at their physical positions. With **„✎ Anordnen"** (Arrange) you drag elements
-   into the grid (saved per device).
+   into the grid; a **right-click → „Größe & Position…"** opens one dialog for exact
+   **width / height / X / Y in pixels**, with a **„Raster ignorieren"** (ignore
+   grid) box — off = snap to the grid, on = place pixel-exact. Saved per device.
 2. **Map inputs** — **„+ Eingabe"** (+ Input) (or click an element) → pick the
    source via **„📋 Benannt"** (Named) from the taught inputs (instead of raw
    codes), set the target event/variable via **„Wählen…"** (Choose…), then
@@ -250,6 +252,39 @@ From here you **don't need MSFS yet**. In the **Mapper tab**:
    LEDs and 7-segment displays straight from the sim.
 4. For the 3 Saitek panels there's also **„Vorlage ▾"** (Template) — a whole panel
    in one go; your own arrangements can be saved as a template.
+
+### Input types (what each does and how to map it)
+
+Taught once as device *elements* (step 6), then mapped per profile here. Pick the
+source by name via **„📋 Benannt"**; the special options live in the binding editor.
+
+| Type | What it is | Special options |
+|---|---|---|
+| **Button** (Taster) | momentary — fires once on press | one event, or a list of events on press |
+| **Switch** (Schalter) | two-position, holds its state | default: one stateful event (value 1 on, 0 off); optionally separate on- / off-edge event lists |
+| **Axis** (Achse) | analog lever/stick — captured with its raw range | deadzone (as a raw min/max window), curve/expo, invert, output range (default −16383…16383); optional detent split for a lever notch |
+| **Encoder** | rotary knob, taught in 2 directions | becomes two button bindings (CW → …_INC, CCW → …_DEC); on Saitek panels the inner ring / step speed comes from the template |
+| **Hat** (POV) | 4/8-way view/trim hat | one binding grouping up/down/left/right |
+| **Selector** | rotary detent group (e.g. magnetos) | each position is its own switch code, mapped individually |
+
+### Output types (LEDs & displays)
+
+Each output is driven **from a sim variable**. The hardware address (which
+byte/bit or cell) is found by **„🔦 Adresse finden…"** — leave it, click, actuate,
+confirm — or typed in by hand.
+
+| Type | What it is | Key fields |
+|---|---|---|
+| **LED** (lamp) | one bit in the feature report, lit by a condition on a variable | byte, bit, and the **lit condition** (below) |
+| **Display** (7-segment) | a numeric variable rendered into a run of digit cells | first byte (offset), number of cells, decimals |
+| **Template** (Saitek) | a whole panel's LEDs/readouts in one go | via **„Vorlage ▾"** |
+
+**The LED lit condition** — one entry covers every case, you never declare the
+same LED twice:
+
+- **„Leuchtet ab (≥)"** only → lit **at/above** that value — the usual indicator lamp (e.g. a warning on above 0.5).
+- **„Leuchtet bis (<)"** only (clear „ab") → lit **below** that value — for something that must come on when a value *drops under* a limit.
+- **both** → lit **within the window** `ab ≤ value < bis` — on between the two, off past either edge. This is a "gear in transit" lamp: it comes on once the gear leaves down-and-locked and goes dark again once it's fully up — exactly how the built-in Saitek gear LED drives red.
 
 **Live test without a sim:** move an axis / flip a switch → the replica bar fills
 or the element glows. Test displays deliberately with **🔦 LEDs/Display testen…**
@@ -271,10 +306,13 @@ aircraft title). Schema + commented example:
 
 There are **three** ways to pass mappings on — from small to large:
 
-### a) Transfer one device's mappings to another profile (same machine)
-**🖱 App:** Mapper → **right-click** a device → **„Mappings in anderes Profil
-übertragen…"** (Transfer mappings to another profile) → pick the target. Copies
-that device's bindings + displays.
+### a) Transfer/pull one device's mappings between profiles (same machine)
+**🖱 App:** Mapper → **right-click** a device →
+- **„Mappings in anderes Profil übertragen…"** (Transfer to another profile) — push
+  this device's bindings + displays into a profile you pick; or
+- **„Mappings aus einem anderen Profil holen…"** (Pull from another profile) — the
+  reverse: copy them *from* another profile into the current one (only profiles that
+  actually map the device are offered).
 
 ### b) Share a device package (with other people) — *new*
 A **single device as a shareable `.zip`** — contains **device definition +
@@ -311,18 +349,19 @@ device then shows as registered and its mapping is in the target profile.
 **started at least once** (that first launch creates the environment the bridge
 needs; Proton Experimental recommended).
 
-**🖱 In the app:** **Connection tab.** It has a **checklist** (prefix, Windows
-Python, `SimConnect.dll`, Proton, scripts — green/red):
-1. If the **prefix** line is red, find the path with **one** terminal command:
-   ```bash
-   ./tools/find-prefix.sh
-   ```
-   Paste the printed folder into the **"MSFS Proton prefix"** field → **Save**.
+**🖱 In the app — everything is a button here, no terminal needed:**
+**Connection tab.** It has a **checklist** (prefix, Windows Python,
+`SimConnect.dll`, Proton, scripts — green/red):
+1. If the **prefix** line is red, click **"Suchen…"** (Detect) — it auto-finds the
+   MSFS Proton prefix across the usual Steam layouts (native, `.local/share`,
+   Flatpak, a second drive) and fills the field; **Save**. (Or **"Durchsuchen…"**
+   to pick the folder yourself.)
 2. Click **"Set up prefix…"** (downloads Windows Python + SimConnect into the
    prefix — needs internet). Wait until it finishes.
 3. Click **"Re-check"**.
 
-**⌨ In the terminal** (the same by hand):
+**⌨ In the terminal** (the same by hand): `./tools/find-prefix.sh` prints the
+prefix path, then
 ```bash
 ./bridge/setup-prefix.sh          # one-time: Windows Python + SimConnect into the prefix
 ```
@@ -354,8 +393,10 @@ Details: [`../bridge/README.md`](../bridge/README.md).
 
 **🖱 In the app:** everything from the **Connection tab**:
 1. **Start MSFS and load a flight** (until you're in the cockpit).
-2. Click **Start** for the **Bridge**, then **Start** for the **Mapper** (pick the
-   profile if asked).
+2. Click **„Alles starten"** (Start everything) — it starts the bridge and then the
+   mapper as soon as the bridge is reachable. (The bridge only opens its port once
+   MSFS runs with a flight loaded, which is why step 1 comes first; you can also
+   start **Bridge** and **Mapper** separately.)
 
 **⌨ In the terminal** (from the program folder, two terminals):
 ```bash

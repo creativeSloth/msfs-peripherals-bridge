@@ -51,6 +51,55 @@ def test_threshold_and_nonnumeric():
     assert c.render() == bytes([0x00, 0x00])
 
 
+def test_led_below_threshold_only():
+    """off_at without on_at (on_at cleared to None) = lit only BELOW off_at."""
+    c = GenericPanelController(
+        GenericPanelOutput(
+            leds=[GenericLed(var="V", byte=0, bit=0, on_at=None, off_at=30)], length=1
+        )
+    )
+    c.on_state("V", 40)
+    assert c.render() == bytes([0x00, 0x00])  # above the ceiling -> off
+    c.on_state("V", 20)
+    assert c.render() == bytes([0x00, 0b1])  # below -> on
+    c.on_state("V", 30)
+    assert c.render() == bytes([0x00, 0x00])  # exactly off_at is exclusive -> off
+
+
+def test_led_window_gear_in_transit():
+    """on_at + off_at = a window: lit only between them (e.g. gear red in transit)."""
+    c = GenericPanelController(
+        GenericPanelOutput(
+            leds=[GenericLed(var="POS", byte=0, bit=2, on_at=0.01, off_at=0.95)], length=1
+        )
+    )
+    c.on_state("POS", 1.0)  # down & locked -> above window -> off
+    assert c.render() == bytes([0x00, 0x00])
+    c.on_state("POS", 0.5)  # in transit -> inside window -> on
+    assert c.render() == bytes([0x00, 0b100])
+    c.on_state("POS", 0.0)  # fully up -> below window -> off
+    assert c.render() == bytes([0x00, 0x00])
+
+
+def test_led_operator_conditions():
+    """Each bound carries its own operator (==, !=, >, <=, …), AND-combined."""
+    eq = GenericPanelController(
+        GenericPanelOutput(leds=[GenericLed(var="M", byte=0, bit=0, on_at=2, on_op="==")], length=1)
+    )
+    eq.on_state("M", 2)
+    assert eq.render() == bytes([0x00, 0b1])  # == 2 -> on
+    eq.on_state("M", 3)
+    assert eq.render() == bytes([0x00, 0x00])  # != 2 -> off
+
+    ne = GenericPanelController(
+        GenericPanelOutput(leds=[GenericLed(var="F", byte=0, bit=1, on_at=0, on_op="!=")], length=1)
+    )
+    ne.on_state("F", 0)
+    assert ne.render() == bytes([0x00, 0x00])  # 0 -> off (fault-free)
+    ne.on_state("F", 5)
+    assert ne.render() == bytes([0x00, 0b10])  # non-zero -> on
+
+
 def test_power_gate_blanks_everything():
     c = GenericPanelController(_out(power="PWR"))
     c.on_state("VA", 1)

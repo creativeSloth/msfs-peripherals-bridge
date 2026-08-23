@@ -39,6 +39,50 @@ def default_prefix(appid: str = DEFAULT_APPID) -> Path:
     return _steam_root() / "steamapps" / "compatdata" / appid / "pfx"
 
 
+def detect_prefixes(appid: str = DEFAULT_APPID, home: Path | None = None) -> list[Path]:
+    """Existing MSFS Proton prefixes across the common Steam layouts (the Python
+    counterpart to ``tools/find-prefix.sh``, so the GUI can auto-detect the prefix
+    without a terminal).
+
+    Checks the standard roots instantly — native Steam (``~/.steam/steam``,
+    ``~/.local/share/Steam``), Flatpak Steam, and ``$STEAM_ROOT`` — then does a
+    *shallow* scan of external mount points (``/media``, ``/mnt``, ``/run/media``)
+    for a second drive's Steam library. Returns the deduped ``…/pfx`` dirs that
+    actually exist, standard locations first. Pure filesystem probe; ``home`` is
+    injectable for tests."""
+    import contextlib
+
+    h = home or Path.home()
+    tail = Path("steamapps") / "compatdata" / appid / "pfx"
+    found: list[Path] = []
+    seen: set[Path] = set()
+
+    def _add(p: Path) -> None:
+        rp = p.resolve()
+        if p.is_dir() and rp not in seen:
+            seen.add(rp)
+            found.append(p)
+
+    roots = [
+        h / ".steam" / "steam",
+        h / ".local" / "share" / "Steam",
+        h / ".var" / "app" / "com.valvesoftware.Steam" / ".local" / "share" / "Steam",
+        Path(os.environ["STEAM_ROOT"]) if os.environ.get("STEAM_ROOT") else None,
+    ]
+    for r in roots:
+        if r is not None:
+            _add(r / tail)
+    # A second drive / extra library. External mounts are shallow; scan
+    # <mount>/<user-or-label>/[SteamLibrary/]… without an unbounded ** over $HOME.
+    for base in (Path("/media"), Path("/mnt"), Path("/run/media")):
+        with contextlib.suppress(OSError):
+            for lvl1 in base.iterdir():
+                for lib in (lvl1, lvl1 / "SteamLibrary", *lvl1.glob("*")):
+                    with contextlib.suppress(OSError):
+                        _add(lib / tail)
+    return found
+
+
 def find_proton(name: str = DEFAULT_PROTON) -> Path | None:
     """Locate an executable Proton build across the usual Steam library roots."""
     env_path = os.environ.get("PROTON_PATH")

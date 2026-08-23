@@ -1241,6 +1241,25 @@ def run() -> None:
         stop_mapper()
         stop_bridge()
 
+    def start_all():
+        """Start the bridge, then the mapper once port 7842 is up. The bridge only
+        opens the port once MSFS runs with a flight loaded, so we poll briefly and
+        start the mapper as soon as it's reachable (non-blocking)."""
+        start_bridge()
+        attempts = {"n": 0}
+
+        def _wait():
+            if _port_listening(BRIDGE_PORT):
+                start_mapper()
+                return
+            attempts["n"] += 1
+            if attempts["n"] > 20:  # ~10 s — the game probably isn't up yet
+                messagebox.showinfo(tr("conn.start_all"), tr("conn.start_all_no_port"))
+                return
+            win.after(500, _wait)
+
+        win.after(300, _wait)
+
     # --- group 1: processes (Bridge / Mapper start-stop, compact) ---------- #
     proc_fr = ttk.Labelframe(ctltab, text=tr("conn.group.processes"), padding=10)
     proc_fr.grid(row=0, column=0, sticky="ew")
@@ -1271,20 +1290,32 @@ def run() -> None:
     b_ms.grid(row=1, column=1, sticky="ew", padx=3, pady=2)
     b_mx.grid(row=1, column=2, sticky="ew", padx=3, pady=2)
 
+    b_start_all = ttk.Button(
+        proc_fr, text=tr("conn.start_all"), style="SmallAccent.TButton", command=start_all
+    )
+    b_start_all.grid(row=2, column=0, columnspan=3, sticky="ew", padx=3, pady=(8, 2))
+
     b_all = ttk.Button(
         proc_fr, text=tr("conn.stop_all"), style="SmallDanger.TButton", command=stop_all
     )
-    b_all.grid(row=2, column=0, columnspan=3, sticky="ew", padx=3, pady=(8, 2))
+    b_all.grid(row=3, column=0, columnspan=3, sticky="ew", padx=3, pady=(2, 2))
 
     ttk.Label(
         proc_fr, text=tr("conn.single_client_note"), foreground=MUTED, font=("TkDefaultFont", 8)
-    ).grid(row=3, column=0, columnspan=3, sticky="w", pady=(6, 0))
+    ).grid(row=4, column=0, columnspan=3, sticky="w", pady=(6, 0))
 
     _attach_tooltip(b_bs, tr("bash bridge/run-bridge.sh   (Supervisor → bridge.py → Proton)"))
     _attach_tooltip(b_bx, tr("killpg SIGTERM + sweep 'bridge/bridge.py' / 'bridge/run-bridge.sh'"))
     _attach_tooltip(b_ms, mapper_cmd)  # dynamic: reflects the selected profile
     _attach_tooltip(
         b_mx, tr("killpg SIGTERM (Mapper-Prozessgruppe) + sweep 'peripherals_bridge run'")
+    )
+    _attach_tooltip(
+        b_start_all,
+        tr(
+            "Bridge starten und, sobald Port 7842 offen ist (MSFS mit Flug), "
+            "den Mapper. Erst MSFS + Flug laden."
+        ),
     )
     _attach_tooltip(b_all, tr("stop_mapper() + stop_bridge() — alle Strays wegräumen"))
 
@@ -1346,6 +1377,45 @@ def run() -> None:
         if chosen:
             prefix_var.set(chosen)
             _apply_prefix()
+
+    def _detect_prefix() -> None:
+        """Auto-detect the MSFS Proton prefix (the find-prefix.sh job, from the GUI)."""
+        found = env_check.detect_prefixes()
+        if not found:
+            messagebox.showinfo(tr("conn.detect_title"), tr("conn.detect_none"))
+            return
+        chosen = str(found[0])
+        if len(found) > 1:  # let the user pick when several prefixes exist
+            dlg = tk.Toplevel(win)
+            dlg.title(tr("conn.detect_title"))
+            dlg.transient(win)
+            ttk.Label(dlg, text=tr("conn.detect_multi"), padding=8).pack(anchor="w")
+            lb = tk.Listbox(dlg, width=70, height=min(8, len(found)), exportselection=False)
+            for p in found:
+                lb.insert("end", str(p))
+            lb.selection_set(0)
+            lb.pack(fill="both", expand=True, padx=8)
+            picked: dict[str, str] = {}
+
+            def _ok() -> None:
+                sel = lb.curselection()
+                if sel:
+                    picked["path"] = str(found[sel[0]])
+                dlg.destroy()
+
+            row = ttk.Frame(dlg)
+            row.pack(fill="x", padx=8, pady=8)
+            ttk.Button(row, text=tr("conn.save"), style="Success.TButton", command=_ok).pack(
+                side="left"
+            )
+            ttk.Button(row, text=tr("Abbrechen"), command=dlg.destroy).pack(side="right")
+            dlg.wait_window()
+            if "path" not in picked:
+                return
+            chosen = picked["path"]
+        prefix_var.set(chosen)
+        _apply_prefix()
+        messagebox.showinfo(tr("conn.detect_title"), tr("conn.detect_found", path=chosen))
 
     def _spawn_and_tail(
         *,
@@ -1445,15 +1515,20 @@ def run() -> None:
             running_key="udev.running",
         )
 
+    b_detect = ttk.Button(
+        prefix_btns, text=tr("conn.detect"), style="Small.TButton", command=_detect_prefix
+    )
     b_browse = ttk.Button(
         prefix_btns, text=tr("conn.browse"), style="Small.TButton", command=_browse_prefix
     )
     b_save = ttk.Button(
         prefix_btns, text=tr("conn.save"), style="Small.TButton", command=_apply_prefix
     )
+    b_detect.pack(side="left", padx=(0, 4))
     b_browse.pack(side="left", padx=(0, 4))
     b_save.pack(side="left")
     prefix_entry.bind("<Return>", lambda _e: _apply_prefix())
+    _attach_tooltip(b_detect, tr("MSFS-Prefix automatisch finden (wie tools/find-prefix.sh)"))
     _attach_tooltip(b_browse, tr("filedialog.askdirectory → prefix_path (gui-settings.json)"))
     _attach_tooltip(
         b_save, tr("prefix_path speichern + Bridge-Env (STEAM_COMPAT_DATA_PATH) setzen")
@@ -2715,21 +2790,8 @@ def run() -> None:
         b_explore,
         tr(
             "Alle angeschlossenen Geräte anzeigen (auch fremde, "
-            "noch nicht registrierte) und neue Geräte anlegen"
-        ),
-    )
-    b_import_pkg = ttk.Button(
-        devbtn,
-        text=tr("📥 Geräte-Paket importieren…"),
-        command=lambda: _import_device_package(),
-    )
-    b_import_pkg.pack(side="left", padx=6)
-    _attach_tooltip(
-        b_import_pkg,
-        tr(
-            "Ein von jemandem geteiltes Geräte-Paket laden: registriert das Gerät, "
-            "übernimmt Knopf-Anordnung + Kalibrierung und legt das Mapping ins aktuelle Profil. "
-            "Export: Rechtsklick auf ein Gerät → „Als Geräte-Paket exportieren…“"
+            "noch nicht registrierte) und neue Geräte anlegen · "
+            "Geräte-Paket importieren: Rechtsklick auf ein Gerät"
         ),
     )
 
@@ -2837,25 +2899,117 @@ def run() -> None:
             command=lambda: _open_var_picker(win, _var_catalog(), lambda v: var.set(_var_name(v))),
         ).pack(side="left", padx=(4, 0))
         _row(1, tr("Variable"), vrow)
-        specs = (
-            [
-                ("byte", tr("Report-Byte"), "0"),
-                ("bit", tr("Bit (0-7)"), "0"),
-                ("on_at", tr("Schwelle (an ab)"), "0.5"),
-            ]
-            if kind == "led"
-            else [
-                ("offset", tr("Erstes Byte (Offset)"), "0"),
-                ("cells", tr("Zellen"), "5"),
-                ("decimals", tr("Nachkommastellen"), "0"),
-            ]
-        )
-        fields = {}
-        for i, (key, label, default) in enumerate(specs, start=2):
+        fields: dict[str, tk.StringVar] = {}
+        rowc = [2]  # running grid row (name=0, variable=1 already placed)
+
+        def _field(key, label, default, tip=""):
             fields[key] = tk.StringVar(value=default)
-            _row(i, label, ttk.Entry(frm, textvariable=fields[key], width=10))
+            e = ttk.Entry(frm, textvariable=fields[key], width=12)
+            _row(rowc[0], label, e)
+            if tip:
+                _attach_tooltip(e, tip)
+            rowc[0] += 1
+
+        def _hint(text):
+            ttk.Label(
+                frm,
+                text=text,
+                foreground=MUTED,
+                wraplength=380,
+                justify="left",
+                font=("TkDefaultFont", 8),
+            ).grid(row=rowc[0], column=0, columnspan=2, sticky="w", pady=(2, 4))
+            rowc[0] += 1
+
+        _LED_OPS = ("<", "<=", ">", ">=", "==", "!=")
+
+        def _cond_row(label, op_default, val_default, op_key, val_key, tip=""):
+            """A condition row: [operator dropdown] [value] (empty value = skip it)."""
+            ttk.Label(frm, text=label).grid(row=rowc[0], column=0, sticky="w", pady=2, padx=(0, 8))
+            rowf = ttk.Frame(frm)
+            rowf.grid(row=rowc[0], column=1, sticky="ew", pady=2)
+            fields[op_key] = tk.StringVar(value=op_default)
+            cb = ttk.Combobox(
+                rowf, textvariable=fields[op_key], values=list(_LED_OPS), width=4, state="readonly"
+            )
+            cb.pack(side="left")
+            fields[val_key] = tk.StringVar(value=val_default)
+            e = ttk.Entry(rowf, textvariable=fields[val_key], width=10)
+            e.pack(side="left", padx=(4, 0))
+            if tip:
+                _attach_tooltip(cb, tip)
+                _attach_tooltip(e, tip)
+            rowc[0] += 1
+
+        if kind == "led":
+            _field(
+                "byte",
+                tr("Report-Byte"),
+                "0",
+                tr(
+                    "Die „Adresse“ der LED im Gerät. Das Gerät bekommt seine Befehle als "
+                    "eine Reihe nummerierter Felder (Bytes); das Byte sagt, in WELCHEM Feld "
+                    "diese LED sitzt. Musst du nicht wissen — „🔦 Byte/Bit suchen…“ füllt es aus."
+                ),
+            )
+            _field(
+                "bit",
+                tr("Bit (0-7)"),
+                "0",
+                tr(
+                    "Welche einzelne LED innerhalb des Bytes. Jedes Byte steuert bis zu 8 "
+                    "Lampen (Bit 0–7). Auch das findet „🔦 Byte/Bit suchen…“ automatisch."
+                ),
+            )
+            _cond_row(
+                tr("Bedingung 1"),
+                ">=",
+                "0.5",
+                "on_op",
+                "on_at",
+                tr(
+                    "LED an, wenn Variable <Operator> Wert (z. B. ≥ 0.5, < 30, == 2, != 0). "
+                    "Wert leer lassen = diese Bedingung weglassen."
+                ),
+            )
+            _cond_row(
+                tr("Bedingung 2 (optional)"),
+                "<",
+                "",
+                "off_op",
+                "off_at",
+                tr("Zweite Bedingung, UND-verknüpft — für ein Fenster. Leer = nicht benutzt."),
+            )
+            _hint(
+                tr(
+                    "LED leuchtet, wenn ALLE gesetzten Bedingungen zutreffen. Eine reicht "
+                    "meist; zwei = Fenster, z. B. ≥ 0.01 UND < 0.95 für die rote Fahrwerks-LED "
+                    "beim Ausfahren."
+                )
+            )
+        else:
+            _field(
+                "offset",
+                tr("Erstes Byte (Offset)"),
+                "0",
+                tr(
+                    "Die „Adresse“ der ersten Ziffer im Gerät (das nummerierte Feld, in dem "
+                    "die Anzeige beginnt). Musst du nicht wissen — „🔦 Zelle suchen…“ füllt es aus."
+                ),
+            )
+            _field(
+                "cells",
+                tr("Zellen"),
+                "5",
+                tr("Wie viele Ziffern die Anzeige hat (z. B. 5 für eine Frequenz wie 118.00)."),
+            )
+            _field(
+                "decimals",
+                tr("Nachkommastellen"),
+                "0",
+                tr("Ziffern nach dem Komma (0 = ganze Zahl)."),
+            )
         err = ttk.Label(frm, foreground="#c62828")
-        err.grid(row=6, column=0, columnspan=2, sticky="w", pady=(6, 0))
 
         def _scan_address():
             """Schritt D output scan: walk the report address space with a live test
@@ -2979,9 +3133,28 @@ def run() -> None:
             sw.lift()
             sw.focus_force()
 
-        ttk.Button(frm, text=tr("🔦 Adresse finden…"), command=_scan_address).grid(
-            row=5, column=1, sticky="w", pady=(4, 0)
+        scan_label = tr("🔦 Byte/Bit suchen…") if kind == "led" else tr("🔦 Zelle suchen…")
+        _hint(
+            tr(
+                "Byte/Bit (bzw. Zelle) nicht bekannt? Fast nie nötig, von Hand einzutippen: "
+                "„{btn}“ schickt Testimpulse ans Panel — leuchtet DEINE LED/Zelle, „Das ist "
+                "es!“ klicken; die Felder füllen sich automatisch (Panel angesteckt, Mapper "
+                "gestoppt).",
+                btn=scan_label,
+            )
         )
+        scan_btn = ttk.Button(frm, text=scan_label, command=_scan_address)
+        scan_btn.grid(row=rowc[0], column=1, sticky="w", pady=(0, 2))
+        _attach_tooltip(
+            scan_btn,
+            tr(
+                "Probiert die LEDs/Zellen am echten Panel durch, bis deine aufleuchtet — "
+                "dann werden Byte/Bit bzw. Zelle automatisch eingetragen."
+            ),
+        )
+        rowc[0] += 1
+        err.grid(row=rowc[0], column=0, columnspan=2, sticky="w", pady=(6, 0))
+        rowc[0] += 1
 
         def _save():
             v = var.get().strip()
@@ -2991,10 +3164,21 @@ def run() -> None:
             try:
                 if kind == "led":
                     byte, bit = int(fields["byte"].get()), int(fields["bit"].get())
-                    on_at = float(fields["on_at"].get())
+                    on_s, off_s = fields["on_at"].get().strip(), fields["off_at"].get().strip()
+                    on_at = float(on_s) if on_s else None
+                    off_at = float(off_s) if off_s else None
                     if byte < 0 or not (0 <= bit <= 7):
                         raise ValueError
+                    if on_at is None and off_at is None:
+                        err.config(text=tr("Mindestens eine Bedingung mit einem Wert angeben."))
+                        return
                     entry = {"var": v, "byte": byte, "bit": bit, "on_at": on_at}
+                    if on_at is not None and fields["on_op"].get() != ">=":
+                        entry["on_op"] = fields["on_op"].get()
+                    if off_at is not None:
+                        entry["off_at"] = off_at
+                        if fields["off_op"].get() != "<":
+                            entry["off_op"] = fields["off_op"].get()
                     path, needed = ("leds",), byte + 1
                 else:
                     off, cells = int(fields["offset"].get()), int(fields["cells"].get())
@@ -3026,7 +3210,7 @@ def run() -> None:
             dlg.destroy()
 
         br = ttk.Frame(frm)
-        br.grid(row=7, column=0, columnspan=2, sticky="e", pady=(10, 0))
+        br.grid(row=rowc[0], column=0, columnspan=2, sticky="e", pady=(10, 0))
         ttk.Button(br, text=tr("Abbrechen"), command=dlg.destroy).pack(side="right", padx=(6, 0))
         ttk.Button(br, text=tr("Hinzufügen"), command=_save).pack(side="right")
         dlg.lift()
@@ -5579,7 +5763,16 @@ def run() -> None:
         )
         if el.var:  # glow-from-sim: the value monitor lights this lamp live
             pcanvas["sim"].setdefault(el.var, []).append(
-                {"kind": "lamp", "id": oval, "on_at": el.on_at, "off_fill": fill, "off_edge": edge}
+                {
+                    "kind": "lamp",
+                    "id": oval,
+                    "on_at": el.on_at,
+                    "off_at": el.off_at,
+                    "on_op": el.on_op,
+                    "off_op": el.off_op,
+                    "off_fill": fill,
+                    "off_edge": edge,
+                }
             )
 
     def _draw_segment(c, tag, el, x0, y0, x1, y1):
@@ -5941,32 +6134,77 @@ def run() -> None:
         fn()
 
     def _panel_size_dialog(el):
-        """Set an element's size in exact pixels (arrange mode). No grid snap — the
-        px value is honoured directly (converted to the layout's normalised units at
-        the current canvas size)."""
+        """Arrange mode: set an element's size AND position in exact pixels in ONE
+        dialog (Breite / Höhe / X / Y). With "Raster ignorieren" the px values are
+        honoured directly; without it, size and position snap to the grid."""
         W, H = pcanvas["W"] or 1, pcanvas["H"] or 1
-        w = simpledialog.askinteger(
-            tr("Breite"),
-            tr("Breite in Pixel:"),
-            initialvalue=round(el.w * W),
-            minvalue=8,
-            parent=win,
+        dlg = tk.Toplevel(win)
+        dlg.title(tr("Größe & Position"))
+        dlg.transient(win)
+        frm = ttk.Frame(dlg, padding=12)
+        frm.pack(fill="both", expand=True)
+        frm.columnconfigure(1, weight=1)
+        fields: dict[str, tk.StringVar] = {}
+        specs = [
+            ("w", tr("Breite (px)"), round(el.w * W)),
+            ("h", tr("Höhe (px)"), round(el.h * H)),
+            ("x", tr("X-Position (px)"), round(el.x * W)),
+            ("y", tr("Y-Position (px)"), round(el.y * H)),
+        ]
+        for i, (key, label, val) in enumerate(specs):
+            ttk.Label(frm, text=label).grid(row=i, column=0, sticky="w", pady=2, padx=(0, 8))
+            fields[key] = tk.StringVar(value=str(val))
+            ttk.Entry(frm, textvariable=fields[key], width=10).grid(
+                row=i, column=1, sticky="ew", pady=2
+            )
+        ignore = tk.BooleanVar(value=False)
+        ttk.Checkbutton(frm, text=tr("Raster ignorieren (exakte Pixel)"), variable=ignore).grid(
+            row=4, column=0, columnspan=2, sticky="w", pady=(6, 0)
         )
-        if w is None:
-            return
-        h = simpledialog.askinteger(
-            tr("Höhe"), tr("Höhe in Pixel:"), initialvalue=round(el.h * H), minvalue=8, parent=win
-        )
-        if h is None:
-            return
-        nw = min(1.0 - el.x, w / W)
-        nh = h / H
-        from .mapping.loader import save_panel_layout_override
+        ttk.Label(
+            frm,
+            text=tr("Ohne Häkchen rasten Größe und Position am nächsten Rasterpunkt ein."),
+            foreground=MUTED,
+            font=("TkDefaultFont", 8),
+            wraplength=300,
+            justify="left",
+        ).grid(row=5, column=0, columnspan=2, sticky="w")
+        err = ttk.Label(frm, foreground="#c62828")
+        err.grid(row=6, column=0, columnspan=2, sticky="w", pady=(4, 0))
 
-        save_panel_layout_override(
-            pcanvas["device"], panel_layout.element_key(el), el.x, el.y, nw, nh
+        def _ok():
+            try:
+                w, h = int(fields["w"].get()), int(fields["h"].get())
+                x, y = int(fields["x"].get()), int(fields["y"].get())
+                if w < 8 or h < 8 or x < 0 or y < 0:
+                    raise ValueError
+            except ValueError:
+                err.config(text=tr("Ganze Zahlen (Breite/Höhe ≥ 8, Position ≥ 0)."))
+                return
+            nx, ny, nw, nh = x / W, y / H, w / W, h / H
+            if not ignore.get():  # snap size + position to the grid
+                nx, ny = panel_layout.snap(nx, _PANEL_GRID), panel_layout.snap(ny, _PANEL_GRID)
+                nw, nh = panel_layout.snap(nw, _PANEL_GRID), panel_layout.snap(nh, _PANEL_GRID)
+            nw = max(_PANEL_GRID, min(1.0, nw))
+            nh = max(_PANEL_GRID, nh)
+            nx = max(0.0, min(1.0 - nw, nx))
+            ny = max(0.0, ny)  # y is unbounded (the radio panel scrolls)
+            from .mapping.loader import save_panel_layout_override
+
+            save_panel_layout_override(
+                pcanvas["device"], panel_layout.element_key(el), nx, ny, nw, nh
+            )
+            dlg.destroy()
+            _render_panel_canvas(pcanvas["device"])
+
+        br = ttk.Frame(frm)
+        br.grid(row=7, column=0, columnspan=2, sticky="e", pady=(10, 0))
+        ttk.Button(br, text=tr("Übernehmen"), style="Success.TButton", command=_ok).pack(
+            side="right"
         )
-        _render_panel_canvas(pcanvas["device"])
+        ttk.Button(br, text=tr("Abbrechen"), command=dlg.destroy).pack(side="right", padx=(0, 6))
+        dlg.lift()
+        dlg.focus_force()
 
     def _panel_menu(event):
         """Right-click on a Nachbau element: Bearbeiten / Duplizieren / Entfernen —
@@ -5977,7 +6215,7 @@ def run() -> None:
             if el is None or el.kind == panel_layout.HEADER:
                 return
             menu = tk.Menu(panel_canvas, tearoff=0)
-            menu.add_command(label=tr("Größe in Pixel…"), command=lambda: _panel_size_dialog(el))
+            menu.add_command(label=tr("Größe & Position…"), command=lambda: _panel_size_dialog(el))
             menu.tk_popup(event.x_root, event.y_root)
             return
         if el is None or el.kind == panel_layout.HEADER:
@@ -6199,6 +6437,86 @@ def run() -> None:
         )
         ttk.Button(btns, text=tr("Abbrechen"), command=dlg.destroy).pack(side="right")
 
+    def _pull_device(device_id):
+        """Inverse of _transfer_device: copy this device's mappings FROM another
+        profile INTO the current one (overwrite-prompt if it already maps it)."""
+        cur = profile_var.get()
+        # Only offer sources that actually map this device.
+        sources = []
+        for p in _list_profiles(root_dir):
+            if p == cur:
+                continue
+            try:
+                data = profile_writer.load(profiles_dir(root_dir) / f"{p}.yaml")
+                eb, eo = profile_writer.device_mapping_counts(data, device_id)
+            except Exception:
+                eb, eo = 0, 0
+            if eb or eo:
+                sources.append((p, eb, eo))
+        if not sources:
+            messagebox.showinfo(
+                tr("Holen"),
+                tr("Kein anderes Profil hat Mappings für „{dev}“.", dev=device_id),
+            )
+            return
+        dlg = tk.Toplevel(win)
+        dlg.title(tr("Mappings holen"))
+        dlg.transient(win)
+        ttk.Label(
+            dlg,
+            text=tr("„{dev}“ — Mappings holen aus:", dev=device_id),
+        ).pack(anchor="w", padx=10, pady=(10, 4))
+        lb = tk.Listbox(dlg, height=min(8, len(sources)), exportselection=False)
+        for p, eb, eo in sources:
+            lb.insert("end", f"{p}  ({eb} / {eo})")
+        lb.selection_set(0)
+        lb.pack(fill="both", expand=True, padx=10)
+
+        def _do():
+            sel = lb.curselection()
+            if not sel:
+                return
+            source = sources[sel[0]][0]
+            dst_path = profiles_dir(root_dir) / f"{cur}.yaml"
+            try:
+                src_data = profile_writer.load(profiles_dir(root_dir) / f"{source}.yaml")
+                dst_data = profile_writer.load(dst_path)
+                eb, eo = profile_writer.device_mapping_counts(dst_data, device_id)
+                if (eb or eo) and not messagebox.askyesno(
+                    tr("Überschreiben?"),
+                    tr(
+                        "„{t}“ hat für dieses Gerät schon {eb} Eingaben / {eo} Anzeigen. "
+                        "Überschreiben?",
+                        t=cur,
+                        eb=eb,
+                        eo=eo,
+                    ),
+                    parent=dlg,
+                ):
+                    return
+                wb, wo = profile_writer.copy_device_mappings(src_data, dst_data, device_id)
+                profile_writer.validate(dst_data)  # reject a broken result before writing
+                profile_writer.dump(dst_data, dst_path)
+            except Exception as exc:
+                messagebox.showerror(tr("Holen"), str(exc), parent=dlg)
+                return
+            dlg.destroy()
+            m_state.config(
+                text=tr(
+                    "„{dev}“: {wb} Eingaben / {wo} Anzeigen aus „{s}“ geholt ✓",
+                    dev=device_id,
+                    s=source,
+                    wb=wb,
+                    wo=wo,
+                )
+            )
+            _mapper_reload(rediscover=False)
+
+        btns = ttk.Frame(dlg)
+        btns.pack(fill="x", padx=10, pady=10)
+        ttk.Button(btns, text=tr("Holen"), style="Success.TButton", command=_do).pack(side="left")
+        ttk.Button(btns, text=tr("Abbrechen"), command=dlg.destroy).pack(side="right")
+
     def _deregister_device(device_id, on_done=None):
         """Hide a device from the catalog list (non-destructive, per-user).
 
@@ -6328,26 +6646,37 @@ def run() -> None:
         )
 
     def _dev_menu(event):
-        """Right-click on a device row → transfer / export as package / deregister."""
+        """Right-click a device row → transfer/pull mappings, export/import package,
+        deregister. On empty space only the (device-agnostic) package import shows,
+        so importing still works when the list is empty."""
         row = dev_tree.identify_row(event.y)
-        if not row:
-            return
-        dev_tree.selection_set(row)
-        dev_tree.focus(row)
         menu = tk.Menu(dev_tree, tearoff=0)
+        if row:
+            dev_tree.selection_set(row)
+            dev_tree.focus(row)
+            menu.add_command(
+                label=tr("Mappings in anderes Profil übertragen…"),
+                command=lambda: _transfer_device(row),
+            )
+            menu.add_command(
+                label=tr("Mappings aus einem anderen Profil holen…"),
+                command=lambda: _pull_device(row),
+            )
+            menu.add_separator()
+            menu.add_command(
+                label=tr("Als Geräte-Paket exportieren…"),
+                command=lambda: _export_device_package(row),
+            )
         menu.add_command(
-            label=tr("Mappings in anderes Profil übertragen…"),
-            command=lambda: _transfer_device(row),
+            label=tr("Geräte-Paket importieren…"),
+            command=lambda: _import_device_package(),
         )
-        menu.add_command(
-            label=tr("Als Geräte-Paket exportieren…"),
-            command=lambda: _export_device_package(row),
-        )
-        menu.add_separator()
-        menu.add_command(
-            label=tr("Aus der Geräteliste entfernen…"),
-            command=lambda: _deregister_device(row),
-        )
+        if row:
+            menu.add_separator()
+            menu.add_command(
+                label=tr("Aus der Geräteliste entfernen…"),
+                command=lambda: _deregister_device(row),
+            )
         menu.tk_popup(event.x_root, event.y_root)
 
     def _on_kind_change(_e=None):
@@ -6475,7 +6804,13 @@ def run() -> None:
                         if panel_canvas.type(e["id"]) is None:
                             continue
                         if e["kind"] == "lamp":
-                            lit = panel_layout.lamp_lit(val, e["on_at"])
+                            lit = panel_layout.lamp_lit(
+                                val,
+                                e["on_at"],
+                                e.get("off_at"),
+                                e.get("on_op", ">="),
+                                e.get("off_op", "<"),
+                            )
                             panel_canvas.itemconfigure(
                                 e["id"],
                                 fill=_LAMP_ON if lit else e["off_fill"],

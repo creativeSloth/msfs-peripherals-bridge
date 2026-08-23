@@ -24,7 +24,7 @@ from math import ceil, sqrt
 from typing import Any
 
 from .gui_mapper import describe_action, output_groups, output_nodes
-from .models import Binding, GearLedOutput, Profile, RadioPanelOutput
+from .models import Binding, GearLedOutput, Profile, RadioPanelOutput, led_compare
 
 # --- element kinds (what the canvas draws) --------------------------------- #
 SWITCH = "switch"  # two-position toggle / momentary — highlights when live-on
@@ -73,6 +73,11 @@ class PanelElement:
     # segment (show the value) rather than a boolean lamp.
     var: str | None = None
     on_at: float | None = None
+    # Optional second lamp threshold + the two comparison operators (a window /
+    # arbitrary condition; mirrors GenericLed.on_op/off_at/off_op for glow parity).
+    off_at: float | None = None
+    on_op: str = ">="
+    off_op: str = "<"
     # Controller-faithful text format for a numeric SEGMENT's live value (glow):
     # "" = compact raw, "int" = rounded (like format_row), "dec:N" = N decimals with
     # a negative/None blanked (like format_measure/format_frequency). See format_segment.
@@ -107,20 +112,36 @@ def format_segment(value: object, fmt: str = "") -> str:
     return f"{v:.4g}"
 
 
-def lamp_lit(value: object, on_at: float | None) -> bool:
-    """Whether a lamp element glows for a sim ``value`` and its ``on_at`` threshold.
+def lamp_lit(
+    value: object,
+    on_at: float | None,
+    off_at: float | None = None,
+    on_op: str = ">=",
+    off_op: str = "<",
+) -> bool:
+    """Whether a lamp element glows for a sim ``value`` and its condition(s).
 
-    A bool is taken as-is; a number lights the lamp at/above ``on_at`` (default
-    0.5). ``None`` (no reading yet) stays dark, so a lamp only glows on a real
-    positive reading from the running bridge."""
+    A bool is taken as-is; a number is tested against up to two comparisons
+    (``value <on_op> on_at`` and ``value <off_op> off_at``), combined with AND —
+    the same logic the runtime uses (:func:`..models.led_compare`), so the replica
+    matches the hardware. With neither threshold set the lamp lights at ``>= 0.5``
+    (a plain boolean var). ``None`` (no reading yet) stays dark."""
     if value is None:
         return False
     if isinstance(value, bool):
         return value
     try:
-        return float(value) >= (0.5 if on_at is None else on_at)  # type: ignore[arg-type]
+        v = float(value)  # type: ignore[arg-type]
     except (TypeError, ValueError):
         return bool(value)
+    conds = []
+    if on_at is not None:
+        conds.append(led_compare(v, on_op, on_at))
+    if off_at is not None:
+        conds.append(led_compare(v, off_op, off_at))
+    if not conds:
+        return v >= 0.5
+    return all(conds)
 
 
 def _live_key(kind: str, code: int) -> tuple[str, int] | None:
@@ -454,13 +475,29 @@ def _display_var(o: Any, p: tuple[Any, ...]) -> str | None:
     return None
 
 
+def led_condition_text(
+    var: str,
+    on_at: float | None,
+    off_at: float | None,
+    on_op: str = ">=",
+    off_op: str = "<",
+) -> str:
+    """Human one-liner for a generic LED's lit condition (operator-aware)."""
+    parts = []
+    if on_at is not None:
+        parts.append(f"{var} {on_op} {on_at:g}")
+    if off_at is not None:
+        parts.append(f"{var} {off_op} {off_at:g}")
+    return " und ".join(parts) if parts else f"{var} an"
+
+
 def _output_items(outs: Iterable[Any]) -> tuple[list[Any], list[Any]]:
     """(control_items, display_items) — encoders/swap vs displays/lamps.
 
-    Each item is ('out', out_index, path, kind, label, detail, var, on_at, fmt). The
-    two lists are laid in SEPARATE zones so buttons and displays are shown apart.
-    Abstract config groups (bool_leds/alt_sources/dimmer) are skipped — mapped in the
-    editor. Generic-panel LEDs/displays (a user's own device, Schritt E) glow too."""
+    Each item is ('out', idx, path, kind, label, detail, var, on_at, off_at, on_op,
+    off_op, fmt). The two lists are laid in SEPARATE zones so buttons and displays
+    are shown apart. Abstract config groups (bool_leds/alt_sources/dimmer) are
+    skipped — mapped in the editor. Generic-panel LEDs/displays glow too."""
     controls: list[Any] = []
     displays: list[Any] = []
     for k, o in enumerate(outs):
@@ -468,7 +505,8 @@ def _output_items(outs: Iterable[Any]) -> tuple[list[Any], list[Any]]:
             p = g.path
             if len(p) == 1 and p[0] in ("nose", "left", "right"):
                 displays.append(
-                    ("out", k, p, LED, g.label, str(g.value), _display_var(o, p), 0.5, "")
+                    ("out", k, p, LED, g.label, str(g.value), _display_var(o, p),
+                     0.5, None, ">=", "<", "")
                 )
             elif (len(p) == 2 and p[0] == "selector") or (
                 len(p) == 4 and p[0] == "units" and p[2] == "banks"
@@ -477,7 +515,10 @@ def _output_items(outs: Iterable[Any]) -> tuple[list[Any], list[Any]]:
                 # multi selector cell = integer readout (format_row); radio banks fall
                 # back here only without a hand layout (per-digit -> not glow-formatted).
                 fmt = "int" if len(p) == 2 else ""
-                displays.append(("out", k, p, SEGMENT, lbl, det, _display_var(o, p), None, fmt))
+                displays.append(
+                    ("out", k, p, SEGMENT, lbl, det, _display_var(o, p),
+                     None, None, ">=", "<", fmt)
+                )
             elif len(p) == 2 and p[0] == "leds":  # generic_panel LED (glow lamp)
                 led = o.leds[p[1]]
                 displays.append(
@@ -487,9 +528,12 @@ def _output_items(outs: Iterable[Any]) -> tuple[list[Any], list[Any]]:
                         p,
                         LED,
                         led.name or f"LED {p[1] + 1}",
-                        f"{led.var} ≥ {led.on_at:g}",
+                        led_condition_text(led.var, led.on_at, led.off_at, led.on_op, led.off_op),
                         led.var,
                         led.on_at,
+                        led.off_at,
+                        led.on_op,
+                        led.off_op,
                         "",
                     )
                 )
@@ -497,17 +541,8 @@ def _output_items(outs: Iterable[Any]) -> tuple[list[Any], list[Any]]:
                 d = o.displays[p[1]]
                 fmt = f"dec:{d.decimals}" if d.decimals else "int"
                 displays.append(
-                    (
-                        "out",
-                        k,
-                        p,
-                        SEGMENT,
-                        d.name or f"Anzeige {p[1] + 1}",
-                        f"Anzeige liest {d.var}",
-                        d.var,
-                        None,
-                        fmt,
-                    )
+                    ("out", k, p, SEGMENT, d.name or f"Anzeige {p[1] + 1}",
+                     f"Anzeige liest {d.var}", d.var, None, None, ">=", "<", fmt)
                 )
             elif len(p) == 2 and p[0] == "units":  # a radio unit's controls
                 try:
@@ -515,30 +550,14 @@ def _output_items(outs: Iterable[Any]) -> tuple[list[Any], list[Any]]:
                 except (IndexError, AttributeError):
                     name = str(p[1])
                 controls.append(
-                    (
-                        "out",
-                        k,
-                        p,
-                        ENCODER,
-                        f"Encoder {name}",
-                        f"Außen-/Innen-Drehknopf + Mode-Selektor · Einheit {name}",
-                        None,
-                        None,
-                        "",
-                    )
+                    ("out", k, p, ENCODER, f"Encoder {name}",
+                     f"Außen-/Innen-Drehknopf + Mode-Selektor · Einheit {name}",
+                     None, None, None, ">=", "<", "")
                 )
                 controls.append(
-                    (
-                        "out",
-                        k,
-                        p,
-                        BUTTON,
-                        f"Swap {name}",
-                        f"ACT/STBY-Swap-Taste · Einheit {name}",
-                        None,
-                        None,
-                        "",
-                    )
+                    ("out", k, p, BUTTON, f"Swap {name}",
+                     f"ACT/STBY-Swap-Taste · Einheit {name}",
+                     None, None, None, ">=", "<", "")
                 )
     return controls, displays
 
@@ -558,7 +577,7 @@ def _lay_tiles(
             local = {ub.source.code: (ui, ub), db.source.code: (di, db)}
             out += _stacked_bars(cx0, cy0, w, h, positions, local, src_kind=str(ub.source.kind))
         elif it[0] == "out":
-            _, k, p, okind, label, detail, evar, on_at, efmt = it
+            _, k, p, okind, label, detail, evar, on_at, off_at, on_op, off_op, efmt = it
             out.append(
                 PanelElement(
                     okind,
@@ -572,6 +591,9 @@ def _lay_tiles(
                     mapped=True,
                     var=evar,
                     on_at=on_at,
+                    off_at=off_at,
+                    on_op=on_op,
+                    off_op=off_op,
                     fmt=efmt,
                 )
             )
@@ -901,17 +923,46 @@ def is_static_panel(profile: Profile | None, device_id: str) -> bool:
     return any(getattr(o, "type", "") in _PANEL_CONTROLLER_TYPES for o in outs)
 
 
+def _extra_generic_elements(outs: list[Any]) -> list[PanelElement]:
+    """User-added ``generic_panel`` LEDs/displays for a HAND-laid panel, in a titled
+    strip BELOW the hand layout (the canvas grows + scrolls to reveal it).
+
+    A hand layout (switch/radio) only draws its own known controls plus the gear
+    LEDs — so a lamp/display added via "+ Ausgabe" on such a panel would otherwise
+    be invisible and unfindable. We reuse ``_output_items`` on the FULL output list
+    (so each element's ``ref`` keeps the real output index) and keep only the
+    generic-panel items."""
+    disp_all = _output_items(outs)[1]
+    disp = [
+        it
+        for it in disp_all
+        if it[0] == "out"
+        and getattr(outs[it[1]], "type", None) == "generic_panel"
+        and it[2][0] in ("leds", "displays")
+    ]
+    if not disp:
+        return []
+    cols = max(1, min(len(disp), round(sqrt(len(disp) * 1.8)) or 1))
+    rows = ceil(len(disp) / cols)
+    y0 = 1.03  # just past the normalised hand layout; canvas scrollregion grows to fit
+    els = [PanelElement(HEADER, "Weitere Anzeigen", 0.03, y0, 0.94, 0.05, mapped=True)]
+    els += _lay_tiles(disp, 0.03, y0 + 0.065, 0.97, y0 + 0.065 + rows * 0.15)
+    return els
+
+
 def panel_layout(profile: Profile, device_id: str) -> list[PanelElement]:
     """Positioned panel elements for one device in ``profile``.
 
     Uses the hand-drawn layout for a known Saitek panel, otherwise the generic
-    axes-and-tiles layout. Returns ``[]`` for an unknown/empty device.
+    axes-and-tiles layout. Returns ``[]`` for an unknown/empty device. User-added
+    generic-panel LEDs/displays are appended below a hand layout so they are always
+    visible even on the switch/radio panels.
     """
     binds = profile.bindings.get(device_id, [])
     outs = profile.outputs.get(device_id, [])
     builder = _HAND_LAYOUTS.get(device_id)
     if builder is not None:
-        return builder(binds, outs)
+        return builder(binds, outs) + _extra_generic_elements(outs)
     return _device_layout(binds, outs)
 
 

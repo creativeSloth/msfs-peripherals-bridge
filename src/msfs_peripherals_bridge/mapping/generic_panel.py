@@ -56,8 +56,7 @@ class GenericPanelController:
         powered = gate is None or (self._values.get(gate) or 0) >= 0.5
         if powered:
             for led in self._o.leds:
-                v = self._values.get(led.var)
-                if v is not None and v >= led.on_at and 0 <= led.byte < self._o.length:
+                if led.lit(self._values.get(led.var)) and 0 <= led.byte < self._o.length:
                     data[led.byte] |= 1 << led.bit
         for disp in self._o.displays:
             # Unpowered -> value None so the cells render blank, not stale/zero.
