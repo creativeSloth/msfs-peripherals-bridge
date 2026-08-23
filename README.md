@@ -3,9 +3,8 @@
 Map Linux USB flight-sim peripherals to **Microsoft Flight Simulator 2020**
 SimVars and events — with **per-aircraft mapping profiles**.
 
-> ### 👉 Start here — pick your path
-> - **New, or not into terminals?** → **[docs/QUICKSTART.md](docs/QUICKSTART.md)** — copy-paste 4 commands (`clone → ./install.sh → start`), then everything else is buttons in the app.
-> - **Full setup / your own hardware / the Wine bridge** → **[docs/INSTALL.md](docs/INSTALL.md)**.
+> ### 👉 Start here
+> - **The complete user manual** — install, devices, mapping, sharing profiles, the Wine bridge, flying; beginner-friendly, GUI *and* terminal → **[docs/HANDBUCH.md](docs/HANDBUCH.md)** 🇩🇪
 > - **How it works under the hood** → **[docs/bridge-concept.md](docs/bridge-concept.md)**.
 > - **A map of every document** → **[docs/README.md](docs/README.md)**.
 
@@ -108,8 +107,8 @@ flowchart LR
 
 ## Quick start (CLI / developers)
 
-Not a developer? Use **[docs/QUICKSTART.md](docs/QUICKSTART.md)** instead — same
-result, no terminal knowledge needed.
+Not a developer? Use the **[Handbuch](docs/HANDBUCH.md)** instead — same result,
+step by step, no terminal knowledge needed.
 
 ```bash
 # 0. Get the code and run the one-shot installer:
@@ -141,13 +140,10 @@ sudo udevadm trigger`.
 The full command list as copy-paste lines is in
 [`docs/cheatsheet.md`](docs/cheatsheet.md).
 
-Setting up on a fresh machine (**adding your own hardware**, registering a
-device, the Wine bridge)? See the step-by-step
-[`docs/INSTALL.md`](docs/INSTALL.md).
-
-See [`docs/running.md`](docs/running.md) for a full run/iterate guide: what runs
-natively vs. in Wine/Proton, finding your MSFS Proton prefix + version, and
-tuning a mapping live with `--dry-run -v`.
+Setting up on a fresh machine — **your own hardware**, registering devices, the
+Wine bridge, finding your MSFS Proton prefix, tuning a mapping live with
+`--dry-run -v`? The complete step-by-step manual is the
+**[Handbuch](docs/HANDBUCH.md)**.
 
 ---
 

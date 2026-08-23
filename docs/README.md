@@ -1,39 +1,18 @@
 # Documentation — where to find what
 
-First time here and looking for a guide? Find your task in the table, open the
-one document it points to. The lists further down are the full catalog with a
-one-line description each.
+New here? Everything a user needs — install, devices, mapping, sharing profiles,
+the Wine bridge, flying — is in **one** place: the **[Handbuch](HANDBUCH.md)**.
+The lists below are the rest: references you look things up in, and background.
 
-> 🇩🇪 marks a document still written in German. The install path a newcomer needs
-> first — **[QUICKSTART.md](QUICKSTART.md)** — is in English.
+> 🇩🇪 marks a German document. The **[Handbuch](HANDBUCH.md)** (the main user
+> guide) is German; the app itself switches to English under **Settings → GUI
+> language**.
 
-## I want to…
+## Start here
 
 | I want to… | Open |
 |---|---|
-| **Install the software and start it** — no Linux/Python knowledge, copy-paste only | **[QUICKSTART.md](QUICKSTART.md)** |
-| Set up a fresh machine in full — udev, the Wine bridge, all the details | [INSTALL.md](INSTALL.md) |
-| Use **hardware that isn't one of the supported devices** — detect, register, teach, map it | [geraete-workflow.md](geraete-workflow.md) 🇩🇪 |
-| **Reuse an existing SPAD.neXt profile** — pull its mapping semantics into ours | [spadnext-import.md](spadnext-import.md) |
-| Run it day-to-day and tune a mapping live | [running.md](running.md) |
-| Look up a **command** | [cheatsheet.md](cheatsheet.md) |
-| Look up a **SimVar / event** for a mapping | [simvars-reference.md](simvars-reference.md) |
-| Understand **how the bridge works** | [bridge-concept.md](bridge-concept.md) |
-
----
-
-## 📘 Guides — step by step
-
-| Document | For whom / what |
-|---|---|
-| **[QUICKSTART.md](QUICKSTART.md)** | **Start here.** Beginners, copy-paste only: clone → `./install.sh` → start the app; the rest is buttons. |
-| [INSTALL.md](INSTALL.md) | The full setup for a fresh machine: udev, registering your own hardware, the Wine bridge. Read this when QUICKSTART isn't enough. |
-| [geraete-workflow.md](geraete-workflow.md) 🇩🇪 | Adding a **new/foreign device** from scratch: detect → register → teach its inputs/outputs → (calibrate) → map. |
-| [running.md](running.md) | Running & iterating: what runs natively vs. in Wine/Proton, finding your Proton prefix/version, tuning a mapping live. |
-
-Helper scripts the guides use: `install.sh` (one-shot setup) · `tools/find-prefix.sh`
-(locate your MSFS prefix) · `tools/install-udev-rules.sh` (unlock devices — the
-app's "Enable devices…" button runs this for you).
+| **Install, set up devices, map, share profiles, fly** — the complete manual (beginner-friendly, GUI *and* terminal) | **[HANDBUCH.md](HANDBUCH.md)** 🇩🇪 |
 
 ## 📚 Reference — look things up
 
@@ -42,14 +21,13 @@ app's "Enable devices…" button runs this for you).
 | [cheatsheet.md](cheatsheet.md) | Every user-facing command as a copy-paste line. |
 | [simvars-reference.md](simvars-reference.md) | Catalog of SimVars/events/LVars used when mapping aircraft. |
 
-## 💡 Concept & background — *not needed to install*
-
-How and why things are designed. Skip these if you just want to get running.
+## 💡 Concept & background — *not needed to get running*
 
 | Document | What it covers |
 |---|---|
-| [bridge-concept.md](bridge-concept.md) | **How the bridge works** — short explainer with diagrams. A good first read for the curious. |
-| [geraete-baukasten-konzept.md](geraete-baukasten-konzept.md) 🇩🇪 | Vision (draft, not built): users assemble their own devices from building blocks. |
+| [bridge-concept.md](bridge-concept.md) | **How the bridge works** — short explainer with diagrams. |
+| [geraete-workflow.md](geraete-workflow.md) 🇩🇪 | The systematic device chain (detect → register → teach → calibrate → map) and the two-layer design the GUI follows. |
+| [geraete-baukasten-konzept.md](geraete-baukasten-konzept.md) 🇩🇪 | Vision (draft): users assemble their own devices from building blocks. |
 | [gauges-design.md](gauges-design.md) 🇩🇪 | Design notes for the gauges tab (round instruments). |
 
 ## ➕ Optional companion tools — *only if you use them*

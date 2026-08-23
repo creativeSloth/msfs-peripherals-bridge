@@ -150,6 +150,12 @@ def dumps(data: CommentedMap) -> str:
     return buf.getvalue()
 
 
+def loads(text: str) -> CommentedMap:
+    """Parse a YAML string into a round-trip document (counterpart to :func:`dumps`)."""
+    doc: CommentedMap = _yaml().load(text)
+    return doc
+
+
 def dump(data: CommentedMap, path: Path) -> None:
     """Write a round-trip document back to ``path``."""
     path.write_text(dumps(data), encoding="utf-8")

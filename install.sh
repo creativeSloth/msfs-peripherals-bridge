@@ -78,7 +78,7 @@ cat <<'EOF'
 
       uv run python -m msfs_peripherals_bridge.gui
 
-  Want to fly in MSFS? Follow docs/QUICKSTART.md, Steps 4–5
+  Want to fly in MSFS? Follow docs/HANDBUCH.md, Steps 9–10
   (set up the bridge, then fly).
 ──────────────────────────────────────────────────────────────
 EOF

@@ -150,7 +150,7 @@ def inventory() -> None:
 
     Unlike ``list-devices`` (catalog only) this also shows *unregistered*
     hardware — plug a new device in and read its USB id + name here, then add it
-    to config/devices.yaml (see docs/INSTALL.md, step 3). Foreground of the
+    to config/devices.yaml (see docs/HANDBUCH.md, step 6). Foreground of the
     planned GUI device explorer.
     """
     from .devices import inventory as inv
@@ -493,6 +493,57 @@ def import_config_cmd(
         f"[green]✓[/green] Wiederhergestellt: {len(res.profiles)} Profile, "
         f"Kalibrierung: {'ja' if res.calibration else 'nein'}, "
         f"{len(res.user_files)} GUI-Dateien"
+    )
+
+
+@app.command(name="export-device")
+def export_device_cmd(
+    device_id: str = typer.Argument(..., help="Katalog-Id des Geräts, z. B. 'switch_panel'."),
+    dest: str = typer.Argument(..., help="Ziel-Zip für das Geräte-Paket."),
+    profile: str = typer.Option(
+        ..., "--profile", "-p", help="Profil, aus dem das Mapping stammt (ohne .yaml)."
+    ),
+) -> None:
+    """Ein einzelnes Gerät teilen: Definition + Mapping + Anordnung + Kalibrierung in eine .zip."""
+    from . import device_package
+
+    try:
+        res = device_package.export_device_package(device_id, profile, dest)
+    except (ValueError, OSError) as exc:
+        console.print(f"[red]Export fehlgeschlagen:[/red] {exc}")
+        raise typer.Exit(code=1) from None
+    console.print(
+        f"[green]✓[/green] Geräte-Paket: {res.path}  "
+        f"({res.bindings} Eingaben / {res.outputs} Anzeigen aus „{profile}“, "
+        f"Anordnung: {'ja' if res.has_layout else 'nein'}, "
+        f"Kalibrierung: {'ja' if res.has_calibration else 'nein'})"
+    )
+
+
+@app.command(name="import-device")
+def import_device_cmd(
+    src: str = typer.Argument(..., help="Geräte-Paket-Zip aus export-device."),
+    profile: str = typer.Option(
+        "",
+        "--profile",
+        "-p",
+        help="Zielprofil für das Mapping (ohne .yaml). Leer = Mapping überspringen.",
+    ),
+) -> None:
+    """Geräte-Paket laden: registriert das Gerät + übernimmt Anordnung/Kalibrierung/Mapping."""
+    from . import device_package
+
+    try:
+        res = device_package.import_device_package(src, profile or None)
+    except (ValueError, OSError) as exc:
+        console.print(f"[red]Import fehlgeschlagen:[/red] {exc}")
+        raise typer.Exit(code=1) from None
+    into = f" → „{res.target_profile}“" if res.target_profile else " (Mapping übersprungen)"
+    console.print(
+        f"[green]✓[/green] „{res.device_name}“ importiert: "
+        f"{res.bindings} Eingaben / {res.outputs} Anzeigen{into}, "
+        f"Anordnung: {'ja' if res.layout else 'nein'}, "
+        f"Kalibrierung: {'ja' if res.calibration else 'nein'}"
     )
 
 

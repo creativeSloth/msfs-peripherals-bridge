@@ -2718,6 +2718,20 @@ def run() -> None:
             "noch nicht registrierte) und neue Geräte anlegen"
         ),
     )
+    b_import_pkg = ttk.Button(
+        devbtn,
+        text=tr("📥 Geräte-Paket importieren…"),
+        command=lambda: _import_device_package(),
+    )
+    b_import_pkg.pack(side="left", padx=6)
+    _attach_tooltip(
+        b_import_pkg,
+        tr(
+            "Ein von jemandem geteiltes Geräte-Paket laden: registriert das Gerät, "
+            "übernimmt Knopf-Anordnung + Kalibrierung und legt das Mapping ins aktuelle Profil. "
+            "Export: Rechtsklick auf ein Gerät → „Als Geräte-Paket exportieren…“"
+        ),
+    )
 
     bindbtn = ttk.Frame(mtab)
     bindbtn.grid(row=2, column=1, columnspan=2, sticky="ew", pady=(6, 0))
@@ -6220,8 +6234,101 @@ def run() -> None:
         if on_done:
             on_done()
 
+    def _export_device_package(device_id):
+        """Bundle this device (def + mapping + arrangement + calibration) into a .zip."""
+        from tkinter import filedialog
+
+        from . import device_package as _dp
+
+        prof = profile_var.get()
+        if not prof:
+            messagebox.showinfo(tr("Geräte-Paket"), tr("Kein Profil ausgewählt."))
+            return
+        dest = filedialog.asksaveasfilename(
+            title=tr("Geräte-Paket exportieren"),
+            defaultextension=".zip",
+            initialfile=f"{device_id}-paket.zip",
+            filetypes=[("Zip", "*.zip")],
+        )
+        if not dest:
+            return
+        try:
+            res = _dp.export_device_package(device_id, prof, dest)
+        except Exception as exc:
+            messagebox.showerror(tr("Geräte-Paket"), str(exc))
+            return
+        messagebox.showinfo(
+            tr("Geräte-Paket"),
+            tr(
+                "„{dev}“ exportiert ✓\n\n"
+                "{nb} Eingaben / {no} Anzeigen (aus Profil „{p}“) · "
+                "Anordnung: {lay} · Kalibrierung: {cal}\n→ {path}",
+                dev=device_id,
+                nb=res.bindings,
+                no=res.outputs,
+                p=prof,
+                lay=(tr("ja") if res.has_layout else tr("nein")),
+                cal=(tr("ja") if res.has_calibration else tr("nein")),
+                path=res.path,
+            ),
+        )
+
+    def _import_device_package():
+        """Import a device package: register it, restore arrangement/calibration, map it."""
+        from tkinter import filedialog
+
+        from . import device_package as _dp
+
+        src = filedialog.askopenfilename(
+            title=tr("Geräte-Paket importieren"), filetypes=[("Zip", "*.zip")]
+        )
+        if not src:
+            return
+        try:
+            man = _dp.read_manifest(src)
+        except Exception as exc:
+            messagebox.showerror(tr("Geräte-Paket"), str(exc))
+            return
+        target = profile_var.get() or None
+        dev_name = man.get("device_name") or man.get("device_id")
+        has_map = bool(man.get("bindings") or man.get("outputs"))
+        msg = tr(
+            "Gerät „{dev}“ importieren?\n\n"
+            "• Gerät wird registriert (in deinen eigenen Geräten)\n"
+            "• Anordnung + Kalibrierung werden übernommen\n",
+            dev=dev_name,
+        )
+        if has_map:
+            if not target:
+                messagebox.showinfo(tr("Geräte-Paket"), tr("Kein Zielprofil ausgewählt."))
+                return
+            msg += tr("• Mapping landet in Profil „{p}“ (überschreibt vorhandenes)", p=target)
+        else:
+            msg += tr("• (kein Mapping im Paket)")
+        if not messagebox.askyesno(tr("Geräte-Paket importieren"), msg):
+            return
+        try:
+            res = _dp.import_device_package(src, target)
+        except Exception as exc:
+            messagebox.showerror(tr("Geräte-Paket"), str(exc))
+            return
+        _mapper_reload(rediscover=True)
+        messagebox.showinfo(
+            tr("Geräte-Paket"),
+            tr(
+                "„{dev}“ importiert ✓\n\n{nb} Eingaben / {no} Anzeigen{into} · "
+                "Anordnung: {lay} · Kalibrierung: {cal}",
+                dev=res.device_name,
+                nb=res.bindings,
+                no=res.outputs,
+                into=(tr(" → „{p}“", p=res.target_profile) if res.target_profile else ""),
+                lay=(tr("ja") if res.layout else tr("nein")),
+                cal=(tr("ja") if res.calibration else tr("nein")),
+            ),
+        )
+
     def _dev_menu(event):
-        """Right-click on a device row → transfer its mappings / deregister it."""
+        """Right-click on a device row → transfer / export as package / deregister."""
         row = dev_tree.identify_row(event.y)
         if not row:
             return
@@ -6231,6 +6338,10 @@ def run() -> None:
         menu.add_command(
             label=tr("Mappings in anderes Profil übertragen…"),
             command=lambda: _transfer_device(row),
+        )
+        menu.add_command(
+            label=tr("Als Geräte-Paket exportieren…"),
+            command=lambda: _export_device_package(row),
         )
         menu.add_separator()
         menu.add_command(
