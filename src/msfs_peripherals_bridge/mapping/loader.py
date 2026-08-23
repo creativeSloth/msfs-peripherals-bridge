@@ -44,26 +44,106 @@ def load_device_catalog(
         overlay = config.devices_overlay_file()
     if overlay.exists():
         extra = yaml.safe_load(overlay.read_text(encoding="utf-8")) or {}
-        catalog = merge_device_catalog(catalog, DeviceCatalog.model_validate(extra))
+        overlay_cat = DeviceCatalog.model_validate({"devices": extra.get("devices") or []})
+        catalog = merge_device_catalog(catalog, overlay_cat)
+        hidden = set(extra.get("hidden") or [])
+        if hidden:
+            catalog = DeviceCatalog(devices=[d for d in catalog.devices if d.id not in hidden])
     return catalog
 
 
 def add_device_overlay(ddef: DeviceDef, overlay: Path | None = None) -> Path:
-    """Append/replace a device in the user overlay YAML, creating it if needed."""
+    """Append/replace a device in the user overlay YAML, creating it if needed.
+
+    Preserves the overlay's ``hidden`` list (see :func:`hide_device`) and — since
+    re-registering a device is the natural undo of deregistering it — drops this
+    device's id from that list so it shows up in the catalog again.
+    """
     if overlay is None:
         from .. import config
 
         overlay = config.devices_overlay_file()
-    existing = DeviceCatalog(devices=[])
+    data: dict[str, Any] = {}
     if overlay.exists():
         data = yaml.safe_load(overlay.read_text(encoding="utf-8")) or {}
-        existing = DeviceCatalog.model_validate(data)
+    existing = DeviceCatalog.model_validate({"devices": data.get("devices") or []})
     merged = merge_device_catalog(existing, DeviceCatalog(devices=[ddef]))
+    data["devices"] = merged.model_dump(exclude_none=True)["devices"]
+    hidden = [h for h in (data.get("hidden") or []) if h != ddef.id]
+    if hidden:
+        data["hidden"] = hidden
+    else:
+        data.pop("hidden", None)
     overlay.parent.mkdir(parents=True, exist_ok=True)
     overlay.write_text(
-        yaml.safe_dump(merged.model_dump(exclude_none=True), sort_keys=False, allow_unicode=True),
+        yaml.safe_dump(data, sort_keys=False, allow_unicode=True),
         encoding="utf-8",
     )
+    return overlay
+
+
+def load_hidden_devices(overlay: Path | None = None) -> set[str]:
+    """Device ids the user deregistered from the catalog list (per-user overlay)."""
+    if overlay is None:
+        from .. import config
+
+        overlay = config.devices_overlay_file()
+    if not overlay.exists():
+        return set()
+    data = yaml.safe_load(overlay.read_text(encoding="utf-8")) or {}
+    return set(data.get("hidden") or [])
+
+
+def hide_device(device_id: str, overlay: Path | None = None) -> Path:
+    """Deregister a device from the catalog list, non-destructively.
+
+    The versioned ``config/devices.yaml`` is never touched — a stranger must be
+    able to drop the bundled sample devices without editing shipped files. An
+    overlay-added copy of the device is removed outright, and the id is recorded
+    in the overlay's ``hidden`` list so :func:`load_device_catalog` filters the
+    bundled entry out too. Reversible via :func:`unhide_device` or by
+    re-registering; profiles that map the device are left intact.
+    """
+    if overlay is None:
+        from .. import config
+
+        overlay = config.devices_overlay_file()
+    data: dict[str, Any] = {}
+    if overlay.exists():
+        data = yaml.safe_load(overlay.read_text(encoding="utf-8")) or {}
+    devices = [d for d in (data.get("devices") or []) if d.get("id") != device_id]
+    if devices:
+        data["devices"] = devices
+    else:
+        data.pop("devices", None)
+    hidden = list(data.get("hidden") or [])
+    if device_id not in hidden:
+        hidden.append(device_id)
+    data["hidden"] = hidden
+    overlay.parent.mkdir(parents=True, exist_ok=True)
+    overlay.write_text(yaml.safe_dump(data, sort_keys=False, allow_unicode=True), encoding="utf-8")
+    return overlay
+
+
+def unhide_device(device_id: str, overlay: Path | None = None) -> Path:
+    """Undo :func:`hide_device` for a bundled device (drop it from ``hidden``).
+
+    Only restores catalog devices; a user-created overlay device removed by
+    :func:`hide_device` is gone and must be re-created via the device explorer.
+    """
+    if overlay is None:
+        from .. import config
+
+        overlay = config.devices_overlay_file()
+    if not overlay.exists():
+        return overlay
+    data = yaml.safe_load(overlay.read_text(encoding="utf-8")) or {}
+    hidden = [h for h in (data.get("hidden") or []) if h != device_id]
+    if hidden:
+        data["hidden"] = hidden
+    else:
+        data.pop("hidden", None)
+    overlay.write_text(yaml.safe_dump(data, sort_keys=False, allow_unicode=True), encoding="utf-8")
     return overlay
 
 

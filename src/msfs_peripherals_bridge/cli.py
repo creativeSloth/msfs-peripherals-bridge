@@ -13,10 +13,13 @@ from . import __version__, backup, config
 from .devices.calibration import load_calibration
 from .mapping.loader import (
     apply_calibration,
+    hide_device,
     load_device_catalog,
+    load_hidden_devices,
     load_profile,
     load_profiles,
     select_profile,
+    unhide_device,
 )
 from .models import Profile
 from .simconnect.client import DEFAULT_HOST, DEFAULT_PORT, BridgeClient, DryRunDispatcher
@@ -64,6 +67,39 @@ def list_devices() -> None:
         status = "[green]connected[/green]" if dev.id in present else "[dim]absent[/dim]"
         table.add_row(dev.id, dev.name, f"{dev.vendor}:{dev.product}", status)
     console.print(table)
+
+
+@app.command(name="deregister-device")
+def deregister_device(
+    device_id: str = typer.Argument(
+        "", help="Catalog id to hide (omit with --list to see hidden ids)."
+    ),
+    restore: bool = typer.Option(False, "--restore", help="Un-hide the id instead of hiding it."),
+    show_hidden: bool = typer.Option(False, "--list", help="List currently hidden ids and exit."),
+) -> None:
+    """Hide a device from your catalog list (non-destructive, per-user).
+
+    Removes a device — including the bundled sample hardware a stranger inherits
+    from ``config/devices.yaml`` — from *this user's* list without editing the
+    versioned catalog or any profile. Reversible with ``--restore``; ``--list``
+    shows what is currently hidden.
+    """
+    if show_hidden:
+        hidden = sorted(load_hidden_devices())
+        console.print(", ".join(hidden) if hidden else "[dim]no hidden devices[/dim]")
+        return
+    if not device_id:
+        console.print("[red]Give a device id (or use --list).[/red]")
+        raise typer.Exit(code=1)
+    if restore:
+        unhide_device(device_id)
+        console.print(f"[green]Restored[/green] [cyan]{device_id}[/cyan] to the catalog list.")
+        return
+    hide_device(device_id)
+    console.print(
+        f"[green]Deregistered[/green] [cyan]{device_id}[/cyan] "
+        "(reversible: --restore, or re-register in the device explorer)."
+    )
 
 
 @app.command()

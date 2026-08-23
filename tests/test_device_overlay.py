@@ -2,10 +2,13 @@ import yaml
 
 from msfs_peripherals_bridge.mapping.loader import (
     add_device_overlay,
+    hide_device,
     load_device_catalog,
+    load_hidden_devices,
     merge_device_catalog,
     set_device_inputs,
     set_device_outputs,
+    unhide_device,
 )
 from msfs_peripherals_bridge.models import (
     DeviceCatalog,
@@ -68,6 +71,67 @@ def test_load_device_catalog_can_skip_overlay(tmp_path):
     base.write_text(yaml.safe_dump({"devices": [A.model_dump(exclude_none=True)]}))
     catalog = load_device_catalog(base, merge_overlay=False)
     assert {d.id for d in catalog.devices} == {"a"}
+
+
+def _base(tmp_path):
+    base = tmp_path / "devices.yaml"
+    base.write_text(
+        yaml.safe_dump(
+            {"devices": [A.model_dump(exclude_none=True), B.model_dump(exclude_none=True)]}
+        )
+    )
+    return base
+
+
+def test_hide_device_filters_bundled_entry(tmp_path):
+    base = _base(tmp_path)
+    overlay = tmp_path / "devices.local.yaml"
+    hide_device("a", overlay=overlay)
+    catalog = load_device_catalog(base, overlay=overlay)
+    assert {d.id for d in catalog.devices} == {"b"}  # 'a' hidden, versioned base intact
+    assert yaml.safe_load(base.read_text())["devices"][0]["id"] == "a"
+
+
+def test_hide_device_drops_overlay_copy(tmp_path):
+    base = _base(tmp_path)
+    overlay = tmp_path / "devices.local.yaml"
+    add_device_overlay(C, overlay=overlay)
+    hide_device("c", overlay=overlay)
+    data = yaml.safe_load(overlay.read_text())
+    assert all(d["id"] != "c" for d in data.get("devices") or [])
+    assert "c" in data["hidden"]
+    assert {d.id for d in load_device_catalog(base, overlay=overlay).devices} == {"a", "b"}
+
+
+def test_unhide_restores_bundled_device(tmp_path):
+    base = _base(tmp_path)
+    overlay = tmp_path / "devices.local.yaml"
+    hide_device("a", overlay=overlay)
+    unhide_device("a", overlay=overlay)
+    assert {d.id for d in load_device_catalog(base, overlay=overlay).devices} == {"a", "b"}
+    assert load_hidden_devices(overlay=overlay) == set()
+
+
+def test_add_device_overlay_preserves_hidden(tmp_path):
+    overlay = tmp_path / "devices.local.yaml"
+    hide_device("a", overlay=overlay)
+    add_device_overlay(C, overlay=overlay)  # register an unrelated device
+    assert "a" in load_hidden_devices(overlay=overlay)
+    data = yaml.safe_load(overlay.read_text())
+    assert any(d["id"] == "c" for d in data["devices"])
+
+
+def test_re_registering_a_hidden_device_unhides_it(tmp_path):
+    base = _base(tmp_path)
+    overlay = tmp_path / "devices.local.yaml"
+    hide_device("a", overlay=overlay)
+    add_device_overlay(A, overlay=overlay)  # user plugs it back in and re-registers
+    assert load_hidden_devices(overlay=overlay) == set()
+    assert {d.id for d in load_device_catalog(base, overlay=overlay).devices} == {"a", "b"}
+
+
+def test_load_hidden_devices_missing_file(tmp_path):
+    assert load_hidden_devices(overlay=tmp_path / "nope.yaml") == set()
 
 
 def test_devicedef_without_inputs_defaults_empty():

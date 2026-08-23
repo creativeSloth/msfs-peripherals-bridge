@@ -2631,12 +2631,78 @@ def run() -> None:
                 return
             _open_input_scan(it.catalog_id)
 
+        def _deregister():
+            sel = tree.focus()
+            if not sel:
+                return
+            it = items[int(sel)]
+            if not it.registered:
+                messagebox.showinfo(
+                    tr("Geräte-Explorer"), tr("Dieses Gerät ist nicht registriert.")
+                )
+                return
+            _deregister_device(it.catalog_id, on_done=_refill)
+
+        def _show_hidden():
+            from .mapping.loader import load_hidden_devices, unhide_device
+
+            hidden = sorted(load_hidden_devices())
+            if not hidden:
+                messagebox.showinfo(
+                    tr("Ausgeblendete Geräte"), tr("Keine ausgeblendeten Geräte."), parent=ex
+                )
+                return
+            hd = tk.Toplevel(ex)
+            hd.title(tr("Ausgeblendete Geräte"))
+            hd.transient(ex)
+            ttk.Label(
+                hd,
+                text=tr(
+                    "Diese Geräte hast du aus der Geräteliste entfernt. "
+                    "Auswählen und „Wieder anzeigen“, um sie zurückzuholen."
+                ),
+                wraplength=380,
+                justify="left",
+            ).pack(anchor="w", padx=10, pady=(10, 6))
+            lb = tk.Listbox(hd, height=min(10, len(hidden)), exportselection=False)
+            for h in hidden:
+                lb.insert("end", h)
+            lb.selection_set(0)
+            lb.pack(fill="both", expand=True, padx=10)
+
+            def _restore():
+                sel = lb.curselection()
+                if not sel:
+                    return
+                dev_id = hidden[sel[0]]
+                try:
+                    unhide_device(dev_id)
+                except Exception as exc:
+                    messagebox.showerror(tr("Ausgeblendete Geräte"), str(exc), parent=hd)
+                    return
+                _mapper_reload(rediscover=False)
+                _refill()
+                hd.destroy()
+
+            row = ttk.Frame(hd)
+            row.pack(fill="x", padx=10, pady=10)
+            ttk.Button(
+                row, text=tr("Wieder anzeigen"), style="Success.TButton", command=_restore
+            ).pack(side="left")
+            ttk.Button(row, text=tr("Schließen"), command=hd.destroy).pack(side="right")
+
         btnrow = ttk.Frame(ex)
         btnrow.pack(fill="x", padx=10, pady=10)
         ttk.Button(
             btnrow, text=tr("Registrieren…"), style="Success.TButton", command=_register
         ).pack(side="left")
         ttk.Button(btnrow, text=tr("Geräteelemente…"), command=_scan_inputs).pack(
+            side="left", padx=6
+        )
+        ttk.Button(
+            btnrow, text=tr("Deregistrieren…"), style="Danger.TButton", command=_deregister
+        ).pack(side="left", padx=6)
+        ttk.Button(btnrow, text=tr("Ausgeblendete Geräte…"), command=_show_hidden).pack(
             side="left", padx=6
         )
         ttk.Button(btnrow, text=tr("Aktualisieren"), command=_refill).pack(side="left", padx=6)
@@ -6119,8 +6185,43 @@ def run() -> None:
         )
         ttk.Button(btns, text=tr("Abbrechen"), command=dlg.destroy).pack(side="right")
 
+    def _deregister_device(device_id, on_done=None):
+        """Hide a device from the catalog list (non-destructive, per-user).
+
+        Drops the bundled/overlay device from *this user's* view so a stranger who
+        cloned the repo is not stuck with the author's hardware. The versioned
+        catalog and any profile mappings are untouched; reversible via the device
+        explorer's "Ausgeblendete Geräte…".
+        """
+        from .mapping.loader import hide_device
+
+        cat = _device_catalog()
+        ddef = cat.by_id(device_id) if cat else None
+        label = ddef.name if ddef else device_id
+        if not messagebox.askyesno(
+            tr("Gerät deregistrieren"),
+            tr(
+                "„{name}“ aus der Geräteliste entfernen?\n\n"
+                "Das blendet das Gerät nur für dich aus (der mitgelieferte Katalog "
+                "und deine Profil-Mappings bleiben unangetastet). "
+                "Über den Geräte-Explorer → „Ausgeblendete Geräte…“ kannst du es "
+                "jederzeit wieder einblenden.",
+                name=label,
+            ),
+        ):
+            return
+        try:
+            hide_device(device_id)
+        except Exception as exc:
+            messagebox.showerror(tr("Gerät deregistrieren"), str(exc))
+            return
+        _mapper_reload(rediscover=False)
+        m_state.config(text=tr("„{name}“ deregistriert ✓", name=label))
+        if on_done:
+            on_done()
+
     def _dev_menu(event):
-        """Right-click on a device row → transfer its mappings to another profile."""
+        """Right-click on a device row → transfer its mappings / deregister it."""
         row = dev_tree.identify_row(event.y)
         if not row:
             return
@@ -6130,6 +6231,11 @@ def run() -> None:
         menu.add_command(
             label=tr("Mappings in anderes Profil übertragen…"),
             command=lambda: _transfer_device(row),
+        )
+        menu.add_separator()
+        menu.add_command(
+            label=tr("Aus der Geräteliste entfernen…"),
+            command=lambda: _deregister_device(row),
         )
         menu.tk_popup(event.x_root, event.y_root)
 
