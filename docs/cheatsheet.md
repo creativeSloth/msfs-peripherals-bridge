@@ -3,7 +3,7 @@
 Every user-facing command, as a copy-paste terminal line with a one-line note.
 Run from the repo root. `uv run msfs-bridge …` is the app; the one-command
 `msfs-bridge` launcher (in `~/.local/bin`) starts the Wine bridge **and** the
-mapper together — see the [Handbuch](HANDBUCH.md).
+mapper together — see the [Manual](MANUAL.md).
 
 ```bash
 uv run msfs-bridge --help          # list all commands

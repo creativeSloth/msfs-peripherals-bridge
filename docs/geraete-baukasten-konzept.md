@@ -375,6 +375,6 @@ gelegt werden. Das ist ein eigener großer Batch **nach** den Output-Modellen
 
 ---
 
-Verwandt: [`HANDBUCH.md`](HANDBUCH.md) (heutiger Weg: Geräte freischalten +
+Verwandt: [`MANUAL.md`](MANUAL.md) (heutiger Weg: Geräte freischalten +
 einrichten, Schritt 3 + 6), [`geraete-workflow.md`](geraete-workflow.md),
 Panel-HID-Maps in `docs/memory/{multi,radio}-panel-hid.md`.

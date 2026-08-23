@@ -1,18 +1,18 @@
 # Documentation — where to find what
 
 New here? Everything a user needs — install, devices, mapping, sharing profiles,
-the Wine bridge, flying — is in **one** place: the **[Handbuch](HANDBUCH.md)**.
+the Wine bridge, flying — is in **one** place: the **[Manual](MANUAL.md)**.
 The lists below are the rest: references you look things up in, and background.
 
-> 🇩🇪 marks a German document. The **[Handbuch](HANDBUCH.md)** (the main user
-> guide) is German; the app itself switches to English under **Settings → GUI
+> 🇩🇪 marks a document still written in German. The **[Manual](MANUAL.md)** and the
+> other guides are in English; the app switches to English under **Settings → GUI
 > language**.
 
 ## Start here
 
 | I want to… | Open |
 |---|---|
-| **Install, set up devices, map, share profiles, fly** — the complete manual (beginner-friendly, GUI *and* terminal) | **[HANDBUCH.md](HANDBUCH.md)** 🇩🇪 |
+| **Install, set up devices, map, share profiles, fly** — the complete manual (beginner-friendly, GUI *and* terminal) | **[MANUAL.md](MANUAL.md)** |
 
 ## 📚 Reference — look things up
 

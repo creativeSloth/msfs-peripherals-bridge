@@ -150,7 +150,7 @@ def inventory() -> None:
 
     Unlike ``list-devices`` (catalog only) this also shows *unregistered*
     hardware — plug a new device in and read its USB id + name here, then add it
-    to config/devices.yaml (see docs/HANDBUCH.md, step 6). Foreground of the
+    to config/devices.yaml (see docs/MANUAL.md, step 6). Foreground of the
     planned GUI device explorer.
     """
     from .devices import inventory as inv

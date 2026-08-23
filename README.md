@@ -4,7 +4,7 @@ Map Linux USB flight-sim peripherals to **Microsoft Flight Simulator 2020**
 SimVars and events — with **per-aircraft mapping profiles**.
 
 > ### 👉 Start here
-> - **The complete user manual** — install, devices, mapping, sharing profiles, the Wine bridge, flying; beginner-friendly, GUI *and* terminal → **[docs/HANDBUCH.md](docs/HANDBUCH.md)** 🇩🇪
+> - **The complete user manual** — install, devices, mapping, sharing profiles, the Wine bridge, flying; beginner-friendly, GUI *and* terminal → **[docs/MANUAL.md](docs/MANUAL.md)**
 > - **How it works under the hood** → **[docs/bridge-concept.md](docs/bridge-concept.md)**.
 > - **A map of every document** → **[docs/README.md](docs/README.md)**.
 
@@ -107,7 +107,7 @@ flowchart LR
 
 ## Quick start (CLI / developers)
 
-Not a developer? Use the **[Handbuch](docs/HANDBUCH.md)** instead — same result,
+Not a developer? Use the **[Manual](docs/MANUAL.md)** instead — same result,
 step by step, no terminal knowledge needed.
 
 ```bash
@@ -143,7 +143,7 @@ The full command list as copy-paste lines is in
 Setting up on a fresh machine — **your own hardware**, registering devices, the
 Wine bridge, finding your MSFS Proton prefix, tuning a mapping live with
 `--dry-run -v`? The complete step-by-step manual is the
-**[Handbuch](docs/HANDBUCH.md)**.
+**[Manual](docs/MANUAL.md)**.
 
 ---
 
