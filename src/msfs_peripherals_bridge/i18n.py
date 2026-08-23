@@ -1435,4 +1435,176 @@ _STRINGS: dict[str, dict[str, str]] = {
         "es": "Condición: comparación desconocida '{op}'.",
         "fr": "Condition : comparaison inconnue « {op} ».",
     },
+    # ----- Nachbau: banner headings (group titles) ------------------------ #
+    "Magnetos": {"en": "Magnetos", "es": "Magnetos", "fr": "Magnétos"},
+    "Fahrwerk": {"en": "Landing gear", "es": "Tren de aterrizaje", "fr": "Train"},
+    "Weitere Anzeigen": {
+        "en": "More displays",
+        "es": "Más indicadores",
+        "fr": "Autres affichages",
+    },
+    # ----- arrange mode: toolbar, decorations, size dialog, menus --------- #
+    "Raster ignorieren": {
+        "en": "Ignore grid",
+        "es": "Ignorar cuadrícula",
+        "fr": "Ignorer la grille",
+    },
+    "Frei platzieren, ohne am Raster einzurasten (wird gemerkt).": {
+        "en": "Place freely, without snapping to the grid (remembered).",
+        "es": "Colocar libremente, sin ajustar a la cuadrícula (se recuerda).",
+        "fr": "Placer librement, sans aligner sur la grille (mémorisé).",
+    },
+    "+ Deko": {"en": "+ Deco", "es": "+ Deco", "fr": "+ Déco"},
+    "Box (Hintergrund)": {
+        "en": "Box (background)",
+        "es": "Caja (fondo)",
+        "fr": "Boîte (arrière-plan)",
+    },
+    "Linie": {"en": "Line", "es": "Línea", "fr": "Ligne"},
+    "Beschriftung": {"en": "Label", "es": "Etiqueta", "fr": "Libellé"},
+    "Optische Hilfen zum Gruppieren: Box hinter Knöpfe, Trennlinie, Textlabel.": {
+        "en": "Visual grouping helpers: a box behind buttons, a divider line, a text label.",
+        "es": "Ayudas visuales para agrupar: una caja tras los botones, una línea, una etiqueta.",
+        "fr": "Aides visuelles pour grouper : une boîte derrière les boutons, une ligne, un libellé.",
+    },
+    "Text": {"en": "Text", "es": "Texto", "fr": "Texte"},
+    "Beschriftung:": {"en": "Label:", "es": "Etiqueta:", "fr": "Libellé :"},
+    "Größe & Position": {
+        "en": "Size & position",
+        "es": "Tamaño y posición",
+        "fr": "Taille et position",
+    },
+    "Größe & Position…": {
+        "en": "Size & position…",
+        "es": "Tamaño y posición…",
+        "fr": "Taille et position…",
+    },
+    "Breite (px)": {"en": "Width (px)", "es": "Ancho (px)", "fr": "Largeur (px)"},
+    "Höhe (px)": {"en": "Height (px)", "es": "Alto (px)", "fr": "Hauteur (px)"},
+    "X-Position (px)": {
+        "en": "X position (px)",
+        "es": "Posición X (px)",
+        "fr": "Position X (px)",
+    },
+    "Y-Position (px)": {
+        "en": "Y position (px)",
+        "es": "Posición Y (px)",
+        "fr": "Position Y (px)",
+    },
+    "Raster ignorieren (exakte Pixel)": {
+        "en": "Ignore grid (exact pixels)",
+        "es": "Ignorar cuadrícula (píxeles exactos)",
+        "fr": "Ignorer la grille (pixels exacts)",
+    },
+    "Ohne Häkchen rasten Größe und Position am nächsten Rasterpunkt ein.": {
+        "en": "Unchecked, size and position snap to the nearest grid point.",
+        "es": "Sin marcar, el tamaño y la posición se ajustan al punto de cuadrícula más cercano.",
+        "fr": "Sans la case cochée, taille et position s'alignent sur le point de grille le plus proche.",
+    },
+    "Ganze Zahlen (Breite/Höhe ≥ 8, Position ≥ 0).": {
+        "en": "Whole numbers (width/height ≥ 8, position ≥ 0).",
+        "es": "Números enteros (ancho/alto ≥ 8, posición ≥ 0).",
+        "fr": "Nombres entiers (largeur/hauteur ≥ 8, position ≥ 0).",
+    },
+    "Umbenennen…": {"en": "Rename…", "es": "Renombrar…", "fr": "Renommer…"},
+    "Überschrift umbenennen": {
+        "en": "Rename heading",
+        "es": "Renombrar título",
+        "fr": "Renommer le titre",
+    },
+    "Neuer Text:": {"en": "New text:", "es": "Nuevo texto:", "fr": "Nouveau texte :"},
+    "Text bearbeiten…": {
+        "en": "Edit text…",
+        "es": "Editar texto…",
+        "fr": "Modifier le texte…",
+    },
+    "Löschen": {"en": "Delete", "es": "Eliminar", "fr": "Supprimer"},
+    "Ausgeblendete einblenden ({n})": {
+        "en": "Show hidden ({n})",
+        "es": "Mostrar ocultos ({n})",
+        "fr": "Afficher les masqués ({n})",
+    },
+    "Für dieses Gerät gibt es noch keinen Nachbau.": {
+        "en": "There is no replica for this device yet.",
+        "es": "Todavía no hay una réplica para este dispositivo.",
+        "fr": "Il n'y a pas encore de réplique pour cet appareil.",
+    },
+    "Anordnung zurücksetzen": {
+        "en": "Reset layout",
+        "es": "Restablecer disposición",
+        "fr": "Réinitialiser la disposition",
+    },
+    "Die eigene Anordnung dieses Geräts verwerfen und zum Standard-Nachbau zurück?": {
+        "en": "Discard this device's custom layout and go back to the default replica?",
+        "es": "¿Descartar la disposición propia de este dispositivo y volver a la réplica estándar?",
+        "fr": "Abandonner la disposition personnalisée de cet appareil et revenir à la réplique par défaut ?",
+    },
+    "Anordnung dieses Geräts zurücksetzen.": {
+        "en": "Reset this device's layout.",
+        "es": "Restablecer la disposición de este dispositivo.",
+        "fr": "Réinitialiser la disposition de cet appareil.",
+    },
+    "Anordnen: ziehen = verschieben · Ecke ziehen = Größe · Rechtsklick "
+    "= Größe/Text/Entfernen · „+ Deko“ für Box/Linie/Label · „✓ Fertig“": {
+        "en": "Arrange: drag = move · drag corner = resize · right-click = "
+        "size/text/remove · “+ Deco” for box/line/label · “✓ Done”",
+        "es": "Organizar: arrastrar = mover · esquina = tamaño · clic derecho = "
+        "tamaño/texto/quitar · «+ Deco» para caja/línea/etiqueta · «✓ Listo»",
+        "fr": "Disposer : glisser = déplacer · coin = redimensionner · clic droit = "
+        "taille/texte/retirer · « + Déco » pour boîte/ligne/libellé · « ✓ Terminé »",
+    },
+    # ----- device explorer (buttons, titles, transport hint) -------------- #
+    "🔍 Geräte-Explorer…": {
+        "en": "🔍 Device explorer…",
+        "es": "🔍 Explorador de dispositivos…",
+        "fr": "🔍 Explorateur d'appareils…",
+    },
+    "Geräte-Explorer": {
+        "en": "Device explorer",
+        "es": "Explorador de dispositivos",
+        "fr": "Explorateur d'appareils",
+    },
+    "Registrieren…": {"en": "Register…", "es": "Registrar…", "fr": "Enregistrer…"},
+    "Gerät registrieren": {
+        "en": "Register device",
+        "es": "Registrar dispositivo",
+        "fr": "Enregistrer l'appareil",
+    },
+    "Geräteelemente…": {
+        "en": "Device elements…",
+        "es": "Elementos del dispositivo…",
+        "fr": "Éléments de l'appareil…",
+    },
+    "Deregistrieren…": {
+        "en": "Deregister…",
+        "es": "Anular registro…",
+        "fr": "Désenregistrer…",
+    },
+    "Ausgeblendete Geräte…": {
+        "en": "Hidden devices…",
+        "es": "Dispositivos ocultos…",
+        "fr": "Appareils masqués…",
+    },
+    "Aktualisieren": {"en": "Refresh", "es": "Actualizar", "fr": "Actualiser"},
+    "Transport": {"en": "Transport", "es": "Transporte", "fr": "Transport"},
+    "Transport: „evdev“ = Achsen/Knöpfe über den Kernel-Input-Layer "
+    "(Yokes, Pedale, Quadranten); „hidraw“ = roher HID-Zugriff, nur damit "
+    "lassen sich LEDs/Anzeigen ansteuern (Saitek-Panels). Manche Geräte "
+    "erscheinen doppelt — nimm hidraw, wenn du Ausgänge (LEDs/Displays) "
+    "brauchst, sonst evdev.": {
+        "en": "Transport: “evdev” = axes/buttons via the kernel input layer "
+        "(yokes, pedals, quadrants); “hidraw” = raw HID access, the only way to "
+        "drive LEDs/displays (Saitek panels). Some devices show up twice — pick "
+        "hidraw if you need outputs (LEDs/displays), otherwise evdev.",
+        "es": "Transporte: «evdev» = ejes/botones por la capa de entrada del kernel "
+        "(yugos, pedales, cuadrantes); «hidraw» = acceso HID en bruto, la única "
+        "forma de controlar LED/indicadores (paneles Saitek). Algunos dispositivos "
+        "aparecen dos veces: elige hidraw si necesitas salidas (LED/indicadores), "
+        "si no evdev.",
+        "fr": "Transport : « evdev » = axes/boutons via la couche d'entrée du noyau "
+        "(yokes, palonniers, quadrants) ; « hidraw » = accès HID brut, le seul "
+        "moyen de piloter LED/affichages (panneaux Saitek). Certains appareils "
+        "apparaissent en double — choisissez hidraw s'il vous faut des sorties "
+        "(LED/affichages), sinon evdev.",
+    },
 }

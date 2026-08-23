@@ -753,12 +753,12 @@ class GenericLed(BaseModel):
     var: str = Field(..., description="Sim variable driving the LED.")
     byte: int = Field(0, ge=0, description="Data-byte index in the feature report (after id).")
     bit: int = Field(..., ge=0, le=7, description="Bit within that byte.")
-    on_at: float | None = Field(0.5, description="First comparison threshold. null = no first test.")
-    on_op: LedOp = Field(">=", description="Operator for the first comparison (value <op> on_at).")
+    on_at: float | None = Field(0.5, description="First comparison threshold. null = skip it.")
+    on_op: LedOp = Field(">=", description="Operator for the first test (value <op> on_at).")
     off_at: float | None = Field(
         None, description="Second comparison threshold. null = no second test."
     )
-    off_op: LedOp = Field("<", description="Operator for the second comparison (value <op> off_at).")
+    off_op: LedOp = Field("<", description="Operator for the second test (value <op> off_at).")
 
     def lit(self, value: float | None) -> bool:
         """Whether the LED is on for a sim ``value`` (None = no reading yet → off)."""

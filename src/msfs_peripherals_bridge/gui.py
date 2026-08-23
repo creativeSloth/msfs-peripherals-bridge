@@ -129,6 +129,18 @@ def save_show_gauges(value: bool, path: Path | None = None) -> None:
     save_gui_settings(data, path)
 
 
+def load_ignore_grid(path: Path | None = None) -> bool:
+    """Whether arrange mode places elements freely (no grid snap). Default off."""
+    return bool(load_gui_settings(path).get("panel_ignore_grid", False))
+
+
+def save_ignore_grid(value: bool, path: Path | None = None) -> None:
+    """Persist the arrange-mode "ignore grid" preference, keeping the rest."""
+    data = load_gui_settings(path)
+    data["panel_ignore_grid"] = bool(value)
+    save_gui_settings(data, path)
+
+
 def load_statistik_selection(path: Path | None = None) -> list[dict[str, str]]:
     """Restore the saved Statistik var list as ``{kind, name, unit}`` dicts."""
     return _clean_vars(load_gui_settings(path).get("statistik_vars"))
@@ -1979,6 +1991,28 @@ def run() -> None:
     )
     reset_layout_btn = ttk.Button(mhdr, text=tr("↺"), command=lambda: _reset_layout())
     _attach_tooltip(reset_layout_btn, tr("Anordnung dieses Geräts zurücksetzen."))
+    # Arrange-mode-only extras (shown/hidden by _toggle_edit): free placement toggle
+    # and a menu to drop purely visual helpers (box / line / label) onto the Nachbau.
+    snap_off_var = tk.BooleanVar(value=load_ignore_grid())
+    snap_off_cb = ttk.Checkbutton(
+        mhdr,
+        text=tr("Raster ignorieren"),
+        variable=snap_off_var,
+        command=lambda: _toggle_ignore_grid(),
+    )
+    _attach_tooltip(
+        snap_off_cb, tr("Frei platzieren, ohne am Raster einzurasten (wird gemerkt).")
+    )
+    deco_btn = ttk.Menubutton(mhdr, text=tr("+ Deko"))
+    deco_menu = tk.Menu(deco_btn, tearoff=0)
+    deco_menu.add_command(label=tr("Box (Hintergrund)"), command=lambda: _add_decoration("box"))
+    deco_menu.add_command(label=tr("Linie"), command=lambda: _add_decoration("line"))
+    deco_menu.add_command(label=tr("Beschriftung"), command=lambda: _add_decoration("label"))
+    deco_btn["menu"] = deco_menu
+    _attach_tooltip(
+        deco_btn,
+        tr("Optische Hilfen zum Gruppieren: Box hinter Knöpfe, Trennlinie, Textlabel."),
+    )
 
     def _spad_payload_from_xml(xml_path: Path) -> dict:
         """Run the tools/spadnext_import.py parser on an .xml, return its payload."""
@@ -2107,12 +2141,14 @@ def run() -> None:
         "device": None,
         "hint": None,
         "edit": False,
+        "ignore_grid": load_ignore_grid(),  # arrange freely, no snap (persisted)
+        "deco": [],  # visual-only decorations (box/line/label) for the current device
         "W": 0.0,
         "H": 0.0,
         "pad": 8,
         "drag": {"n": None, "mode": None, "rid": None, "sx": 0.0, "sy": 0.0, "moved": False},
     }
-    _PANEL_GRID = 1 / 16  # snap step + visible grid spacing in edit mode (coarse)
+    _PANEL_GRID = 1 / 24  # snap step + visible grid spacing in edit mode (fine)
 
     # discovery is lazy (only when the tab is first shown) so startup stays fast.
     mstate: dict[str, object] = {
@@ -2610,6 +2646,19 @@ def run() -> None:
             wraplength=520,
             justify="left",
         ).pack(anchor="w", padx=10, pady=(10, 6))
+        ttk.Label(
+            ex,
+            text=tr(
+                "Transport: „evdev“ = Achsen/Knöpfe über den Kernel-Input-Layer "
+                "(Yokes, Pedale, Quadranten); „hidraw“ = roher HID-Zugriff, nur damit "
+                "lassen sich LEDs/Anzeigen ansteuern (Saitek-Panels). Manche Geräte "
+                "erscheinen doppelt — nimm hidraw, wenn du Ausgänge (LEDs/Displays) "
+                "brauchst, sonst evdev."
+            ),
+            wraplength=520,
+            justify="left",
+            foreground=MUTED,
+        ).pack(anchor="w", padx=10, pady=(0, 8))
         tree = ttk.Treeview(
             ex,
             columns=("usb", "via", "status"),
@@ -2958,7 +3007,7 @@ def run() -> None:
                 "0",
                 tr(
                     "Welche einzelne LED innerhalb des Bytes. Jedes Byte steuert bis zu 8 "
-                    "Lampen (Bit 0–7). Auch das findet „🔦 Byte/Bit suchen…“ automatisch."
+                    "Lampen (Bit 0-7). Auch das findet „🔦 Byte/Bit suchen…“ automatisch."
                 ),
             )
             _cond_row(
@@ -5875,7 +5924,9 @@ def run() -> None:
         c.create_line(cx2, cy2, cx2, cy2 - r, fill="#37474f", width=2, tags=(tag,))
 
     def _draw_header(c, tag, el, x0, y0, x1, y1):
-        # a group heading: bold accent title + a separator line under it
+        # a group heading (banner): bold accent title + a separator line under it.
+        # ``el.label`` here is the display text the render pass already resolved
+        # (a user rename, else the translated built-in title).
         c.create_text(
             x0 + 2,
             (y0 + y1) / 2,
@@ -5915,6 +5966,30 @@ def run() -> None:
         panel_layout.HEADER: _draw_header,
     }
 
+    def _draw_decoration(c, tag, deco, x0, y0, x1, y1):
+        """Draw a purely visual helper: a background box (behind the controls), a
+        separator line, or a free text label. No sim data, never interactive except
+        in arrange mode (drag / resize / edit-text / delete)."""
+        t = deco["t"]
+        if t == "box":
+            _round_rect(
+                c, x0, y0, x1, y1, 8, fill="#eef2f7", outline="#94a3b8", width=1, tags=(tag,)
+            )
+            if deco["text"]:
+                c.create_text(
+                    x0 + 6, y0 + 4, anchor="nw", text=deco["text"], fill="#475569",
+                    font=("TkDefaultFont", 8, "bold"), tags=(tag,),
+                )
+        elif t == "line":
+            c.create_line(x0, y0, x1, y0, fill="#94a3b8", width=2, tags=(tag,))
+            # an invisible fat hit-line so the thin separator is easy to grab in edit mode
+            c.create_line(x0, y0, x1, y0, fill="", width=10, tags=(tag,))
+        else:  # label
+            c.create_text(
+                x0, y0, anchor="nw", text=deco["text"] or tr("Text"), fill=TEXT,
+                font=("TkDefaultFont", 10, "bold"), width=max(20.0, x1 - x0), tags=(tag,),
+            )
+
     def _render_panel_canvas(device_id):
         c = panel_canvas
         c.delete("all")
@@ -5942,12 +6017,28 @@ def run() -> None:
             )
             return
         # Overlay the user's drag-rearrangement (edit mode) on the generated layout.
-        from .mapping.loader import load_panel_layout
+        from dataclasses import replace as _dc_replace
+
+        from .mapping.loader import (
+            load_element_labels,
+            load_hidden_elements,
+            load_panel_decorations,
+            load_panel_layout,
+        )
 
         els = panel_layout.apply_layout_overrides(els, load_panel_layout(device_id))
+        # Optical elements (banners) the user removed / renamed in arrange mode.
+        hidden = load_hidden_elements(device_id)
+        labels = load_element_labels(device_id)
+        els = [el for el in els if panel_layout.element_key(el) not in hidden]
+        pcanvas["deco"] = load_panel_decorations(device_id)
+        pcanvas["labels"] = labels
+        pcanvas["hidden"] = hidden
         # y is in "viewport" units (1.0 = one canvas height): a layout taller than
-        # 1.0 (the radio panel) becomes scrollable content below the fold.
-        content = max(1.0, max(el.y + el.h for el in els))
+        # 1.0 (the radio panel) becomes scrollable content below the fold. Decorations
+        # extend it too, so a box/label dragged low stays reachable.
+        extents = [el.y + el.h for el in els] + [d["y"] + d["h"] for d in pcanvas["deco"]]
+        content = max([1.0, *extents])
         W, H = cw - 2 * pad, ch - 2 * pad
         pcanvas["W"], pcanvas["H"], pcanvas["pad"] = W, H, pad
         if pcanvas["edit"]:  # faint snap grid (both directions) behind the elements
@@ -5964,15 +6055,38 @@ def run() -> None:
                 m += 1
         for n, el in enumerate(els):
             tag = f"pel:{n}"
-            pcanvas["by_index"][n] = el
+            pcanvas["by_index"][n] = el  # original label kept -> stable override key
+            # Display text: a user rename wins; a banner otherwise shows translated.
+            disp = labels.get(panel_layout.element_key(el))
+            if disp is None and el.kind == panel_layout.HEADER:
+                disp = tr(el.label)
+            draw_el = _dc_replace(el, label=disp) if disp is not None else el
             x0, y0 = pad + el.x * W, pad + el.y * H
             x1, y1 = x0 + el.w * W, y0 + el.h * H
-            _PANEL_DRAW.get(el.kind, _draw_block)(c, tag, el, x0, y0, x1, y1)
+            _PANEL_DRAW.get(el.kind, _draw_block)(c, tag, draw_el, x0, y0, x1, y1)
             if pcanvas["edit"] and el.kind != panel_layout.HEADER:
                 # bottom-right resize grip (drawn on top so it wins the hit-test)
                 gs = 9
                 c.create_rectangle(
                     x1 - gs, y1 - gs, x1, y1, fill="#2563eb", outline="white", tags=(f"pgrip:{n}",)
+                )
+        # Decorations: boxes go BEHIND the controls (grouping backdrop), lines/labels
+        # on top. Resize grips (edit mode) are drawn last so they win the hit-test.
+        for i, deco in enumerate(pcanvas["deco"]):
+            dtag = f"deco:{i}"
+            dx0, dy0 = pad + deco["x"] * W, pad + deco["y"] * H
+            dx1, dy1 = dx0 + deco["w"] * W, dy0 + deco["h"] * H
+            _draw_decoration(c, dtag, deco, dx0, dy0, dx1, dy1)
+            if deco["t"] == "box":
+                c.tag_lower(dtag)
+        if pcanvas["edit"]:
+            gs = 9
+            for i, deco in enumerate(pcanvas["deco"]):
+                dx1 = pad + (deco["x"] + deco["w"]) * W
+                dy1 = pad + (deco["y"] + deco["h"]) * H
+                c.create_rectangle(
+                    dx1 - gs, dy1 - gs, dx1, dy1, fill="#7c3aed", outline="white",
+                    tags=(f"dgrip:{i}",),
                 )
         content_px = pad + content * H + pad
         c.configure(scrollregion=(0, 0, cw, content_px))
@@ -5986,8 +6100,8 @@ def run() -> None:
             font=("TkDefaultFont", 8),
             text=(
                 tr(
-                    "Anordnen: ziehen = verschieben · blaue Ecke ziehen = Größe · "
-                    "Rechtsklick = Größe in Pixel · „✓ Fertig“ zum Beenden"
+                    "Anordnen: ziehen = verschieben · Ecke ziehen = Größe · Rechtsklick "
+                    "= Größe/Text/Entfernen · „+ Deko“ für Box/Linie/Label · „✓ Fertig“"
                 )
                 if pcanvas["edit"]
                 else tr(
@@ -6020,22 +6134,63 @@ def run() -> None:
                 return int(t.split(":")[1])
         return None
 
+    def _deco_idx_at(_event):
+        """Index of the decoration (box/line/label) under the cursor, or None."""
+        for t in panel_canvas.gettags("current"):
+            if t.startswith("deco:"):
+                return int(t.split(":")[1])
+        return None
+
+    def _deco_grip_at(_event):
+        """Index of the decoration whose resize grip is under the cursor, or None."""
+        for t in panel_canvas.gettags("current"):
+            if t.startswith("dgrip:"):
+                return int(t.split(":")[1])
+        return None
+
+    def _snap_maybe(value: float) -> float:
+        """Snap to the grid unless free placement ("Raster ignorieren") is on."""
+        return value if pcanvas["ignore_grid"] else panel_layout.snap(value, _PANEL_GRID)
+
     def _panel_press(event):
         if pcanvas["edit"]:  # edit mode: begin a move OR a resize (grip under cursor)
             cx, cy = panel_canvas.canvasx(event.x), panel_canvas.canvasy(event.y)
+            W, H, pad = pcanvas["W"] or 1, pcanvas["H"] or 1, pcanvas["pad"]
+            # Decorations sit on their own tags and persist separately — handle first.
+            dgi = _deco_grip_at(event)
+            if dgi is not None:  # resize a decoration
+                deco = pcanvas["deco"][dgi]
+                x0, y0 = pad + deco["x"] * W, pad + deco["y"] * H
+                rid = panel_canvas.create_rectangle(
+                    x0, y0, cx, cy, outline="#7c3aed", dash=(3, 2), width=2
+                )
+                pcanvas["drag"].update(
+                    target="deco", mode="resize", di=dgi, n=None, x0=x0, y0=y0, rid=rid, moved=False
+                )
+                return
+            di = _deco_idx_at(event)
+            if di is not None:  # move a decoration
+                deco = pcanvas["deco"][di]
+                pcanvas["drag"].update(
+                    target="deco", mode="move", di=di, n=None, rid=None,
+                    sx=cx, sy=cy, lx=cx, ly=cy, ox=deco["x"], oy=deco["y"], moved=False,
+                )
+                return
             gi = _panel_grip_at(event)
             if gi is not None:  # resize: rubber-band from the element's fixed top-left
                 el = pcanvas["by_index"].get(gi)
-                W, H, pad = pcanvas["W"] or 1, pcanvas["H"] or 1, pcanvas["pad"]
                 x0, y0 = pad + el.x * W, pad + el.y * H
                 rid = panel_canvas.create_rectangle(
                     x0, y0, cx, cy, outline="#2563eb", dash=(3, 2), width=2
                 )
-                pcanvas["drag"].update(mode="resize", n=gi, x0=x0, y0=y0, rid=rid, moved=False)
+                pcanvas["drag"].update(
+                    target="el", mode="resize", n=gi, x0=x0, y0=y0, rid=rid, moved=False
+                )
                 return
             n = _panel_idx_at(event)
             el = pcanvas["by_index"].get(n) if n is not None else None
             pcanvas["drag"].update(
+                target="el",
                 mode="move",
                 n=n,
                 rid=None,
@@ -6052,28 +6207,43 @@ def run() -> None:
 
     def _panel_drag(event):
         d = pcanvas["drag"]
-        if not pcanvas["edit"] or d["n"] is None:
+        if not pcanvas["edit"]:
+            return
+        deco = d.get("target") == "deco"
+        if not deco and d["n"] is None:
+            return
+        if deco and d.get("di") is None:
             return
         cx, cy = panel_canvas.canvasx(event.x), panel_canvas.canvasy(event.y)
-        if d["mode"] == "resize":  # stretch the rubber-band; keep a minimum cell
-            W, H = pcanvas["W"] or 1, pcanvas["H"] or 1
-            x1 = max(d["x0"] + _PANEL_GRID * W, cx)
-            y1 = max(d["y0"] + _PANEL_GRID * H, cy)
+        W = pcanvas["W"] or 1
+        min_px = 8 if pcanvas["ignore_grid"] else _PANEL_GRID * W
+        if d["mode"] == "resize":  # stretch the rubber-band; keep a minimum size
+            x1 = max(d["x0"] + min_px, cx)
+            y1 = max(d["y0"] + (0 if deco else min_px), cy)  # a line stays thin
             panel_canvas.coords(d["rid"], d["x0"], d["y0"], x1, y1)
             d["moved"] = True
             return
-        panel_canvas.move(f"pel:{d['n']}", cx - d["lx"], cy - d["ly"])
-        panel_canvas.move(f"pgrip:{d['n']}", cx - d["lx"], cy - d["ly"])
+        tag = f"deco:{d['di']}" if deco else f"pel:{d['n']}"
+        grip = f"dgrip:{d['di']}" if deco else f"pgrip:{d['n']}"
+        panel_canvas.move(tag, cx - d["lx"], cy - d["ly"])
+        panel_canvas.move(grip, cx - d["lx"], cy - d["ly"])
         d["lx"], d["ly"], d["moved"] = cx, cy, True
 
     def _panel_drop(event):
         d = pcanvas["drag"]
-        if not pcanvas["edit"] or d["n"] is None:
+        if not pcanvas["edit"]:
+            return
+        W, H = pcanvas["W"] or 1, pcanvas["H"] or 1
+        min_w = 8 / W if pcanvas["ignore_grid"] else _PANEL_GRID
+        min_h = 8 / H if pcanvas["ignore_grid"] else _PANEL_GRID
+        if d.get("target") == "deco":  # a decoration move/resize -> its own store
+            _deco_drop(event, d, W, H, min_w, min_h)
+            return
+        if d["n"] is None:
             return
         n = d["n"]
         d["n"] = None
         el = pcanvas["by_index"].get(n)
-        W, H = pcanvas["W"] or 1, pcanvas["H"] or 1
         from .mapping.loader import save_panel_layout_override
 
         if d["mode"] == "resize":
@@ -6082,11 +6252,11 @@ def run() -> None:
                 d["rid"] = None
             if el is None or not d["moved"]:
                 return
-            # New size = grip pixel delta from the fixed top-left, normalised + snapped.
-            nw = panel_layout.snap((panel_canvas.canvasx(event.x) - d["x0"]) / W, _PANEL_GRID)
-            nh = panel_layout.snap((panel_canvas.canvasy(event.y) - d["y0"]) / H, _PANEL_GRID)
-            nw = max(_PANEL_GRID, min(1.0 - el.x, nw))
-            nh = max(_PANEL_GRID, nh)
+            # New size = grip pixel delta from the fixed top-left, normalised (+ snap).
+            nw = _snap_maybe((panel_canvas.canvasx(event.x) - d["x0"]) / W)
+            nh = _snap_maybe((panel_canvas.canvasy(event.y) - d["y0"]) / H)
+            nw = max(min_w, min(1.0 - el.x, nw))
+            nh = max(min_h, nh)
             save_panel_layout_override(
                 pcanvas["device"], panel_layout.element_key(el), el.x, el.y, nw, nh
             )
@@ -6094,12 +6264,43 @@ def run() -> None:
             return
         if el is None or not d["moved"]:
             return
-        # New position = original + total pixel delta, back to normalised, snapped.
+        # New position = original + total pixel delta, back to normalised (+ snap).
         nx = d["ox"] + (panel_canvas.canvasx(event.x) - d["sx"]) / W
         ny = d["oy"] + (panel_canvas.canvasy(event.y) - d["sy"]) / H
-        nx = max(0.0, min(1.0 - el.w, panel_layout.snap(nx, _PANEL_GRID)))
-        ny = max(0.0, panel_layout.snap(ny, _PANEL_GRID))
+        nx = max(0.0, min(1.0 - el.w, _snap_maybe(nx)))
+        ny = max(0.0, _snap_maybe(ny))
         save_panel_layout_override(pcanvas["device"], panel_layout.element_key(el), nx, ny)
+        _render_panel_canvas(pcanvas["device"])
+
+    def _deco_drop(event, d, W, H, min_w, min_h):
+        """Finish a decoration move/resize: write the new geometry back and persist."""
+        di = d["di"]
+        d["di"] = None
+        d["target"] = None
+        if di is None or di >= len(pcanvas["deco"]):
+            return
+        deco = pcanvas["deco"][di]
+        from .mapping.loader import save_panel_decorations
+
+        if d["mode"] == "resize":
+            if d["rid"] is not None:
+                panel_canvas.delete(d["rid"])
+                d["rid"] = None
+            if not d["moved"]:
+                return
+            deco["w"] = max(min_w, min(1.0 - deco["x"], _snap_maybe(
+                (panel_canvas.canvasx(event.x) - d["x0"]) / W
+            )))
+            if deco["t"] != "line":  # a separator line keeps its (zero) height
+                deco["h"] = max(min_h, _snap_maybe((panel_canvas.canvasy(event.y) - d["y0"]) / H))
+        else:
+            if not d["moved"]:
+                return
+            dx = (panel_canvas.canvasx(event.x) - d["sx"]) / W
+            dy = (panel_canvas.canvasy(event.y) - d["sy"]) / H
+            deco["x"] = max(0.0, _snap_maybe(d["ox"] + dx))
+            deco["y"] = max(0.0, _snap_maybe(d["oy"] + dy))
+        save_panel_decorations(pcanvas["device"], pcanvas["deco"])
         _render_panel_canvas(pcanvas["device"])
 
     def _panel_click(event):
@@ -6157,7 +6358,9 @@ def run() -> None:
             ttk.Entry(frm, textvariable=fields[key], width=10).grid(
                 row=i, column=1, sticky="ew", pady=2
             )
-        ignore = tk.BooleanVar(value=False)
+        # Default from the persisted arrange-mode preference (kept in sync with the
+        # toolbar checkbox), so the user's "free placement" choice is remembered.
+        ignore = tk.BooleanVar(value=pcanvas["ignore_grid"])
         ttk.Checkbutton(frm, text=tr("Raster ignorieren (exakte Pixel)"), variable=ignore).grid(
             row=4, column=0, columnspan=2, sticky="w", pady=(6, 0)
         )
@@ -6181,12 +6384,21 @@ def run() -> None:
             except ValueError:
                 err.config(text=tr("Ganze Zahlen (Breite/Höhe ≥ 8, Position ≥ 0)."))
                 return
+            free = ignore.get()
+            # Remember the choice and mirror it onto the toolbar checkbox.
+            pcanvas["ignore_grid"] = free
+            snap_off_var.set(free)
+            save_ignore_grid(free)
             nx, ny, nw, nh = x / W, y / H, w / W, h / H
-            if not ignore.get():  # snap size + position to the grid
+            if not free:  # snap size + position to the grid
                 nx, ny = panel_layout.snap(nx, _PANEL_GRID), panel_layout.snap(ny, _PANEL_GRID)
                 nw, nh = panel_layout.snap(nw, _PANEL_GRID), panel_layout.snap(nh, _PANEL_GRID)
-            nw = max(_PANEL_GRID, min(1.0, nw))
-            nh = max(_PANEL_GRID, nh)
+            # Minimum size: one grid cell when snapping, else an 8-px floor so the
+            # EXACT pixel values entered in free mode are kept, not bumped to a cell.
+            min_w = _PANEL_GRID if not free else 8 / W
+            min_h = _PANEL_GRID if not free else 8 / H
+            nw = max(min_w, min(1.0, nw))
+            nh = max(min_h, nh)
             nx = max(0.0, min(1.0 - nw, nx))
             ny = max(0.0, ny)  # y is unbounded (the radio panel scrolls)
             from .mapping.loader import save_panel_layout_override
@@ -6206,16 +6418,104 @@ def run() -> None:
         dlg.lift()
         dlg.focus_force()
 
+    def _deco_edit_text(i):
+        """Rename a label / caption a box (arrange mode). Lines carry no text."""
+        if i >= len(pcanvas["deco"]):
+            return
+        deco = pcanvas["deco"][i]
+        new = simpledialog.askstring(
+            tr("Text"), tr("Beschriftung:"), initialvalue=deco.get("text", ""), parent=win
+        )
+        if new is None:
+            return
+        deco["text"] = new
+        from .mapping.loader import save_panel_decorations
+
+        save_panel_decorations(pcanvas["device"], pcanvas["deco"])
+        _render_panel_canvas(pcanvas["device"])
+
+    def _deco_delete(i):
+        """Remove one decoration and persist."""
+        if i >= len(pcanvas["deco"]):
+            return
+        del pcanvas["deco"][i]
+        from .mapping.loader import save_panel_decorations
+
+        save_panel_decorations(pcanvas["device"], pcanvas["deco"])
+        _render_panel_canvas(pcanvas["device"])
+
+    def _header_rename(el):
+        """Rename a built-in banner (display-only override; the key stays stable)."""
+        key = panel_layout.element_key(el)
+        cur = pcanvas.get("labels", {}).get(key) or tr(el.label)
+        new = simpledialog.askstring(
+            tr("Überschrift umbenennen"), tr("Neuer Text:"), initialvalue=cur, parent=win
+        )
+        if new is None:
+            return
+        from .mapping.loader import save_element_label
+
+        save_element_label(pcanvas["device"], key, new)
+        _render_panel_canvas(pcanvas["device"])
+
+    def _element_hide(el):
+        """Remove an element from the Nachbau (non-destructive: the mapping stays,
+        only the replica hides it; ↺ or "Ausgeblendete einblenden" restore it)."""
+        from .mapping.loader import load_hidden_elements, save_hidden_elements
+
+        hidden = load_hidden_elements(pcanvas["device"])
+        hidden.add(panel_layout.element_key(el))
+        save_hidden_elements(pcanvas["device"], hidden)
+        _render_panel_canvas(pcanvas["device"])
+
+    def _unhide_all():
+        """Bring back every element removed from this device's Nachbau."""
+        from .mapping.loader import save_hidden_elements
+
+        save_hidden_elements(pcanvas["device"], set())
+        _render_panel_canvas(pcanvas["device"])
+
     def _panel_menu(event):
         """Right-click on a Nachbau element: Bearbeiten / Duplizieren / Entfernen —
         the per-element actions, now that the Nachbau is the single mapper surface.
-        In arrange mode it instead offers the exact-pixel size dialog."""
+        In arrange mode it instead offers size, and — for the *optical* elements
+        (decorations + banners) — rename and delete. Functional controls stay put."""
         el = _panel_el_at(event)
-        if pcanvas["edit"]:  # arrange mode: right-click sets the exact px size
-            if el is None or el.kind == panel_layout.HEADER:
+        if pcanvas["edit"]:  # arrange mode
+            di = _deco_idx_at(event)
+            if di is not None:  # a decoration: edit its text / remove it
+                deco = pcanvas["deco"][di]
+                menu = tk.Menu(panel_canvas, tearoff=0)
+                if deco["t"] != "line":
+                    menu.add_command(
+                        label=tr("Text bearbeiten…"), command=lambda: _deco_edit_text(di)
+                    )
+                menu.add_command(label=tr("Löschen"), command=lambda: _deco_delete(di))
+                menu.tk_popup(event.x_root, event.y_root)
+                return
+            hidden_n = len(pcanvas.get("hidden", set()))
+            if el is None:  # empty canvas: offer to bring removed elements back
+                if hidden_n:
+                    menu = tk.Menu(panel_canvas, tearoff=0)
+                    menu.add_command(
+                        label=tr("Ausgeblendete einblenden ({n})", n=hidden_n),
+                        command=_unhide_all,
+                    )
+                    menu.tk_popup(event.x_root, event.y_root)
                 return
             menu = tk.Menu(panel_canvas, tearoff=0)
-            menu.add_command(label=tr("Größe & Position…"), command=lambda: _panel_size_dialog(el))
+            if el.kind == panel_layout.HEADER:  # an optical banner: rename first
+                menu.add_command(label=tr("Umbenennen…"), command=lambda: _header_rename(el))
+            else:  # a functional control: exact size / position
+                menu.add_command(
+                    label=tr("Größe & Position…"), command=lambda: _panel_size_dialog(el)
+                )
+            menu.add_separator()
+            menu.add_command(label=tr("Entfernen"), command=lambda: _element_hide(el))
+            if hidden_n:
+                menu.add_command(
+                    label=tr("Ausgeblendete einblenden ({n})", n=hidden_n), command=_unhide_all
+                )
             menu.tk_popup(event.x_root, event.y_root)
             return
         if el is None or el.kind == panel_layout.HEADER:
@@ -6250,8 +6550,8 @@ def run() -> None:
             txt = tr(
                 "Klick: gemappt → Editor, leerer Platzhalter → neu mappen · Schalter/Achsen live"
             )
-        elif el.kind == panel_layout.HEADER:
-            txt = el.label  # a group heading, not a control
+        elif el.kind == panel_layout.HEADER:  # a group heading (banner), not a control
+            txt = pcanvas.get("labels", {}).get(panel_layout.element_key(el)) or tr(el.label)
         elif el.mapped:
             txt = f"{el.label} — {el.name or el.action}"
             if el.name and el.action:
@@ -6265,7 +6565,38 @@ def run() -> None:
     def _toggle_edit():
         pcanvas["edit"] = not pcanvas["edit"]
         edit_btn.config(text=tr("✓ Fertig") if pcanvas["edit"] else tr("✎ Anordnen"))
+        if pcanvas["edit"]:  # reveal the arrange-only controls (left of the info area)
+            snap_off_cb.pack(side="left", padx=(16, 4))
+            deco_btn.pack(side="left", padx=(0, 4))
+        else:
+            snap_off_cb.pack_forget()
+            deco_btn.pack_forget()
         _render_panel_canvas(pcanvas["device"] or _sel(dev_tree))
+
+    def _toggle_ignore_grid():
+        """Persist the free-placement preference and redraw (grid lines follow it)."""
+        pcanvas["ignore_grid"] = bool(snap_off_var.get())
+        save_ignore_grid(pcanvas["ignore_grid"])
+        _render_panel_canvas(pcanvas["device"] or _sel(dev_tree))
+
+    def _add_decoration(kind: str):
+        """Drop a new visual helper (box / line / label) near the top-left of the
+        Nachbau, then persist. It becomes draggable/resizable like any element."""
+        dev = pcanvas["device"] or _sel(dev_tree)
+        if not dev:
+            return
+        if not pcanvas["edit"]:
+            _toggle_edit()  # decorations only make sense in arrange mode
+        defaults = {
+            "box": {"w": 0.25, "h": 0.18, "text": ""},
+            "line": {"w": 0.30, "h": 0.0, "text": ""},
+            "label": {"w": 0.20, "h": 0.05, "text": tr("Text")},
+        }[kind]
+        pcanvas["deco"].append({"t": kind, "x": 0.04, "y": 0.04, **defaults})
+        from .mapping.loader import save_panel_decorations
+
+        save_panel_decorations(dev, pcanvas["deco"])
+        _render_panel_canvas(dev)
 
     def _reset_layout():
         dev = pcanvas["device"] or _sel(dev_tree)

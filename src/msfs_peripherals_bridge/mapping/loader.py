@@ -269,18 +269,174 @@ def save_panel_layout_override(
 
 
 def clear_panel_layout(device_id: str, path: Path | None = None) -> Path:
-    """Drop all layout overrides for a device (reset to the generated layout)."""
+    """Drop all layout overrides AND decorations for a device (back to the
+    generated layout)."""
     if path is None:
         from .. import config
 
         path = config.panel_layouts_file()
     if path.exists():
         data = yaml.safe_load(path.read_text(encoding="utf-8")) or {}
-        if device_id in data.get("devices", {}):
-            del data["devices"][device_id]
+        touched = False
+        for section in ("devices", "decorations", "hidden", "labels"):
+            if device_id in (data.get(section, {}) or {}):
+                del data[section][device_id]
+                touched = True
+        if touched:
             path.write_text(
                 yaml.safe_dump(data, sort_keys=False, allow_unicode=True), encoding="utf-8"
             )
+    return path
+
+
+def load_hidden_elements(device_id: str, path: Path | None = None) -> set[str]:
+    """Element keys the user removed from this device's Nachbau in arrange mode.
+
+    Hiding is non-destructive: the binding/output stays in the profile, the element
+    is only omitted from the replica. ``clear_panel_layout`` brings them all back."""
+    if path is None:
+        from .. import config
+
+        path = config.panel_layouts_file()
+    if not path.exists():
+        return set()
+    data = yaml.safe_load(path.read_text(encoding="utf-8")) or {}
+    raw = (data.get("hidden", {}) or {}).get(device_id, []) or []
+    return {str(k) for k in raw} if isinstance(raw, list) else set()
+
+
+def save_hidden_elements(device_id: str, keys: set[str], path: Path | None = None) -> Path:
+    """Persist the set of hidden element keys (empty set removes the entry)."""
+    if path is None:
+        from .. import config
+
+        path = config.panel_layouts_file()
+    data: dict[str, Any] = {}
+    if path.exists():
+        data = yaml.safe_load(path.read_text(encoding="utf-8")) or {}
+    hidden = data.setdefault("hidden", {})
+    if keys:
+        hidden[device_id] = sorted(keys)
+    else:
+        hidden.pop(device_id, None)
+    if not hidden:
+        data.pop("hidden", None)
+    path.parent.mkdir(parents=True, exist_ok=True)
+    path.write_text(yaml.safe_dump(data, sort_keys=False, allow_unicode=True), encoding="utf-8")
+    return path
+
+
+_DECO_TYPES = ("box", "line", "label")
+
+
+def _clean_decoration(raw: Any) -> dict[str, Any] | None:
+    """Keep one well-formed decoration ``{t, x, y, w, h, text}`` or ``None``.
+
+    Decorations are purely visual arrange-mode helpers (a background box behind a
+    group of buttons, a separator line, a free text label). Geometry is in the
+    same normalised 0..1 units as the layout overrides."""
+    if not isinstance(raw, dict) or raw.get("t") not in _DECO_TYPES:
+        return None
+    try:
+        x, y, w, h = (float(raw.get(k, 0.0)) for k in ("x", "y", "w", "h"))
+    except (TypeError, ValueError):
+        return None
+    text = raw.get("text")
+    return {
+        "t": raw["t"],
+        "x": x,
+        "y": y,
+        "w": max(0.0, w),
+        "h": max(0.0, h),
+        "text": text if isinstance(text, str) else "",
+    }
+
+
+def load_element_labels(device_id: str, path: Path | None = None) -> dict[str, str]:
+    """Per-element display-text overrides (renamed banners) keyed by element key.
+
+    Display-only: the key stays derived from the *original* label, so a rename never
+    detaches the override from its element."""
+    if path is None:
+        from .. import config
+
+        path = config.panel_layouts_file()
+    if not path.exists():
+        return {}
+    data = yaml.safe_load(path.read_text(encoding="utf-8")) or {}
+    raw = (data.get("labels", {}) or {}).get(device_id, {}) or {}
+    return {str(k): str(v) for k, v in raw.items()} if isinstance(raw, dict) else {}
+
+
+def save_element_label(device_id: str, key: str, text: str, path: Path | None = None) -> Path:
+    """Store (or, with empty ``text``, drop) one element's display-text override."""
+    if path is None:
+        from .. import config
+
+        path = config.panel_layouts_file()
+    data: dict[str, Any] = {}
+    if path.exists():
+        data = yaml.safe_load(path.read_text(encoding="utf-8")) or {}
+    labels = data.setdefault("labels", {})
+    dev = labels.setdefault(device_id, {})
+    if text.strip():
+        dev[key] = text
+    else:
+        dev.pop(key, None)
+    if not dev:
+        labels.pop(device_id, None)
+    if not labels:
+        data.pop("labels", None)
+    path.parent.mkdir(parents=True, exist_ok=True)
+    path.write_text(yaml.safe_dump(data, sort_keys=False, allow_unicode=True), encoding="utf-8")
+    return path
+
+
+def load_panel_decorations(device_id: str, path: Path | None = None) -> list[dict[str, Any]]:
+    """Load one device's arrange-mode decorations (boxes / lines / labels).
+
+    Empty list when the device has none. Malformed entries are dropped so a
+    hand-edited file never crashes the Nachbau."""
+    if path is None:
+        from .. import config
+
+        path = config.panel_layouts_file()
+    if not path.exists():
+        return []
+    data = yaml.safe_load(path.read_text(encoding="utf-8")) or {}
+    raw = (data.get("decorations", {}) or {}).get(device_id, []) or []
+    if not isinstance(raw, list):
+        return []
+    return [d for d in (_clean_decoration(r) for r in raw) if d is not None]
+
+
+def save_panel_decorations(
+    device_id: str, decorations: list[dict[str, Any]], path: Path | None = None
+) -> Path:
+    """Persist a device's decorations, replacing any previously stored list.
+
+    An empty list removes the device's entry (and the top-level key when the last
+    device's decorations are cleared), so the file never accumulates empty stubs."""
+    if path is None:
+        from .. import config
+
+        path = config.panel_layouts_file()
+    data: dict[str, Any] = {}
+    if path.exists():
+        data = yaml.safe_load(path.read_text(encoding="utf-8")) or {}
+    cleaned = [d for d in (_clean_decoration(r) for r in decorations) if d is not None]
+    decos = data.setdefault("decorations", {})
+    if cleaned:
+        decos[device_id] = [
+            {"t": d["t"], **{k: round(d[k], 4) for k in ("x", "y", "w", "h")}, "text": d["text"]}
+            for d in cleaned
+        ]
+    else:
+        decos.pop(device_id, None)
+    if not decos:
+        data.pop("decorations", None)
+    path.parent.mkdir(parents=True, exist_ok=True)
+    path.write_text(yaml.safe_dump(data, sort_keys=False, allow_unicode=True), encoding="utf-8")
     return path
 
 

@@ -176,8 +176,11 @@ choose it by hand; the app detects it on registration. For understanding:
 
 Rule of thumb: **has displays (LEDs/7-segment) or is a switch panel → `hidraw`.
 Just axes/buttons like a joystick → `evdev`.** The Device Explorer shows the
-detected transport in the **"Transport"** column; a hidraw panel appears there
-only **once** (its evdev "shadow" is suppressed).
+detected transport in the **"Transport"** column, and a short hint there repeats
+this. A known Saitek panel appears **once** (its evdev "shadow" is suppressed), but
+**some devices can legitimately show up under both** transports — then choose
+**`hidraw` if you want to drive its LEDs/displays**, otherwise `evdev` for plain
+axes/buttons.
 
 ## 5. My hardware: nothing to do
 
@@ -237,10 +240,23 @@ inputs/displays are created as elements.
 From here you **don't need MSFS yet**. In the **Mapper tab**:
 
 1. **Pick the device on the left** — the **replica** shows switches/axes/displays
-   at their physical positions. With **„✎ Anordnen"** (Arrange) you drag elements
-   into the grid; a **right-click → „Größe & Position…"** opens one dialog for exact
-   **width / height / X / Y in pixels**, with a **„Raster ignorieren"** (ignore
-   grid) box — off = snap to the grid, on = place pixel-exact. Saved per device.
+   at their physical positions. **„✎ Anordnen"** (Arrange) turns the replica into a
+   full editor (everything below is saved per device):
+   - **Move / resize** — drag an element to move it, drag its bottom-right corner to
+     resize. A **right-click → „Größe & Position…"** opens one dialog for exact
+     **width / height / X / Y in pixels**.
+   - **„Raster ignorieren"** (ignore grid) — a toolbar checkbox (also in the size
+     dialog): off = snap to the grid, on = place freely, pixel-exact. **Your choice
+     is remembered** and applies to dragging, resizing and the dialog alike.
+   - **Remove an element** — right-click → **„Entfernen"**. This is non-destructive
+     (the mapping stays; only the replica hides it); right-click an empty spot →
+     **„Ausgeblendete einblenden"** brings them back, and **↺** resets the whole
+     arrangement.
+   - **Rename a banner** — the group headings (Switches / Magnetos / Landing gear …)
+     are optical only; right-click → **„Umbenennen…"**.
+   - **„+ Deko"** — add your own visual helpers: a **box** to sit *behind* a group of
+     buttons (a backdrop), a separator **line**, or a free **label**. Drag/resize
+     them like any element, right-click to edit their text or delete.
 2. **Map inputs** — **„+ Eingabe"** (+ Input) (or click an element) → pick the
    source via **„📋 Benannt"** (Named) from the taught inputs (instead of raw
    codes), set the target event/variable via **„Wählen…"** (Choose…), then
@@ -279,12 +295,20 @@ confirm — or typed in by hand.
 | **Display** (7-segment) | a numeric variable rendered into a run of digit cells | first byte (offset), number of cells, decimals |
 | **Template** (Saitek) | a whole panel's LEDs/readouts in one go | via **„Vorlage ▾"** |
 
-**The LED lit condition** — one entry covers every case, you never declare the
-same LED twice:
+**The LED lit condition** — up to **two comparisons** of the variable, combined
+with **AND**, so one entry covers every case (you never declare the same LED
+twice). Each condition is an **operator** (`< <= > >= == !=`) plus a value; leave a
+value empty to drop that condition:
 
-- **„Leuchtet ab (≥)"** only → lit **at/above** that value — the usual indicator lamp (e.g. a warning on above 0.5).
-- **„Leuchtet bis (<)"** only (clear „ab") → lit **below** that value — for something that must come on when a value *drops under* a limit.
-- **both** → lit **within the window** `ab ≤ value < bis` — on between the two, off past either edge. This is a "gear in transit" lamp: it comes on once the gear leaves down-and-locked and goes dark again once it's fully up — exactly how the built-in Saitek gear LED drives red.
+- **one condition** → e.g. **`>= 0.5`** for the usual indicator lamp, **`< 30`** for
+  "on below a limit", **`== 2`** for a specific mode/position, **`!= 0`** for "any
+  non-zero" (a generic fault lamp).
+- **two conditions** → a **window**, e.g. **`>= 0.01` AND `< 0.95`** for a
+  "gear in transit" lamp: on once the gear leaves down-and-locked, dark again once
+  it's fully up — exactly how the built-in Saitek gear LED drives red.
+
+(Older profiles that used the plain "lit at/above" + "lit below" fields keep
+working unchanged — they are just `>=` and `<` conditions.)
 
 **Live test without a sim:** move an axis / flip a switch → the replica bar fills
 or the element glows. Test displays deliberately with **🔦 LEDs/Display testen…**

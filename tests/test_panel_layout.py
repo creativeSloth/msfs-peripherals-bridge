@@ -617,3 +617,81 @@ def test_panel_layout_persists_size_and_move_keeps_it(tmp_path):
     # a later plain move (no w/h) keeps the previously stored size
     save_panel_layout_override("dev", "switch:0", 0.5, 0.6, path=path)
     assert load_panel_layout("dev", path) == {"switch:0": (0.5, 0.6, 0.3, 0.4)}
+
+
+def test_panel_decorations_round_trip_and_clean(tmp_path):
+    from msfs_peripherals_bridge.mapping.loader import (
+        load_panel_decorations,
+        save_panel_decorations,
+    )
+
+    path = tmp_path / "panel-layouts.yaml"
+    assert load_panel_decorations("dev", path) == []
+    save_panel_decorations(
+        "dev",
+        [
+            {"t": "box", "x": 0.1, "y": 0.1, "w": 0.3, "h": 0.2, "text": "Zündung"},
+            {"t": "line", "x": 0.0, "y": 0.5, "w": 0.4, "h": 0.0, "text": ""},
+            {"t": "nope", "x": 0, "y": 0, "w": 0, "h": 0},  # unknown type dropped
+        ],
+        path=path,
+    )
+    decos = load_panel_decorations("dev", path)
+    assert [d["t"] for d in decos] == ["box", "line"]
+    assert decos[0]["text"] == "Zündung"
+    # empty list removes the device's entry entirely
+    save_panel_decorations("dev", [], path=path)
+    assert load_panel_decorations("dev", path) == []
+
+
+def test_hidden_elements_round_trip(tmp_path):
+    from msfs_peripherals_bridge.mapping.loader import (
+        load_hidden_elements,
+        save_hidden_elements,
+    )
+
+    path = tmp_path / "panel-layouts.yaml"
+    assert load_hidden_elements("dev", path) == set()
+    save_hidden_elements("dev", {"header:Schalter", "switch:3"}, path=path)
+    assert load_hidden_elements("dev", path) == {"header:Schalter", "switch:3"}
+    save_hidden_elements("dev", set(), path=path)  # empty clears it
+    assert load_hidden_elements("dev", path) == set()
+
+
+def test_element_label_override_round_trip(tmp_path):
+    from msfs_peripherals_bridge.mapping.loader import (
+        load_element_labels,
+        save_element_label,
+    )
+
+    path = tmp_path / "panel-layouts.yaml"
+    assert load_element_labels("dev", path) == {}
+    save_element_label("dev", "header:Schalter", "Meine Schalter", path=path)
+    assert load_element_labels("dev", path) == {"header:Schalter": "Meine Schalter"}
+    save_element_label("dev", "header:Schalter", "  ", path=path)  # blank drops it
+    assert load_element_labels("dev", path) == {}
+
+
+def test_clear_panel_layout_wipes_all_sections(tmp_path):
+    from msfs_peripherals_bridge.mapping.loader import (
+        clear_panel_layout,
+        load_element_labels,
+        load_hidden_elements,
+        load_panel_decorations,
+        load_panel_layout,
+        save_element_label,
+        save_hidden_elements,
+        save_panel_decorations,
+        save_panel_layout_override,
+    )
+
+    path = tmp_path / "panel-layouts.yaml"
+    save_panel_layout_override("dev", "switch:0", 0.1, 0.2, path=path)
+    save_panel_decorations("dev", [{"t": "line", "x": 0, "y": 0.5, "w": 0.4, "h": 0}], path=path)
+    save_hidden_elements("dev", {"header:Schalter"}, path=path)
+    save_element_label("dev", "header:Schalter", "X", path=path)
+    clear_panel_layout("dev", path=path)
+    assert load_panel_layout("dev", path) == {}
+    assert load_panel_decorations("dev", path) == []
+    assert load_hidden_elements("dev", path) == set()
+    assert load_element_labels("dev", path) == {}
