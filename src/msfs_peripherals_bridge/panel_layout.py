@@ -505,8 +505,20 @@ def _output_items(outs: Iterable[Any]) -> tuple[list[Any], list[Any]]:
             p = g.path
             if len(p) == 1 and p[0] in ("nose", "left", "right"):
                 displays.append(
-                    ("out", k, p, LED, g.label, str(g.value), _display_var(o, p),
-                     0.5, None, ">=", "<", "")
+                    (
+                        "out",
+                        k,
+                        p,
+                        LED,
+                        g.label,
+                        str(g.value),
+                        _display_var(o, p),
+                        0.5,
+                        None,
+                        ">=",
+                        "<",
+                        "",
+                    )
                 )
             elif (len(p) == 2 and p[0] == "selector") or (
                 len(p) == 4 and p[0] == "units" and p[2] == "banks"
@@ -516,8 +528,7 @@ def _output_items(outs: Iterable[Any]) -> tuple[list[Any], list[Any]]:
                 # back here only without a hand layout (per-digit -> not glow-formatted).
                 fmt = "int" if len(p) == 2 else ""
                 displays.append(
-                    ("out", k, p, SEGMENT, lbl, det, _display_var(o, p),
-                     None, None, ">=", "<", fmt)
+                    ("out", k, p, SEGMENT, lbl, det, _display_var(o, p), None, None, ">=", "<", fmt)
                 )
             elif len(p) == 2 and p[0] == "leds":  # generic_panel LED (glow lamp)
                 led = o.leds[p[1]]
@@ -541,8 +552,20 @@ def _output_items(outs: Iterable[Any]) -> tuple[list[Any], list[Any]]:
                 d = o.displays[p[1]]
                 fmt = f"dec:{d.decimals}" if d.decimals else "int"
                 displays.append(
-                    ("out", k, p, SEGMENT, d.name or f"Anzeige {p[1] + 1}",
-                     f"Anzeige liest {d.var}", d.var, None, None, ">=", "<", fmt)
+                    (
+                        "out",
+                        k,
+                        p,
+                        SEGMENT,
+                        d.name or f"Anzeige {p[1] + 1}",
+                        f"Anzeige liest {d.var}",
+                        d.var,
+                        None,
+                        None,
+                        ">=",
+                        "<",
+                        fmt,
+                    )
                 )
             elif len(p) == 2 and p[0] == "units":  # a radio unit's controls
                 try:
@@ -550,14 +573,36 @@ def _output_items(outs: Iterable[Any]) -> tuple[list[Any], list[Any]]:
                 except (IndexError, AttributeError):
                     name = str(p[1])
                 controls.append(
-                    ("out", k, p, ENCODER, f"Encoder {name}",
-                     f"Außen-/Innen-Drehknopf + Mode-Selektor · Einheit {name}",
-                     None, None, None, ">=", "<", "")
+                    (
+                        "out",
+                        k,
+                        p,
+                        ENCODER,
+                        f"Encoder {name}",
+                        f"Außen-/Innen-Drehknopf + Mode-Selektor · Einheit {name}",
+                        None,
+                        None,
+                        None,
+                        ">=",
+                        "<",
+                        "",
+                    )
                 )
                 controls.append(
-                    ("out", k, p, BUTTON, f"Swap {name}",
-                     f"ACT/STBY-Swap-Taste · Einheit {name}",
-                     None, None, None, ">=", "<", "")
+                    (
+                        "out",
+                        k,
+                        p,
+                        BUTTON,
+                        f"Swap {name}",
+                        f"ACT/STBY-Swap-Taste · Einheit {name}",
+                        None,
+                        None,
+                        None,
+                        ">=",
+                        "<",
+                        "",
+                    )
                 )
     return controls, displays
 

@@ -2000,9 +2000,7 @@ def run() -> None:
         variable=snap_off_var,
         command=lambda: _toggle_ignore_grid(),
     )
-    _attach_tooltip(
-        snap_off_cb, tr("Frei platzieren, ohne am Raster einzurasten (wird gemerkt).")
-    )
+    _attach_tooltip(snap_off_cb, tr("Frei platzieren, ohne am Raster einzurasten (wird gemerkt)."))
     deco_btn = ttk.Menubutton(mhdr, text=tr("+ Deko"))
     deco_menu = tk.Menu(deco_btn, tearoff=0)
     deco_menu.add_command(label=tr("Box (Hintergrund)"), command=lambda: _add_decoration("box"))
@@ -5977,8 +5975,13 @@ def run() -> None:
             )
             if deco["text"]:
                 c.create_text(
-                    x0 + 6, y0 + 4, anchor="nw", text=deco["text"], fill="#475569",
-                    font=("TkDefaultFont", 8, "bold"), tags=(tag,),
+                    x0 + 6,
+                    y0 + 4,
+                    anchor="nw",
+                    text=deco["text"],
+                    fill="#475569",
+                    font=("TkDefaultFont", 8, "bold"),
+                    tags=(tag,),
                 )
         elif t == "line":
             c.create_line(x0, y0, x1, y0, fill="#94a3b8", width=2, tags=(tag,))
@@ -5986,8 +5989,14 @@ def run() -> None:
             c.create_line(x0, y0, x1, y0, fill="", width=10, tags=(tag,))
         else:  # label
             c.create_text(
-                x0, y0, anchor="nw", text=deco["text"] or tr("Text"), fill=TEXT,
-                font=("TkDefaultFont", 10, "bold"), width=max(20.0, x1 - x0), tags=(tag,),
+                x0,
+                y0,
+                anchor="nw",
+                text=deco["text"] or tr("Text"),
+                fill=TEXT,
+                font=("TkDefaultFont", 10, "bold"),
+                width=max(20.0, x1 - x0),
+                tags=(tag,),
             )
 
     def _render_panel_canvas(device_id):
@@ -6085,7 +6094,12 @@ def run() -> None:
                 dx1 = pad + (deco["x"] + deco["w"]) * W
                 dy1 = pad + (deco["y"] + deco["h"]) * H
                 c.create_rectangle(
-                    dx1 - gs, dy1 - gs, dx1, dy1, fill="#7c3aed", outline="white",
+                    dx1 - gs,
+                    dy1 - gs,
+                    dx1,
+                    dy1,
+                    fill="#7c3aed",
+                    outline="white",
                     tags=(f"dgrip:{i}",),
                 )
         content_px = pad + content * H + pad
@@ -6172,8 +6186,18 @@ def run() -> None:
             if di is not None:  # move a decoration
                 deco = pcanvas["deco"][di]
                 pcanvas["drag"].update(
-                    target="deco", mode="move", di=di, n=None, rid=None,
-                    sx=cx, sy=cy, lx=cx, ly=cy, ox=deco["x"], oy=deco["y"], moved=False,
+                    target="deco",
+                    mode="move",
+                    di=di,
+                    n=None,
+                    rid=None,
+                    sx=cx,
+                    sy=cy,
+                    lx=cx,
+                    ly=cy,
+                    ox=deco["x"],
+                    oy=deco["y"],
+                    moved=False,
                 )
                 return
             gi = _panel_grip_at(event)
@@ -6288,9 +6312,10 @@ def run() -> None:
                 d["rid"] = None
             if not d["moved"]:
                 return
-            deco["w"] = max(min_w, min(1.0 - deco["x"], _snap_maybe(
-                (panel_canvas.canvasx(event.x) - d["x0"]) / W
-            )))
+            deco["w"] = max(
+                min_w,
+                min(1.0 - deco["x"], _snap_maybe((panel_canvas.canvasx(event.x) - d["x0"]) / W)),
+            )
             if deco["t"] != "line":  # a separator line keeps its (zero) height
                 deco["h"] = max(min_h, _snap_maybe((panel_canvas.canvasy(event.y) - d["y0"]) / H))
         else:
