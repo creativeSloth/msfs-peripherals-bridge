@@ -38,10 +38,10 @@ LAUNCH="MSFS_BRIDGE_HOME=$SANDBOX XDG_CONFIG_HOME=$SANDBOX/xdg uv run python -m 
 echo "GUI in der Sandbox starten:"
 echo "  $LAUNCH"
 echo
-echo "CLI-Inventar in der Sandbox (zeigt ALLE angesteckten Geräte, roh):"
+echo "CLI inventory inside the sandbox (shows ALL plugged-in devices, raw):"
 echo "  MSFS_BRIDGE_HOME=$SANDBOX XDG_CONFIG_HOME=$SANDBOX/xdg uv run msfs-bridge inventory"
 echo
-echo "Wegwerfen: rm -rf $SANDBOX   (deine echten Dateien bleiben unberührt)"
+echo "Throw away: rm -rf $SANDBOX   (your real files stay untouched)"
 
 if [[ "${1:-}" == "--launch" ]]; then
   echo; echo "Starte GUI…"

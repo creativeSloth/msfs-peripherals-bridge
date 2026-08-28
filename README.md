@@ -135,7 +135,9 @@ uv run msfs-bridge read "AUTOPILOT HEADING LOCK DIR" --unit degrees
 Prefer to do it by hand instead of `./install.sh`? `uv sync --extra dev` builds
 the venv, and the udev step is `sudo cp 999-flightsim-override.rules
 /etc/udev/rules.d/99-flightsim.rules && sudo udevadm control --reload-rules &&
-sudo udevadm trigger`.
+sudo udevadm trigger`. The GUI additionally needs **Tk** from your distribution
+(`python3-tk` · `python3-tkinter tk` · `tk`) — it is not part of Python and not
+something `uv` can install.
 
 The full command list as copy-paste lines is in
 [`docs/cheatsheet.md`](docs/cheatsheet.md).

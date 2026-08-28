@@ -107,6 +107,11 @@ curl -LsSf https://astral.sh/uv/install.sh | sh   # if uv is missing
 uv sync --extra dev                                # venv + all packages
 uv run msfs-bridge validate                        # check catalog + profiles
 ```
+The graphical interface additionally needs **Tk** from your distribution — it is
+not part of Python, so `uv` cannot supply it: `sudo apt-get install python3-tk`
+(Debian/Ubuntu/Mint) · `sudo dnf install python3-tkinter tk` (Fedora) ·
+`sudo pacman -S tk` (Arch/Manjaro). `./install.sh` does this for you.
+
 > `$MSFS_BRIDGE_HOME` sets which folder `profiles/`/`config/` load from.
 
 **✓ Checkpoint:** `validate` reports catalog + profiles **without errors**;
@@ -456,6 +461,7 @@ copy-paste lines: [`cheatsheet.md`](cheatsheet.md).
 ## 12. Troubleshooting
 
 - **`command not found: uv`** → close the terminal, open a new one, `cd ~/msfs-peripherals-bridge`, try again.
+- **`libtk8.6.so: cannot open shared object file`** or **`No module named 'tkinter'`** when starting the app → **Tk** is missing (not part of Python): `sudo apt-get install python3-tk` (Debian/Ubuntu/Mint) · `sudo dnf install python3-tkinter tk` (Fedora) · `sudo pacman -S tk` (Arch/Manjaro). Then start again. The command-line tools work without it.
 - **"No such file or directory"** → you're not in the program folder: `cd ~/msfs-peripherals-bridge` first.
 - **Device doesn't react in the app** → Connection tab → **"Enable devices…"**, then unplug/replug.
 - **Mouse pointer jumps** when plugging in a panel → same fix: **"Enable devices…"** (the `LIBINPUT_IGNORE_DEVICE` rule is missing).

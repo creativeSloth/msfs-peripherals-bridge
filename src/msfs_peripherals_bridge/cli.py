@@ -468,9 +468,9 @@ def _resolve_profile(profile: str | None, aircraft: str | None) -> Profile | Non
 
 @app.command(name="export-config")
 def export_config_cmd(
-    dest: str = typer.Argument(..., help="Ziel-Zip für das Backup."),
+    dest: str = typer.Argument(..., help="Destination .zip for the backup."),
 ) -> None:
-    """Alle Nutzerdaten (Profile + Anordnung + eigene Geräte) in eine .zip sichern."""
+    """Back up all user data (profiles + arrangement + own devices) into a .zip."""
     res = backup.export_config(dest)
     console.print(
         f"[green]✓[/green] Backup: {res.path}  "
@@ -483,7 +483,7 @@ def export_config_cmd(
 def import_config_cmd(
     src: str = typer.Argument(..., help="Backup-Zip aus export-config."),
 ) -> None:
-    """Ein export-config-Backup wiederherstellen (überschreibt passende Dateien)."""
+    """Restore an export-config backup (overwrites the matching files)."""
     try:
         res = backup.import_config(src)
     except (ValueError, OSError) as exc:
@@ -498,13 +498,13 @@ def import_config_cmd(
 
 @app.command(name="export-device")
 def export_device_cmd(
-    device_id: str = typer.Argument(..., help="Katalog-Id des Geräts, z. B. 'switch_panel'."),
-    dest: str = typer.Argument(..., help="Ziel-Zip für das Geräte-Paket."),
+    device_id: str = typer.Argument(..., help="Catalog id of the device, e.g. 'switch_panel'."),
+    dest: str = typer.Argument(..., help="Destination .zip for the device package."),
     profile: str = typer.Option(
         ..., "--profile", "-p", help="Profil, aus dem das Mapping stammt (ohne .yaml)."
     ),
 ) -> None:
-    """Ein einzelnes Gerät teilen: Definition + Mapping + Anordnung + Kalibrierung in eine .zip."""
+    """Share a single device: definition + mapping + arrangement + calibration in a .zip."""
     from . import device_package
 
     try:
@@ -513,7 +513,7 @@ def export_device_cmd(
         console.print(f"[red]Export fehlgeschlagen:[/red] {exc}")
         raise typer.Exit(code=1) from None
     console.print(
-        f"[green]✓[/green] Geräte-Paket: {res.path}  "
+        f"[green]✓[/green] Device package: {res.path}  "
         f"({res.bindings} Eingaben / {res.outputs} Anzeigen aus „{profile}“, "
         f"Anordnung: {'ja' if res.has_layout else 'nein'}, "
         f"Kalibrierung: {'ja' if res.has_calibration else 'nein'})"
@@ -522,15 +522,15 @@ def export_device_cmd(
 
 @app.command(name="import-device")
 def import_device_cmd(
-    src: str = typer.Argument(..., help="Geräte-Paket-Zip aus export-device."),
+    src: str = typer.Argument(..., help="Device-package .zip from export-device."),
     profile: str = typer.Option(
         "",
         "--profile",
         "-p",
-        help="Zielprofil für das Mapping (ohne .yaml). Leer = Mapping überspringen.",
+        help="Target profile for the mapping (without .yaml). Empty = skip the mapping.",
     ),
 ) -> None:
-    """Geräte-Paket laden: registriert das Gerät + übernimmt Anordnung/Kalibrierung/Mapping."""
+    """Load a device package: registers the device + takes over arrangement/calibration/mapping."""
     from . import device_package
 
     try:
@@ -538,7 +538,7 @@ def import_device_cmd(
     except (ValueError, OSError) as exc:
         console.print(f"[red]Import fehlgeschlagen:[/red] {exc}")
         raise typer.Exit(code=1) from None
-    into = f" → „{res.target_profile}“" if res.target_profile else " (Mapping übersprungen)"
+    into = f" → “{res.target_profile}”" if res.target_profile else " (mapping skipped)"
     console.print(
         f"[green]✓[/green] „{res.device_name}“ importiert: "
         f"{res.bindings} Eingaben / {res.outputs} Anzeigen{into}, "

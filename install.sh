@@ -5,10 +5,11 @@
 #     ./install.sh
 #
 # It does everything the app needs, in order:
-#   1. install a few base tools (curl, unzip, usbutils)  — asks for your password
+#   1. install a few base tools (curl, unzip, usbutils, Tk)  — asks for your password
 #   2. install "uv"  — which also brings the correct Python (no Python knowledge needed)
 #   3. create the virtual environment and install ALL packages  (uv sync)
-#   4. install the device rules so Linux can read your panels/yoke (udev, needs sudo)
+#   4. check that the graphical interface (Tk) can actually start
+#   5. install the device rules so Linux can read your panels/yoke (udev, needs sudo)
 #
 # It is safe to run again — every step just re-checks/repairs what's there.
 set -euo pipefail
@@ -22,15 +23,37 @@ die()  { printf '\033[1;31m✗ %s\033[0m\n' "$*" >&2; exit 1; }
 cd "$(dirname "$(readlink -f "$0")")"
 
 # --- 1. base tools ---------------------------------------------------------
-pkgs=(curl unzip)
-command -v lsusb >/dev/null 2>&1 || pkgs+=(usbutils)
+# Detect the package manager once — the Tk package names below depend on it.
+if   command -v apt-get >/dev/null 2>&1; then PKGMGR=apt
+elif command -v dnf     >/dev/null 2>&1; then PKGMGR=dnf
+elif command -v pacman  >/dev/null 2>&1; then PKGMGR=pacman
+else                                          PKGMGR=""
+fi
 
 install_pkgs() {
-  if   command -v apt-get >/dev/null 2>&1; then sudo apt-get update && sudo apt-get install -y "$@"
-  elif command -v dnf     >/dev/null 2>&1; then sudo dnf install -y "$@"
-  elif command -v pacman  >/dev/null 2>&1; then sudo pacman -S --needed --noconfirm "$@"
-  else return 1; fi
+  case "$PKGMGR" in
+    apt)    sudo apt-get update && sudo apt-get install -y "$@" ;;
+    dnf)    sudo dnf install -y "$@" ;;
+    pacman) sudo pacman -S --needed --noconfirm "$@" ;;
+    *)      return 1 ;;
+  esac
 }
+
+# The graphical interface is Tkinter, and Tk is NOT part of Python. Whichever
+# Python ends up in .venv, something is missing without these packages: the
+# system Python lacks the "tkinter" module, and the Python uv brings along
+# loads libtk8.6.so/libtcl8.6.so from the distribution at import time
+# ("libtk8.6.so: cannot open shared object file" when they aren't there).
+tk_pkgs=()
+case "$PKGMGR" in
+  apt)    tk_pkgs=(python3-tk) ;;          # pulls in libtk8.6 + libtcl8.6
+  dnf)    tk_pkgs=(python3-tkinter tk) ;;
+  pacman) tk_pkgs=(tk) ;;                  # pulls in tcl
+esac
+
+pkgs=(curl unzip)
+command -v lsusb >/dev/null 2>&1 || pkgs+=(usbutils)
+pkgs+=("${tk_pkgs[@]}")
 
 say "Installing base tools (${pkgs[*]}) — you may be asked for your password"
 if install_pkgs "${pkgs[@]}"; then
@@ -56,7 +79,28 @@ say "Creating the virtual environment and installing all packages (uv sync)"
 uv sync --extra dev
 ok "Environment ready (.venv)"
 
-# --- 4. device rules (make panels/yoke readable) ---------------------------
+# --- 4. graphical toolkit (Tk) ---------------------------------------------
+# Step 1 should have installed it, but the venv is the only honest test: it
+# says whether *this* Python can import tkinter. Cheap, and needs no display.
+tk_works() { .venv/bin/python -c 'import tkinter' >/dev/null 2>&1; }
+
+say "Checking the graphical interface toolkit (Tk)"
+if ! tk_works && [[ ${#tk_pkgs[@]} -gt 0 ]]; then
+  warn "Tk is missing — trying to install it (${tk_pkgs[*]})"
+  install_pkgs "${tk_pkgs[@]}" || true
+fi
+if tk_works; then
+  ok "Tk ready — the graphical interface can start"
+else
+  warn "Tk is still missing, so the graphical interface cannot start."
+  warn "Install your distribution's Tk package, then run ./install.sh again:"
+  warn "  Debian/Ubuntu/Mint: sudo apt-get install python3-tk"
+  warn "  Fedora:             sudo dnf install python3-tkinter tk"
+  warn "  Arch/Manjaro:       sudo pacman -S tk"
+  warn "(The command-line tools, e.g. 'uv run msfs-bridge validate', work without Tk.)"
+fi
+
+# --- 5. device rules (make panels/yoke readable) ---------------------------
 RULE_SRC="999-flightsim-override.rules"
 RULE_DST="/etc/udev/rules.d/99-flightsim.rules"
 if [[ -f "$RULE_SRC" ]]; then

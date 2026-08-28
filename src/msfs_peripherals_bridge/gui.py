@@ -8006,12 +8006,48 @@ def run() -> None:
     win.mainloop()
 
 
+def tk_install_hint() -> str:
+    """The command that installs Tk on *this* distribution.
+
+    Tk is not part of Python, and the failure looks different depending on
+    which Python runs the GUI: the system Python is missing the ``tkinter``
+    module, while the Python uv brings along has it but loads
+    ``libtk8.6.so`` from the distribution at import time. One package fixes
+    both — only its name differs.
+    """
+    from shutil import which
+
+    for tool, cmd in (
+        ("apt-get", "sudo apt-get install python3-tk"),
+        ("dnf", "sudo dnf install python3-tkinter tk"),
+        ("pacman", "sudo pacman -S tk"),
+        ("zypper", "sudo zypper install python3-tk"),
+    ):
+        if which(tool):
+            return cmd
+    return "python3-tk / python3-tkinter / tk"
+
+
 def main() -> None:
     try:
         run()
     except Exception as exc:  # pragma: no cover - GUI/display errors
-        print(f"GUI konnte nicht starten: {exc}", file=sys.stderr)
-        print("Läuft ein Display? Ist python3-tk installiert (import tkinter)?", file=sys.stderr)
+        # English on purpose: this lands in the terminal of whoever just cloned
+        # the repo, before any window (and any language setting) exists.
+        print(f"The graphical interface could not start: {exc}", file=sys.stderr)
+        if isinstance(exc, ImportError):
+            # Missing tkinter module OR missing libtk8.6.so — same cure.
+            print(
+                "Tk is missing. The graphical interface needs your distribution's "
+                "Tk libraries — install them, then run ./install.sh again:",
+                file=sys.stderr,
+            )
+            print(f"    {tk_install_hint()}", file=sys.stderr)
+        else:
+            print(
+                "Is a graphical desktop running? (DISPLAY or WAYLAND_DISPLAY set?)",
+                file=sys.stderr,
+            )
         raise SystemExit(1) from exc
 
 
